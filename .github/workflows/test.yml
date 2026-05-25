@@ -66,62 +66,21 @@ jobs:
       - name: cargo test --workspace
         run: cargo test --workspace --locked
 
-  compose-smoke:
-    name: Smoke — Docker Compose 60s boot
-    runs-on: ubuntu-latest
-    needs: [rust-test]
-    steps:
-      - uses: actions/checkout@v4
-      - name: validate compose config
-        id: validate
-        run: |
-          if [ -x infra/docker/validate-compose.sh ]; then
-            bash infra/docker/validate-compose.sh
-            echo "have_validator=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::infra/docker/validate-compose.sh not present; skipping config validation."
-            echo "have_validator=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: docker compose up
-        id: compose
-        run: |
-          if [ -f infra/docker/compose.yml ]; then
-            compose_file="infra/docker/compose.yml"
-          elif [ -f infra/docker/docker-compose.yml ]; then
-            compose_file="infra/docker/docker-compose.yml"
-          elif [ -f docker-compose.yml ]; then
-            compose_file="docker-compose.yml"
-          else
-            echo "::warning::compose file not present yet (Phase 1 deployment epic). Skipping smoke."
-            echo "started=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          docker compose -f "$compose_file" up -d
-          echo "compose_file=$compose_file" >> "$GITHUB_OUTPUT"
-          echo "started=true" >> "$GITHUB_OUTPUT"
-      - name: wait for healthy (≤60s)
-        if: steps.compose.outputs.started == 'true'
-        run: |
-          if [ ! -f scripts/wait-healthy.sh ]; then
-            echo "::warning::scripts/wait-healthy.sh not present yet. Skipping wait."
-            exit 0
-          fi
-          bash scripts/wait-healthy.sh 60
-      - name: tear down
-        if: always() && steps.compose.outputs.started == 'true'
-        run: docker compose -f "${{ steps.compose.outputs.compose_file }}" down -v || true
-
+  # NOTE: no compose-smoke job here. The public opengeo repo is Rust-only —
+  # `apps/web/` is intentionally excluded by scripts/publish-public.sh, so
+  # `compose.yml`'s `web` service can't be built. The full-stack smoke
+  # (postgres + redis + api + web) is exercised by the monorepo's CI at
+  # github.com/leandropalazzo/opengeo-workspace.
   ci-summary:
     name: CI summary
     runs-on: ubuntu-latest
-    needs: [rust-lint, rust-test, compose-smoke]
+    needs: [rust-lint, rust-test]
     if: always()
     steps:
       - name: gate
         run: |
           echo "rust-lint:       ${{ needs.rust-lint.result }}"
           echo "rust-test:       ${{ needs.rust-test.result }}"
-          echo "compose-smoke:   ${{ needs.compose-smoke.result }}"
           if [[ "${{ needs.rust-lint.result }}" != "success" || \
                 "${{ needs.rust-test.result }}" != "success" ]]; then
             exit 1
