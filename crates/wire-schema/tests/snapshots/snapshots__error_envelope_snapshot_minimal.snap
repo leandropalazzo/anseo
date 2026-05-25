@@ -1,0 +1,11 @@
+---
+source: crates/wire-schema/tests/snapshots.rs
+expression: envelope
+---
+{
+  "error": {
+    "type": "network_error",
+    "message": "DNS failure",
+    "request_id": "01J0000000000000000000000A"
+  }
+}

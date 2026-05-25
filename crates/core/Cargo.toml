@@ -1,0 +1,24 @@
+[package]
+name = "opengeo-core"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-bunyan-formatter = { workspace = true }
+ulid = { workspace = true }
+secrecy = { workspace = true }
+schemars = { workspace = true }
+utoipa = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+serde_json = { workspace = true }

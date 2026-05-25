@@ -1,0 +1,33 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Node / Next.js
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+.pnpm-store/
+*.tsbuildinfo
+next-env.d.ts
+
+# Playwright
+playwright-report/
+**/playwright-report/
+test-results/
+**/test-results/
+.playwright-cache/
+
+# Vitest coverage
+coverage/
+**/coverage/
+
+# OS / Editor
+.DS_Store
+.vscode/
+.idea/
+
+# Env
+.env
+.env.local
+.env.*.local

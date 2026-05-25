@@ -1,0 +1,20 @@
+[package]
+name = "opengeo-api"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "opengeo-api"
+path = "src/main.rs"
+
+[dependencies]
+opengeo-core = { path = "../../crates/core" }
+opengeo-wire-schema = { path = "../../crates/wire-schema" }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-bunyan-formatter = { workspace = true }
+anyhow = { workspace = true }

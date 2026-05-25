@@ -1,0 +1,14 @@
+---
+source: crates/wire-schema/tests/snapshots.rs
+expression: envelope
+---
+{
+  "error": {
+    "type": "provider_rate_limited",
+    "message": "OpenAI rate limit exceeded",
+    "details": {
+      "retry_after_seconds": 30
+    },
+    "request_id": "01J0000000000000000000000A"
+  }
+}
