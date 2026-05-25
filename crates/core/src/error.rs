@@ -43,9 +43,7 @@ impl From<ExitCode> for i32 {
 /// Phase 2 adds `ProviderUnsupportedModel` as a backwards-compatible variant.
 /// Adding it then is an additive enum extension — downstream code matching on
 /// this enum will need to handle the new variant.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, ToSchema,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[schemars(rename_all = "snake_case")]
 pub enum ProviderErrorKind {

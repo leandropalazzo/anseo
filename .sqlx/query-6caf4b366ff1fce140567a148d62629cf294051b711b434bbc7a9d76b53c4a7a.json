@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO prompt_runs (\n                id,\n                prompt_id,\n                provider,\n                provider_model_version,\n                provider_region,\n                started_at,\n                finished_at,\n                raw_response,\n                request_parameters,\n                status,\n                error_kind,\n                organization_id,\n                tenant_id,\n                created_at\n            )\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Jsonb",
+        "Jsonb",
+        "Text",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6caf4b366ff1fce140567a148d62629cf294051b711b434bbc7a9d76b53c4a7a"
+}

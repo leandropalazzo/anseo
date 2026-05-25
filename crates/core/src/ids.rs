@@ -59,9 +59,7 @@ macro_rules! ulid_newtype {
             fn schema_name() -> String {
                 stringify!($name).to_owned()
             }
-            fn json_schema(
-                gen: &mut schemars::gen::SchemaGenerator,
-            ) -> schemars::schema::Schema {
+            fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
                 let mut schema = <String as schemars::JsonSchema>::json_schema(gen);
                 if let schemars::schema::Schema::Object(ref mut obj) = schema {
                     obj.format = Some("ulid".into());
@@ -85,6 +83,38 @@ macro_rules! ulid_newtype {
         impl utoipa::ToSchema for $name {
             fn name() -> std::borrow::Cow<'static, str> {
                 std::borrow::Cow::Borrowed(stringify!($name))
+            }
+        }
+
+        // Postgres stores the ULID bytes in a `UUID` column. Round-tripping
+        // through `uuid::Uuid` is a byte-identity move (both are 16-byte
+        // big-endian), so chronological ordering of `Ulid` survives as
+        // chronological ordering of the UUID column (Story 1.3 AC-9).
+        #[cfg(feature = "sqlx")]
+        impl sqlx::Type<sqlx::Postgres> for $name {
+            fn type_info() -> sqlx::postgres::PgTypeInfo {
+                <uuid::Uuid as sqlx::Type<sqlx::Postgres>>::type_info()
+            }
+        }
+
+        #[cfg(feature = "sqlx")]
+        impl<'r> sqlx::Decode<'r, sqlx::Postgres> for $name {
+            fn decode(
+                value: sqlx::postgres::PgValueRef<'r>,
+            ) -> Result<Self, sqlx::error::BoxDynError> {
+                let uuid = <uuid::Uuid as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
+                Ok($name(ulid::Ulid::from_bytes(*uuid.as_bytes())))
+            }
+        }
+
+        #[cfg(feature = "sqlx")]
+        impl<'q> sqlx::Encode<'q, sqlx::Postgres> for $name {
+            fn encode_by_ref(
+                &self,
+                buf: &mut sqlx::postgres::PgArgumentBuffer,
+            ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+                let uuid = uuid::Uuid::from_bytes(self.0.to_bytes());
+                <uuid::Uuid as sqlx::Encode<sqlx::Postgres>>::encode_by_ref(&uuid, buf)
             }
         }
     };
@@ -141,5 +171,18 @@ mod tests {
         assert!(!json.contains(':'));
         let restored: MentionId = serde_json::from_str(&json).unwrap();
         assert_eq!(id, restored);
+    }
+
+    #[cfg(feature = "sqlx")]
+    #[test]
+    fn ulid_uuid_bytes_round_trip() {
+        // Guards the AC-9 bridge: an `Ulid` lowered to `uuid::Uuid` and back
+        // must be byte-identical, otherwise the `sqlx::Decode` impl would
+        // silently corrupt IDs read from a `UUID` column.
+        let id = PromptRunId::new();
+        let uuid = uuid::Uuid::from_bytes(id.0.to_bytes());
+        let recovered = PromptRunId(ulid::Ulid::from_bytes(*uuid.as_bytes()));
+        assert_eq!(id, recovered);
+        assert_eq!(id.0.to_bytes(), *uuid.as_bytes());
     }
 }

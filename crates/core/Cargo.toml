@@ -6,6 +6,12 @@ rust-version.workspace = true
 license.workspace = true
 publish = false
 
+[features]
+# Enables `sqlx::Type`/`Encode`/`Decode` impls on the ULID newtypes so they can
+# be used directly in `sqlx::query_as!` against Postgres `UUID` columns
+# (Story 1.3 AC-9). Gated so non-storage consumers stay lean.
+sqlx = ["dep:sqlx", "dep:uuid"]
+
 [dependencies]
 anyhow = { workspace = true }
 thiserror = { workspace = true }
@@ -18,6 +24,8 @@ ulid = { workspace = true }
 secrecy = { workspace = true }
 schemars = { workspace = true }
 utoipa = { workspace = true }
+sqlx = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta = { workspace = true }
