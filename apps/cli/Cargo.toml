@@ -7,13 +7,33 @@ license.workspace = true
 publish = false
 
 [[bin]]
-name = "opengeo"
+name = "ogeo"
 path = "src/main.rs"
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
-opengeo-core = { path = "../../crates/core" }
+opengeo-core = { path = "../../crates/core", features = ["sqlx"] }
+opengeo-providers = { path = "../../crates/providers" }
+opengeo-storage = { path = "../../crates/storage" }
 opengeo-wire-schema = { path = "../../crates/wire-schema" }
+tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-bunyan-formatter = { workspace = true }
 anyhow = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+dialoguer = { workspace = true }
+is-terminal = { workspace = true }
+thiserror = { workspace = true }
+rpassword = { workspace = true }
+chrono = { workspace = true }
+
+[dev-dependencies]
+assert_cmd = { workspace = true }
+predicates = { workspace = true }
+tempfile = { workspace = true }

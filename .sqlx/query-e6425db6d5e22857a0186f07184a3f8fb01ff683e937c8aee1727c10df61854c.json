@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            pr.id                             AS \"id!: PromptRunId\",\n            p.name                            AS \"prompt_name!: String\",\n            pr.provider                       AS \"provider!: String\",\n            pr.provider_model_version         AS \"provider_model_version!: String\",\n            pr.started_at                     AS \"started_at!: DateTime<Utc>\",\n            pr.status                         AS \"status!: String\",\n            pr.error_kind                     AS \"error_kind: String\"\n        FROM prompt_runs pr\n        JOIN prompts p ON p.id = pr.prompt_id\n        WHERE p.project_id = $1\n        ORDER BY pr.started_at DESC\n        LIMIT $2 OFFSET $3\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: PromptRunId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "prompt_name!: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "provider!: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "provider_model_version!: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "started_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "status!: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "error_kind: String",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "e6425db6d5e22857a0186f07184a3f8fb01ff683e937c8aee1727c10df61854c"
+}

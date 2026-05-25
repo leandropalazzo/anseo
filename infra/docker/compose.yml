@@ -1,0 +1,130 @@
+# OpenGEO Phase 1 — local Docker Compose stack
+#
+# Brings up the Phase 1 services for local development and the FR-22 release-gate
+# smoke test. App images (api / worker / web) are placeholders until the
+# corresponding Phase 1 stories build them; healthcheck placeholders are intentional
+# (Epic 1 Story 1.4 AC).
+#
+# All host-port bindings use 127.0.0.1 to keep the stack localhost-only by default
+# (Story 1.4 AC: "Dashboard and API bindings are localhost-only by default").
+# Override via OGEO_BIND_HOST for non-default deployments.
+
+name: opengeo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-opengeo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-opengeo}
+      POSTGRES_DB: ${POSTGRES_DB:-opengeo}
+    ports:
+      - "${OGEO_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-opengeo} -d ${POSTGRES_DB:-opengeo}"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${OGEO_BIND_HOST:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 3s
+
+  api:
+    # Story 4.5: real Axum API. Override OPENGEO_API_IMAGE to use a published
+    # image; default `build:` produces a local image from apps/api/Dockerfile.
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    image: ${OPENGEO_API_IMAGE:-opengeo/api:dev}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-opengeo}:${POSTGRES_PASSWORD:-opengeo}@postgres:5432/${POSTGRES_DB:-opengeo}
+      REDIS_URL: redis://redis:6379
+      OGEO_BIND_ADDR: 0.0.0.0:8080
+      RUST_LOG: ${RUST_LOG:-info}
+      # Path to opengeo.yaml inside the container. The API derives its
+      # project_id from this file's brand.name (Story 2.1's stable-ID hash),
+      # so it must match the YAML the CLI used when seeding data.
+      OGEO_CONFIG: /opengeo.yaml
+    volumes:
+      # Mount the project's opengeo.yaml read-only so api + future cli sidecars
+      # see the same canonical declaration. Path is overridable via the
+      # OGEO_PROJECT_CONFIG env var on the host; default points at the
+      # screenshot/demo fixture.
+      - ${OGEO_PROJECT_CONFIG:-./fixture-opengeo.yaml}:/opengeo.yaml:ro
+    ports:
+      - "${OGEO_BIND_HOST:-127.0.0.1}:${OGEO_API_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  worker:
+    # Placeholder until apps/worker ships its Dockerfile.
+    image: ${OPENGEO_WORKER_IMAGE:-busybox:1.36}
+    command: ["sh", "-c", "echo 'opengeo-worker placeholder; replace with apps/worker image'; sleep infinity"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-opengeo}:${POSTGRES_PASSWORD:-opengeo}@postgres:5432/${POSTGRES_DB:-opengeo}
+      REDIS_URL: redis://redis:6379
+      RUST_LOG: ${RUST_LOG:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+      start_period: 5s
+
+  web:
+    # Story 4.1 + 4.5: Next.js dashboard. Override OPENGEO_WEB_IMAGE to use a
+    # published image; default `build:` produces a local image from apps/web.
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    image: ${OPENGEO_WEB_IMAGE:-opengeo/web:dev}
+    restart: unless-stopped
+    environment:
+      OGEO_API_BASE_URL: http://api:8080
+    ports:
+      - "${OGEO_BIND_HOST:-127.0.0.1}:${OGEO_WEB_PORT:-5173}:5173"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5173 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+
+volumes:
+  postgres-data:
+  redis-data:

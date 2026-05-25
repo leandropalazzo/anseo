@@ -17,6 +17,8 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+sha2 = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-bunyan-formatter = { workspace = true }
@@ -24,9 +26,12 @@ ulid = { workspace = true }
 secrecy = { workspace = true }
 schemars = { workspace = true }
 utoipa = { workspace = true }
+keyring = { workspace = true }
+age = { workspace = true }
 sqlx = { workspace = true, optional = true }
 uuid = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 serde_json = { workspace = true }
+tempfile = { workspace = true }

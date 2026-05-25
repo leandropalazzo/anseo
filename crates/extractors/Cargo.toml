@@ -5,3 +5,14 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish = false
+
+[dependencies]
+opengeo-core = { path = "../core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+url = "2"
+regex = "1"
+once_cell = "1"
+
+[dev-dependencies]
+insta = { workspace = true }

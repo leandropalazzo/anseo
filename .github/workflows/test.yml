@@ -64,15 +64,27 @@ jobs:
     needs: [rust-test]
     steps:
       - uses: actions/checkout@v4
+      - name: validate compose config
+        id: validate
+        run: |
+          if [ -x infra/docker/validate-compose.sh ]; then
+            bash infra/docker/validate-compose.sh
+            echo "have_validator=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::infra/docker/validate-compose.sh not present; skipping config validation."
+            echo "have_validator=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: docker compose up
         id: compose
         run: |
-          if [ -f docker-compose.yml ]; then
-            compose_file="docker-compose.yml"
+          if [ -f infra/docker/compose.yml ]; then
+            compose_file="infra/docker/compose.yml"
           elif [ -f infra/docker/docker-compose.yml ]; then
             compose_file="infra/docker/docker-compose.yml"
+          elif [ -f docker-compose.yml ]; then
+            compose_file="docker-compose.yml"
           else
-            echo "::warning::docker-compose.yml not present yet (Phase 1 deployment epic). Skipping smoke."
+            echo "::warning::compose file not present yet (Phase 1 deployment epic). Skipping smoke."
             echo "started=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi

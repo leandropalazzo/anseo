@@ -13,11 +13,21 @@
 //! API keys and other in-memory secrets MUST be held in [`secret::Secret`], which redacts
 //! in `Debug`/`Display` and refuses to `Serialize`. See NFR-6 (Privacy-by-default).
 
+pub mod config;
 pub mod error;
 pub mod ids;
 pub mod secret;
+pub mod secret_store;
 pub mod telemetry;
 
+pub use config::{
+    BrandConfig, CompetitorConfig, Config, ConfigError, PromptConfig, ProviderConfig, ProviderName,
+    SCHEMA_VERSION_V0_1,
+};
 pub use error::{ExitCode, OpenGeoError, ProviderErrorKind};
 pub use ids::{CitationId, MentionId, ProjectId, PromptId, PromptRunId, RequestId};
 pub use secret::Secret;
+pub use secret_store::{
+    default_chain, AgeFileStore, ChainedStore, InMemoryStore, KeyringStore, SecretStore,
+    SecretStoreError, AGE_PASSPHRASE_ENV, KEYRING_SERVICE,
+};

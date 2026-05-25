@@ -10,11 +10,22 @@ publish = false
 name = "opengeo-api"
 path = "src/main.rs"
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
-opengeo-core = { path = "../../crates/core" }
+opengeo-core = { path = "../../crates/core", features = ["sqlx"] }
+opengeo-storage = { path = "../../crates/storage" }
+opengeo-analytics = { path = "../../crates/analytics" }
 opengeo-wire-schema = { path = "../../crates/wire-schema" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-bunyan-formatter = { workspace = true }
 anyhow = { workspace = true }
+axum = "0.7"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+chrono = { workspace = true }
