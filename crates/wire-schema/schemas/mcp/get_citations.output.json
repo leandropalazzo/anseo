@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetCitationsOutput",
+  "type": "object",
+  "required": [
+    "items",
+    "trace_id",
+    "window"
+  ],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/CitationSummaryItem"
+      }
+    },
+    "trace_id": {
+      "type": "string"
+    },
+    "window": {
+      "$ref": "#/definitions/Window"
+    }
+  },
+  "definitions": {
+    "CitationSummaryItem": {
+      "type": "object",
+      "required": [
+        "domain",
+        "frequency",
+        "sample_prompt_run_ids",
+        "source_type"
+      ],
+      "properties": {
+        "domain": {
+          "type": "string"
+        },
+        "frequency": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "sample_prompt_run_ids": {
+          "description": "At most 5 sample prompt-run ULIDs.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source_type": {
+          "description": "`documentation|blog|news|forum|other`. Free-form string for extractor- plugin headroom (§6.1).",
+          "type": "string"
+        }
+      }
+    },
+    "Window": {
+      "description": "Time window vocabulary for trend/visibility/citation queries. Matches the `/v1/.../?window=` query param vocabulary.",
+      "type": "string",
+      "enum": [
+        "7d",
+        "30d",
+        "all"
+      ]
+    }
+  }
+}

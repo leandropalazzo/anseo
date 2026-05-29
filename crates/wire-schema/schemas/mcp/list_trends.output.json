@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ListTrendsOutput",
+  "type": "object",
+  "required": [
+    "trace_id",
+    "trends",
+    "window"
+  ],
+  "properties": {
+    "trace_id": {
+      "type": "string"
+    },
+    "trends": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/TrendRecord"
+      }
+    },
+    "window": {
+      "$ref": "#/definitions/Window"
+    }
+  },
+  "definitions": {
+    "TrendDelta": {
+      "type": "object",
+      "required": [
+        "from",
+        "metric",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": "number",
+          "format": "double"
+        },
+        "metric": {
+          "type": "string"
+        },
+        "to": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "TrendRecord": {
+      "type": "object",
+      "required": [
+        "delta",
+        "detected_at",
+        "evidence_prompt_run_ids",
+        "prompt_id",
+        "prompt_name",
+        "provider",
+        "significance",
+        "trend_kind"
+      ],
+      "properties": {
+        "delta": {
+          "$ref": "#/definitions/TrendDelta"
+        },
+        "detected_at": {
+          "description": "RFC 3339 UTC timestamp.",
+          "type": "string"
+        },
+        "evidence_prompt_run_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "prompt_id": {
+          "type": "string"
+        },
+        "prompt_name": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "significance": {
+          "type": "number",
+          "format": "float"
+        },
+        "trend_kind": {
+          "description": "Free-form string for Analytics-plugin namespacing (`plugin:<name>:<kind>`). Built-ins: `threshold_regression`, `statistical_anomaly`, `response_change`. See architecture §6.1.",
+          "type": "string"
+        }
+      }
+    },
+    "Window": {
+      "description": "Time window vocabulary for trend/visibility/citation queries. Matches the `/v1/.../?window=` query param vocabulary.",
+      "type": "string",
+      "enum": [
+        "7d",
+        "30d",
+        "all"
+      ]
+    }
+  }
+}

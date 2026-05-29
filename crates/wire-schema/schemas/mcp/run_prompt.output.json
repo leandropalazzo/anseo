@@ -1,0 +1,215 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RunPromptOutput",
+  "type": "object",
+  "required": [
+    "non_deterministic_pipeline",
+    "prompt_id",
+    "results",
+    "trace_id"
+  ],
+  "properties": {
+    "non_deterministic_pipeline": {
+      "description": "Always `true` for `run_prompt` — provider calls are non-deterministic. Surfaced so agent loops can decide whether to cache.",
+      "type": "boolean"
+    },
+    "prompt_id": {
+      "type": "string"
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/RunPromptResult"
+      }
+    },
+    "trace_id": {
+      "description": "Correlation ID echoed from `X-OpenGEO-Request-Id`.",
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "McpCitationRecord": {
+      "description": "Minimal citation record carried in MCP tool outputs.\n\nSPEC NOTE: same reconciliation deferred as [`McpMentionRecord`] — FR-4 wire-schema struct will replace this when it lands.",
+      "type": "object",
+      "required": [
+        "domain",
+        "url"
+      ],
+      "properties": {
+        "domain": {
+          "type": "string"
+        },
+        "extraction_confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "extraction_method": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "type": "string"
+        }
+      }
+    },
+    "McpMentionRecord": {
+      "description": "Minimal mention record carried in MCP tool outputs.\n\nSPEC NOTE: architecture-phase3-mcp-server.md §3.1 references \"MentionRecord from wire-schema, FR-3 shape\". FR-3 DTOs do not yet live in `crates/wire-schema` at the time Story 0.6 lands. The fields below are the minimal extraction-stage shape PRD §6.3 commits to; they will be reconciled with the FR-3 wire-schema struct when it lands (no rename required — fields match by name).",
+      "type": "object",
+      "required": [
+        "mention_count",
+        "subject"
+      ],
+      "properties": {
+        "extraction_confidence": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "extraction_method": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mention_count": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "ranking": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "subject": {
+          "type": "string"
+        }
+      }
+    },
+    "Ranking": {
+      "description": "Per-result ranking carried inside `run_prompt` results.",
+      "type": "object",
+      "required": [
+        "position",
+        "total_candidates"
+      ],
+      "properties": {
+        "position": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "total_candidates": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
+    "ResultError": {
+      "description": "Per-provider per-result error, used inside `run_prompt` results when `status != \"ok\"`. Architecturally distinct from `McpError`: this is a *per-result* error embedded in a successful tool response.",
+      "type": "object",
+      "required": [
+        "message",
+        "type"
+      ],
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      }
+    },
+    "RunPromptResult": {
+      "type": "object",
+      "required": [
+        "citations",
+        "duration_ms",
+        "mentions",
+        "model",
+        "prompt_run_id",
+        "provider",
+        "status"
+      ],
+      "properties": {
+        "citations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/McpCitationRecord"
+          }
+        },
+        "duration_ms": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "error": {
+          "description": "Present only when `status != \"ok\"`.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ResultError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mentions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/McpMentionRecord"
+          }
+        },
+        "model": {
+          "type": "string"
+        },
+        "prompt_run_id": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "ranking": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Ranking"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "$ref": "#/definitions/RunPromptStatus"
+        }
+      }
+    },
+    "RunPromptStatus": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "failed",
+        "partial",
+        "capped"
+      ]
+    }
+  }
+}

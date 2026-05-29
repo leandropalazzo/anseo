@@ -1,0 +1,129 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetVisibilityOutput",
+  "type": "object",
+  "required": [
+    "series",
+    "trace_id",
+    "window"
+  ],
+  "properties": {
+    "empty_reason": {
+      "description": "`\"project_has_no_prompts\"` only; per-series empty reasons live on [`VisibilitySeriesSummary`].",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "series": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/VisibilitySeries"
+      }
+    },
+    "trace_id": {
+      "type": "string"
+    },
+    "window": {
+      "$ref": "#/definitions/Window"
+    }
+  },
+  "definitions": {
+    "VisibilityPoint": {
+      "type": "object",
+      "required": [
+        "date",
+        "mention_count",
+        "provider",
+        "visibility_score"
+      ],
+      "properties": {
+        "date": {
+          "description": "ISO 8601 date `YYYY-MM-DD`.",
+          "type": "string"
+        },
+        "mention_count": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "provider": {
+          "type": "string"
+        },
+        "ranking": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "visibility_score": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "VisibilitySeries": {
+      "type": "object",
+      "required": [
+        "points",
+        "prompt_id",
+        "prompt_name",
+        "summary"
+      ],
+      "properties": {
+        "points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/VisibilityPoint"
+          }
+        },
+        "prompt_id": {
+          "type": "string"
+        },
+        "prompt_name": {
+          "type": "string"
+        },
+        "summary": {
+          "$ref": "#/definitions/VisibilitySeriesSummary"
+        }
+      }
+    },
+    "VisibilitySeriesSummary": {
+      "type": "object",
+      "properties": {
+        "delta_vs_prior_window": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "empty_reason": {
+          "description": "`\"no_prompt_runs_in_window\"` or null.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "latest": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      }
+    },
+    "Window": {
+      "description": "Time window vocabulary for trend/visibility/citation queries. Matches the `/v1/.../?window=` query param vocabulary.",
+      "type": "string",
+      "enum": [
+        "7d",
+        "30d",
+        "all"
+      ]
+    }
+  }
+}

@@ -15,6 +15,7 @@
 // $ref is intentional documentation that downstream codegen consumes.
 
 pub mod error;
+pub mod mcp;
 pub mod webhook;
 
 pub use error::{ApiError, ErrorEnvelope};

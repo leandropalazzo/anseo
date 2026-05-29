@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CompareBrandsOutput",
+  "type": "object",
+  "required": [
+    "brand",
+    "competitors",
+    "rows",
+    "trace_id",
+    "window"
+  ],
+  "properties": {
+    "brand": {
+      "type": "string"
+    },
+    "competitors": {
+      "description": "YAML declaration order — deterministic per §3.3 determinism contract.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/CompareBrandsRow"
+      }
+    },
+    "trace_id": {
+      "type": "string"
+    },
+    "window": {
+      "$ref": "#/definitions/Window"
+    }
+  },
+  "definitions": {
+    "CompareBrandsCell": {
+      "type": "object",
+      "required": [
+        "mention_count",
+        "subject"
+      ],
+      "properties": {
+        "mention_count": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "ranking": {
+          "description": "`null` when subject absent (NOT omitted — §3.3 contract).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "subject": {
+          "type": "string"
+        }
+      }
+    },
+    "CompareBrandsRow": {
+      "type": "object",
+      "required": [
+        "cells",
+        "prompt_id",
+        "prompt_name",
+        "provider"
+      ],
+      "properties": {
+        "cells": {
+          "description": "Ordered `[brand, ...competitors_in_yaml_order]`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CompareBrandsCell"
+          }
+        },
+        "prompt_id": {
+          "type": "string"
+        },
+        "prompt_name": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        }
+      }
+    },
+    "Window": {
+      "description": "Time window vocabulary for trend/visibility/citation queries. Matches the `/v1/.../?window=` query param vocabulary.",
+      "type": "string",
+      "enum": [
+        "7d",
+        "30d",
+        "all"
+      ]
+    }
+  }
+}

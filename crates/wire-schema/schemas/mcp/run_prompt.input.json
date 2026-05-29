@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RunPromptInput",
+  "type": "object",
+  "required": [
+    "project",
+    "prompt"
+  ],
+  "properties": {
+    "idempotency_key": {
+      "description": "Optional ULID. If absent, the server generates one and forwards it as `Idempotency-Key:` to `POST /v1/prompt-runs`. Window: 24h (see OQ-MCP-3, default-if-undecided).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "project": {
+      "description": "Required per AD-Phase3-MCP-ProjectScoping. Single-project servers default-resolve to the configured project name or the literal \"default\".",
+      "type": "string"
+    },
+    "prompt": {
+      "description": "Prompt name OR ULID.",
+      "type": "string"
+    },
+    "providers": {
+      "description": "Optional — defaults to the project's configured provider set.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

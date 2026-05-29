@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GetCitationsInput",
+  "type": "object",
+  "required": [
+    "project"
+  ],
+  "properties": {
+    "project": {
+      "type": "string"
+    },
+    "top_n": {
+      "description": "Optional; default 50; max 500 (validated server-side).",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "window": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Window"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Window": {
+      "description": "Time window vocabulary for trend/visibility/citation queries. Matches the `/v1/.../?window=` query param vocabulary.",
+      "type": "string",
+      "enum": [
+        "7d",
+        "30d",
+        "all"
+      ]
+    }
+  }
+}

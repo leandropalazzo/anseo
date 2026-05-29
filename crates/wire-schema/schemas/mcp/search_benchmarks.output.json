@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SearchBenchmarksOutput",
+  "type": "object",
+  "required": [
+    "hits",
+    "trace_id"
+  ],
+  "properties": {
+    "hits": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/BenchmarkHit"
+      }
+    },
+    "trace_id": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "BenchmarkHit": {
+      "type": "object",
+      "required": [
+        "category",
+        "finding",
+        "link_to_public_dashboard",
+        "source"
+      ],
+      "properties": {
+        "category": {
+          "description": "`fastest_growing_brands|most_cited_domains|recommendation_differences|<other>`.",
+          "type": "string"
+        },
+        "finding": {
+          "description": "Category-specific JSON shape (per architecture §3.6 + §11)."
+        },
+        "link_to_public_dashboard": {
+          "type": "string"
+        },
+        "source": {
+          "description": "Always `\"public_benchmark_dataset\"` in Phase 3.",
+          "type": "string"
+        }
+      }
+    }
+  }
+}
