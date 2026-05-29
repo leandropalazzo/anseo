@@ -11,6 +11,7 @@ pub mod dashboard;
 pub mod db;
 pub mod init;
 pub mod login;
+pub mod plugin;
 pub mod prompt;
 pub mod report;
 pub mod run;

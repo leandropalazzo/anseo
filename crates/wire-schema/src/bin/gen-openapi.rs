@@ -28,8 +28,8 @@ fn build_spec() -> serde_json::Value {
         "openapi": "3.0.3",
         "info": {
             "title": "OpenGEO Public REST API",
-            "version": "0.3.0",
-            "description": "Phase 2 v1 surface — read endpoints, prompt run submission, and the SSE event stream. Auth: X-OpenGEO-API-Key header carrying an `ogeo_<32 chars>` key. Story 0.11 (Phase 3 substrate) adds the optional X-OpenGEO-Project header — Phase 2 accepts it for forward compatibility; Phase 4 will require it."
+            "version": "0.3.1",
+            "description": "Phase 2 v1 surface — read endpoints, prompt run submission, and the SSE event stream. Auth: X-OpenGEO-API-Key header carrying an `ogeo_<32 chars>` key. Story 0.11 (Phase 3 substrate) adds the optional X-OpenGEO-Project header — Phase 2 accepts it for forward compatibility; Phase 4 will require it. Story 15.1 adds three `/v1/setup/*` endpoints (deployment UX substrate)."
         },
         "servers": [
             {
@@ -139,6 +139,96 @@ fn build_spec() -> serde_json::Value {
                         "subject": { "type": "string" },
                         "ranking": { "type": "integer", "nullable": true, "minimum": 1 },
                         "mention_count": { "type": "integer", "minimum": 0 }
+                    }
+                },
+                "SetupStatus": {
+                    "type": "object",
+                    "description": "Story 15.1 — best-effort status probe across all deployment surfaces. Always returned 200; individual sections carry `state: \"unknown\"` + an `error` string on failure (per-probe timeout: 1s; 500ms for Docker).",
+                    "required": ["postgres", "clickhouse", "worker", "webhook_target", "api_keys", "docker"],
+                    "properties": {
+                        "postgres": {
+                            "type": "object",
+                            "required": ["state"],
+                            "properties": {
+                                "state": { "type": "string", "enum": ["healthy", "degraded", "unknown"] },
+                                "schema_version": { "type": "integer", "nullable": true },
+                                "row_count_estimate": { "type": "integer", "nullable": true },
+                                "last_write_at": { "type": "string", "format": "date-time", "nullable": true },
+                                "error": { "type": "string" }
+                            }
+                        },
+                        "clickhouse": {
+                            "type": "object",
+                            "required": ["state"],
+                            "properties": {
+                                "state": { "type": "string", "enum": ["healthy", "degraded", "not_configured", "unknown"] },
+                                "url": { "type": "string", "nullable": true },
+                                "row_count": { "type": "integer", "nullable": true },
+                                "etl_lag_seconds": { "type": "number", "nullable": true },
+                                "error": { "type": "string" }
+                            }
+                        },
+                        "worker": {
+                            "type": "object",
+                            "required": ["state"],
+                            "properties": {
+                                "state": { "type": "string", "enum": ["running", "stopped", "unknown"] },
+                                "uptime_seconds": { "type": "integer", "nullable": true },
+                                "queue_depth": { "type": "integer", "nullable": true },
+                                "error": { "type": "string" }
+                            }
+                        },
+                        "webhook_target": {
+                            "type": "object",
+                            "required": ["configured"],
+                            "properties": {
+                                "configured": { "type": "boolean" },
+                                "last_delivery_at": { "type": "string", "format": "date-time", "nullable": true },
+                                "last_status": { "type": "string", "nullable": true },
+                                "error": { "type": "string" }
+                            }
+                        },
+                        "api_keys": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["provider", "configured"],
+                                "properties": {
+                                    "provider": { "type": "string" },
+                                    "configured": { "type": "boolean" },
+                                    "last_used_at": { "type": "string", "format": "date-time", "nullable": true }
+                                }
+                            }
+                        },
+                        "docker": {
+                            "type": "object",
+                            "required": ["present"],
+                            "properties": {
+                                "present": { "type": "boolean" },
+                                "version": { "type": "string", "nullable": true },
+                                "error": { "type": "string" }
+                            }
+                        }
+                    }
+                },
+                "ClickHouseInstallAccepted": {
+                    "type": "object",
+                    "description": "Story 15.1 — 202 response from POST /v1/setup/clickhouse/install. `install_id` is a ULID the caller can use to subscribe to the SSE progress stream. MOCK in 15.1; real Docker calls land in Story 15.3.",
+                    "required": ["install_id", "stream"],
+                    "properties": {
+                        "install_id": { "type": "string", "description": "ULID identifying the install." },
+                        "stream": { "type": "string", "description": "Path to the SSE progress stream." }
+                    }
+                },
+                "ClickHouseInstallEvent": {
+                    "type": "object",
+                    "description": "Story 15.1 — one frame of the SSE install stream. Step ordering: docker_detected → image_pulling → container_starting → provisioning_user → applying_migrations → running_parity_test → complete.",
+                    "required": ["step", "progress", "log_line", "at"],
+                    "properties": {
+                        "step": { "type": "string", "enum": ["docker_detected", "image_pulling", "container_starting", "provisioning_user", "applying_migrations", "running_parity_test", "complete"] },
+                        "progress": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+                        "log_line": { "type": "string" },
+                        "at": { "type": "string", "format": "date-time" }
                     }
                 },
                 "CreatePromptRunResponse": {
@@ -272,6 +362,63 @@ fn build_spec() -> serde_json::Value {
                             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
                         },
                         "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                }
+            },
+            "/v1/setup/status": {
+                "get": {
+                    "operationId": "setupStatus",
+                    "summary": "Story 15.1 — synchronous status probe across Postgres, ClickHouse, worker, webhook target, API keys, and Docker. Always returns 200; individual sections report `state: \"unknown\"` on probe failure or timeout.",
+                    "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupStatus" } } }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                }
+            },
+            "/v1/setup/clickhouse/install": {
+                "post": {
+                    "operationId": "clickhouseInstall",
+                    "summary": "Story 15.1 — kick off (MOCK) ClickHouse local-install state machine. Returns 202 with a ULID and an SSE stream URL. Real Docker calls land in Story 15.3.",
+                    "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" }
+                    ],
+                    "responses": {
+                        "202": {
+                            "description": "Accepted",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ClickHouseInstallAccepted" } } }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                }
+            },
+            "/v1/setup/clickhouse/install-stream": {
+                "get": {
+                    "operationId": "clickhouseInstallStream",
+                    "summary": "Story 15.1 — SSE stream of install progress events keyed by `id` (the ULID returned from POST /v1/setup/clickhouse/install). Closes when state reaches `complete` or `failed`.",
+                    "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" },
+                        { "name": "id", "in": "query", "required": true, "schema": { "type": "string", "description": "Install ULID." } }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "text/event-stream — each frame is a ClickHouseInstallEvent serialised as the SSE `data:` field.",
+                            "content": { "text/event-stream": { "schema": { "$ref": "#/components/schemas/ClickHouseInstallEvent" } } }
+                        },
+                        "400": {
+                            "description": "Malformed `id` (not a ULID).",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" },
+                        "404": {
+                            "description": "Unknown install `id` — POST /v1/setup/clickhouse/install first.",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+                        }
                     }
                 }
             },

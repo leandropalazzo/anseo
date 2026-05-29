@@ -5,7 +5,9 @@
 pub mod extractors;
 pub mod middleware;
 pub mod routes;
+pub mod setup_probe;
 
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -15,8 +17,11 @@ use opengeo_core::{Config, ProjectId};
 use opengeo_providers::ProviderRegistry;
 use opengeo_scheduler::events::LifecycleEvent;
 use opengeo_storage::Storage;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, RwLock};
 use tower_http::cors::{Any, CorsLayer};
+use ulid::Ulid;
+
+use crate::routes::setup::InstallState;
 
 use crate::middleware::auth::require_api_key;
 
@@ -47,6 +52,13 @@ pub struct AppState {
     /// value. Phase 4 multi-project will replace this with a resolver
     /// over the projects table.
     pub configured_project: Arc<String>,
+    /// Story 15.1 — in-memory progress map for `POST /v1/setup/clickhouse/install`.
+    /// Keyed by the install `ulid` returned in the 202 response; populated by
+    /// the background mock state machine in `routes::setup`. Lives in
+    /// `AppState` so the SSE stream handler can find the same install across
+    /// requests. The map is intentionally process-local — the install flow
+    /// is operator-driven, not multi-instance.
+    pub setup_install_state: Arc<RwLock<HashMap<Ulid, InstallState>>>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -91,6 +103,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::anomalies::v1_router())
         .merge(routes::comparisons::v1_router())
         .merge(routes::schedules::v1_router())
+        .merge(routes::setup::v1_router())
         .merge(routes::prompts_similarity::v1_router())
         .merge(routes::events::router_under_v1_relative())
         // Story 0.11 — X-OpenGEO-Project header substrate. Layered

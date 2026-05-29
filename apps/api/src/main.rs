@@ -112,6 +112,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config: loaded_config,
         provider_registry,
         configured_project,
+        setup_install_state: std::sync::Arc::new(tokio::sync::RwLock::new(
+            std::collections::HashMap::new(),
+        )),
     };
     let app = router(state);
 

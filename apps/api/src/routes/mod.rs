@@ -10,5 +10,6 @@ pub mod prompts;
 pub mod prompts_similarity;
 pub mod runs;
 pub mod schedules;
+pub mod setup;
 pub mod test_seed;
 pub mod visibility;

@@ -52,6 +52,9 @@ async fn api_router_builds_with_minimal_state() {
         config: None,
         provider_registry: None,
         configured_project: std::sync::Arc::new("default".to_string()),
+        setup_install_state: std::sync::Arc::new(tokio::sync::RwLock::new(
+            std::collections::HashMap::new(),
+        )),
     };
     let _r = router(state);
     // No assertions needed: the test passes by building. If routes::test_seed

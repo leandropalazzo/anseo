@@ -1,0 +1,158 @@
+# OpenGEO Phase 3 — live perf-ladder Compose overlay (Story 0.2).
+#
+# Brings up the substrate needed to run the live webhook NFR ladder
+# (`scripts/perf-live-burst.sh` + `tests/load/k6/scenarios/webhook_burst_live.js`)
+# WITHOUT depending on the full Phase 1 `compose.yml`. This overlay is
+# standalone — it boots its own Postgres + ClickHouse + api + worker +
+# reference webhook receiver on isolated ports/volumes so the perf run
+# never collides with a developer's running dev stack.
+#
+# Why a separate file (not `-f compose.yml -f compose.perf.yaml`)?
+#   1. The Phase 1 file ships a Next.js `web` service we don't need for
+#      perf and which dominates build time.
+#   2. We want fixed, predictable port mappings (18080 / 19000 / etc.)
+#      so the harness can hard-code them without env-var dance.
+#   3. The perf overlay must be runnable on a CI box that never ran the
+#      dev stack — overlay merging requires the base file to exist.
+#
+# Reference webhook receiver
+# --------------------------
+# We picked **kennethreitz/httpbin** over an nginx+lua sidecar because:
+#   - httpbin already ships a `/anything` endpoint that 200s on any
+#     verb/body — zero config to match arbitrary webhook payloads.
+#   - It's a single small image (~30 MB) on Docker Hub, no build step.
+#   - Delivery-side latency for this story is measured TWO ways:
+#       (a) k6 wall-clock (Date.now() at POST → Date.now() at 202).
+#       (b) the `webhook_deliveries.created_at` ↔ `delivered_at` columns
+#           recorded by the worker once it's POSTed to the receiver.
+#     httpbin is the receiver for (b); we don't need lua latency log
+#     because the worker already records `delivered_at` server-side.
+#
+# Usage
+# -----
+#   docker compose -f infra/docker/compose.perf.yaml up -d --wait
+#   bash scripts/perf-live-burst.sh
+#   docker compose -f infra/docker/compose.perf.yaml down -v
+#
+# All host ports bind to 127.0.0.1 to keep the perf stack localhost-only.
+
+name: opengeo-perf
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: opengeo
+      POSTGRES_PASSWORD: opengeo
+      POSTGRES_DB: opengeo
+    ports:
+      - "127.0.0.1:25432:5432"
+    volumes:
+      - perf-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opengeo -d opengeo"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  clickhouse:
+    # Story 14.1 ClickHouseMetricsStore target — perf ladder writes
+    # webhook_deliveries to Postgres, but the worker may emit analytics
+    # rows here on the hot path. Keep it on so we measure realistic
+    # backpressure.
+    image: clickhouse/clickhouse-server:24.3-alpine
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_USER: opengeo
+      CLICKHOUSE_PASSWORD: opengeo
+      CLICKHOUSE_DB: opengeo_analytics
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "127.0.0.1:28123:8123"
+      - "127.0.0.1:29000:9000"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - perf-clickhouse-data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  webhook-receiver:
+    # Reference webhook sink. httpbin's /anything endpoint returns 200
+    # for any verb and echoes the body — exactly what the worker's
+    # webhook dispatcher expects. No latency-log lua needed: the worker
+    # records delivered_at server-side and the k6 harness records the
+    # wall-clock POST→202 latency.
+    image: kennethreitz/httpbin:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:28080:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/status/200 >/dev/null || exit 1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 3s
+
+  opengeo-api:
+    # Reuse the existing apps/api/Dockerfile — no new Rust dep per the
+    # Story 0.2 hard constraint.
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    image: ${OPENGEO_API_IMAGE:-opengeo/api:dev}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://opengeo:opengeo@postgres:5432/opengeo
+      CLICKHOUSE_URL: http://opengeo:opengeo@clickhouse:8123/opengeo_analytics
+      OGEO_BIND_ADDR: 0.0.0.0:8080
+      RUST_LOG: warn,opengeo=info
+      OGEO_CONFIG: /opengeo.yaml
+    volumes:
+      - ./fixture-opengeo.yaml:/opengeo.yaml:ro
+    ports:
+      - "127.0.0.1:18080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  opengeo-worker:
+    # apps/worker has no Dockerfile yet (Phase 1 placeholder uses
+    # busybox). For the perf ladder we run the worker out-of-process on
+    # the host via `cargo run -p opengeo-worker` driven by
+    # scripts/perf-live-burst.sh, pointed at this Postgres on
+    # 127.0.0.1:25432. The service is declared here so the topology in
+    # the YAML matches the operational model — but is overridden to a
+    # noop sleep until apps/worker ships its Dockerfile.
+    image: busybox:1.36
+    command: ["sh", "-c", "echo 'worker runs on host for perf ladder (see scripts/perf-live-burst.sh)'; sleep infinity"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+      start_period: 2s
+
+volumes:
+  perf-postgres-data:
+  perf-clickhouse-data:

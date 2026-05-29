@@ -24,210 +24,68 @@
       }
     },
     "schemas": {
-      "AnomaliesResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/AnomalyItem"
-            },
-            "type": "array"
-          },
-          "trace_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "items",
-          "trace_id"
-        ],
-        "type": "object"
-      },
-      "AnomalyItem": {
-        "properties": {
-          "id": {
-            "description": "ULID-form anomaly emission id.",
-            "format": "ulid",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "visibility_drop",
-              "citation_loss",
-              "rank_swap"
-            ],
-            "type": "string"
-          },
-          "prompt": {
-            "nullable": true,
-            "type": "string"
-          },
-          "provider": {
-            "description": "Wire-stable provider identifier (`openai|anthropic|gemini|perplexity|…`).",
-            "type": "string"
-          },
-          "detected_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "severity": {
-            "enum": [
-              "low",
-              "medium",
-              "high"
-            ],
-            "type": "string"
-          },
-          "delta": {
-            "description": "Opaque effect-size signal; consumers MUST NOT compare across kinds.",
-            "type": "number"
-          },
-          "window_days": {
-            "minimum": 1,
-            "type": "integer"
-          },
-          "details": {
-            "description": "Verbatim detector detail blob. Shape varies by `kind`.",
-            "type": "object"
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "provider",
-          "detected_at",
-          "severity",
-          "delta",
-          "window_days",
-          "details"
-        ],
-        "type": "object"
-      },
-      "BrandEntry": {
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "is_primary": {
-            "type": "boolean"
-          },
-          "mention_count_7d": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "avg_rank_7d": {
-            "nullable": true,
-            "type": "number"
-          },
-          "providers_with_data": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "name",
-          "is_primary",
-          "mention_count_7d",
-          "providers_with_data"
-        ],
-        "type": "object"
-      },
-      "BrandsResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/BrandEntry"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "type": "object"
-      },
-      "CitationDomainEntry": {
-        "properties": {
-          "domain": {
-            "type": "string"
-          },
-          "frequency": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "source_type": {
-            "nullable": true,
-            "type": "string"
-          },
-          "sample_prompt_run_ids": {
-            "description": "At most 5 sample prompt-run ULIDs (architecture-phase3-mcp-server.md §3.4).",
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 5,
-            "type": "array"
-          }
-        },
-        "required": [
-          "domain",
-          "frequency",
-          "sample_prompt_run_ids"
-        ],
-        "type": "object"
-      },
-      "CitationProviderBreakdownEntry": {
-        "properties": {
-          "provider": {
-            "type": "string"
-          },
-          "frequency": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "provider",
-          "frequency"
-        ],
-        "type": "object"
-      },
       "CitationSummaryResponse": {
-        "description": "Story 0.9 extension: `domains` retained for backward compatibility; new fields are additive.",
         "properties": {
           "domains": {
             "items": {
-              "$ref": "#/components/schemas/CitationDomainEntry"
+              "type": "object"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ClickHouseInstallAccepted": {
+        "description": "Story 15.1 — 202 response from POST /v1/setup/clickhouse/install. `install_id` is a ULID the caller can use to subscribe to the SSE progress stream. MOCK in 15.1; real Docker calls land in Story 15.3.",
+        "properties": {
+          "install_id": {
+            "description": "ULID identifying the install.",
+            "type": "string"
           },
-          "provider_breakdown": {
-            "items": {
-              "$ref": "#/components/schemas/CitationProviderBreakdownEntry"
-            },
-            "type": "array"
-          },
-          "top_domains": {
-            "items": {
-              "$ref": "#/components/schemas/CitationDomainEntry"
-            },
-            "type": "array"
-          },
-          "growth_rate": {
-            "description": "Ratio of current-window total over prior-equal-window total minus 1. `null` when the prior window had zero citations.",
-            "nullable": true,
-            "type": "number"
-          },
-          "window_days": {
-            "minimum": 1,
-            "type": "integer"
+          "stream": {
+            "description": "Path to the SSE progress stream.",
+            "type": "string"
           }
         },
         "required": [
-          "domains",
-          "provider_breakdown",
-          "top_domains",
-          "window_days"
+          "install_id",
+          "stream"
+        ],
+        "type": "object"
+      },
+      "ClickHouseInstallEvent": {
+        "description": "Story 15.1 — one frame of the SSE install stream. Step ordering: docker_detected → image_pulling → container_starting → provisioning_user → applying_migrations → running_parity_test → complete.",
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "log_line": {
+            "type": "string"
+          },
+          "progress": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "step": {
+            "enum": [
+              "docker_detected",
+              "image_pulling",
+              "container_starting",
+              "provisioning_user",
+              "applying_migrations",
+              "running_parity_test",
+              "complete"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "progress",
+          "log_line",
+          "at"
         ],
         "type": "object"
       },
@@ -315,62 +173,6 @@
           "competitors",
           "rows",
           "trace_id"
-        ],
-        "type": "object"
-      },
-      "PromptRunSummaryItem": {
-        "properties": {
-          "prompt": {
-            "type": "string"
-          },
-          "run_count": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "last_run_at": {
-            "format": "date-time",
-            "nullable": true,
-            "type": "string"
-          },
-          "success_rate": {
-            "description": "Fraction in [0, 1]; `null` when `run_count == 0`.",
-            "nullable": true,
-            "type": "number"
-          },
-          "avg_latency_ms": {
-            "nullable": true,
-            "type": "number"
-          },
-          "providers": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "prompt",
-          "run_count",
-          "providers"
-        ],
-        "type": "object"
-      },
-      "PromptRunSummaryResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/PromptRunSummaryItem"
-            },
-            "type": "array"
-          },
-          "since": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "items",
-          "since"
         ],
         "type": "object"
       },
@@ -462,6 +264,175 @@
         },
         "type": "object"
       },
+      "SetupStatus": {
+        "description": "Story 15.1 — best-effort status probe across all deployment surfaces. Always returned 200; individual sections carry `state: \"unknown\"` + an `error` string on failure (per-probe timeout: 1s; 500ms for Docker).",
+        "properties": {
+          "api_keys": {
+            "items": {
+              "properties": {
+                "configured": {
+                  "type": "boolean"
+                },
+                "last_used_at": {
+                  "format": "date-time",
+                  "nullable": true,
+                  "type": "string"
+                },
+                "provider": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "provider",
+                "configured"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "clickhouse": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "etl_lag_seconds": {
+                "nullable": true,
+                "type": "number"
+              },
+              "row_count": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "state": {
+                "enum": [
+                  "healthy",
+                  "degraded",
+                  "not_configured",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              "url": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          },
+          "docker": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "present": {
+                "type": "boolean"
+              },
+              "version": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "present"
+            ],
+            "type": "object"
+          },
+          "postgres": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "last_write_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "row_count_estimate": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "schema_version": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "state": {
+                "enum": [
+                  "healthy",
+                  "degraded",
+                  "unknown"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          },
+          "webhook_target": {
+            "properties": {
+              "configured": {
+                "type": "boolean"
+              },
+              "error": {
+                "type": "string"
+              },
+              "last_delivery_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "last_status": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "configured"
+            ],
+            "type": "object"
+          },
+          "worker": {
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "queue_depth": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "state": {
+                "enum": [
+                  "running",
+                  "stopped",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              "uptime_seconds": {
+                "nullable": true,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "postgres",
+          "clickhouse",
+          "worker",
+          "webhook_target",
+          "api_keys",
+          "docker"
+        ],
+        "type": "object"
+      },
       "VisibilityTrendResponse": {
         "properties": {
           "points": {
@@ -471,54 +442,6 @@
             "type": "array"
           }
         },
-        "type": "object"
-      },
-      "SimilarityIndexResponse": {
-        "properties": {
-          "input_hash": {
-            "description": "SHA-256 of the input text, hex-encoded with `sha256:` prefix.",
-            "type": "string"
-          },
-          "matches": {
-            "items": {
-              "$ref": "#/components/schemas/SimilarityMatch"
-            },
-            "type": "array"
-          },
-          "method": {
-            "enum": ["minhash"],
-            "type": "string"
-          },
-          "num_hash_functions": {
-            "type": "integer"
-          }
-        },
-        "required": ["input_hash", "matches", "method", "num_hash_functions"],
-        "type": "object"
-      },
-      "SimilarityMatch": {
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "prompt": {
-            "type": "string"
-          },
-          "estimated_jaccard": {
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "type": "number"
-          },
-          "configured_at": {
-            "description": "Reserved — null in Phase 3.",
-            "nullable": true,
-            "type": "string"
-          },
-          "rank_data_available": {
-            "type": "boolean"
-          }
-        },
-        "required": ["name", "prompt", "estimated_jaccard", "rank_data_available"],
         "type": "object"
       }
     },
@@ -531,133 +454,12 @@
     }
   },
   "info": {
-    "description": "Phase 2 v1 surface — read endpoints, prompt run submission, and the SSE event stream. Auth: X-OpenGEO-API-Key header carrying an `ogeo_<32 chars>` key. Story 0.11 (Phase 3 substrate) adds the optional X-OpenGEO-Project header — Phase 2 accepts it for forward compatibility; Phase 4 will require it.",
+    "description": "Phase 2 v1 surface — read endpoints, prompt run submission, and the SSE event stream. Auth: X-OpenGEO-API-Key header carrying an `ogeo_<32 chars>` key. Story 0.11 (Phase 3 substrate) adds the optional X-OpenGEO-Project header — Phase 2 accepts it for forward compatibility; Phase 4 will require it. Story 15.1 adds three `/v1/setup/*` endpoints (deployment UX substrate).",
     "title": "OpenGEO Public REST API",
-    "version": "0.3.0"
+    "version": "0.3.1"
   },
   "openapi": "3.0.3",
   "paths": {
-    "/v1/anomalies": {
-      "get": {
-        "operationId": "listAnomalies",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ProjectHeader"
-          },
-          {
-            "description": "Optional prompt-slug equality filter.",
-            "in": "query",
-            "name": "prompt",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Optional wire-stable provider equality filter.",
-            "in": "query",
-            "name": "provider",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Trailing time window. Default `7d`.",
-            "in": "query",
-            "name": "window",
-            "schema": {
-              "default": "7d",
-              "enum": [
-                "1d",
-                "7d",
-                "30d"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "description": "Detector kind filter. Default `all`.",
-            "in": "query",
-            "name": "kind",
-            "schema": {
-              "default": "all",
-              "enum": [
-                "visibility",
-                "citation",
-                "all"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "description": "RFC 3339 lower bound on `detected_at`. AND-ed with `window`.",
-            "in": "query",
-            "name": "since",
-            "schema": {
-              "format": "date-time",
-              "type": "string"
-            }
-          },
-          {
-            "$ref": "#/components/parameters/ProjectHeader"
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnomaliesResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Invalid query parameter (unknown enum variant, malformed `since`)."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "summary": "List detector-emitted anomalies for the authenticated project."
-      }
-    },
-    "/v1/brands": {
-      "get": {
-        "operationId": "listBrands",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ProjectHeader"
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BrandsResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "503": {
-            "description": "API booted without a readable `opengeo.yaml`; brand list cannot be resolved."
-          }
-        },
-        "summary": "List configured brands plus 7-day mention stats (Story 0.9)."
-      }
-    },
     "/v1/citations/summary": {
       "get": {
         "operationId": "citationSummary",
@@ -669,35 +471,7 @@
             "in": "query",
             "name": "limit",
             "schema": {
-              "maximum": 500,
-              "minimum": 1,
               "type": "integer"
-            }
-          },
-          {
-            "description": "Window in days. Default 30, range [1, 365].",
-            "in": "query",
-            "name": "days",
-            "schema": {
-              "maximum": 365,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Filter to a single provider wire name.",
-            "in": "query",
-            "name": "provider",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter to a single prompt name (slug-safe).",
-            "in": "query",
-            "name": "prompt",
-            "schema": {
-              "type": "string"
             }
           }
         ],
@@ -715,46 +489,7 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           }
-        },
-        "summary": "Citation domains rollup. Story 0.9 adds `sample_prompt_run_ids` per item plus `provider_breakdown`, `top_domains`, `growth_rate`, `window_days`."
-      }
-    },
-    "/v1/prompts/run-summary": {
-      "get": {
-        "operationId": "promptsRunSummary",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ProjectHeader"
-          },
-          {
-            "description": "RFC3339 lower bound. Defaults to now()-30d.",
-            "in": "query",
-            "name": "since",
-            "schema": {
-              "format": "date-time",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PromptRunSummaryResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "400": {
-            "description": "`since` was not a parseable RFC3339 timestamp."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "summary": "Per-prompt run state aggregation since `since` (Story 0.9)."
+        }
       }
     },
     "/v1/comparisons": {
@@ -765,27 +500,27 @@
             "$ref": "#/components/parameters/ProjectHeader"
           },
           {
-            "description": "Comma-separated; 2..=6 entries. First entry is the subject brand; remainder are competitors in caller-declared order.",
             "in": "query",
             "name": "brands",
             "required": true,
             "schema": {
+              "description": "Comma-separated; 2..=6 entries. First entry is the subject brand; remainder are competitors in caller-declared order.",
               "type": "string"
             }
           },
           {
-            "description": "Comma-separated prompt names; default = all prompts for the project.",
             "in": "query",
             "name": "prompts",
             "schema": {
+              "description": "Comma-separated prompt names; default = all prompts for the project.",
               "type": "string"
             }
           },
           {
-            "description": "Comma-separated provider names; default = all providers.",
             "in": "query",
             "name": "providers",
             "schema": {
+              "description": "Comma-separated provider names; default = all providers.",
               "type": "string"
             }
           },
@@ -945,74 +680,6 @@
         "summary": "Dispatch a one-shot prompt run for an already-declared Prompt and Provider."
       }
     },
-    "/v1/prompts/similarity-index": {
-      "get": {
-        "operationId": "promptsSimilarityIndex",
-        "parameters": [
-          {
-            "description": "Input prompt text to find configured-prompt matches for. Max 4096 chars.",
-            "in": "query",
-            "name": "text",
-            "required": true,
-            "schema": {
-              "maxLength": 4096,
-              "type": "string"
-            }
-          },
-          {
-            "description": "Minimum MinHash-estimated Jaccard similarity to return. Default 0.6.",
-            "in": "query",
-            "name": "threshold",
-            "schema": {
-              "default": 0.6,
-              "maximum": 1.0,
-              "minimum": 0.0,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Maximum number of matches to return. Default 10, max 50.",
-            "in": "query",
-            "name": "limit",
-            "schema": {
-              "default": 10,
-              "maximum": 50,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "$ref": "#/components/parameters/ProjectHeader"
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimilarityIndexResponse"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Empty/oversized text or out-of-range threshold."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        },
-        "summary": "Story 0.10 — find configured prompts similar to an input text via MinHash (Jaccard)."
-      }
-    },
     "/v1/runs": {
       "get": {
         "operationId": "listRuns",
@@ -1054,6 +721,113 @@
           }
         },
         "summary": "List recent Prompt Runs"
+      }
+    },
+    "/v1/setup/clickhouse/install": {
+      "post": {
+        "operationId": "clickhouseInstall",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClickHouseInstallAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "summary": "Story 15.1 — kick off (MOCK) ClickHouse local-install state machine. Returns 202 with a ULID and an SSE stream URL. Real Docker calls land in Story 15.3."
+      }
+    },
+    "/v1/setup/clickhouse/install-stream": {
+      "get": {
+        "operationId": "clickhouseInstallStream",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Install ULID.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClickHouseInstallEvent"
+                }
+              }
+            },
+            "description": "text/event-stream — each frame is a ClickHouseInstallEvent serialised as the SSE `data:` field."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed `id` (not a ULID)."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unknown install `id` — POST /v1/setup/clickhouse/install first."
+          }
+        },
+        "summary": "Story 15.1 — SSE stream of install progress events keyed by `id` (the ULID returned from POST /v1/setup/clickhouse/install). Closes when state reaches `complete` or `failed`."
+      }
+    },
+    "/v1/setup/status": {
+      "get": {
+        "operationId": "setupStatus",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "summary": "Story 15.1 — synchronous status probe across Postgres, ClickHouse, worker, webhook target, API keys, and Docker. Always returns 200; individual sections report `state: \"unknown\"` on probe failure or timeout."
       }
     },
     "/v1/visibility/trend": {
@@ -1113,4 +887,3 @@
     }
   ]
 }
-

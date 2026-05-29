@@ -34,6 +34,7 @@ fn build_router() -> axum::Router {
         config: None,
         provider_registry: None,
         configured_project: Arc::new("default".to_string()),
+        setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
     };
     router(state)
 }

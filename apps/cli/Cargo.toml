@@ -17,6 +17,7 @@ path = "src/lib.rs"
 opengeo-analytics = { path = "../../crates/analytics" }
 opengeo-benchmark = { path = "../../crates/benchmark" }
 opengeo-core = { path = "../../crates/core", features = ["sqlx"] }
+opengeo-plugin-manifest = { path = "../../crates/plugin-manifest" }
 opengeo-providers = { path = "../../crates/providers" }
 opengeo-scheduler = { path = "../../crates/scheduler" }
 opengeo-storage = { path = "../../crates/storage" }

@@ -102,6 +102,20 @@ pub enum Command {
         #[command(subcommand)]
         sub: AnalyticsSub,
     },
+
+    /// Plugin SDK substrate (Phase 3 Story 17.1). Manifest tooling only —
+    /// install / load / sign land in later stories.
+    Plugin {
+        #[command(subcommand)]
+        sub: PluginSub,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PluginSub {
+    /// Validate a plugin manifest YAML on disk (substrate-only check: no
+    /// signature verification, no host load).
+    Validate(commands::plugin::ValidateArgs),
 }
 
 #[derive(Debug, Subcommand)]

@@ -1,0 +1,20 @@
+[package]
+name = "opengeo-plugin-manifest"
+version = "0.5.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+# Story 17.1 SUBSTRATE ONLY — plugin-manifest types + capability catalog + audit
+# write path. NO WASM host. NO signing. NO install runtime. Those land in later
+# stories under explicit in-person review.
+
+[dependencies]
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+semver = "1"
+
+[dev-dependencies]

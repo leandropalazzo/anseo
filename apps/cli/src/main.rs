@@ -3,7 +3,7 @@
 use clap::Parser;
 use opengeo_cli::{
     commands, AnalyticsSub, ApiKeySub, ApiSub, BenchmarkSub, CheckSub, Cli, Command, DashboardSub,
-    PromptSub, ReportSub, ScheduleSub, WebhookSub, WorkerSub,
+    PluginSub, PromptSub, ReportSub, ScheduleSub, WebhookSub, WorkerSub,
 };
 use opengeo_core::{telemetry::init_tracing, ExitCode, OpenGeoError};
 
@@ -68,6 +68,9 @@ fn main() {
             AnalyticsSub::MigrateToClickhouse(args) => {
                 run_async(commands::analytics::run_migrate(args))
             }
+        },
+        Command::Plugin { sub } => match sub {
+            PluginSub::Validate(args) => commands::plugin::run_validate(args),
         },
     };
 

@@ -12,6 +12,7 @@ members = [
     "crates/analytics",
     "crates/scheduler",
     "crates/plugin-host",
+    "crates/plugin-manifest",
     "crates/wire-schema",
     "crates/benchmark",
 ]

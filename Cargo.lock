@@ -1992,6 +1992,7 @@ dependencies = [
  "opengeo-analytics",
  "opengeo-benchmark",
  "opengeo-core",
+ "opengeo-plugin-manifest",
  "opengeo-providers",
  "opengeo-scheduler",
  "opengeo-storage",
@@ -2056,15 +2057,30 @@ dependencies = [
  "anyhow",
  "opengeo-core",
  "opengeo-wire-schema",
+ "reqwest",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-bunyan-formatter",
  "tracing-subscriber",
+ "ulid",
 ]
 
 [[package]]
 name = "opengeo-plugin-host"
 version = "0.5.0"
+
+[[package]]
+name = "opengeo-plugin-manifest"
+version = "0.5.0"
+dependencies = [
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror 1.0.69",
+]
 
 [[package]]
 name = "opengeo-providers"
