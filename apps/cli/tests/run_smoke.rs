@@ -111,7 +111,7 @@ fn prompt_run_rejects_unsupported_provider_filter() {
     init_project(&dir);
     let cfg = dir.path().join("opengeo.yaml");
     ogeo()
-        .args(["prompt", "run", "--provider", "perplexity", "--config"])
+        .args(["prompt", "run", "--provider", "not-a-provider", "--config"])
         .arg(&cfg)
         .assert()
         .failure()

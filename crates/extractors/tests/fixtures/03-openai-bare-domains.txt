@@ -1,0 +1,1 @@
+If you're evaluating vector stores, look at qdrant.tech and weaviate.io first — both have generous free tiers. Pinecone (pinecone.io) is the hosted option most enterprises end up choosing. For lighter use cases, chroma is fine. Community discussion lives at reddit.com/r/MachineLearning and benchmark data is collected on github.com/erikbern/ann-benchmarks.

@@ -19,6 +19,15 @@ pub fn router() -> Router<AppState> {
         .route("/api/runs/:id", get(detail))
 }
 
+/// Phase 2 `/v1` mount — same handlers, paths without the `/api/` prefix.
+/// Nested under `/v1` in `apps/api/src/lib.rs`, so the public surface
+/// becomes `/v1/runs` and `/v1/runs/:id`.
+pub fn v1_router() -> Router<AppState> {
+    Router::new()
+        .route("/runs", get(list))
+        .route("/runs/:id", get(detail))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
     pub limit: Option<i64>,

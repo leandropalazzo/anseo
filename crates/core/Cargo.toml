@@ -10,7 +10,7 @@ publish = false
 # Enables `sqlx::Type`/`Encode`/`Decode` impls on the ULID newtypes so they can
 # be used directly in `sqlx::query_as!` against Postgres `UUID` columns
 # (Story 1.3 AC-9). Gated so non-storage consumers stay lean.
-sqlx = ["dep:sqlx", "dep:uuid"]
+sqlx = ["dep:sqlx"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -29,9 +29,10 @@ utoipa = { workspace = true }
 keyring = { workspace = true }
 age = { workspace = true }
 sqlx = { workspace = true, optional = true }
-uuid = { workspace = true, optional = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
+tracing-test = { workspace = true }

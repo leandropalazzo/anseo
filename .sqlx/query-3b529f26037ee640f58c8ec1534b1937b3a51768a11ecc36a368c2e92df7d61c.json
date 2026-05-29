@@ -1,0 +1,89 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            s.id                              AS \"id!: Uuid\",\n            s.name                            AS \"name!: String\",\n            s.cron                            AS \"cron!: String\",\n            s.prompts                         AS \"prompts!: serde_json::Value\",\n            s.providers                       AS \"providers!: serde_json::Value\",\n            s.debounce_minutes                AS \"debounce_minutes!: i32\",\n            s.projected_monthly_usd           AS \"projected_monthly_usd: f64\",\n            s.projection_acknowledged_at      AS \"projection_acknowledged_at: DateTime<Utc>\",\n            s.paused                          AS \"paused!: bool\",\n            s.created_at                      AS \"created_at!: DateTime<Utc>\",\n            (\n                SELECT MAX(t.tick_ts)\n                FROM schedule_ticks t\n                WHERE t.schedule_id = s.id\n            ) AS \"last_tick_at: DateTime<Utc>\",\n            (\n                SELECT t.status\n                FROM schedule_ticks t\n                WHERE t.schedule_id = s.id\n                ORDER BY t.tick_ts DESC\n                LIMIT 1\n            ) AS \"last_tick_status: String\"\n        FROM schedules s\n        WHERE s.project_id = $1\n          AND ($2::uuid IS NULL OR s.id = $2)\n        ORDER BY s.created_at DESC\n        LIMIT 500\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name!: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "cron!: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "prompts!: serde_json::Value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "providers!: serde_json::Value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
+        "name": "debounce_minutes!: i32",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "projected_monthly_usd: f64",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 7,
+        "name": "projection_acknowledged_at: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "paused!: bool",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "last_tick_at: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "last_tick_status: String",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "3b529f26037ee640f58c8ec1534b1937b3a51768a11ecc36a368c2e92df7d61c"
+}

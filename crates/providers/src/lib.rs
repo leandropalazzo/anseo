@@ -16,10 +16,17 @@
 //! [`ProviderRequest`] / [`ProviderResponse`] / [`ProviderError`].
 
 pub mod anthropic;
+pub mod cost;
+pub mod gemini;
+pub mod grok;
+pub mod mistral;
 pub mod mock;
 pub mod openai;
+pub mod openrouter;
 pub mod orchestrator;
+pub mod perplexity;
 pub mod persistence;
+pub mod registry;
 
 use async_trait::async_trait;
 use std::time::Duration;
@@ -117,6 +124,14 @@ impl ProviderError {
 
     pub fn network(message: impl Into<String>) -> Self {
         Self::new(ProviderErrorKind::NetworkError, message)
+    }
+
+    /// Story 11.1: distinct "you asked for a model the adapter doesn't
+    /// know" failure. Use instead of `invalid_response` for typo'd model
+    /// strings so the operator can grep their config rather than
+    /// hunting an opaque API response.
+    pub fn unsupported_model(message: impl Into<String>) -> Self {
+        Self::new(ProviderErrorKind::ProviderUnsupportedModel, message)
     }
 }
 

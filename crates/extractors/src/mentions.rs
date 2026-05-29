@@ -130,7 +130,9 @@ pub fn config_with(brand: &str, competitors: &[&str]) -> Config {
             .collect(),
         prompts: vec![],
         providers: vec![],
+        schedules: vec![],
         concurrency: 4,
+        anomaly_sensitivity: Default::default(),
     }
 }
 

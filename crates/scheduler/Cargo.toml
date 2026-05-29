@@ -5,3 +5,33 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish = false
+
+[features]
+# Story 12.4 live-Postgres integration tests (P0-127, P1-128, P1-129,
+# P1-130). Off by default so `cargo test --workspace` runs without an
+# external database; CI enables it and runs `--include-ignored`.
+live_db_tests = []
+
+[dependencies]
+opengeo-core = { path = "../core", features = ["sqlx"] }
+opengeo-providers = { path = "../providers" }
+opengeo-storage = { path = "../storage" }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+ulid = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+sha2 = { workspace = true }
+hmac = { workspace = true }
+subtle = { workspace = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+wiremock = { workspace = true }
+serial_test = "3"

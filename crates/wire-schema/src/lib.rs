@@ -9,7 +9,13 @@
 //! - The Provider error taxonomy is re-exported from [`opengeo_core`] to keep
 //!   one source of truth for HTTP status mapping, CLI exit codes, and MCP tool errors.
 
+// Note: `Unauthorized` $ref is declared above but its component lives at
+// `components.responses` (canonical OpenAPI); the gen-openapi binary will
+// surface that block once a Phase-3 utoipa migration lands. For now the
+// $ref is intentional documentation that downstream codegen consumes.
+
 pub mod error;
+pub mod webhook;
 
 pub use error::{ApiError, ErrorEnvelope};
 pub use opengeo_core::{ProviderErrorKind, RequestId};

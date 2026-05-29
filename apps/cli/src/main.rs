@@ -1,7 +1,10 @@
 //! `ogeo` — OpenGEO command-line interface.
 
 use clap::Parser;
-use opengeo_cli::{commands, CheckSub, Cli, Command, DashboardSub, PromptSub, ReportSub};
+use opengeo_cli::{
+    commands, AnalyticsSub, ApiKeySub, ApiSub, BenchmarkSub, CheckSub, Cli, Command, DashboardSub,
+    PromptSub, ReportSub, ScheduleSub, WebhookSub, WorkerSub,
+};
 use opengeo_core::{telemetry::init_tracing, ExitCode, OpenGeoError};
 
 fn main() {
@@ -32,6 +35,39 @@ fn main() {
         Command::Db { sub } => match sub {
             commands::db::DbSub::Backup(args) => commands::db::run_backup(args),
             commands::db::DbSub::Restore(args) => commands::db::run_restore(args),
+        },
+        Command::Schedule { sub } => match sub {
+            ScheduleSub::Add(args) => commands::schedule::run_add(args),
+            ScheduleSub::List(args) => commands::schedule::run_list(args),
+            ScheduleSub::Remove(args) => commands::schedule::run_remove(args),
+        },
+        Command::Worker { sub } => match sub {
+            WorkerSub::Status(args) => commands::worker::run_status(args),
+        },
+        Command::Api { sub } => match sub {
+            ApiSub::Key { sub } => match sub {
+                ApiKeySub::Create(args) => run_async(commands::api::run_create(args)),
+                ApiKeySub::List(args) => run_async(commands::api::run_list(args)),
+                ApiKeySub::Revoke(args) => run_async(commands::api::run_revoke(args)),
+            },
+        },
+        Command::Webhook { sub } => match sub {
+            WebhookSub::Add(args) => run_async(commands::webhook::run_add(args)),
+            WebhookSub::List(args) => run_async(commands::webhook::run_list(args)),
+            WebhookSub::RotateSecret(args) => {
+                run_async(commands::webhook::run_rotate_secret(args))
+            }
+            WebhookSub::Reenable(args) => run_async(commands::webhook::run_reenable(args)),
+        },
+        Command::Benchmark { sub } => match sub {
+            BenchmarkSub::Optin(args) => run_async(commands::benchmark::run_optin(args)),
+            BenchmarkSub::Optout(args) => run_async(commands::benchmark::run_optout(args)),
+            BenchmarkSub::Status(args) => run_async(commands::benchmark::run_status(args)),
+        },
+        Command::Analytics { sub } => match sub {
+            AnalyticsSub::MigrateToClickhouse(args) => {
+                run_async(commands::analytics::run_migrate(args))
+            }
         },
     };
 

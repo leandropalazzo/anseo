@@ -1,4 +1,4 @@
-//! `opengeo.yaml` v0.1 schema, parser, and stable-ID derivation (FR-1, FR-9, FR-23, FR-24).
+//! `opengeo.yaml` schema, parser, and stable-ID derivation (FR-1, FR-9, FR-23, FR-24).
 //!
 //! The YAML file is the canonical declaration of what the system should observe; the
 //! database stores what the system observed. A run of OpenGEO loads `opengeo.yaml`,
@@ -27,8 +27,13 @@ use thiserror::Error;
 
 use crate::ids::{ProjectId, PromptId};
 
-/// Only schema version supported in Phase 1 (FR-24).
+/// Phase 1 schema version (FR-24).
 pub const SCHEMA_VERSION_V0_1: &str = "0.1";
+
+/// Phase 2 schema version. v0.2 is a non-breaking superset of v0.1.
+pub const SCHEMA_VERSION_V0_2: &str = "0.2";
+
+const SUPPORTED_SCHEMA_VERSIONS: &str = "0.1 or 0.2";
 
 /// Default per-provider timeout in seconds (PRD FR-9 / Story 2.4 AC). Used when a
 /// provider entry omits `timeout_seconds`.
@@ -42,6 +47,15 @@ pub const DEFAULT_OPENAI_MODEL: &str = "gpt-4o-2024-08-06";
 
 /// Default Anthropic model when a provider entry omits `model` (PRD FR-8).
 pub const DEFAULT_ANTHROPIC_MODEL: &str = "claude-3-5-sonnet-20241022";
+
+pub const DEFAULT_GEMINI_MODEL: &str = "gemini-1.5-pro-002";
+pub const DEFAULT_PERPLEXITY_MODEL: &str = "sonar-large-online-128k";
+pub const DEFAULT_GROK_MODEL: &str = "grok-2-1212";
+pub const DEFAULT_MISTRAL_MODEL: &str = "mistral-large-2411";
+pub const DEFAULT_OPENROUTER_MODEL: &str = "openai/gpt-4o-2024-08-06";
+
+/// Default debounce window for schedule declarations.
+pub const DEFAULT_SCHEDULE_DEBOUNCE_MINUTES: u32 = 5;
 
 /// Top-level `opengeo.yaml` document (v0.1).
 ///
@@ -59,10 +73,60 @@ pub struct Config {
     pub prompts: Vec<PromptConfig>,
     #[serde(default)]
     pub providers: Vec<ProviderConfig>,
+    /// Phase 2 schedule declarations. Non-empty only with schema_version 0.2.
+    #[serde(default)]
+    pub schedules: Vec<ScheduleConfig>,
     /// Concurrency for `ogeo prompt run`. Optional; defaults to
     /// [`DEFAULT_CONCURRENCY`].
     #[serde(default = "default_concurrency")]
     pub concurrency: u32,
+    /// Phase 2 anomaly-detector tuning. Optional; defaults to
+    /// [`AnomalySensitivity::default`].
+    #[serde(default)]
+    pub anomaly_sensitivity: AnomalySensitivity,
+}
+
+/// Phase 2 FR-26a — tuning for the z-score visibility detector and the
+/// citation-novelty detector. Defaults are calibrated so that a 1-year
+/// stable stream emits ≤ 12 visibility anomalies (P1-103 budget).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AnomalySensitivity {
+    /// |z| threshold for emitting a `visibility_anomaly`. Higher = stricter.
+    #[serde(default = "default_zscore_threshold")]
+    pub zscore_threshold: f64,
+    /// Trailing window size (in samples) used to compute the running mean
+    /// and stddev for the z-score detector.
+    #[serde(default = "default_window_samples")]
+    pub window_samples: u32,
+    /// Minimum frequency a previously-unseen citation domain must reach in
+    /// the current sample before it counts as an anomaly.
+    #[serde(default = "default_citation_min_frequency")]
+    pub citation_min_frequency: u32,
+}
+
+impl Default for AnomalySensitivity {
+    fn default() -> Self {
+        Self {
+            zscore_threshold: default_zscore_threshold(),
+            window_samples: default_window_samples(),
+            citation_min_frequency: default_citation_min_frequency(),
+        }
+    }
+}
+
+impl Eq for AnomalySensitivity {}
+
+fn default_zscore_threshold() -> f64 {
+    2.5
+}
+
+fn default_window_samples() -> u32 {
+    14
+}
+
+fn default_citation_min_frequency() -> u32 {
+    2
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -113,20 +177,61 @@ pub struct ProviderConfig {
     pub timeout_seconds: u64,
 }
 
-/// Closed set of Phase 1 providers (PRD FR-7, FR-8). Phase 2 adds more; the
-/// trait shape lets us extend without breaking the YAML schema.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ScheduleConfig {
+    /// Slug-safe schedule name.
+    pub name: String,
+    /// Cron-style cadence or supported shorthand such as `hourly` or `daily`.
+    pub cron: String,
+    /// Prompt names declared in `prompts`.
+    pub prompts: Vec<String>,
+    /// Providers declared in `providers`.
+    pub providers: Vec<ProviderName>,
+    /// Debounce window for recent manual runs. Defaults to 5 minutes.
+    #[serde(default = "default_schedule_debounce_minutes")]
+    pub debounce_minutes: u32,
+    /// RFC3339 timestamp recorded when a user acknowledges a high projected cost.
+    #[serde(default)]
+    pub projection_acknowledged_at: Option<String>,
+}
+
+/// Closed set of providers known to the YAML schema.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ProviderName {
     Openai,
     Anthropic,
+    Gemini,
+    Perplexity,
+    Grok,
+    Mistral,
+    Openrouter,
 }
 
 impl ProviderName {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "openai" => Some(Self::Openai),
+            "anthropic" => Some(Self::Anthropic),
+            "gemini" => Some(Self::Gemini),
+            "perplexity" => Some(Self::Perplexity),
+            "grok" => Some(Self::Grok),
+            "mistral" => Some(Self::Mistral),
+            "openrouter" => Some(Self::Openrouter),
+            _ => None,
+        }
+    }
+
     pub fn as_wire_str(self) -> &'static str {
         match self {
             Self::Openai => "openai",
             Self::Anthropic => "anthropic",
+            Self::Gemini => "gemini",
+            Self::Perplexity => "perplexity",
+            Self::Grok => "grok",
+            Self::Mistral => "mistral",
+            Self::Openrouter => "openrouter",
         }
     }
 
@@ -134,7 +239,24 @@ impl ProviderName {
         match self {
             Self::Openai => DEFAULT_OPENAI_MODEL,
             Self::Anthropic => DEFAULT_ANTHROPIC_MODEL,
+            Self::Gemini => DEFAULT_GEMINI_MODEL,
+            Self::Perplexity => DEFAULT_PERPLEXITY_MODEL,
+            Self::Grok => DEFAULT_GROK_MODEL,
+            Self::Mistral => DEFAULT_MISTRAL_MODEL,
+            Self::Openrouter => DEFAULT_OPENROUTER_MODEL,
         }
+    }
+
+    pub fn all_wire_names() -> &'static [&'static str] {
+        &[
+            "openai",
+            "anthropic",
+            "gemini",
+            "perplexity",
+            "grok",
+            "mistral",
+            "openrouter",
+        ]
     }
 }
 
@@ -150,6 +272,10 @@ fn default_provider_timeout() -> u64 {
 
 fn default_concurrency() -> u32 {
     DEFAULT_CONCURRENCY
+}
+
+fn default_schedule_debounce_minutes() -> u32 {
+    DEFAULT_SCHEDULE_DEBOUNCE_MINUTES
 }
 
 /// Structured config error. Maps to [`crate::ExitCode::ConfigError`] (64) by
@@ -177,8 +303,8 @@ pub enum ConfigError {
         message: String,
     },
 
-    /// `schema_version` is present but not `0.1`.
-    #[error("unsupported schema_version `{found}` (Phase 1 supports `{supported}` only)")]
+    /// `schema_version` is present but not supported.
+    #[error("unsupported schema_version `{found}` (supported: {supported})")]
     UnsupportedSchemaVersion {
         found: String,
         supported: &'static str,
@@ -243,14 +369,19 @@ impl Config {
     /// Collects every failure into one Validation error so a user gets the
     /// full list on first run rather than discovering them one at a time.
     fn validate(&self) -> Result<(), ConfigError> {
-        if self.schema_version != SCHEMA_VERSION_V0_1 {
+        if self.schema_version != SCHEMA_VERSION_V0_1 && self.schema_version != SCHEMA_VERSION_V0_2
+        {
             return Err(ConfigError::UnsupportedSchemaVersion {
                 found: self.schema_version.clone(),
-                supported: SCHEMA_VERSION_V0_1,
+                supported: SUPPORTED_SCHEMA_VERSIONS,
             });
         }
 
         let mut errors: Vec<String> = Vec::new();
+
+        if self.schema_version == SCHEMA_VERSION_V0_1 && !self.schedules.is_empty() {
+            errors.push("schedules require schema_version `0.2`".into());
+        }
 
         if self.brand.name.trim().is_empty() {
             errors.push("brand.name must not be empty".into());
@@ -289,6 +420,55 @@ impl Config {
                 errors.push(format!(
                     "providers[{idx}].timeout_seconds must be > 0 (got 0)"
                 ));
+            }
+        }
+
+        let declared_prompts: std::collections::HashSet<&str> =
+            self.prompts.iter().map(|p| p.name.as_str()).collect();
+        let declared_providers: std::collections::HashSet<ProviderName> =
+            self.providers.iter().map(|p| p.name).collect();
+        let mut seen_schedules: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for (idx, s) in self.schedules.iter().enumerate() {
+            if s.name.trim().is_empty() {
+                errors.push(format!("schedules[{idx}].name must not be empty"));
+            } else if !is_valid_prompt_slug(&s.name) {
+                errors.push(format!(
+                    "schedules[{idx}].name `{}` is not a valid slug \
+                     (lowercase ASCII letters, digits, hyphens; must start with a letter)",
+                    s.name
+                ));
+            } else if !seen_schedules.insert(s.name.as_str()) {
+                errors.push(format!("duplicate schedule name `{}`", s.name));
+            }
+
+            if s.cron.trim().is_empty() {
+                errors.push(format!("schedules[{idx}].cron must not be empty"));
+            }
+            if s.prompts.is_empty() {
+                errors.push(format!("schedules[{idx}].prompts must not be empty"));
+            }
+            if s.providers.is_empty() {
+                errors.push(format!("schedules[{idx}].providers must not be empty"));
+            }
+            if s.debounce_minutes == 0 {
+                errors.push(format!(
+                    "schedules[{idx}].debounce_minutes must be > 0 (got 0)"
+                ));
+            }
+
+            for prompt_name in &s.prompts {
+                if !declared_prompts.contains(prompt_name.as_str()) {
+                    errors.push(format!(
+                        "schedules[{idx}] references unknown prompt `{prompt_name}`"
+                    ));
+                }
+            }
+            for provider_name in &s.providers {
+                if !declared_providers.contains(provider_name) {
+                    errors.push(format!(
+                        "schedules[{idx}] references provider `{provider_name}` not declared in providers"
+                    ));
+                }
             }
         }
 
@@ -336,6 +516,11 @@ impl Config {
     /// Look up a provider config by name.
     pub fn provider(&self, name: ProviderName) -> Option<&ProviderConfig> {
         self.providers.iter().find(|p| p.name == name)
+    }
+
+    /// Look up a schedule config by name.
+    pub fn schedule(&self, name: &str) -> Option<&ScheduleConfig> {
+        self.schedules.iter().find(|s| s.name == name)
     }
 }
 
@@ -607,6 +792,17 @@ providers:
             ProviderName::Anthropic.default_model(),
             DEFAULT_ANTHROPIC_MODEL
         );
+        assert_eq!(ProviderName::Gemini.default_model(), DEFAULT_GEMINI_MODEL);
+        assert_eq!(
+            ProviderName::Perplexity.default_model(),
+            DEFAULT_PERPLEXITY_MODEL
+        );
+        assert_eq!(ProviderName::Grok.default_model(), DEFAULT_GROK_MODEL);
+        assert_eq!(ProviderName::Mistral.default_model(), DEFAULT_MISTRAL_MODEL);
+        assert_eq!(
+            ProviderName::Openrouter.default_model(),
+            DEFAULT_OPENROUTER_MODEL
+        );
     }
 
     #[test]
@@ -628,5 +824,81 @@ providers:
         let cfg = Config::from_yaml_str(yaml_minus_anthropic).unwrap();
         assert!(cfg.provider(ProviderName::Openai).is_some());
         assert!(cfg.provider(ProviderName::Anthropic).is_none());
+    }
+
+    #[test]
+    fn parses_v0_2_schedule_config() {
+        let yaml = r#"
+schema_version: '0.2'
+brand:
+  name: Acme
+prompts:
+  - name: ai-monitoring-tools
+    text: "What are the best AI visibility monitoring tools?"
+providers:
+  - name: openai
+  - name: gemini
+schedules:
+  - name: daily-watch
+    cron: daily
+    prompts: [ai-monitoring-tools]
+    providers: [openai, gemini]
+"#;
+        let cfg = Config::from_yaml_str(yaml).unwrap();
+        assert_eq!(cfg.schema_version, SCHEMA_VERSION_V0_2);
+        assert_eq!(cfg.schedules.len(), 1);
+        assert_eq!(
+            cfg.schedules[0].debounce_minutes,
+            DEFAULT_SCHEDULE_DEBOUNCE_MINUTES
+        );
+        assert_eq!(
+            cfg.schedules[0].providers,
+            vec![ProviderName::Openai, ProviderName::Gemini]
+        );
+    }
+
+    #[test]
+    fn rejects_schedules_on_v0_1() {
+        let yaml = r#"
+schema_version: '0.1'
+brand:
+  name: Acme
+prompts:
+  - name: ai-monitoring-tools
+    text: "What are the best AI visibility monitoring tools?"
+providers:
+  - name: openai
+schedules:
+  - name: daily-watch
+    cron: daily
+    prompts: [ai-monitoring-tools]
+    providers: [openai]
+"#;
+        let err = Config::from_yaml_str(yaml).unwrap_err();
+        assert!(matches!(err, ConfigError::Validation(_)));
+        assert!(err.to_string().contains("schema_version `0.2`"));
+    }
+
+    #[test]
+    fn rejects_schedule_references_to_unknown_prompt_or_provider() {
+        let yaml = r#"
+schema_version: '0.2'
+brand:
+  name: Acme
+prompts:
+  - name: ai-monitoring-tools
+    text: "What are the best AI visibility monitoring tools?"
+providers:
+  - name: openai
+schedules:
+  - name: daily-watch
+    cron: daily
+    prompts: [missing-prompt]
+    providers: [gemini]
+"#;
+        let err = Config::from_yaml_str(yaml).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("unknown prompt"));
+        assert!(msg.contains("not declared in providers"));
     }
 }

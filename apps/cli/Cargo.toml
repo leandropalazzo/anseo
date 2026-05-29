@@ -14,8 +14,11 @@ path = "src/main.rs"
 path = "src/lib.rs"
 
 [dependencies]
+opengeo-analytics = { path = "../../crates/analytics" }
+opengeo-benchmark = { path = "../../crates/benchmark" }
 opengeo-core = { path = "../../crates/core", features = ["sqlx"] }
 opengeo-providers = { path = "../../crates/providers" }
+opengeo-scheduler = { path = "../../crates/scheduler" }
 opengeo-storage = { path = "../../crates/storage" }
 opengeo-wire-schema = { path = "../../crates/wire-schema" }
 tokio = { workspace = true }
@@ -32,6 +35,9 @@ is-terminal = { workspace = true }
 thiserror = { workspace = true }
 rpassword = { workspace = true }
 chrono = { workspace = true }
+
+[features]
+clickhouse = ["opengeo-analytics/clickhouse"]
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

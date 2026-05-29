@@ -93,4 +93,24 @@ impl Storage {
     pub fn citations(&self) -> repositories::citations::CitationRepo<'_> {
         repositories::citations::CitationRepo::new(&self.pool)
     }
+
+    pub fn api_keys(&self) -> repositories::api_keys::ApiKeyRepo<'_> {
+        repositories::api_keys::ApiKeyRepo::new(&self.pool)
+    }
+
+    pub fn webhook_deliveries(
+        &self,
+    ) -> repositories::webhook_deliveries::WebhookDeliveryRepo<'_> {
+        repositories::webhook_deliveries::WebhookDeliveryRepo::new(&self.pool)
+    }
+
+    pub fn webhooks(&self) -> repositories::webhooks::WebhookRepo<'_> {
+        repositories::webhooks::WebhookRepo::new(&self.pool)
+    }
+
+    pub fn benchmark_consent(
+        &self,
+    ) -> repositories::benchmark_consent::BenchmarkConsentRepo<'_> {
+        repositories::benchmark_consent::BenchmarkConsentRepo::new(&self.pool)
+    }
 }

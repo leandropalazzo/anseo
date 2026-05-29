@@ -1,0 +1,24 @@
+---
+source: crates/extractors/tests/fixture_set_snapshot.rs
+expression: extract_citations(&body)
+---
+- url: ~
+  domain: github.com
+  frequency: 1
+  source_type: general_web
+- url: ~
+  domain: pinecone.io
+  frequency: 1
+  source_type: general_web
+- url: ~
+  domain: qdrant.tech
+  frequency: 1
+  source_type: general_web
+- url: ~
+  domain: reddit.com
+  frequency: 1
+  source_type: reddit
+- url: ~
+  domain: weaviate.io
+  frequency: 1
+  source_type: general_web

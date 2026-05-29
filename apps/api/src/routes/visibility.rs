@@ -11,6 +11,10 @@ pub fn router() -> Router<AppState> {
     Router::new().route("/api/visibility/trend", get(trend))
 }
 
+pub fn v1_router() -> Router<AppState> {
+    Router::new().route("/visibility/trend", get(trend))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct TrendQuery {
     pub prompt: String,

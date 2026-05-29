@@ -1,0 +1,19 @@
+---
+source: crates/extractors/tests/fixture_set_snapshot.rs
+expression: "extract_mentions(&body, &canonical_config())"
+---
+- entity: Pinecone
+  char_offset: 69
+  rank: 1
+  matched_text: Pinecone
+  is_brand: true
+- entity: Qdrant
+  char_offset: 149
+  rank: 2
+  matched_text: Qdrant
+  is_brand: false
+- entity: Weaviate
+  char_offset: 236
+  rank: 3
+  matched_text: Weaviate
+  is_brand: false

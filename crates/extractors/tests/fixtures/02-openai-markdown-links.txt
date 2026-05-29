@@ -1,0 +1,8 @@
+Here are the top vector databases as of late 2025:
+
+- [Pinecone](https://www.pinecone.io/) — fully managed, popular default for SaaS teams.
+- [Qdrant](https://qdrant.tech/) — Rust-based, strong filtering, open source.
+- [Weaviate](https://weaviate.io/docs/) — knowledge-graph hybrid, GraphQL API.
+- [Chroma](https://docs.trychroma.com/) — Python-first, great for prototyping.
+
+For a deeper dive, see the [LangChain integrations guide](https://python.langchain.com/docs/integrations/vectorstores/).

@@ -11,6 +11,10 @@ pub fn router() -> Router<AppState> {
     Router::new().route("/api/citations/summary", get(summary))
 }
 
+pub fn v1_router() -> Router<AppState> {
+    Router::new().route("/citations/summary", get(summary))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SummaryQuery {
     pub limit: Option<i64>,

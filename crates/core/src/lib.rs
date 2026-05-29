@@ -20,9 +20,15 @@ pub mod secret;
 pub mod secret_store;
 pub mod telemetry;
 
+pub mod api_key;
+
+pub use api_key::{GeneratedApiKey, API_KEY_HEADER, KEY_PREFIX as API_KEY_PREFIX};
 pub use config::{
-    BrandConfig, CompetitorConfig, Config, ConfigError, PromptConfig, ProviderConfig, ProviderName,
-    SCHEMA_VERSION_V0_1,
+    AnomalySensitivity, BrandConfig, CompetitorConfig, Config, ConfigError, PromptConfig,
+    ProviderConfig, ProviderName, ScheduleConfig, DEFAULT_ANTHROPIC_MODEL, DEFAULT_GEMINI_MODEL,
+    DEFAULT_GROK_MODEL, DEFAULT_MISTRAL_MODEL, DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL,
+    DEFAULT_PERPLEXITY_MODEL, DEFAULT_SCHEDULE_DEBOUNCE_MINUTES, SCHEMA_VERSION_V0_1,
+    SCHEMA_VERSION_V0_2,
 };
 pub use error::{ExitCode, OpenGeoError, ProviderErrorKind};
 pub use ids::{CitationId, MentionId, ProjectId, PromptId, PromptRunId, RequestId};

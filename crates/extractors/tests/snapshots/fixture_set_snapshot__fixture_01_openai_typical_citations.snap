@@ -1,0 +1,8 @@
+---
+source: crates/extractors/tests/fixture_set_snapshot.rs
+expression: extract_citations(&body)
+---
+- url: "https://example.com/vector-db-comparison"
+  domain: example.com
+  frequency: 1
+  source_type: general_web

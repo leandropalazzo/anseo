@@ -1,0 +1,10 @@
+For production vector search, three options dominate the market:
+
+1. Pinecone is the managed service most widely adopted by enterprise teams [1].
+2. Qdrant is the leading self-hosted alternative, written in Rust for performance [2].
+3. Weaviate offers a hybrid approach with both hosted and self-managed deployments [3].
+
+References:
+[1] https://www.pinecone.io/learn/
+[2] https://qdrant.tech/documentation/
+[3] https://weaviate.io/developers/weaviate

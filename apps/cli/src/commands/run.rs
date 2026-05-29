@@ -20,12 +20,11 @@ use std::sync::Arc;
 use clap::Args;
 use opengeo_core::{Config, OpenGeoError, ProviderName};
 use opengeo_providers::{
-    persistence::persist_records, AnthropicProvider, MockProvider, OpenAiProvider, Orchestrator,
-    OrchestratorFilter, PromptRunRecord, PromptRunStatus, Provider, ProviderRegistry, RunSummary,
+    persistence::persist_records, registry::build_real_registry as build_real_registry_inner,
+    MockProvider, Orchestrator, OrchestratorFilter, PromptRunRecord, PromptRunStatus,
+    ProviderRegistry, RunSummary,
 };
 use opengeo_storage::Storage;
-
-use crate::commands::login::resolve_provider_secret;
 
 #[derive(Debug, Args)]
 pub struct RunArgs {
@@ -33,7 +32,7 @@ pub struct RunArgs {
     #[arg(long)]
     pub prompt: Vec<String>,
 
-    /// Run only against the named provider. Repeatable. One of openai, anthropic.
+    /// Run only against the named provider. Repeatable.
     #[arg(long)]
     pub provider: Vec<String>,
 
@@ -121,12 +120,12 @@ fn build_filter(
     } else {
         let mut out = Vec::new();
         for p in providers {
-            match p.as_str() {
-                "openai" => out.push(ProviderName::Openai),
-                "anthropic" => out.push(ProviderName::Anthropic),
-                other => {
+            match ProviderName::parse(p) {
+                Some(provider) => out.push(provider),
+                None => {
                     return Err(OpenGeoError::Config(format!(
-                        "unsupported --provider `{other}`; expected one of `openai`, `anthropic`"
+                        "unsupported --provider `{p}`; expected one of {}",
+                        ProviderName::all_wire_names().join(", ")
                     )))
                 }
             }
@@ -140,16 +139,10 @@ fn build_filter(
 }
 
 fn build_real_registry(config: &Config) -> Result<ProviderRegistry, OpenGeoError> {
-    let mut registry: ProviderRegistry = HashMap::new();
-    for provider_cfg in &config.providers {
-        let secret = resolve_provider_secret(provider_cfg.name)?;
-        let client: Arc<dyn Provider> = match provider_cfg.name {
-            ProviderName::Openai => Arc::new(OpenAiProvider::new(secret)),
-            ProviderName::Anthropic => Arc::new(AnthropicProvider::new(secret)),
-        };
-        registry.insert(provider_cfg.name, client);
-    }
-    Ok(registry)
+    // Shared with the API path; see `crates/providers/src/registry.rs`.
+    // Missing-secret providers are omitted from the registry; the
+    // orchestrator synthesises a `failed` record for them on dispatch.
+    build_real_registry_inner(config).map_err(|e| OpenGeoError::Auth(e.to_string()))
 }
 
 fn build_mock_registry(config: &Config) -> ProviderRegistry {

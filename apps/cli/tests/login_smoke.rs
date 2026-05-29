@@ -17,7 +17,7 @@ fn ogeo() -> Command {
 #[test]
 fn login_rejects_unsupported_provider() {
     ogeo()
-        .args(["login", "perplexity"])
+        .args(["login", "not-a-provider"])
         .write_stdin("anything\n")
         .assert()
         .failure()

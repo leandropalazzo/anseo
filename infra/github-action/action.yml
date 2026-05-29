@@ -1,0 +1,41 @@
+name: "OpenGEO Check Visibility"
+description: "Run an OpenGEO visibility check inside CI; fail the build if the brand's ranking is worse than the expected threshold."
+author: "OpenGEO"
+branding:
+  icon: "trending-up"
+  color: "purple"
+
+inputs:
+  prompt:
+    description: "Declared Prompt slug (must already exist in the project's opengeo.yaml)."
+    required: true
+  brand:
+    description: "Brand name to check, as declared in opengeo.yaml."
+    required: true
+  expect-rank-lte:
+    description: "Maximum acceptable ranking (1 = top). The job fails if the observed rank is higher than this."
+    required: true
+  provider:
+    description: "Restrict the check to a single Provider (openai, anthropic, gemini, perplexity, grok, mistral, openrouter). Omit to check across every declared provider."
+    required: false
+    default: ""
+  api-base:
+    description: "OpenGEO API base URL. Defaults to https://api.opengeo.dev."
+    required: false
+    default: "https://api.opengeo.dev"
+
+outputs:
+  observed-rank:
+    description: "The observed ranking position (integer, or 'null' when the brand was absent)."
+  matched-runs:
+    description: "Count of Prompt Runs evaluated for this check."
+
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args:
+    - "${{ inputs.prompt }}"
+    - "${{ inputs.brand }}"
+    - "${{ inputs.expect-rank-lte }}"
+    - "${{ inputs.provider }}"
+    - "${{ inputs.api-base }}"

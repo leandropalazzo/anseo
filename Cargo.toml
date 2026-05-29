@@ -13,6 +13,7 @@ members = [
     "crates/scheduler",
     "crates/plugin-host",
     "crates/wire-schema",
+    "crates/benchmark",
 ]
 
 [workspace.package]
@@ -34,6 +35,8 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "macros", "migrate", "pos
 uuid = { version = "1", features = ["v4", "serde"] }
 wiremock = "0.6"
 insta = { version = "1", features = ["yaml", "json"] }
+proptest = "1"
+tracing-test = "0.2"
 ulid = { version = "1", features = ["serde"] }
 secrecy = { version = "0.8", features = ["serde"] }
 utoipa = { version = "5", features = ["chrono", "preserve_order"] }
@@ -41,6 +44,8 @@ schemars = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
 serde_yaml = "0.9"
 sha2 = "0.10"
+hmac = "0.12"
+subtle = "2.5"
 clap = { version = "4", features = ["derive", "wrap_help"] }
 dialoguer = { version = "0.11", default-features = false }
 tempfile = "3"

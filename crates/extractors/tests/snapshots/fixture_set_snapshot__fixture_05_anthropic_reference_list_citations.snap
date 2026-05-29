@@ -1,0 +1,16 @@
+---
+source: crates/extractors/tests/fixture_set_snapshot.rs
+expression: extract_citations(&body)
+---
+- url: "https://qdrant.tech/documentation/"
+  domain: qdrant.tech
+  frequency: 1
+  source_type: general_web
+- url: "https://weaviate.io/developers/weaviate"
+  domain: weaviate.io
+  frequency: 1
+  source_type: general_web
+- url: "https://www.pinecone.io/learn/"
+  domain: www.pinecone.io
+  frequency: 1
+  source_type: general_web

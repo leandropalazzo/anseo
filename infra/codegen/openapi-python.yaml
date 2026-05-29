@@ -1,0 +1,8 @@
+# OpenGEO Python SDK — openapi-python-client config (Story 12.3).
+#
+# Generates a Python package at packages/python/ from the canonical
+# OpenAPI artifact. Pinned to openapi-python-client 0.24.0 in the
+# Makefile. v0.24 reads config from YAML (not TOML).
+
+project_name_override: "opengeo"
+package_name_override: "opengeo"

@@ -1,0 +1,24 @@
+---
+source: crates/extractors/tests/fixture_set_snapshot.rs
+expression: extract_citations(&body)
+---
+- url: "https://docs.trychroma.com/"
+  domain: docs.trychroma.com
+  frequency: 1
+  source_type: docs
+- url: "https://python.langchain.com/docs/integrations/vectorstores/"
+  domain: python.langchain.com
+  frequency: 1
+  source_type: docs
+- url: "https://qdrant.tech/"
+  domain: qdrant.tech
+  frequency: 1
+  source_type: general_web
+- url: "https://weaviate.io/docs/"
+  domain: weaviate.io
+  frequency: 1
+  source_type: docs
+- url: "https://www.pinecone.io/"
+  domain: www.pinecone.io
+  frequency: 1
+  source_type: general_web

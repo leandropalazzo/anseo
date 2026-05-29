@@ -18,7 +18,7 @@ use opengeo_core::{
 
 #[derive(Debug, Args)]
 pub struct LoginArgs {
-    /// Provider to authenticate. One of `openai`, `anthropic`.
+    /// Provider to authenticate.
     pub provider: String,
 }
 
@@ -46,13 +46,12 @@ pub fn run(args: LoginArgs) -> Result<(), OpenGeoError> {
 }
 
 fn parse_provider(s: &str) -> Result<ProviderName, OpenGeoError> {
-    match s {
-        "openai" => Ok(ProviderName::Openai),
-        "anthropic" => Ok(ProviderName::Anthropic),
-        other => Err(OpenGeoError::Auth(format!(
-            "unsupported provider `{other}`; expected one of `openai`, `anthropic`"
-        ))),
-    }
+    ProviderName::parse(s).ok_or_else(|| {
+        OpenGeoError::Auth(format!(
+            "unsupported provider `{s}`; expected one of {}",
+            ProviderName::all_wire_names().join(", ")
+        ))
+    })
 }
 
 fn read_secret_from_user(provider: &ProviderName) -> Result<String, OpenGeoError> {
@@ -85,6 +84,11 @@ pub fn resolve_provider_secret(provider: ProviderName) -> Result<Secret, OpenGeo
     let env_var = match provider {
         ProviderName::Openai => "OPENAI_API_KEY",
         ProviderName::Anthropic => "ANTHROPIC_API_KEY",
+        ProviderName::Gemini => "GEMINI_API_KEY",
+        ProviderName::Perplexity => "PERPLEXITY_API_KEY",
+        ProviderName::Grok => "GROK_API_KEY",
+        ProviderName::Mistral => "MISTRAL_API_KEY",
+        ProviderName::Openrouter => "OPENROUTER_API_KEY",
     };
     // Env override first — useful in CI without touching keyring.
     if let Ok(v) = std::env::var(env_var) {

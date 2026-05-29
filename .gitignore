@@ -27,7 +27,11 @@ coverage/
 .vscode/
 .idea/
 
+# Claude Code runtime artifacts
+.claude/
+
 # Env
 .env
 .env.local
 .env.*.local
+.env.clickhouse

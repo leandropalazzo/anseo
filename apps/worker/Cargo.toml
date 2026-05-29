@@ -12,8 +12,14 @@ path = "src/main.rs"
 
 [dependencies]
 opengeo-core = { path = "../../crates/core" }
+opengeo-storage = { path = "../../crates/storage" }
+opengeo-scheduler = { path = "../../crates/scheduler" }
+uuid = { workspace = true }
+ulid = { workspace = true }
 tokio = { workspace = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-bunyan-formatter = { workspace = true }
 anyhow = { workspace = true }
+chrono = { workspace = true }

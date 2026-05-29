@@ -38,11 +38,15 @@ impl From<ExitCode> for i32 {
     }
 }
 
-/// Provider Error Taxonomy per PRD §11.5. Closed enum for Phase 1.
+/// Provider Error Taxonomy per PRD §11.5. Closed enum for Phase 1; Phase 2
+/// Story 11.1 adds `ProviderUnsupportedModel` as a backwards-compatible
+/// variant so adapters can reject typo'd model strings without burning API
+/// credits AND surface that distinct failure mode to operators (the
+/// Phase 1 catch-all `ProviderInvalidResponse` masked it).
 ///
-/// Phase 2 adds `ProviderUnsupportedModel` as a backwards-compatible variant.
-/// Adding it then is an additive enum extension — downstream code matching on
-/// this enum will need to handle the new variant.
+/// The DB CHECK constraint on `prompt_runs.error_kind` was widened in the
+/// 20260528120000 migration to accept the new variant; this enum extension
+/// is the matching application-layer change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[schemars(rename_all = "snake_case")]
@@ -54,7 +58,10 @@ pub enum ProviderErrorKind {
     Provider5xx,
     ProviderInvalidResponse,
     NetworkError,
-    // Phase 2 addition: ProviderUnsupportedModel,
+    /// Story 11.1: the requested model isn't on the adapter's supported list.
+    /// Distinct from `ProviderInvalidResponse` so the operator can fix their
+    /// config without confusion with API-level malformed payloads.
+    ProviderUnsupportedModel,
 }
 
 impl ProviderErrorKind {
@@ -67,6 +74,7 @@ impl ProviderErrorKind {
             Self::Provider5xx => "provider_5xx",
             Self::ProviderInvalidResponse => "provider_invalid_response",
             Self::NetworkError => "network_error",
+            Self::ProviderUnsupportedModel => "provider_unsupported_model",
         }
     }
 }

@@ -1,7 +1,14 @@
-//! Analytics queries for the Dashboard surfaces (FR-17..FR-20).
+//! Analytics queries for the Dashboard surfaces (FR-17..FR-20) and Phase 2
+//! anomaly detection (FR-26a).
 //!
 //! Phase 1 keeps every query in raw SQL so the API can call them directly
 //! without a heavier ORM. Each function returns serde-friendly row structs.
+
+pub mod anomaly;
+pub mod citation_graph;
+pub mod heatmap;
+pub mod metrics_store;
+pub mod volatility;
 
 use chrono::{DateTime, Utc};
 use opengeo_core::{ProjectId, PromptRunId};
@@ -148,6 +155,182 @@ pub async fn citation_summary(
     .fetch_all(storage.pool())
     .await?;
     Ok(rows)
+}
+
+/// Story 14.2 input fetch — every (provider, domain) citation observed
+/// within `days` days for this project. Feeds [`citation_graph::compute`].
+pub async fn citation_graph_rows(
+    storage: &Storage,
+    project_id: ProjectId,
+    days: i32,
+) -> Result<Vec<citation_graph::CitationRow>, Error> {
+    let days = days.clamp(1, 365);
+    let interval = format!("{days} days");
+    struct Raw {
+        provider: String,
+        domain: String,
+        weight: i64,
+    }
+    // Aggregate in SQL so the API process only materializes the dedup'd
+    // edge set, not every individual citation row. `frequency` is
+    // collapsed via SUM so the graph weight matches the citation_summary
+    // surface (FR-20 invariant: both surfaces report the same totals).
+    let raw = sqlx::query_as!(
+        Raw,
+        r#"
+        SELECT pr.provider                AS "provider!: String",
+               c.domain                   AS "domain!: String",
+               SUM(c.frequency)::bigint   AS "weight!: i64"
+        FROM citations c
+        JOIN prompt_runs pr ON pr.id = c.prompt_run_id
+        JOIN prompts p      ON p.id  = pr.prompt_id
+        WHERE p.project_id = $1
+          AND pr.started_at >= now() - ($2::text)::interval
+          AND pr.status     = 'ok'
+        GROUP BY pr.provider, c.domain
+        ORDER BY SUM(c.frequency) DESC
+        LIMIT 5000
+        "#,
+        project_id as ProjectId,
+        interval,
+    )
+    .fetch_all(storage.pool())
+    .await?;
+    Ok(raw
+        .into_iter()
+        .map(|r| citation_graph::CitationRow {
+            provider: r.provider,
+            domain: r.domain,
+            weight: r.weight.max(0) as u32,
+        })
+        .collect())
+}
+
+/// Story 14.3 input fetch — one row per (prompt_run × provider) within
+/// `days`. The `rank` column comes from the brand's first mention in
+/// each run if present; runs with no brand mention contribute
+/// `rank = None` so [`heatmap::compute`] can compute presence rate
+/// without re-querying.
+pub async fn heatmap_rows(
+    storage: &Storage,
+    project_id: ProjectId,
+    brand_entity: &str,
+    days: i32,
+) -> Result<Vec<heatmap::Sample>, Error> {
+    let days = days.clamp(1, 365);
+    let interval = format!("{days} days");
+    struct Raw {
+        date: chrono::NaiveDate,
+        provider: String,
+        rank: Option<i32>,
+    }
+    let raw = sqlx::query_as!(
+        Raw,
+        r#"
+        SELECT
+            (pr.started_at AT TIME ZONE 'UTC')::date AS "date!: chrono::NaiveDate",
+            pr.provider                              AS "provider!: String",
+            (
+                SELECT MIN(m.rank)
+                FROM mentions m
+                WHERE m.prompt_run_id = pr.id
+                  AND m.entity        = $2
+            )                                        AS "rank: i32"
+        FROM prompt_runs pr
+        JOIN prompts p ON p.id = pr.prompt_id
+        WHERE p.project_id = $1
+          AND pr.started_at >= now() - ($3::text)::interval
+          AND pr.started_at <= now()
+          AND pr.status     = 'ok'
+        ORDER BY pr.started_at DESC
+        LIMIT 100000
+        "#,
+        project_id as ProjectId,
+        brand_entity,
+        interval,
+    )
+    .fetch_all(storage.pool())
+    .await?;
+    Ok(raw
+        .into_iter()
+        .map(|r| heatmap::Sample {
+            date: r.date,
+            provider: r.provider,
+            rank: r.rank.map(|x| x as f64),
+        })
+        .collect())
+}
+
+/// Story 14.4 input fetch — per-day mean rank of `brand_entity` for one
+/// (prompt × provider) over the trailing `window` days. Days with no
+/// run produce no row; days with runs but no mention produce `None`.
+/// Output is in chronological order, padded with `None` for any
+/// missing days so the consumer can compute a fixed-length window.
+pub async fn volatility_samples(
+    storage: &Storage,
+    project_id: ProjectId,
+    prompt_name: &str,
+    provider_name: &str,
+    brand_entity: &str,
+    window: u32,
+) -> Result<Vec<Option<f64>>, Error> {
+    // Clamp once; both the SQL interval AND the in-memory pad loop must
+    // agree, otherwise an unclamped `window` (e.g. u32::MAX from a client)
+    // would attempt an unbounded Vec allocation while the SQL only
+    // returned 365 days.
+    let window = window.clamp(1, 365);
+    let days = window as i32;
+    let interval = format!("{days} days");
+    struct Raw {
+        day: chrono::NaiveDate,
+        avg_rank: Option<f64>,
+    }
+    let raw = sqlx::query_as!(
+        Raw,
+        r#"
+        WITH per_run_rank AS (
+            SELECT
+                (pr.started_at AT TIME ZONE 'UTC')::date AS day,
+                (
+                    SELECT MIN(m.rank)
+                    FROM mentions m
+                    WHERE m.prompt_run_id = pr.id
+                      AND m.entity        = $3
+                ) AS rank
+            FROM prompt_runs pr
+            JOIN prompts p ON p.id = pr.prompt_id
+            WHERE p.project_id = $1
+              AND p.name       = $2
+              AND pr.provider  = $4
+              AND pr.started_at >= now() - ($5::text)::interval
+              AND pr.started_at <= now()
+              AND pr.status    = 'ok'
+        )
+        SELECT
+            day      AS "day!: chrono::NaiveDate",
+            AVG(rank)::double precision AS "avg_rank: f64"
+        FROM per_run_rank
+        GROUP BY day
+        ORDER BY day
+        "#,
+        project_id as ProjectId,
+        prompt_name,
+        brand_entity,
+        provider_name,
+        interval,
+    )
+    .fetch_all(storage.pool())
+    .await?;
+
+    let observations: std::collections::BTreeMap<chrono::NaiveDate, Option<f64>> =
+        raw.into_iter().map(|r| (r.day, r.avg_rank)).collect();
+    let today = chrono::Utc::now().date_naive();
+    let mut samples = Vec::with_capacity(window as usize);
+    for offset in (0..window as i64).rev() {
+        let day = today - chrono::Duration::days(offset);
+        samples.push(observations.get(&day).copied().unwrap_or(None));
+    }
+    Ok(samples)
 }
 
 /// Visibility trend per Prompt × Provider × day (FR-19). Phase 1 surfaces
