@@ -1914,7 +1914,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "opengeo-analytics"
-version = "0.0.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1934,7 +1934,7 @@ dependencies = [
 
 [[package]]
 name = "opengeo-api"
-version = "0.0.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1961,7 +1961,7 @@ dependencies = [
 
 [[package]]
 name = "opengeo-benchmark"
-version = "0.0.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "hmac",
@@ -1980,7 +1980,7 @@ dependencies = [
 
 [[package]]
 name = "opengeo-cli"
-version = "0.0.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -2010,7 +2010,7 @@ dependencies = [
 
 [[package]]
 name = "opengeo-core"
-version = "0.0.0"
+version = "0.5.0"
 dependencies = [
  "age",
  "anyhow",
@@ -2036,7 +2036,7 @@ dependencies = [
 
 [[package]]
 name = "opengeo-extractors"
-version = "0.0.0"
+version = "0.5.0"
 dependencies = [
  "insta",
  "once_cell",
@@ -2050,7 +2050,7 @@ dependencies = [
 
 [[package]]
 name = "opengeo-mcp"
-version = "0.0.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "opengeo-core",
@@ -2063,11 +2063,11 @@ dependencies = [
 
 [[package]]
 name = "opengeo-plugin-host"
-version = "0.0.0"
+version = "0.5.0"
 
 [[package]]
 name = "opengeo-providers"
-version = "0.0.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2086,7 +2086,7 @@ dependencies = [
 
 [[package]]
 name = "opengeo-scheduler"
-version = "0.0.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2112,7 +2112,7 @@ dependencies = [
 
 [[package]]
 name = "opengeo-storage"
-version = "0.0.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2129,7 +2129,7 @@ dependencies = [
 
 [[package]]
 name = "opengeo-wire-schema"
-version = "0.0.0"
+version = "0.5.0"
 dependencies = [
  "chrono",
  "insta",
@@ -2143,7 +2143,7 @@ dependencies = [
 
 [[package]]
 name = "opengeo-worker"
-version = "0.0.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "chrono",
