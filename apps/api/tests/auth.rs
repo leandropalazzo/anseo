@@ -32,6 +32,7 @@ fn build_router() -> axum::Router {
         events,
         config: None,
         provider_registry: None,
+        configured_project: std::sync::Arc::new("default".to_string()),
     };
     router(state)
 }

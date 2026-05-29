@@ -114,8 +114,8 @@ pub async fn run_list(args: ListArgs) -> Result<(), OpenGeoError> {
     }
 
     println!(
-        "{:<20} {:<40} {:<10} {}",
-        "NAME", "TARGET URL", "STATUS", "EVENT KINDS"
+        "{:<20} {:<40} {:<10} EVENT KINDS",
+        "NAME", "TARGET URL", "STATUS"
     );
     for row in rows {
         if args.active_only && row.disabled {
@@ -282,7 +282,7 @@ fn generate_secret() -> [u8; 32] {
 fn base64_encode(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] =
         b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     let chunks = bytes.chunks(3);
     for chunk in chunks {
         let b0 = chunk[0];

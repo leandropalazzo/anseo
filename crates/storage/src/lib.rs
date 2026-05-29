@@ -113,4 +113,19 @@ impl Storage {
     ) -> repositories::benchmark_consent::BenchmarkConsentRepo<'_> {
         repositories::benchmark_consent::BenchmarkConsentRepo::new(&self.pool)
     }
+
+    /// Story 0.12 — Epic 17 GEO Recommendations substrate. No callers
+    /// yet; Epic 17 stories wire up the recommender producers.
+    pub fn recommendations(
+        &self,
+    ) -> repositories::recommendations::RecommendationsRepo<'_> {
+        repositories::recommendations::RecommendationsRepo::new(&self.pool)
+    }
+
+    /// Story 0.12 — Epic 19 Plugin SDK install/uninstall audit log.
+    pub fn plugin_installs(
+        &self,
+    ) -> repositories::plugin_installs::PluginInstallsRepo<'_> {
+        repositories::plugin_installs::PluginInstallsRepo::new(&self.pool)
+    }
 }

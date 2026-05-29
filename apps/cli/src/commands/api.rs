@@ -1,3 +1,4 @@
+#![allow(clippy::doc_overindented_list_items)]
 //! `ogeo api key …` — Phase 2 Story 12.1 API-key management.
 //!
 //! Subcommands:
@@ -75,8 +76,8 @@ pub async fn run_list(args: ListArgs) -> Result<(), OpenGeoError> {
         return Ok(());
     }
     println!(
-        "{:<24} {:<14} {:<22} {:<22} {}",
-        "NAME", "PREFIX", "CREATED", "LAST USED", "STATUS"
+        "{:<24} {:<14} {:<22} {:<22} STATUS",
+        "NAME", "PREFIX", "CREATED", "LAST USED"
     );
     for row in rows {
         if args.active_only && row.revoked_at.is_some() {

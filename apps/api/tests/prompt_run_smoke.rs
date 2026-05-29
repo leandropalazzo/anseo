@@ -51,6 +51,7 @@ async fn api_router_builds_with_minimal_state() {
         events,
         config: None,
         provider_registry: None,
+        configured_project: std::sync::Arc::new("default".to_string()),
     };
     let _r = router(state);
     // No assertions needed: the test passes by building. If routes::test_seed

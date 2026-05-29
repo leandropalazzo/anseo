@@ -28,8 +28,8 @@ fn build_spec() -> serde_json::Value {
         "openapi": "3.0.3",
         "info": {
             "title": "OpenGEO Public REST API",
-            "version": "0.2.0",
-            "description": "Phase 2 v1 surface — read endpoints, prompt run submission, and the SSE event stream. Auth: X-OpenGEO-API-Key header carrying an `ogeo_<32 chars>` key."
+            "version": "0.3.0",
+            "description": "Phase 2 v1 surface — read endpoints, prompt run submission, and the SSE event stream. Auth: X-OpenGEO-API-Key header carrying an `ogeo_<32 chars>` key. Story 0.11 (Phase 3 substrate) adds the optional X-OpenGEO-Project header — Phase 2 accepts it for forward compatibility; Phase 4 will require it."
         },
         "servers": [
             {
@@ -45,6 +45,15 @@ fn build_spec() -> serde_json::Value {
             { "ApiKeyAuth": [] }
         ],
         "components": {
+            "parameters": {
+                "ProjectHeader": {
+                    "name": "X-OpenGEO-Project",
+                    "in": "header",
+                    "required": false,
+                    "schema": { "type": "string" },
+                    "description": "Story 0.11 substrate (Phase 3 decision L2). Identifies the target project. Phase 2 single-project deployments accept the header for forward-compatibility: the value must equal the configured project name (case-insensitive after trim) or the reserved sentinel `default`. Mismatching values return 403 `project_not_found`. Absent header is accepted in Phase 2 (with a one-time per-process WARN log) and will become required in Phase 4 multi-project mode."
+                }
+            },
             "securitySchemes": {
                 "ApiKeyAuth": {
                     "type": "apiKey",
@@ -101,6 +110,37 @@ fn build_spec() -> serde_json::Value {
                         "triggered_by": { "type": "string", "nullable": true }
                     }
                 },
+                "ComparisonsResponse": {
+                    "type": "object",
+                    "description": "Story 0.8 `GET /v1/comparisons` matrix payload — mirrors the MCP CompareBrandsOutput shape (architecture-phase3-mcp-server.md §3.3). Determinism contract: rows ordered (prompt_name ASC, provider ASC); cells ordered [brand, ...competitors_in_caller_order]; absent subjects carry ranking:null (NOT omitted).",
+                    "required": ["window", "brand", "competitors", "rows", "trace_id"],
+                    "properties": {
+                        "window": { "type": "string", "enum": ["7d", "30d", "all"] },
+                        "brand": { "type": "string" },
+                        "competitors": { "type": "array", "items": { "type": "string" } },
+                        "rows": { "type": "array", "items": { "$ref": "#/components/schemas/ComparisonRow" } },
+                        "trace_id": { "type": "string" }
+                    }
+                },
+                "ComparisonRow": {
+                    "type": "object",
+                    "required": ["prompt_id", "prompt_name", "provider", "cells"],
+                    "properties": {
+                        "prompt_id": { "type": "string", "description": "ULID." },
+                        "prompt_name": { "type": "string" },
+                        "provider": { "type": "string" },
+                        "cells": { "type": "array", "items": { "$ref": "#/components/schemas/ComparisonCell" } }
+                    }
+                },
+                "ComparisonCell": {
+                    "type": "object",
+                    "required": ["subject", "mention_count"],
+                    "properties": {
+                        "subject": { "type": "string" },
+                        "ranking": { "type": "integer", "nullable": true, "minimum": 1 },
+                        "mention_count": { "type": "integer", "minimum": 0 }
+                    }
+                },
                 "CreatePromptRunResponse": {
                     "type": "object",
                     "required": ["status", "run_id", "project_id", "prompt_name", "provider", "dispatched_at"],
@@ -116,10 +156,37 @@ fn build_spec() -> serde_json::Value {
             }
         },
         "paths": {
+            "/v1/comparisons": {
+                "get": {
+                    "operationId": "comparisons",
+                    "summary": "Phase 3 Story 0.8 — deterministic brand-vs-competitors comparison matrix (substrate for MCP `compare_brands`).",
+                    "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" },
+                        { "name": "brands", "in": "query", "required": true, "schema": { "type": "string", "description": "Comma-separated; 2..=6 entries. First entry is the subject brand; remainder are competitors in caller-declared order." } },
+                        { "name": "prompts", "in": "query", "schema": { "type": "string", "description": "Comma-separated prompt names; default = all prompts for the project." } },
+                        { "name": "providers", "in": "query", "schema": { "type": "string", "description": "Comma-separated provider names; default = all providers." } },
+                        { "name": "window", "in": "query", "schema": { "type": "string", "enum": ["1d", "7d", "30d"], "default": "7d" } }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ComparisonsResponse" } } }
+                        },
+                        "400": {
+                            "description": "Validation error (e.g. `brands` outside 2..=6, or unknown `window`).",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                }
+            },
             "/v1/healthz": {
                 "get": {
                     "operationId": "healthz",
                     "summary": "Health probe",
+                    "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" }
+                    ],
                     "responses": {
                         "200": {
                             "description": "OK",
@@ -136,6 +203,7 @@ fn build_spec() -> serde_json::Value {
                     "operationId": "listRuns",
                     "summary": "List recent Prompt Runs",
                     "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" },
                         { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500 } },
                         { "name": "offset", "in": "query", "schema": { "type": "integer", "minimum": 0 } }
                     ],
@@ -152,6 +220,7 @@ fn build_spec() -> serde_json::Value {
                 "get": {
                     "operationId": "citationSummary",
                     "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" },
                         { "name": "limit", "in": "query", "schema": { "type": "integer" } }
                     ],
                     "responses": {
@@ -167,6 +236,7 @@ fn build_spec() -> serde_json::Value {
                 "get": {
                     "operationId": "visibilityTrend",
                     "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" },
                         { "name": "prompt", "in": "query", "required": true, "schema": { "type": "string" } },
                         { "name": "days", "in": "query", "schema": { "type": "integer" } }
                     ],
@@ -183,6 +253,9 @@ fn build_spec() -> serde_json::Value {
                 "post": {
                     "operationId": "createPromptRun",
                     "summary": "Dispatch a one-shot prompt run for an already-declared Prompt and Provider.",
+                    "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" }
+                    ],
                     "requestBody": {
                         "required": true,
                         "content": {
@@ -207,6 +280,7 @@ fn build_spec() -> serde_json::Value {
                     "operationId": "subscribeEvents",
                     "summary": "Server-Sent Events stream of ARCH-17 lifecycle events for one project.",
                     "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" },
                         { "name": "project_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
                     ],
                     "responses": {

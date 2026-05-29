@@ -1,3 +1,4 @@
+#![allow(clippy::doc_overindented_list_items)]
 //! Phase 2 Story 10.4 — REST surface for declared schedules.
 //!
 //! Endpoints (all `X-OpenGEO-API-Key`-gated):
@@ -199,7 +200,7 @@ async fn create_schedule(
     let acknowledged_at = if above_cap { Some(Utc::now()) } else { None };
     let prompts_json = serde_json::to_value(&candidate.prompts).expect("Vec<String> serializes");
     let providers_json = serde_json::to_value(
-        &candidate
+        candidate
             .providers
             .iter()
             .map(|p| p.as_wire_str())

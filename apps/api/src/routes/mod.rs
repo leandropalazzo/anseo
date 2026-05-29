@@ -1,8 +1,13 @@
 pub mod analytics;
+pub mod anomalies;
+pub mod brands;
 pub mod citations;
+pub mod comparisons;
 pub mod events;
 pub mod health;
 pub mod prompt_runs;
+pub mod prompts;
+pub mod prompts_similarity;
 pub mod runs;
 pub mod schedules;
 pub mod test_seed;

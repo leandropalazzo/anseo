@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(_) => loaded_config
             .as_ref()
             .map(|c| c.project_id())
-            .unwrap_or_else(opengeo_core::ProjectId::new),
+            .unwrap_or_default(),
     };
 
     let provider_registry = match loaded_config.as_ref() {
@@ -52,6 +52,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         None => None,
     };
+    // Story 0.11 substrate — the wire-visible project name used by the
+    // `X-OpenGEO-Project` header guard. Read from `opengeo.yaml`'s
+    // `brand.name`; falls back to the literal `"default"` sentinel when
+    // no config is present so dev binds still accept SDK consumers that
+    // hard-code `"default"`.
+    let configured_project = std::sync::Arc::new(
+        loaded_config
+            .as_ref()
+            .map(|c| c.brand.name.clone())
+            .unwrap_or_else(|| "default".to_string()),
+    );
     let loaded_config = loaded_config.map(std::sync::Arc::new);
 
     let storage = Arc::new(Storage::connect(&database_url).await?);
@@ -100,6 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         events: events_tx,
         config: loaded_config,
         provider_registry,
+        configured_project,
     };
     let app = router(state);
 

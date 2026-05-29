@@ -51,6 +51,7 @@ async fn seed() -> (axum::Router, String) {
         events,
         config: None,
         provider_registry: None,
+        configured_project: std::sync::Arc::new("default".to_string()),
     };
     (router(state), key.plaintext)
 }

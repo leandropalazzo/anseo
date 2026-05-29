@@ -2,6 +2,7 @@
 //! (FR-17..FR-20). Phase 1 keeps the API tightly scoped to what `apps/web`
 //! consumes; the public REST surface (Phase 2) builds on these handlers.
 
+pub mod extractors;
 pub mod middleware;
 pub mod routes;
 
@@ -40,6 +41,12 @@ pub struct AppState {
     /// without a secret are absent here; the orchestrator synthesises a
     /// `failed` record for them on dispatch.
     pub provider_registry: Option<Arc<ProviderRegistry>>,
+    /// Story 0.11 substrate — the single configured project's wire name
+    /// (the `brand.name` from `opengeo.yaml`). The `X-OpenGEO-Project`
+    /// header is matched (case-insensitive after trim) against this
+    /// value. Phase 4 multi-project will replace this with a resolver
+    /// over the projects table.
+    pub configured_project: Arc<String>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -78,12 +85,26 @@ pub fn router(state: AppState) -> Router {
     let v1_surface = Router::new()
         .merge(phase_1_reads_under_v1)
         .merge(routes::prompt_runs::v1_router())
+        .merge(routes::prompts::v1_router())
+        .merge(routes::brands::v1_router())
         .merge(routes::analytics::v1_router())
+        .merge(routes::anomalies::v1_router())
+        .merge(routes::comparisons::v1_router())
         .merge(routes::schedules::v1_router())
+        .merge(routes::prompts_similarity::v1_router())
         .merge(routes::events::router_under_v1_relative())
+        // Story 0.11 — X-OpenGEO-Project header substrate. Layered
+        // INSIDE the auth gate so unauthenticated callers still get a
+        // 401 before any project-header consideration. Each layer is
+        // applied bottom-up by Axum, so this guard runs AFTER
+        // `require_api_key` on each request.
         .route_layer(axum::middleware::from_fn_with_state(
             state.clone(),
-            require_api_key.clone(),
+            extractors::project_header_guard,
+        ))
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            require_api_key,
         ));
 
     let phase_1_at_root_gated = phase_1_reads_at_root.route_layer(
