@@ -22,13 +22,36 @@ YAML config -> CLI prompt runs -> provider calls -> mention/citation extraction 
 
 **v0.6.0** closes Phase 3: an MCP server, a GEO recommendation engine, guided setup/deployment flows, plus a plugin SDK and a browser extension (both shipping as preview/substrate — see the caveats below). See [`CHANGELOG.md`](CHANGELOG.md).
 
-## Deployment tiers
+## Deploying each tier
 
-One multi-project core, three ways to run it:
+One multi-project core, three ways to run it — pick by how much you want running.
 
-- **Tier 0 — solo CLI.** `ogeo` against a local Postgres; no long-running services.
-- **Tier 1 — single binary.** `ogeo serve` supervises the API + in-process worker with a managed child Postgres — one process, no Compose.
-- **Tier 2 — Docker Compose.** API + worker + web + Postgres + ClickHouse (`infra/docker`).
+**Tier 0 — solo CLI.** Just `ogeo` against a Postgres you point it at; no long-running services.
+
+```bash
+export DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo
+ogeo init && ogeo login openai
+ogeo prompt run
+```
+
+**Tier 1 — single binary (`ogeo serve`).** One process runs the REST API + the worker in-process. With no `DATABASE_URL` it provisions and supervises a **managed child Postgres** (nothing else to install); set `DATABASE_URL` to use your own. Binds `127.0.0.1:8080` by default.
+
+```bash
+ogeo serve                                         # managed child Postgres; API+worker on :8080
+DATABASE_URL=postgres://… ogeo serve --port 8080   # …or bring your own Postgres
+```
+
+Bind to a non-loopback address (`--bind host:port`) only behind your own auth/network controls — a public bind with no API keys is refused.
+
+**Tier 2 — Docker Compose.** The full stack (API + worker + web + Postgres) from `infra/docker`.
+
+```bash
+cp infra/docker/.env.example infra/docker/.env     # defaults are fine for a local run
+docker compose -f infra/docker/compose.yml up -d
+docker compose -f infra/docker/compose.yml ps      # wait for healthy
+```
+
+Every published port binds to `127.0.0.1` by default; override with `OGEO_BIND_HOST` only behind your own network controls. ClickHouse analytics is connected separately via the dashboard's guided setup.
 
 A single operator runs **multiple projects** (brands) per deployment; the CLI, web dashboard, and MCP server all thread the selected project through every call.
 
