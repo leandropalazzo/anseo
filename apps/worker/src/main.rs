@@ -8,23 +8,18 @@
 //!
 //! Phase 2 single-host shape per architecture §6: one worker process per
 //! Compose stack; multi-host distribution is Phase 4.
+//!
+//! The poll loop itself lives in [`opengeo_worker::run`] so the same
+//! implementation is reused in-process by `ogeo serve` (Story 37.1). This
+//! binary is the standalone entrypoint: it wires telemetry + SIGINT/SIGTERM and
+//! delegates to [`opengeo_worker::run::run_poll_loop`].
 
 use anyhow::Context;
 use opengeo_core::telemetry::init_tracing;
-use opengeo_scheduler::events::{LifecycleEvent, SchedulePayload};
-use opengeo_scheduler::transport::publish;
-use opengeo_scheduler::webhooks::fanout::enqueue_lifecycle_event;
-use opengeo_scheduler::webhooks::poller::{
-    poll_once, DEFAULT_BATCH_LIMIT, DEFAULT_DELIVERY_TIMEOUT,
-};
-use opengeo_scheduler::webhooks::tick::DispatchResult;
-use opengeo_scheduler::worker::{reap_orphans, REAPER_IDLE_SECONDS};
+use opengeo_scheduler::worker::REAPER_IDLE_SECONDS;
 use opengeo_storage::Storage;
-use std::time::Duration;
+use opengeo_worker::run::{load_dispatch_context, run_poll_loop, POLL_INTERVAL_SECONDS};
 use tokio::signal;
-use uuid::Uuid;
-
-const POLL_INTERVAL_SECONDS: u64 = 5;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -37,8 +32,8 @@ async fn main() -> anyhow::Result<()> {
         "starting worker"
     );
 
-    let database_url = std::env::var("DATABASE_URL")
-        .context("DATABASE_URL must be set for opengeo-worker")?;
+    let database_url =
+        std::env::var("DATABASE_URL").context("DATABASE_URL must be set for opengeo-worker")?;
     let storage = Storage::connect(&database_url)
         .await
         .context("failed to open postgres pool")?;
@@ -47,119 +42,20 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed to apply migrations")?;
 
-    let pool = storage.pool().clone();
-    let http_client = reqwest::Client::builder()
-        .user_agent("opengeo-webhook-dispatcher/0.1")
-        .build()
-        .context("failed to build webhook reqwest client")?;
-
-    let shutdown = shutdown_signal();
-    tokio::pin!(shutdown);
-
-    let mut poll = tokio::time::interval(Duration::from_secs(POLL_INTERVAL_SECONDS));
-    poll.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-    tracing::info!(event = "worker.ready", "worker ready; entering poll loop");
-
-    loop {
-        tokio::select! {
-            biased;
-            _ = &mut shutdown => {
-                tracing::info!(event = "service.shutdown", "shutdown signal received");
-                break;
-            }
-            _ = poll.tick() => {
-                match reap_orphans(&pool).await {
-                    Ok(reaped) => {
-                        for tick in &reaped {
-                            let payload = SchedulePayload {
-                                event_id: Uuid::from_u128(ulid::Ulid::new().0),
-                                project_id: tick.project_id,
-                                schedule_id: tick.schedule_id,
-                                schedule_name: tick.schedule_name.clone(),
-                                tick_id: tick.tick_id,
-                                tick_ts: tick.tick_ts,
-                                emitted_at: chrono::Utc::now(),
-                            };
-                            let event = LifecycleEvent::TickRolledForward(payload);
-                            if let Err(err) = publish(&pool, &event).await {
-                                tracing::warn!(
-                                    event = "worker.publish_failed",
-                                    error = %err,
-                                    "failed to publish rolled-forward event"
-                                );
-                            }
-                            // Fan-out to webhooks. The shim short-circuits
-                            // on `schedule.tick_rolled_forward` (not a
-                            // webhook-eligible kind per arch §5.3), so this
-                            // is a no-op today; wired here so the bridge
-                            // is in place when the worker grows to emit
-                            // schedule.missed / prompt_run.completed.
-                            if let Err(err) = enqueue_lifecycle_event(&storage, &event).await {
-                                tracing::warn!(
-                                    event = "worker.fanout_failed",
-                                    error = %err,
-                                    "failed to enqueue webhook deliveries"
-                                );
-                            }
-                        }
-                        if !reaped.is_empty() {
-                            tracing::info!(
-                                event = "worker.reaper_swept",
-                                count = reaped.len(),
-                                "reaped abandoned ticks"
-                            );
-                        }
-                    }
-                    Err(err) => tracing::warn!(
-                        event = "worker.reaper_failed",
-                        error = %err,
-                        "reaper sweep failed; will retry on next tick"
-                    ),
-                }
-                // Tick discovery + claim follow-up: Story 10.4's ScheduleRepo
-                // surfaces the YAML→DB sync that lets us list due rows. Until
-                // then the reaper is the only active path; manual ticks
-                // declared via `ogeo schedule add` still record into the
-                // schedules table from Story 10.1.
-
-                // Story 12.4: drive the webhook dispatcher in the same
-                // tick. The poller fans out per-(event, webhook) tokio
-                // tasks internally; failure isolation comes from that
-                // per-target cardinality.
-                match poll_once(&storage, &http_client, DEFAULT_BATCH_LIMIT, DEFAULT_DELIVERY_TIMEOUT).await {
-                    Ok(results) => {
-                        let mut delivered = 0u32;
-                        let mut retrying = 0u32;
-                        let mut dropped = 0u32;
-                        let mut auto_disabled = 0u32;
-                        for r in &results {
-                            match r {
-                                DispatchResult::Delivered => delivered += 1,
-                                DispatchResult::Retrying => retrying += 1,
-                                DispatchResult::DroppedPermanent => dropped += 1,
-                                DispatchResult::DroppedAndWebhookAutoDisabled => auto_disabled += 1,
-                            }
-                        }
-                        if !results.is_empty() {
-                            tracing::info!(
-                                event = "webhook.poll_swept",
-                                delivered, retrying, dropped, auto_disabled,
-                                "webhook dispatch poll complete"
-                            );
-                        }
-                    }
-                    Err(err) => tracing::warn!(
-                        event = "webhook.poll_failed",
-                        error = %err,
-                        "webhook poll sweep failed; will retry on next tick"
-                    ),
-                }
-            }
-        }
+    // Schedule dispatch substrate: load the base config + provider registry the
+    // same way `apps/api` does so scheduled ticks drive live providers through
+    // the orchestrator. Provider keys + concurrency come from `opengeo.yaml`;
+    // brand identity is overlaid per project each tick by the fan-out.
+    let config_path = std::env::var("OGEO_CONFIG").unwrap_or_else(|_| "opengeo.yaml".into());
+    let dispatch = load_dispatch_context(&config_path);
+    if dispatch.is_none() {
+        tracing::warn!(
+            event = "worker.dispatch_disabled",
+            "no readable config or provider registry; schedule tick dispatch is inert (reaper + webhooks still run)"
+        );
     }
 
-    Ok(())
+    run_poll_loop(&storage, dispatch.as_ref(), shutdown_signal()).await
 }
 
 async fn shutdown_signal() {

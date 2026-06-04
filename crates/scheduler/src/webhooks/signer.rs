@@ -119,7 +119,11 @@ pub fn verify(
     let actual_sig_hex = hex_lower(&actual_sig);
 
     // Constant-time comparison: bool conversion from `subtle::Choice`.
-    if actual_sig_hex.as_bytes().ct_eq(expected_sig_hex.as_bytes()).into() {
+    if actual_sig_hex
+        .as_bytes()
+        .ct_eq(expected_sig_hex.as_bytes())
+        .into()
+    {
         Ok(())
     } else {
         Err(VerifyError::BadSignature)
@@ -132,13 +136,17 @@ pub fn verify(
 fn parse(raw: &str) -> Result<(i64, &str), VerifyError> {
     // We pin v1; future schemes get their own prefix. Reject everything
     // else with a clean error so an operator sees the version mismatch.
-    let rest = raw.strip_prefix("v1=").ok_or(VerifyError::MalformedHeader)?;
-    // `t={int},s={hex}` — split on the comma.
-    let (t_part, s_part) = rest
-        .split_once(',')
+    let rest = raw
+        .strip_prefix("v1=")
         .ok_or(VerifyError::MalformedHeader)?;
-    let ts_str = t_part.strip_prefix("t=").ok_or(VerifyError::MalformedHeader)?;
-    let sig_hex = s_part.strip_prefix("s=").ok_or(VerifyError::MalformedHeader)?;
+    // `t={int},s={hex}` — split on the comma.
+    let (t_part, s_part) = rest.split_once(',').ok_or(VerifyError::MalformedHeader)?;
+    let ts_str = t_part
+        .strip_prefix("t=")
+        .ok_or(VerifyError::MalformedHeader)?;
+    let sig_hex = s_part
+        .strip_prefix("s=")
+        .ok_or(VerifyError::MalformedHeader)?;
     let timestamp: i64 = ts_str.parse().map_err(|_| VerifyError::MalformedHeader)?;
     if sig_hex.is_empty() || !sig_hex.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(VerifyError::MalformedHeader);
@@ -271,8 +279,11 @@ mod tests {
         let body = br#"{"event_kind":"prompt_run.completed"}"#;
         let header = sign(SECRET, body, ts);
         // Flip one hex character at the start; HMAC must mismatch.
-        let tampered = header.replace("s=", "s=ff");
-        let tampered = tampered.replace(",ff", ",ff").chars().take(header.len()).collect::<String>();
+        let tampered = header
+            .replace("s=", "s=ff")
+            .chars()
+            .take(header.len())
+            .collect::<String>();
         let result = verify(SECRET, body, Some(&tampered), ts + 30, 300);
         assert_eq!(result, Err(VerifyError::BadSignature));
     }

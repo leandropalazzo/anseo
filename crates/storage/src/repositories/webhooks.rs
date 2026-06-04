@@ -109,10 +109,7 @@ impl<'a> WebhookRepo<'a> {
         row.map(row_to_webhook).transpose()
     }
 
-    pub async fn list_for_project(
-        &self,
-        project_id: ProjectId,
-    ) -> Result<Vec<WebhookRow>, Error> {
+    pub async fn list_for_project(&self, project_id: ProjectId) -> Result<Vec<WebhookRow>, Error> {
         let rows = sqlx::query(
             r#"
             SELECT id, project_id, name, target_url, secret_ciphertext,
@@ -158,11 +155,7 @@ impl<'a> WebhookRepo<'a> {
     /// Re-enable a previously-disabled webhook (architecture §5.4:
     /// `ogeo webhook reenable <name>` is the only path back to active).
     /// Idempotent: returns `Ok(false)` when no disabled row existed.
-    pub async fn reenable(
-        &self,
-        project_id: ProjectId,
-        name: &str,
-    ) -> Result<bool, Error> {
+    pub async fn reenable(&self, project_id: ProjectId, name: &str) -> Result<bool, Error> {
         let result = sqlx::query(
             r#"
             UPDATE webhooks

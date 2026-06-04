@@ -69,8 +69,7 @@ async fn seed_project_and_webhook(
 }
 
 fn base64_encode(bytes: &[u8]) -> String {
-    const A: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
     for chunk in bytes.chunks(3) {
         let b0 = chunk[0];
@@ -122,13 +121,19 @@ async fn p0_127_signature_round_trip_through_dispatcher_against_live_consumer() 
 
     let target = format!("{}/hook", mock.uri());
     let (_project, webhook_id) =
-        seed_project_and_webhook(storage.pool(), &target, secret, &["prompt_run.completed"])
-            .await;
+        seed_project_and_webhook(storage.pool(), &target, secret, &["prompt_run.completed"]).await;
 
     let event_id = Uuid::from_u128(ulid::Ulid::new().0);
     storage
         .webhook_deliveries()
-        .insert_pending(webhook_id, event_id, "prompt_run.completed", 1, None, &payload)
+        .insert_pending(
+            webhook_id,
+            event_id,
+            "prompt_run.completed",
+            1,
+            None,
+            &payload,
+        )
         .await
         .expect("insert delivery");
 
@@ -140,8 +145,14 @@ async fn p0_127_signature_round_trip_through_dispatcher_against_live_consumer() 
 
     let cap = captured.lock().unwrap();
     let (sig_header, body) = cap.as_ref().expect("consumer captured request");
-    verify(secret, body, Some(sig_header), Utc::now().timestamp() + 30, 300)
-        .expect("signer::verify must pass against same secret + body");
+    verify(
+        secret,
+        body,
+        Some(sig_header),
+        Utc::now().timestamp() + 30,
+        300,
+    )
+    .expect("signer::verify must pass against same secret + body");
 }
 
 #[tokio::test]
@@ -170,7 +181,14 @@ async fn p1_128_retry_ladder_advances_attempt_and_next_attempt_at_on_5xx() {
     let event_id = Uuid::from_u128(ulid::Ulid::new().0);
     let delivery_id = storage
         .webhook_deliveries()
-        .insert_pending(webhook_id, event_id, "prompt_run.completed", 1, None, &json!({}))
+        .insert_pending(
+            webhook_id,
+            event_id,
+            "prompt_run.completed",
+            1,
+            None,
+            &json!({}),
+        )
         .await
         .expect("insert");
 
@@ -335,12 +353,26 @@ async fn p1_130_failure_isolation_per_webhook_target() {
     let payload = json!({"event_kind": "prompt_run.completed"});
     storage
         .webhook_deliveries()
-        .insert_pending(healthy_webhook, event_id, "prompt_run.completed", 1, None, &payload)
+        .insert_pending(
+            healthy_webhook,
+            event_id,
+            "prompt_run.completed",
+            1,
+            None,
+            &payload,
+        )
         .await
         .unwrap();
     storage
         .webhook_deliveries()
-        .insert_pending(failing_webhook, event_id, "prompt_run.completed", 1, None, &payload)
+        .insert_pending(
+            failing_webhook,
+            event_id,
+            "prompt_run.completed",
+            1,
+            None,
+            &payload,
+        )
         .await
         .unwrap();
 
@@ -353,12 +385,19 @@ async fn p1_130_failure_isolation_per_webhook_target() {
 
     // Both rows resolved in one sweep — order isn't guaranteed but
     // length is.
-    assert_eq!(results.len(), 2, "both rows should resolve, got {results:?}");
+    assert_eq!(
+        results.len(),
+        2,
+        "both rows should resolve, got {results:?}"
+    );
     let healthy = results
         .iter()
         .filter(|r| matches!(r, DispatchResult::Delivered))
         .count();
-    let failing = results.iter().filter(|r| r.is_retrying_or_dropped()).count();
+    let failing = results
+        .iter()
+        .filter(|r| r.is_retrying_or_dropped())
+        .count();
     assert_eq!(healthy, 1);
     assert_eq!(failing, 1);
 

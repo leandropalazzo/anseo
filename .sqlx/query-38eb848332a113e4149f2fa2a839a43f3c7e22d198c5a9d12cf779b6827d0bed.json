@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            p.name AS name,\n            (\n                SELECT MAX(t.tick_ts)\n                FROM schedule_ticks t\n                JOIN schedules s ON s.id = t.schedule_id\n                WHERE s.project_id = p.id\n            ) AS \"last_tick_ts?\"\n        FROM projects p\n        WHERE p.archived_at IS NULL\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "last_tick_ts?",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "38eb848332a113e4149f2fa2a839a43f3c7e22d198c5a9d12cf779b6827d0bed"
+}

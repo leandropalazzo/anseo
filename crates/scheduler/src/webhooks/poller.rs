@@ -57,11 +57,7 @@ pub async fn poll_once(
     // could SELECT … WHERE id = ANY($1) for a single round trip.
     let mut tasks = JoinSet::new();
     for delivery in due {
-        let webhook = match storage
-            .webhooks()
-            .get_by_id(delivery.webhook_id)
-            .await?
-        {
+        let webhook = match storage.webhooks().get_by_id(delivery.webhook_id).await? {
             Some(w) => w,
             None => {
                 // Webhook row vanished — shouldn't happen because FK is
@@ -122,8 +118,11 @@ async fn spawn_one(
     webhook: WebhookRow,
     delivery_timeout: Duration,
 ) -> Result<DispatchResult, DispatcherError> {
-    let body = serde_json::to_vec(&delivery.payload_jsonb)
-        .map_err(|e| DispatcherError::Storage(opengeo_storage::Error::Sqlx(sqlx::Error::Decode(Box::new(e)))))?;
+    let body = serde_json::to_vec(&delivery.payload_jsonb).map_err(|e| {
+        DispatcherError::Storage(opengeo_storage::Error::Sqlx(sqlx::Error::Decode(Box::new(
+            e,
+        ))))
+    })?;
     let secret = decode_secret(&webhook.secret_ciphertext);
     let webhook_id_for_disable = webhook.id;
     process_one_due(

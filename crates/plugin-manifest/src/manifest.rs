@@ -50,6 +50,11 @@ pub enum ManifestLoadError {
         #[source]
         source: serde_yaml::Error,
     },
+    #[error("failed to parse manifest bytes: {source}")]
+    ParseBytes {
+        #[source]
+        source: serde_yaml::Error,
+    },
 }
 
 impl PluginManifest {
@@ -68,5 +73,14 @@ impl PluginManifest {
                 source,
             })?;
         Ok(manifest)
+    }
+
+    /// Strict-parse a manifest from in-memory YAML bytes. Same parse pass as
+    /// [`Self::load_from_path`] but for callers that already hold the bytes
+    /// (e.g. a registry client that fetched them over HTTP). Does **not** run
+    /// [`Self::validate`].
+    pub fn load_from_yaml(bytes: &[u8]) -> Result<Self, ManifestLoadError> {
+        serde_yaml::from_slice::<Self>(bytes)
+            .map_err(|source| ManifestLoadError::ParseBytes { source })
     }
 }

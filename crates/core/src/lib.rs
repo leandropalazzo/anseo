@@ -6,7 +6,7 @@
 //! - **Provider error taxonomy** — see [`error::ProviderErrorKind`]. PRD §11.5. Closed enum in Phase 1.
 //! - **Telemetry field names** — see [`telemetry::fields`]. NFR-Observability. Renaming is breaking.
 //! - **Stable IDs** — see [`ids`]. ULID-backed newtypes for Project, Prompt, PromptRun,
-//!   Mention, Citation, and per-request correlation.
+//!   Mention, Citation, Claim, GroundTruthFact, and per-request correlation.
 //!
 //! # Secret handling
 //!
@@ -25,14 +25,16 @@ pub mod similarity;
 
 pub use api_key::{GeneratedApiKey, API_KEY_HEADER, KEY_PREFIX as API_KEY_PREFIX};
 pub use config::{
-    AnomalySensitivity, BrandConfig, CompetitorConfig, Config, ConfigError, PromptConfig,
-    ProviderConfig, ProviderName, ScheduleConfig, DEFAULT_ANTHROPIC_MODEL, DEFAULT_GEMINI_MODEL,
-    DEFAULT_GROK_MODEL, DEFAULT_MISTRAL_MODEL, DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL,
-    DEFAULT_PERPLEXITY_MODEL, DEFAULT_SCHEDULE_DEBOUNCE_MINUTES, SCHEMA_VERSION_V0_1,
-    SCHEMA_VERSION_V0_2,
+    project_id_for_name, prompt_id_for, AnomalySensitivity, BrandConfig, CompetitorConfig, Config,
+    ConfigError, PromptConfig, ProviderConfig, ProviderName, ScheduleConfig,
+    DEFAULT_ANTHROPIC_MODEL, DEFAULT_GEMINI_MODEL, DEFAULT_GROK_MODEL, DEFAULT_MISTRAL_MODEL,
+    DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_PERPLEXITY_MODEL,
+    DEFAULT_SCHEDULE_DEBOUNCE_MINUTES, SCHEMA_VERSION_V0_1, SCHEMA_VERSION_V0_2,
 };
 pub use error::{ExitCode, OpenGeoError, ProviderErrorKind};
-pub use ids::{CitationId, MentionId, ProjectId, PromptId, PromptRunId, RequestId};
+pub use ids::{
+    CitationId, ClaimId, GroundTruthFactId, MentionId, ProjectId, PromptId, PromptRunId, RequestId,
+};
 pub use secret::Secret;
 pub use secret_store::{
     default_chain, AgeFileStore, ChainedStore, InMemoryStore, KeyringStore, SecretStore,

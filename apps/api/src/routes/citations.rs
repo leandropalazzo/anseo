@@ -32,7 +32,7 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use opengeo_analytics::citation_summary;
+use opengeo_analytics::{citation_summary, citation_trend};
 use opengeo_core::ProjectId;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -40,11 +40,44 @@ use sqlx::Row;
 use crate::AppState;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/api/citations/summary", get(summary))
+    Router::new()
+        .route("/api/citations/summary", get(summary))
+        .route("/api/citations/trend", get(trend))
 }
 
 pub fn v1_router() -> Router<AppState> {
-    Router::new().route("/citations/summary", get(summary))
+    Router::new()
+        .route("/citations/summary", get(summary))
+        .route("/citations/trend", get(trend))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TrendQuery {
+    /// Window in hours (default 168 = 7d), clamped to [1, 8760].
+    pub hours: Option<i32>,
+    /// Top-N domains to include (default 12, max 500).
+    pub limit: Option<i64>,
+}
+
+/// `GET /citations/trend` — per-domain hourly citation-frequency series for the
+/// citations-table sparkline column. Returns `{ trend: { domain: [...] } }`.
+async fn trend(
+    State(state): State<AppState>,
+    project: crate::extractors::EffectiveProject,
+    Query(q): Query<TrendQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let series = citation_trend(
+        &state.storage,
+        project.id(),
+        q.hours.unwrap_or(168),
+        q.limit.unwrap_or(12),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "citation trend failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    Ok(Json(serde_json::json!({ "trend": series })))
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,6 +107,28 @@ pub struct ProviderBreakdownEntry {
     pub frequency: i64,
 }
 
+/// A 0–100 composite summarizing citation-footprint health for the window.
+/// Deliberately transparent: each sub-component is surfaced so the headline
+/// number is explainable rather than a black box.
+#[derive(Debug, Clone, Serialize)]
+pub struct CitationScore {
+    /// Composite 0–100, rounded to one decimal.
+    pub score: f64,
+    /// Total citations (sum of frequencies) across the window.
+    pub total_citations: i64,
+    /// Distinct cited domains in the window.
+    pub distinct_domains: i64,
+    /// Share [0,1] of citations from authoritative web sources (docs,
+    /// wikipedia, general_web) vs UGC/social (reddit, youtube).
+    pub quality_share: f64,
+    /// Window-over-prior-window citation growth (mirrors `growth_rate`).
+    pub growth_rate: Option<f64>,
+    /// 0–100 sub-scores so the UI can show the breakdown on hover.
+    pub volume_component: f64,
+    pub diversity_component: f64,
+    pub quality_component: f64,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SummaryResponse {
     /// Legacy field name preserved for backward compatibility. Same shape
@@ -88,6 +143,8 @@ pub struct SummaryResponse {
     /// Effective window in days the response was computed over. Echoed
     /// so clients can render "Last 30 days" labels without re-deriving.
     pub window_days: i32,
+    /// Composite citation-health score for the window (additive field).
+    pub citation_score: CitationScore,
 }
 
 const DEFAULT_LIMIT: i64 = 50;
@@ -98,6 +155,7 @@ const SAMPLE_RUN_CAP: usize = 5;
 
 async fn summary(
     State(state): State<AppState>,
+    project: crate::extractors::EffectiveProject,
     Query(q): Query<SummaryQuery>,
 ) -> Result<Json<SummaryResponse>, StatusCode> {
     let limit = q.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
@@ -107,7 +165,7 @@ async fn summary(
     // query so the existing `.sqlx` cache + ordering invariants stay
     // intact. The enriched fields are computed by the helpers below
     // either way.
-    let legacy_rows = citation_summary(&state.storage, state.project_id, limit)
+    let legacy_rows = citation_summary(&state.storage, project.id(), limit)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "citation summary failed");
@@ -116,7 +174,7 @@ async fn summary(
 
     let filtered = fetch_filtered_rows(
         &state.storage,
-        state.project_id,
+        project.id(),
         days,
         q.provider.as_deref(),
         q.prompt.as_deref(),
@@ -148,25 +206,21 @@ async fn summary(
 
     // Always populate sample_prompt_run_ids on legacy-mode `domains` by
     // looking them up via the same helper (capped at 5 each).
-    let domains = enrich_sample_ids(&state.storage, state.project_id, days, domains).await;
+    let domains = enrich_sample_ids(&state.storage, project.id(), days, domains).await;
 
-    let provider_breakdown = fetch_provider_breakdown(
-        &state.storage,
-        state.project_id,
-        days,
-        q.prompt.as_deref(),
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "citation summary provider breakdown failed");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let provider_breakdown =
+        fetch_provider_breakdown(&state.storage, project.id(), days, q.prompt.as_deref())
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "citation summary provider breakdown failed");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
 
     let top_domains = filtered.clone();
 
     let growth_rate = compute_growth_rate(
         &state.storage,
-        state.project_id,
+        project.id(),
         days,
         q.provider.as_deref(),
         q.prompt.as_deref(),
@@ -177,12 +231,27 @@ async fn summary(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
+    let totals = fetch_score_totals(
+        &state.storage,
+        project.id(),
+        days,
+        q.provider.as_deref(),
+        q.prompt.as_deref(),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "citation summary score totals failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let citation_score = compute_citation_score(totals, growth_rate);
+
     Ok(Json(SummaryResponse {
         domains,
         provider_breakdown,
         top_domains,
         growth_rate,
         window_days: days,
+        citation_score,
     }))
 }
 
@@ -343,7 +412,7 @@ async fn fetch_provider_breakdown(
     let prompt_opt: Option<String> = prompt.map(|s| s.to_string());
     let rows = sqlx::query(
         r#"
-        SELECT pr.provider              AS provider,
+        SELECT pr.provider_identity     AS provider,
                SUM(c.frequency)::bigint AS frequency
         FROM citations c
         JOIN prompt_runs pr ON pr.id = c.prompt_run_id
@@ -351,7 +420,7 @@ async fn fetch_provider_breakdown(
         WHERE p.project_id = $1
           AND pr.started_at >= now() - ($2::text)::interval
           AND ($3::text IS NULL OR p.name = $3)
-        GROUP BY pr.provider
+        GROUP BY pr.provider_identity
         ORDER BY SUM(c.frequency) DESC
         "#,
     )
@@ -423,9 +492,136 @@ async fn compute_growth_rate(
     Ok(Some((curr as f64 - prior as f64) / prior as f64))
 }
 
+/// Raw aggregates feeding the citation score, fetched over the true window
+/// (not capped by `limit`, unlike the domains list).
+struct ScoreTotals {
+    total: i64,
+    distinct_domains: i64,
+    /// Sum of frequencies whose source_type is authoritative web (docs,
+    /// wikipedia, general_web, or NULL — unknown defaults to web, not social).
+    authoritative: i64,
+}
+
+async fn fetch_score_totals(
+    storage: &opengeo_storage::Storage,
+    project_id: ProjectId,
+    days: i32,
+    provider: Option<&str>,
+    prompt: Option<&str>,
+) -> Result<ScoreTotals, sqlx::Error> {
+    let interval = format!("{days} days");
+    let provider_opt: Option<String> = provider.map(|s| s.to_string());
+    let prompt_opt: Option<String> = prompt.map(|s| s.to_string());
+    let row = sqlx::query(
+        r#"
+        SELECT
+            COALESCE(SUM(c.frequency), 0)::bigint                AS total,
+            COUNT(DISTINCT c.domain)::bigint                     AS distinct_domains,
+            COALESCE(SUM(c.frequency) FILTER (
+                WHERE c.source_type IS NULL
+                   OR c.source_type NOT IN ('reddit', 'youtube')
+            ), 0)::bigint                                        AS authoritative
+        FROM citations c
+        JOIN prompt_runs pr ON pr.id = c.prompt_run_id
+        JOIN prompts     p  ON p.id  = pr.prompt_id
+        WHERE p.project_id = $1
+          AND pr.started_at >= now() - ($2::text)::interval
+          AND ($3::text IS NULL OR pr.provider = $3)
+          AND ($4::text IS NULL OR p.name = $4)
+        "#,
+    )
+    .bind(project_id)
+    .bind(interval)
+    .bind(provider_opt)
+    .bind(prompt_opt)
+    .fetch_one(storage.pool())
+    .await?;
+    Ok(ScoreTotals {
+        total: row.try_get("total")?,
+        distinct_domains: row.try_get("distinct_domains")?,
+        authoritative: row.try_get("authoritative")?,
+    })
+}
+
+const VOLUME_TARGET: f64 = 100.0;
+const DIVERSITY_TARGET: f64 = 30.0;
+
+/// Composite 0–100. Volume (≤40) saturates at VOLUME_TARGET citations,
+/// diversity (≤30) at DIVERSITY_TARGET distinct domains, quality (≤30) is the
+/// authoritative-source share scaled to 30. Growth is reported but does not
+/// move the headline number (so a strong week doesn't mask a thin footprint).
+fn compute_citation_score(t: ScoreTotals, growth_rate: Option<f64>) -> CitationScore {
+    let total = t.total.max(0);
+    let distinct = t.distinct_domains.max(0);
+    let quality_share = if total > 0 {
+        (t.authoritative.max(0) as f64 / total as f64).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let volume_component = (total as f64 / VOLUME_TARGET).min(1.0) * 40.0;
+    let diversity_component = (distinct as f64 / DIVERSITY_TARGET).min(1.0) * 30.0;
+    let quality_component = quality_share * 30.0;
+    let score =
+        ((volume_component + diversity_component + quality_component) * 10.0).round() / 10.0;
+    CitationScore {
+        score,
+        total_citations: total,
+        distinct_domains: distinct,
+        quality_share: (quality_share * 1000.0).round() / 1000.0,
+        growth_rate,
+        volume_component: (volume_component * 10.0).round() / 10.0,
+        diversity_component: (diversity_component * 10.0).round() / 10.0,
+        quality_component: (quality_component * 10.0).round() / 10.0,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn citation_score_zero_when_empty() {
+        let s = compute_citation_score(
+            ScoreTotals {
+                total: 0,
+                distinct_domains: 0,
+                authoritative: 0,
+            },
+            None,
+        );
+        assert_eq!(s.score, 0.0);
+        assert_eq!(s.quality_share, 0.0);
+    }
+
+    #[test]
+    fn citation_score_saturates_at_100() {
+        let s = compute_citation_score(
+            ScoreTotals {
+                total: 500,
+                distinct_domains: 60,
+                authoritative: 500,
+            },
+            Some(0.5),
+        );
+        assert_eq!(s.score, 100.0);
+        assert_eq!(s.quality_share, 1.0);
+        assert_eq!(s.growth_rate, Some(0.5));
+    }
+
+    #[test]
+    fn citation_score_quality_share_excludes_social() {
+        // 10 total, 4 authoritative → 0.4 share → 12.0 quality pts.
+        let s = compute_citation_score(
+            ScoreTotals {
+                total: 10,
+                distinct_domains: 3,
+                authoritative: 4,
+            },
+            None,
+        );
+        assert_eq!(s.quality_share, 0.4);
+        assert_eq!(s.quality_component, 12.0);
+    }
 
     #[test]
     fn summary_response_serializes_with_required_fields() {
@@ -443,8 +639,17 @@ mod tests {
             top_domains: vec![],
             growth_rate: Some(0.25),
             window_days: 30,
+            citation_score: compute_citation_score(
+                ScoreTotals {
+                    total: 3,
+                    distinct_domains: 1,
+                    authoritative: 3,
+                },
+                Some(0.25),
+            ),
         };
         let v = serde_json::to_value(&resp).unwrap();
+        assert!(v["citation_score"]["score"].is_number());
         assert!(v["domains"].is_array());
         assert!(v["provider_breakdown"].is_array());
         assert!(v["top_domains"].is_array());
@@ -492,6 +697,14 @@ mod tests {
             top_domains: vec![],
             growth_rate: None,
             window_days: 7,
+            citation_score: compute_citation_score(
+                ScoreTotals {
+                    total: 0,
+                    distinct_domains: 0,
+                    authoritative: 0,
+                },
+                None,
+            ),
         };
         let v = serde_json::to_value(&resp).unwrap();
         assert!(v["growth_rate"].is_null());

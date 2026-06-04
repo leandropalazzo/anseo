@@ -174,10 +174,7 @@ fn shingles(text: &str) -> Vec<String> {
     if tokens.len() < SHINGLE_SIZE {
         return vec![tokens.join(" ")];
     }
-    tokens
-        .windows(SHINGLE_SIZE)
-        .map(|w| w.join(" "))
-        .collect()
+    tokens.windows(SHINGLE_SIZE).map(|w| w.join(" ")).collect()
 }
 
 /// Hash one shingle with the `slot`-th seeded hasher.
@@ -249,11 +246,7 @@ mod tests {
     fn far_match_returns_nothing() {
         let prompts = vec![p("a", "best crm for small business")];
         let idx = MinHashIndex::build(&prompts);
-        let m = idx.query(
-            "how to bake a sourdough loaf at home in winter",
-            0.6,
-            10,
-        );
+        let m = idx.query("how to bake a sourdough loaf at home in winter", 0.6, 10);
         assert!(
             m.is_empty(),
             "unrelated prompt should not match, got {:?}",

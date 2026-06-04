@@ -280,8 +280,7 @@ fn generate_secret() -> [u8; 32] {
 /// Minimal standard base64 (URL-unsafe alphabet). Avoids pulling a base64
 /// crate for the one place we need it.
 fn base64_encode(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     let chunks = bytes.chunks(3);
     for chunk in chunks {

@@ -57,7 +57,8 @@ fn mcp_schemas_match_committed_snapshots() {
 }
 
 #[test]
-fn mcp_schema_count_is_twelve() {
-    // 6 tools × (input + output) = 12 schemas. Story 0.6 contract.
-    assert_eq!(all_schemas().len(), 12);
+fn mcp_schema_count_is_twenty_four() {
+    // 6 Phase-2 tools + 5 Story-19.7 recommend.* tools + 1 Roadmap Epic-32
+    // audit tool = 12 tools × (input + output) = 24 schemas.
+    assert_eq!(all_schemas().len(), 24);
 }

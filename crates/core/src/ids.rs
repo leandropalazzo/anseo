@@ -129,6 +129,14 @@ ulid_newtype!(
 ulid_newtype!(MentionId, "Stable ID for an extracted Mention (FR-3).");
 ulid_newtype!(CitationId, "Stable ID for an extracted Citation (FR-4).");
 ulid_newtype!(
+    ClaimId,
+    "Stable ID for an extracted factual Claim (FR-R8 / Epic 34)."
+);
+ulid_newtype!(
+    GroundTruthFactId,
+    "Stable ID for a brand ground-truth fact (FR-R8 / Epic 34)."
+);
+ulid_newtype!(
     RequestId,
     "Per-request correlation ID. Threaded through tracing spans and the `X-OpenGEO-Request-Id` response header (architecture L632)."
 );

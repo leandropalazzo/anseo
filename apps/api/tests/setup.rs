@@ -22,10 +22,9 @@ use opengeo_core::ProjectId;
 use tower::ServiceExt;
 
 fn build_router() -> (axum::Router, ProjectId) {
-    let lazy_pool = sqlx::PgPool::connect_lazy(
-        "postgres://opengeo:opengeo@127.0.0.1:1/__setup_test__",
-    )
-    .expect("connect_lazy never IOs synchronously");
+    let lazy_pool =
+        sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__setup_test__")
+            .expect("connect_lazy never IOs synchronously");
     let storage = Arc::new(opengeo_storage::Storage::from_pool(lazy_pool));
     let (events, _rx) = opengeo_scheduler::worker::event_channel();
     let project_id = ProjectId::new();
@@ -49,10 +48,9 @@ fn build_router() -> (axum::Router, ProjectId) {
 /// pattern used in `tests/project_header.rs` for the project-header
 /// guard.
 fn build_setup_only_router() -> axum::Router {
-    let lazy_pool = sqlx::PgPool::connect_lazy(
-        "postgres://opengeo:opengeo@127.0.0.1:1/__setup_test__",
-    )
-    .expect("connect_lazy never IOs synchronously");
+    let lazy_pool =
+        sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__setup_test__")
+            .expect("connect_lazy never IOs synchronously");
     let storage = Arc::new(opengeo_storage::Storage::from_pool(lazy_pool));
     let (events, _rx) = opengeo_scheduler::worker::event_channel();
     let state = AppState {
@@ -213,9 +211,7 @@ async fn install_stream_for_unknown_id_returns_404() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!(
-                    "/v1/setup/clickhouse/install-stream?id={bogus}"
-                ))
+                .uri(format!("/v1/setup/clickhouse/install-stream?id={bogus}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -237,4 +233,62 @@ async fn install_stream_with_malformed_id_returns_400() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+// ─── Story 15.4 — POST /v1/setup/clickhouse/connect ──────────────────────────
+
+async fn post_connect(
+    app: axum::Router,
+    body: serde_json::Value,
+) -> (StatusCode, serde_json::Value) {
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/v1/setup/clickhouse/connect")
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = resp.status();
+    let bytes = to_bytes(resp.into_body(), 16 * 1024).await.unwrap();
+    let json = serde_json::from_slice(&bytes).unwrap();
+    (status, json)
+}
+
+#[tokio::test]
+async fn connect_rejects_non_http_endpoint_with_400() {
+    let app = build_setup_only_router();
+    let (status, json) = post_connect(
+        app,
+        serde_json::json!({ "endpoint": "ftp://nope.example", "preset": "custom" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(json["ok"], false);
+    assert_eq!(json["state"], "bad_request");
+}
+
+#[tokio::test]
+async fn connect_unreachable_endpoint_reports_unreachable() {
+    // Port 1 on loopback is closed; curl returns "000" → Unreachable. The
+    // handler returns 200 with a structured failure so the UI can render the
+    // ErrorBanner copy. This exercises the probe path without a live DB.
+    let app = build_setup_only_router();
+    let (status, json) = post_connect(
+        app,
+        serde_json::json!({
+            "endpoint": "http://127.0.0.1:1",
+            "preset": "custom",
+            "username": "u",
+            "password": "p",
+            "database": "default"
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["ok"], false);
+    assert_eq!(json["state"], "unreachable");
 }

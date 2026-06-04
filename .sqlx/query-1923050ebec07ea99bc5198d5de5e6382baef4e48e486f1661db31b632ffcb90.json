@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            (pr.started_at AT TIME ZONE 'UTC')::date AS \"date!: chrono::NaiveDate\",\n            pr.provider_identity                     AS \"provider!: String\",\n            (\n                SELECT MIN(m.rank)\n                FROM mentions m\n                WHERE m.prompt_run_id = pr.id\n                  AND m.entity        = $2\n            )                                        AS \"rank: i32\"\n        FROM prompt_runs pr\n        JOIN prompts p ON p.id = pr.prompt_id\n        WHERE p.project_id = $1\n          AND pr.started_at >= now() - ($3::text)::interval\n          AND pr.started_at <= now()\n          AND pr.status     = 'ok'\n        ORDER BY pr.started_at DESC\n        LIMIT 100000\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "date!: chrono::NaiveDate",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "provider!: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "rank: i32",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      true,
+      null
+    ]
+  },
+  "hash": "1923050ebec07ea99bc5198d5de5e6382baef4e48e486f1661db31b632ffcb90"
+}

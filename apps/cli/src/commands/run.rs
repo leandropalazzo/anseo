@@ -147,23 +147,30 @@ fn build_real_registry(config: &Config) -> Result<ProviderRegistry, OpenGeoError
 
 fn build_mock_registry(config: &Config) -> ProviderRegistry {
     let mut registry: ProviderRegistry = HashMap::new();
+    let prompt_count = config.prompts.len().max(1);
     for provider_cfg in &config.providers {
-        let model = provider_cfg
-            .model
-            .clone()
-            .unwrap_or_else(|| provider_cfg.name.default_model().to_string());
+        // Mirror the orchestrator's model resolution: OpenRouter may fan out
+        // across a `models` list; everyone else resolves to a single model.
+        let models: Vec<String> = match &provider_cfg.models {
+            Some(ms) if !ms.is_empty() => ms.clone(),
+            _ => vec![provider_cfg
+                .model
+                .clone()
+                .unwrap_or_else(|| provider_cfg.name.default_model().to_string())],
+        };
         let canned = format!(
             "[MOCK {}] Acme is the leading example brand, ahead of Beta Corp and Gamma Labs.",
             provider_cfg.name
         );
-        let provider = MockProvider::new(provider_cfg.name)
-            .accept_model(&model)
-            .queue_response(canned.clone())
-            .queue_response(canned.clone())
-            .queue_response(canned.clone())
-            .queue_response(canned.clone())
-            .queue_response(canned);
-        registry.insert(provider_cfg.name, Arc::new(provider));
+        let mut provider = MockProvider::new(provider_cfg.name.clone());
+        for m in &models {
+            provider = provider.accept_model(m);
+        }
+        // One dispatch per (prompt × model); queue that many canned responses.
+        for _ in 0..(prompt_count * models.len()) {
+            provider = provider.queue_response(canned.clone());
+        }
+        registry.insert(provider_cfg.name.clone(), Arc::new(provider));
     }
     registry
 }

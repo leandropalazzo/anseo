@@ -19,7 +19,7 @@ use chrono::{DateTime, Utc};
 use opengeo_core::ProviderName;
 use serde_json::json;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RankSample {
     pub observed_at: DateTime<Utc>,
     pub provider: ProviderName,
@@ -77,10 +77,7 @@ pub fn detect(samples: &[RankSample], cfg: Config) -> Vec<AnomalyVerdict> {
     verdicts
 }
 
-fn disappearance_verdict(
-    window: &[RankSample],
-    current: &RankSample,
-) -> Option<AnomalyVerdict> {
+fn disappearance_verdict(window: &[RankSample], current: &RankSample) -> Option<AnomalyVerdict> {
     // Only flag a disappearance when the trailing window is dense with
     // non-null observations — a brand that's typically absent does not
     // become noteworthy each time the absence repeats.
@@ -88,15 +85,11 @@ fn disappearance_verdict(
     if present_count < window.len() {
         return None;
     }
-    let mean = window
-        .iter()
-        .filter_map(|s| s.rank)
-        .sum::<f64>()
-        / window.len() as f64;
+    let mean = window.iter().filter_map(|s| s.rank).sum::<f64>() / window.len() as f64;
     Some(AnomalyVerdict {
         kind: AnomalyKind::Visibility,
         observed_at: current.observed_at,
-        provider: current.provider,
+        provider: current.provider.clone(),
         summary: format!("rank_disappeared (prev_mean={mean:.2})"),
         detail: json!({
             "signal": "rank_disappeared",
@@ -118,7 +111,7 @@ fn zscore_verdict(
         return Some(AnomalyVerdict {
             kind: AnomalyKind::Visibility,
             observed_at: current.observed_at,
-            provider: current.provider,
+            provider: current.provider.clone(),
             summary: format!("first_appearance (rank={rank_value:.1})"),
             detail: json!({
                 "signal": "first_appearance",
@@ -127,11 +120,8 @@ fn zscore_verdict(
         });
     }
     let mean = observed.iter().sum::<f64>() / observed.len() as f64;
-    let variance: f64 = observed
-        .iter()
-        .map(|x| (x - mean).powi(2))
-        .sum::<f64>()
-        / observed.len() as f64;
+    let variance: f64 =
+        observed.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / observed.len() as f64;
     let stddev = variance.sqrt();
 
     if stddev < 1e-9 {
@@ -142,7 +132,7 @@ fn zscore_verdict(
             return Some(AnomalyVerdict {
                 kind: AnomalyKind::Visibility,
                 observed_at: current.observed_at,
-                provider: current.provider,
+                provider: current.provider.clone(),
                 summary: format!(
                     "constant_window_shift (rank={rank_value:.1}, prev_const={mean:.1})"
                 ),
@@ -163,10 +153,8 @@ fn zscore_verdict(
     Some(AnomalyVerdict {
         kind: AnomalyKind::Visibility,
         observed_at: current.observed_at,
-        provider: current.provider,
-        summary: format!(
-            "z={z:.2}, rank={rank_value:.1}, prev={mean:.2}±{stddev:.2}"
-        ),
+        provider: current.provider.clone(),
+        summary: format!("z={z:.2}, rank={rank_value:.1}, prev={mean:.2}±{stddev:.2}"),
         detail: json!({
             "signal": "zscore",
             "z": z,

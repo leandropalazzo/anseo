@@ -35,7 +35,7 @@ pub fn run(args: LoginArgs) -> Result<(), OpenGeoError> {
 
     let secret = Secret::new(raw);
     store
-        .set(provider.as_wire_str(), secret)
+        .set(&provider.as_wire_str(), secret)
         .map_err(map_store_err)?;
 
     eprintln!(
@@ -89,6 +89,11 @@ pub fn resolve_provider_secret(provider: ProviderName) -> Result<Secret, OpenGeo
         ProviderName::Grok => "GROK_API_KEY",
         ProviderName::Mistral => "MISTRAL_API_KEY",
         ProviderName::Openrouter => "OPENROUTER_API_KEY",
+        ProviderName::Plugin(_) => {
+            return Err(OpenGeoError::Auth(format!(
+                "`{provider}` is a plugin provider; it does not use first-party login"
+            )));
+        }
     };
     // Env override first — useful in CI without touching keyring.
     if let Ok(v) = std::env::var(env_var) {
@@ -97,7 +102,7 @@ pub fn resolve_provider_secret(provider: ProviderName) -> Result<Secret, OpenGeo
         }
     }
     let store = default_chain();
-    match store.get(provider.as_wire_str()) {
+    match store.get(&provider.as_wire_str()) {
         Ok(s) => Ok(s),
         Err(SecretStoreError::NotFound { .. }) => Err(OpenGeoError::Auth(format!(
             "no API key configured for `{provider}`; \

@@ -344,3 +344,130 @@ pub struct BenchmarkHit {
     pub finding: serde_json::Value,
     pub link_to_public_dashboard: String,
 }
+
+// ============================================================================
+// FR-59 / Story 19.7: recommend.* tools
+//
+// The Recommendation envelope is the engine wire contract
+// (architecture-phase3-geo-recommendations.md §4); the MCP surface consumes it
+// verbatim as an opaque JSON object rather than re-modelling it, so the
+// `tags`/`reproducibility` fields (incl. `non_deterministic_pipeline`, §5)
+// reach the LLM client unchanged.
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RecommendListInput {
+    pub project: ProjectId,
+    /// Optional; default 50, max 200 (validated server-side).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+    /// Opaque page cursor from a previous response's `next_cursor`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
+pub struct RecommendListOutput {
+    /// Active recommendations, newest first; each item is the engine wire
+    /// envelope verbatim (§4).
+    pub recommendations: Vec<serde_json::Value>,
+    /// `null` on the last page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    pub trace_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RecommendShowInput {
+    pub project: ProjectId,
+    /// Recommendation ULID.
+    pub recommendation_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
+pub struct RecommendShowOutput {
+    /// The engine wire envelope verbatim (§4), including full traceability.
+    pub recommendation: serde_json::Value,
+    pub trace_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RecommendAckInput {
+    pub project: ProjectId,
+    pub recommendation_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RecommendDismissInput {
+    pub project: ProjectId,
+    pub recommendation_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RecommendMarkActedInput {
+    pub project: ProjectId,
+    pub recommendation_id: String,
+    /// Optional evidence URL — the LLM client surfaces what changed. Decision
+    /// L4 exposes both `evidence_url` and `note` as optional.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evidence_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// Shared output for the lifecycle-transition tools (`ack` / `dismiss` /
+/// `mark_acted`): the updated envelope verbatim plus any lifecycle warnings
+/// (e.g. `lifecycle.evidence_missing` from `mark_acted`).
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
+pub struct RecommendTransitionOutput {
+    pub recommendation: serde_json::Value,
+    pub warnings: Vec<serde_json::Value>,
+    pub trace_id: String,
+}
+
+// ============================================================================
+// Roadmap Epic 32: audit — site citation-readiness (BYO-generation bridge).
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AuditInput {
+    /// URL, sitemap URL, file:// URL, or local HTML fixture path to audit.
+    pub target: String,
+    /// Optional; default 25; clamped to [1, 200] server-side.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_pages: Option<u32>,
+    /// Optional CI-gate thresholds: rule ids or severities (low/medium/high).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fail_on: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
+pub struct AuditOutput {
+    pub target: String,
+    pub overall_score: u8,
+    pub pages_crawled: u32,
+    pub findings: Vec<AuditFindingRecord>,
+    /// Present only when `fail_on` was supplied.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gate_passed: Option<bool>,
+    pub trace_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
+pub struct AuditFindingRecord {
+    pub page_url: String,
+    pub rule_id: String,
+    /// `identity|extractability|corroboration`.
+    pub category: String,
+    /// `low|medium|high`.
+    pub severity: String,
+    /// `pass|warn|fail`.
+    pub status: String,
+    pub message: String,
+}

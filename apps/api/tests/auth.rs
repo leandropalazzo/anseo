@@ -20,10 +20,9 @@ fn build_router() -> axum::Router {
     // Lazy pool that never touches the network. The auth middleware short-
     // circuits at the header/wire-shape check for malformed inputs, so the
     // pool is never queried in these tests.
-    let lazy_pool = sqlx::PgPool::connect_lazy(
-        "postgres://opengeo:opengeo@127.0.0.1:1/__auth_test__",
-    )
-    .expect("connect_lazy never IOs synchronously");
+    let lazy_pool =
+        sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__auth_test__")
+            .expect("connect_lazy never IOs synchronously");
     let storage = Arc::new(opengeo_storage::Storage::from_pool(lazy_pool));
     let (events, _rx) = opengeo_scheduler::worker::event_channel();
     let state = AppState {
@@ -62,7 +61,10 @@ async fn v1_runs_with_wrong_header_returns_401() {
         .oneshot(
             Request::builder()
                 .uri("/v1/runs")
-                .header("Authorization", "Bearer ogeo_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                .header(
+                    "Authorization",
+                    "Bearer ogeo_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                )
                 .body(Body::empty())
                 .unwrap(),
         )

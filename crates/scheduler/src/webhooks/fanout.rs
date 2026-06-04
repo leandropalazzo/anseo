@@ -42,6 +42,10 @@ pub fn is_webhook_eligible(event_kind: &str) -> bool {
             | "schedule.missed"
             | "visibility.anomaly"
             | "citation.anomaly"
+            | "recommendation.generated"
+            | "recommendation.surfaced"
+            | "recommendation.acted"
+            | "recommendation.measured"
     )
 }
 
@@ -85,10 +89,7 @@ pub async fn enqueue_event(
         let delivery_id = storage
             .webhook_deliveries()
             .insert_pending(
-                webhook.id,
-                event_id,
-                event_kind,
-                1,    // attempt 1 — first emission
+                webhook.id, event_id, event_kind, 1,    // attempt 1 — first emission
                 None, // next_attempt_at: NULL → eligible immediately
                 payload,
             )
@@ -116,7 +117,14 @@ pub async fn enqueue_lifecycle_event(
     }
     let payload = serde_json::to_value(event)
         .map_err(|e| opengeo_storage::Error::Sqlx(sqlx::Error::Decode(Box::new(e))))?;
-    enqueue_event(storage, event.project_id(), kind, event.event_id(), &payload).await
+    enqueue_event(
+        storage,
+        event.project_id(),
+        kind,
+        event.event_id(),
+        &payload,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -143,8 +151,14 @@ mod tests {
         // Defensive: an operator who hand-edited the column to a string
         // or object shouldn't crash the producer; they just get zero
         // events until they fix it.
-        assert!(!subscribes(&json!("prompt_run.completed"), "prompt_run.completed"));
-        assert!(!subscribes(&json!({"prompt_run.completed": true}), "prompt_run.completed"));
+        assert!(!subscribes(
+            &json!("prompt_run.completed"),
+            "prompt_run.completed"
+        ));
+        assert!(!subscribes(
+            &json!({"prompt_run.completed": true}),
+            "prompt_run.completed"
+        ));
         assert!(!subscribes(&Value::Null, "prompt_run.completed"));
     }
 
@@ -173,6 +187,10 @@ mod tests {
             "schedule.missed",
             "visibility.anomaly",
             "citation.anomaly",
+            "recommendation.generated",
+            "recommendation.surfaced",
+            "recommendation.acted",
+            "recommendation.measured",
         ] {
             assert!(is_webhook_eligible(kind), "{kind} should be eligible");
         }

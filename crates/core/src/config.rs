@@ -52,7 +52,7 @@ pub const DEFAULT_GEMINI_MODEL: &str = "gemini-1.5-pro-002";
 pub const DEFAULT_PERPLEXITY_MODEL: &str = "sonar-large-online-128k";
 pub const DEFAULT_GROK_MODEL: &str = "grok-2-1212";
 pub const DEFAULT_MISTRAL_MODEL: &str = "mistral-large-2411";
-pub const DEFAULT_OPENROUTER_MODEL: &str = "openai/gpt-4o-2024-08-06";
+pub const DEFAULT_OPENROUTER_MODEL: &str = "openrouter/auto";
 
 /// Default debounce window for schedule declarations.
 pub const DEFAULT_SCHEDULE_DEBOUNCE_MINUTES: u32 = 5;
@@ -84,6 +84,42 @@ pub struct Config {
     /// [`AnomalySensitivity::default`].
     #[serde(default)]
     pub anomaly_sensitivity: AnomalySensitivity,
+    /// Phase 3 analytics store wiring. Absent until the operator connects a
+    /// ClickHouse instance via `/setup` (Story 15.4 `POST
+    /// /v1/setup/clickhouse/connect` persists it here). Optional + additive,
+    /// so pre-Phase-3 configs parse unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analytics: Option<AnalyticsConfig>,
+}
+
+/// Phase 3 — analytics store configuration. Today the only member is the
+/// optional ClickHouse endpoint; future analytics backends slot in here.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AnalyticsConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clickhouse: Option<ClickHouseEndpointConfig>,
+}
+
+/// Connection coordinates for a remote/managed ClickHouse, persisted by the
+/// `/setup` remote-connect flow (Story 15.4). The password is intentionally
+/// NOT stored here — it is supplied at runtime via the `CLICKHOUSE_PASSWORD`
+/// env var (or the managed provider's secret store), matching the privacy
+/// rule that secrets never land in the YAML.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ClickHouseEndpointConfig {
+    /// Canonical origin URL, e.g. `https://abc.clickhouse.cloud:8443`.
+    pub endpoint: String,
+    /// Database name (defaults to `default` when omitted).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub database: Option<String>,
+    /// Username for HTTP basic auth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    /// Which managed provider preset this endpoint came from (informational).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset: Option<String>,
 }
 
 /// Phase 2 FR-26a — tuning for the z-score visibility detector and the
@@ -139,6 +175,10 @@ pub struct BrandConfig {
     /// variants per entity"). Matched in addition to `name`.
     #[serde(default)]
     pub variants: Vec<String>,
+    /// Optional URL of the brand's owned website. Used to scope `ogeo audit`
+    /// and crawler observability to the brand's own pages.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub site_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -171,6 +211,13 @@ pub struct ProviderConfig {
     /// missing the provider's documented default is used (PRD FR-9).
     #[serde(default)]
     pub model: Option<String>,
+    /// OpenRouter-only: fan a single OpenRouter key out to multiple upstream
+    /// `<vendor>/<model>` models — each model becomes its own Prompt Run
+    /// (the upstream is threaded into `raw_response.metadata.upstream_model`).
+    /// Mutually exclusive with `model`. Unset/absent keeps single-model
+    /// behaviour.
+    #[serde(default)]
+    pub models: Option<Vec<String>>,
     /// Per-provider request timeout in seconds. Defaults to
     /// [`DEFAULT_PROVIDER_TIMEOUT_SECONDS`].
     #[serde(default = "default_provider_timeout")]
@@ -196,9 +243,19 @@ pub struct ScheduleConfig {
     pub projection_acknowledged_at: Option<String>,
 }
 
-/// Closed set of providers known to the YAML schema.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "lowercase")]
+/// Set of providers OpenGEO can dispatch to.
+///
+/// The seven first-party variants are a closed set known to the YAML schema.
+/// [`ProviderName::Plugin`] (Phase 3, FR-52) carries the namespaced id of a
+/// plugin-provided Provider — wire form `plugin:<id>` (e.g.
+/// `plugin:test.mock-provider`). The `Plugin` variant is what makes this enum
+/// non-`Copy`; treat it as `Clone`.
+///
+/// Serialization is a plain wire string in every format (YAML, JSON, OpenAPI)
+/// via the manual `Serialize`/`Deserialize`/`JsonSchema` impls below, so a
+/// plugin provider round-trips as `"plugin:test.mock-provider"` rather than a
+/// tagged enum object.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ProviderName {
     Openai,
     Anthropic,
@@ -207,10 +264,19 @@ pub enum ProviderName {
     Grok,
     Mistral,
     Openrouter,
+    /// Plugin-provided Provider. Inner string is the plugin provider id
+    /// (`test.mock-provider`); wire form is `plugin:<id>`.
+    Plugin(String),
 }
 
 impl ProviderName {
     pub fn parse(s: &str) -> Option<Self> {
+        if let Some(id) = s.strip_prefix("plugin:") {
+            if id.is_empty() {
+                return None;
+            }
+            return Some(Self::Plugin(id.to_string()));
+        }
         match s {
             "openai" => Some(Self::Openai),
             "anthropic" => Some(Self::Anthropic),
@@ -223,19 +289,28 @@ impl ProviderName {
         }
     }
 
-    pub fn as_wire_str(self) -> &'static str {
+    /// Canonical wire string. First-party variants borrow a `'static` literal;
+    /// `Plugin` owns the `plugin:<id>` rendering.
+    pub fn as_wire_str(&self) -> std::borrow::Cow<'static, str> {
+        use std::borrow::Cow;
         match self {
-            Self::Openai => "openai",
-            Self::Anthropic => "anthropic",
-            Self::Gemini => "gemini",
-            Self::Perplexity => "perplexity",
-            Self::Grok => "grok",
-            Self::Mistral => "mistral",
-            Self::Openrouter => "openrouter",
+            Self::Openai => Cow::Borrowed("openai"),
+            Self::Anthropic => Cow::Borrowed("anthropic"),
+            Self::Gemini => Cow::Borrowed("gemini"),
+            Self::Perplexity => Cow::Borrowed("perplexity"),
+            Self::Grok => Cow::Borrowed("grok"),
+            Self::Mistral => Cow::Borrowed("mistral"),
+            Self::Openrouter => Cow::Borrowed("openrouter"),
+            Self::Plugin(id) => Cow::Owned(format!("plugin:{id}")),
         }
     }
 
-    pub fn default_model(self) -> &'static str {
+    /// True for the [`ProviderName::Plugin`] variant.
+    pub fn is_plugin(&self) -> bool {
+        matches!(self, Self::Plugin(_))
+    }
+
+    pub fn default_model(&self) -> &'static str {
         match self {
             Self::Openai => DEFAULT_OPENAI_MODEL,
             Self::Anthropic => DEFAULT_ANTHROPIC_MODEL,
@@ -244,9 +319,14 @@ impl ProviderName {
             Self::Grok => DEFAULT_GROK_MODEL,
             Self::Mistral => DEFAULT_MISTRAL_MODEL,
             Self::Openrouter => DEFAULT_OPENROUTER_MODEL,
+            // Plugin providers declare their own model; this is only a
+            // fallback label used when none is supplied.
+            Self::Plugin(_) => "plugin",
         }
     }
 
+    /// First-party provider wire names. Plugin providers are not enumerable
+    /// here — they are discovered from installed plugins, not this static set.
     pub fn all_wire_names() -> &'static [&'static str] {
         &[
             "openai",
@@ -262,7 +342,32 @@ impl ProviderName {
 
 impl std::fmt::Display for ProviderName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_wire_str())
+        f.write_str(&self.as_wire_str())
+    }
+}
+
+impl Serialize for ProviderName {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.as_wire_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ProviderName {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        ProviderName::parse(&s)
+            .ok_or_else(|| serde::de::Error::custom(format!("unknown provider `{s}`")))
+    }
+}
+
+impl JsonSchema for ProviderName {
+    fn schema_name() -> String {
+        "ProviderName".to_string()
+    }
+
+    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        // Wire form is a string: one of the first-party names or `plugin:<id>`.
+        String::json_schema(gen)
     }
 }
 
@@ -329,6 +434,16 @@ impl Config {
     /// prefer [`Config::from_path`] for that.
     pub fn from_yaml_str(yaml: &str) -> Result<Self, ConfigError> {
         Self::parse_and_validate(yaml, None)
+    }
+
+    /// Serialize this `Config` back to a YAML document. Used by the `/setup`
+    /// remote-connect flow (Story 15.4) to persist the analytics endpoint.
+    /// Comments in the operator's original file are not preserved.
+    pub fn to_yaml_string(&self) -> Result<String, ConfigError> {
+        serde_yaml::to_string(self).map_err(|e| ConfigError::Parse {
+            path_display: "<output>".to_string(),
+            message: e.to_string(),
+        })
     }
 
     /// Parse a `Config` from a file. The path is threaded through into
@@ -410,7 +525,7 @@ impl Config {
         let mut seen_providers: std::collections::HashSet<ProviderName> =
             std::collections::HashSet::new();
         for (idx, p) in self.providers.iter().enumerate() {
-            if !seen_providers.insert(p.name) {
+            if !seen_providers.insert(p.name.clone()) {
                 errors.push(format!(
                     "duplicate provider entry `{}` at providers[{idx}]",
                     p.name
@@ -421,12 +536,41 @@ impl Config {
                     "providers[{idx}].timeout_seconds must be > 0 (got 0)"
                 ));
             }
+            // `models` (multi-upstream fan-out) is an OpenRouter-only mechanism.
+            if let Some(models) = &p.models {
+                if p.name != ProviderName::Openrouter {
+                    errors.push(format!(
+                        "providers[{idx}].models is only supported for the `openrouter` \
+                         provider (it fans one OpenRouter key out to multiple upstreams); \
+                         `{}` accepts a single `model`",
+                        p.name
+                    ));
+                }
+                if p.model.is_some() {
+                    errors.push(format!(
+                        "providers[{idx}]: set either `model` or `models`, not both"
+                    ));
+                }
+                if models.is_empty() {
+                    errors.push(format!(
+                        "providers[{idx}].models must list at least one `<vendor>/<model>`"
+                    ));
+                }
+                for (mdx, m) in models.iter().enumerate() {
+                    if !m.contains('/') {
+                        errors.push(format!(
+                            "providers[{idx}].models[{mdx}] `{m}` must be in `<vendor>/<model>` \
+                             form (e.g. `{DEFAULT_OPENROUTER_MODEL}`)"
+                        ));
+                    }
+                }
+            }
         }
 
         let declared_prompts: std::collections::HashSet<&str> =
             self.prompts.iter().map(|p| p.name.as_str()).collect();
         let declared_providers: std::collections::HashSet<ProviderName> =
-            self.providers.iter().map(|p| p.name).collect();
+            self.providers.iter().map(|p| p.name.clone()).collect();
         let mut seen_schedules: std::collections::HashSet<&str> = std::collections::HashSet::new();
         for (idx, s) in self.schedules.iter().enumerate() {
             if s.name.trim().is_empty() {
@@ -483,9 +627,7 @@ impl Config {
     /// (currently the trimmed lowercase brand name). Two runs over the same
     /// `opengeo.yaml` produce the same `ProjectId`.
     pub fn project_id(&self) -> ProjectId {
-        let canonical = canonical_project_input(&self.brand.name);
-        let bytes = sha256_first_16(canonical.as_bytes());
-        ProjectId::from_ulid(ulid::Ulid::from_bytes(bytes))
+        project_id_for_name(&self.brand.name)
     }
 
     /// Stable [`PromptId`] for a named prompt within this Project. Returns
@@ -500,9 +642,7 @@ impl Config {
     /// Stable [`PromptId`] derivation without the membership check — used by
     /// iterators that already know the prompt is declared.
     fn derive_prompt_id(&self, name: &str) -> PromptId {
-        let canonical = canonical_prompt_input(&self.brand.name, name);
-        let bytes = sha256_first_16(canonical.as_bytes());
-        PromptId::from_ulid(ulid::Ulid::from_bytes(bytes))
+        prompt_id_for(&self.brand.name, name)
     }
 
     /// `(name, PromptId)` for every declared prompt, preserving YAML order.
@@ -522,6 +662,24 @@ impl Config {
     pub fn schedule(&self, name: &str) -> Option<&ScheduleConfig> {
         self.schedules.iter().find(|s| s.name == name)
     }
+}
+
+/// Stable [`ProjectId`] for a brand name, independent of a full [`Config`].
+/// Used when re-deriving identity after a brand rename (the brand name is
+/// authoritative in the DB, not the YAML).
+pub fn project_id_for_name(brand_name: &str) -> ProjectId {
+    let canonical = canonical_project_input(brand_name);
+    let bytes = sha256_first_16(canonical.as_bytes());
+    ProjectId::from_ulid(ulid::Ulid::from_bytes(bytes))
+}
+
+/// Stable [`PromptId`] for a `(brand_name, prompt_name)` pair, independent of
+/// a full [`Config`]. Prompt ids fold in the brand name, so a rename re-derives
+/// every prompt id alongside the project id.
+pub fn prompt_id_for(brand_name: &str, prompt_name: &str) -> PromptId {
+    let canonical = canonical_prompt_input(brand_name, prompt_name);
+    let bytes = sha256_first_16(canonical.as_bytes());
+    PromptId::from_ulid(ulid::Ulid::from_bytes(bytes))
 }
 
 fn canonical_project_input(brand_name: &str) -> String {
@@ -606,6 +764,33 @@ providers:
             cfg.providers[1].name.default_model(),
             DEFAULT_ANTHROPIC_MODEL
         );
+    }
+
+    #[test]
+    fn analytics_endpoint_round_trips_through_yaml() {
+        // Story 15.4 — pre-Phase-3 configs parse with `analytics: None`, and a
+        // persisted endpoint survives a to_yaml_string → from_yaml_str round
+        // trip (the password is never part of the persisted shape).
+        let mut cfg = Config::from_yaml_str(minimal_yaml()).unwrap();
+        assert!(cfg.analytics.is_none());
+        cfg.analytics = Some(AnalyticsConfig {
+            clickhouse: Some(ClickHouseEndpointConfig {
+                endpoint: "https://abc.clickhouse.cloud:8443".to_string(),
+                database: Some("default".to_string()),
+                username: Some("svc".to_string()),
+                preset: Some("clickhouse_cloud".to_string()),
+            }),
+        });
+        let yaml = cfg.to_yaml_string().unwrap();
+        assert!(
+            !yaml.contains("password"),
+            "password must never be persisted"
+        );
+        let reparsed = Config::from_yaml_str(&yaml).unwrap();
+        let ch = reparsed.analytics.unwrap().clickhouse.unwrap();
+        assert_eq!(ch.endpoint, "https://abc.clickhouse.cloud:8443");
+        assert_eq!(ch.username.as_deref(), Some("svc"));
+        assert_eq!(ch.preset.as_deref(), Some("clickhouse_cloud"));
     }
 
     #[test]
@@ -704,6 +889,78 @@ providers:
         let err = Config::from_yaml_str(yaml).unwrap_err();
         assert!(matches!(err, ConfigError::Validation(_)));
         assert!(err.to_string().contains("duplicate provider"));
+    }
+
+    fn openrouter_models_yaml(provider_block: &str) -> String {
+        format!(
+            r#"
+schema_version: '0.2'
+brand:
+  name: Acme
+prompts:
+  - name: foo
+    text: x
+providers:
+{provider_block}
+"#
+        )
+    }
+
+    #[test]
+    fn parses_openrouter_models_list() {
+        let cfg = Config::from_yaml_str(&openrouter_models_yaml(
+            "  - name: openrouter\n    models: [openai/gpt-4o, anthropic/claude-3.5-sonnet]",
+        ))
+        .unwrap();
+        let p = cfg.provider(ProviderName::Openrouter).unwrap();
+        assert_eq!(
+            p.models.as_deref(),
+            Some(
+                &[
+                    "openai/gpt-4o".to_string(),
+                    "anthropic/claude-3.5-sonnet".to_string()
+                ][..]
+            )
+        );
+        assert!(p.model.is_none());
+    }
+
+    #[test]
+    fn rejects_models_on_non_openrouter_provider() {
+        let err = Config::from_yaml_str(&openrouter_models_yaml(
+            "  - name: openai\n    models: [openai/gpt-4o]",
+        ))
+        .unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("only supported for the `openrouter`"));
+    }
+
+    #[test]
+    fn rejects_both_model_and_models() {
+        let err = Config::from_yaml_str(&openrouter_models_yaml(
+            "  - name: openrouter\n    model: openai/gpt-4o\n    models: [anthropic/claude-3.5-sonnet]",
+        ))
+        .unwrap_err();
+        assert!(err.to_string().contains("either `model` or `models`"));
+    }
+
+    #[test]
+    fn rejects_empty_models_list() {
+        let err = Config::from_yaml_str(&openrouter_models_yaml(
+            "  - name: openrouter\n    models: []",
+        ))
+        .unwrap_err();
+        assert!(err.to_string().contains("at least one"));
+    }
+
+    #[test]
+    fn rejects_openrouter_model_without_vendor_slash() {
+        let err = Config::from_yaml_str(&openrouter_models_yaml(
+            "  - name: openrouter\n    models: [gpt-4o]",
+        ))
+        .unwrap_err();
+        assert!(err.to_string().contains("<vendor>/<model>"));
     }
 
     #[test]

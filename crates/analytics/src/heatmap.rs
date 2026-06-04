@@ -180,9 +180,17 @@ mod tests {
         let providers: Vec<_> = map1.cells.iter().map(|c| c.provider.as_str()).collect();
         assert_eq!(
             dates,
-            vec![d(2026, 5, 27), d(2026, 5, 27), d(2026, 5, 28), d(2026, 5, 28)]
+            vec![
+                d(2026, 5, 27),
+                d(2026, 5, 27),
+                d(2026, 5, 28),
+                d(2026, 5, 28)
+            ]
         );
-        assert_eq!(providers, vec!["anthropic", "openai", "anthropic", "openai"]);
+        assert_eq!(
+            providers,
+            vec!["anthropic", "openai", "anthropic", "openai"]
+        );
     }
 
     #[test]

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 use clap::Args;
-use opengeo_benchmark::TERMS_VERSION;
+use opengeo_benchmark::{ProjectKek, TERMS_VERSION};
 use opengeo_core::{OpenGeoError, ProjectId};
 use opengeo_storage::repositories::benchmark_consent::BenchmarkConsentRepo;
 use opengeo_storage::Storage;
@@ -42,6 +42,11 @@ pub struct OptoutArgs {
     pub actor: Option<String>,
     #[arg(long)]
     pub note: Option<String>,
+    /// Skip the interactive confirmation. Because opt-out CRYPTO-SHREDS the
+    /// project's benchmark key (an irreversible erasure), confirmation is
+    /// required unless you pass this flag.
+    #[arg(long)]
+    pub yes: bool,
 }
 
 #[derive(Debug, Args)]
@@ -69,9 +74,10 @@ pub async fn run_optin(args: OptinArgs) -> Result<(), OpenGeoError> {
         print!("Type `yes` to opt in: ");
         io::stdout().flush().ok();
         let mut answer = String::new();
-        io::stdin().lock().read_line(&mut answer).map_err(|e| {
-            OpenGeoError::Config(format!("failed to read confirmation: {e}"))
-        })?;
+        io::stdin()
+            .lock()
+            .read_line(&mut answer)
+            .map_err(|e| OpenGeoError::Config(format!("failed to read confirmation: {e}")))?;
         if answer.trim() != "yes" {
             return Err(OpenGeoError::Config(
                 "opt-in cancelled — type `yes` exactly to confirm".into(),
@@ -98,6 +104,37 @@ pub async fn run_optin(args: OptinArgs) -> Result<(), OpenGeoError> {
 
 pub async fn run_optout(args: OptoutArgs) -> Result<(), OpenGeoError> {
     let (storage, project_id) = open_storage(args.config.as_deref()).await?;
+    let project_str = project_id.to_string();
+
+    // Opt-out is a TRUE opt-out (Story 39.2): it crypto-shreds the project's
+    // benchmark KEK. Destroying that single key makes every wrapped DEK — and
+    // therefore every benchmark contribution this project ever sealed —
+    // permanently undecryptable. This is irreversible and is the mechanism by
+    // which OpenGEO honours GDPR Art.17 ("right to erasure").
+    print_shred_warning(&project_str);
+
+    if !args.yes {
+        print!(
+            "To confirm this IRREVERSIBLE erasure, type the project id `{project_str}` exactly: "
+        );
+        io::stdout().flush().ok();
+        let mut answer = String::new();
+        io::stdin()
+            .lock()
+            .read_line(&mut answer)
+            .map_err(|e| OpenGeoError::Config(format!("failed to read confirmation: {e}")))?;
+        if answer.trim() != project_str {
+            return Err(OpenGeoError::Config(
+                "opt-out cancelled — the project id was not entered exactly. Nothing was \
+                 destroyed; your benchmark key and contributions are untouched. (Re-run with \
+                 `--yes` to skip this prompt.)"
+                    .into(),
+            ));
+        }
+    }
+
+    // Record the consent event FIRST, so the audit trail captures the opt-out
+    // intent even if the key destruction step surfaces a backend error.
     let actor = resolve_actor(args.actor);
     let id = BenchmarkConsentRepo::new(storage.pool())
         .record_optout(
@@ -108,11 +145,64 @@ pub async fn run_optout(args: OptoutArgs) -> Result<(), OpenGeoError> {
         )
         .await
         .map_err(|e| OpenGeoError::Config(format!("failed to record opt-out: {e}")))?;
+
+    // CRYPTO-SHRED: destroy the per-project KEK across every SecretStore leg.
+    // Idempotent — a project that never sealed a contribution simply has no
+    // KEK to remove, and that is still a successful, complete opt-out.
+    let store = opengeo_core::default_chain();
+    ProjectKek::destroy(&store, &project_str).map_err(|e| {
+        OpenGeoError::Config(format!(
+            "opt-out recorded (event id {id}) but crypto-shred of the benchmark key FAILED: {e}. \
+             The contributions are NOT yet cryptographically erased. Resolve the secret-store \
+             backend error and re-run `ogeo benchmark optout` to complete the erasure."
+        ))
+    })?;
+
+    println!();
     println!(
-        "✓ Opted out (event id {id}, terms version {TERMS_VERSION}, at {})",
+        "✓ Opted out and CRYPTO-SHREDDED (event id {id}, terms version {TERMS_VERSION}, at {}).",
         Utc::now().to_rfc3339()
     );
+    println!(
+        "  The benchmark key for project `{project_str}` has been destroyed. Every contribution \
+         this project sealed is now permanently undecryptable."
+    );
+    println!(
+        "  This was an INTENTIONAL erasure — not an accidental key loss. There is no recovery: \
+         re-opting in mints a brand-new key that cannot open any prior contribution."
+    );
     Ok(())
+}
+
+/// Print the honest-scope warning before an irreversible crypto-shred opt-out.
+///
+/// Mirrors the honest-scope language from the compliance addendum: the
+/// cryptographic guarantee holds only for media under OpenGEO's control;
+/// operator-managed backups, snapshots and WAL are explicitly OUT OF SCOPE.
+fn print_shred_warning(project_str: &str) {
+    eprintln!("⚠  IRREVERSIBLE DESTRUCTIVE ACTION — benchmark opt-out crypto-shred");
+    eprintln!();
+    eprintln!(
+        "  Opting out destroys the encryption key for project `{project_str}`, which makes EVERY"
+    );
+    eprintln!(
+        "  benchmark contribution this project ever made permanently undecryptable. This cannot"
+    );
+    eprintln!("  be undone. This is an intentional erasure, distinct from an accidental key loss.");
+    eprintln!();
+    eprintln!("  SCOPE OF THE GUARANTEE — please read:");
+    eprintln!(
+        "    The crypto-shred guarantee holds ONLY for key material and data under OpenGEO's"
+    );
+    eprintln!(
+        "    direct control (the local secret store). It does NOT reach operator-managed copies:"
+    );
+    eprintln!("      • backups of the secret store or database,");
+    eprintln!("      • filesystem / volume snapshots,");
+    eprintln!("      • database WAL / replication streams.");
+    eprintln!("    Any such copy taken before this opt-out is OUT OF SCOPE for the cryptographic");
+    eprintln!("    erasure and must be purged through your own backup-retention process.");
+    eprintln!();
 }
 
 pub async fn run_status(args: StatusArgs) -> Result<(), OpenGeoError> {
@@ -132,7 +222,11 @@ pub async fn run_status(args: StatusArgs) -> Result<(), OpenGeoError> {
                 "Benchmark contribution: {}",
                 if active { "active" } else { "inactive" }
             );
-            println!("Last event: {} ({})", row.event, row.created_at.to_rfc3339());
+            println!(
+                "Last event: {} ({})",
+                row.event,
+                row.created_at.to_rfc3339()
+            );
             println!("Recorded terms version: {}", row.terms_version);
             println!("Current terms version: {TERMS_VERSION}");
             if let Some(actor) = row.actor {

@@ -27,6 +27,8 @@ use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
+use crate::crypto::ProjectKek;
+
 type HmacSha256 = Hmac<Sha256>;
 
 /// Pin the legal-text version the operator most recently consented to.
@@ -37,17 +39,21 @@ pub const TERMS_VERSION: &str = "v1-2026-05-28";
 
 /// HMAC identifying a project across contributions without revealing the
 /// project's brand name. Computed as
-/// `hex(HMAC-SHA256(secret = project_master_secret, msg = project_id))`.
+/// `hex(HMAC-SHA256(secret = project_kek_bytes, msg = project_id))`.
 ///
-/// Stored client-side; rotating the master secret is "I want to break
-/// the link between past and future contributions".
+/// As of Story 39.1 this is a **linkage-only** identifier: it lets the
+/// benchmark service group a project's contributions together, but it is no
+/// longer the erasure mechanism. Erasure is achieved by destroying the
+/// project's KEK (see [`crate::crypto::ProjectKek`]), which renders every
+/// sealed contribution undecryptable. The HMAC key is derived from the KEK
+/// bytes, so destroying the KEK also retires the linkage key.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectHmac(String);
 
 impl ProjectHmac {
     pub fn compute(master_secret: &[u8], project_id: &str) -> Self {
-        let mut mac = HmacSha256::new_from_slice(master_secret)
-            .expect("HMAC-SHA256 accepts any key length");
+        let mut mac =
+            HmacSha256::new_from_slice(master_secret).expect("HMAC-SHA256 accepts any key length");
         mac.update(project_id.as_bytes());
         let bytes = mac.finalize().into_bytes();
         let mut hex = String::with_capacity(bytes.len() * 2);
@@ -153,19 +159,25 @@ pub enum RedactorError {
     InvalidSlug { slug: String },
 }
 
-/// The redaction projection. Stateful only in the sense that it carries
-/// the project's master secret + the operator's pinned terms version
-/// so each `redact` call can compute the HMAC and refuse stale consent
-/// without re-fetching.
+/// The redaction projection.
+///
+/// As of Story 39.1 the redactor is parameterized by a [`ProjectKek`] rather
+/// than a raw global master secret. Holding a `&ProjectKek` is the type-level
+/// half of the hard gate: a `BenchmarkPayload` can only be produced when a
+/// per-project KEK has already been loaded from the secret store. The KEK
+/// bytes double as the HMAC linkage key (see [`ProjectHmac`]).
+///
+/// The operator's pinned terms version is carried alongside so each `redact`
+/// call can refuse stale consent without re-fetching.
 pub struct Redactor<'a> {
-    master_secret: &'a [u8],
+    kek: &'a ProjectKek,
     consented_terms: &'a str,
 }
 
 impl<'a> Redactor<'a> {
-    pub fn new(master_secret: &'a [u8], consented_terms: &'a str) -> Self {
+    pub fn new(kek: &'a ProjectKek, consented_terms: &'a str) -> Self {
         Self {
-            master_secret,
+            kek,
             consented_terms,
         }
     }
@@ -186,7 +198,7 @@ impl<'a> Redactor<'a> {
             });
         }
 
-        let project_hmac = ProjectHmac::compute(self.master_secret, &raw.project_id);
+        let project_hmac = ProjectHmac::compute(self.kek.linkage_key(), &raw.project_id);
         let observed_at_hour = round_to_hour(raw.observed_at);
 
         Ok(BenchmarkPayload {
@@ -221,9 +233,20 @@ fn round_to_hour(ts: DateTime<Utc>) -> DateTime<Utc> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::ProjectKek;
     use chrono::{Datelike, TimeZone};
+    use opengeo_core::InMemoryStore;
 
     const MASTER: &[u8] = b"project-master-secret-bytes-32-x";
+
+    /// A KEK to drive `Redactor` in tests. Provisioned in a throwaway
+    /// in-memory store so each test gets a real per-project key.
+    fn test_kek() -> ProjectKek {
+        // `load_or_create` is durable-or-fail; use the durable test store so a
+        // real per-project KEK is provisioned without a keyring/age-file.
+        let store = InMemoryStore::durable_for_tests();
+        ProjectKek::load_or_create(&store, "01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap()
+    }
 
     fn raw_fixture() -> RawPromptRun {
         RawPromptRun {
@@ -243,7 +266,8 @@ mod tests {
 
     #[test]
     fn redact_produces_payload_with_expected_fields() {
-        let r = Redactor::new(MASTER, TERMS_VERSION);
+        let kek = test_kek();
+        let r = Redactor::new(&kek, TERMS_VERSION);
         let payload = r.redact(raw_fixture()).unwrap();
         assert_eq!(payload.prompt_slug(), "vector-db");
         assert_eq!(payload.provider(), "openai");
@@ -252,20 +276,25 @@ mod tests {
 
     #[test]
     fn redact_drops_brand_name_raw_response_apikey_ip() {
-        let r = Redactor::new(MASTER, TERMS_VERSION);
+        let kek = test_kek();
+        let r = Redactor::new(&kek, TERMS_VERSION);
         let payload = r.redact(raw_fixture()).unwrap();
         let json = serde_json::to_string(&payload).unwrap();
         // These confidential fields must not appear in the serialized
         // payload anywhere.
         assert!(!json.contains("Pinecone"), "brand_name leaked: {json}");
-        assert!(!json.contains("vector database"), "raw_response leaked: {json}");
+        assert!(
+            !json.contains("vector database"),
+            "raw_response leaked: {json}"
+        );
         assert!(!json.contains("sk-secret"), "api_key_used leaked: {json}");
         assert!(!json.contains("10.0.0.1"), "ip_address leaked: {json}");
     }
 
     #[test]
     fn redact_rounds_timestamp_to_hour_for_k_anonymity() {
-        let r = Redactor::new(MASTER, TERMS_VERSION);
+        let kek = test_kek();
+        let r = Redactor::new(&kek, TERMS_VERSION);
         let payload = r.redact(raw_fixture()).unwrap();
         assert_eq!(payload.observed_at_hour().minute(), 0);
         assert_eq!(payload.observed_at_hour().second(), 0);
@@ -274,7 +303,8 @@ mod tests {
 
     #[test]
     fn redact_refuses_stale_consent() {
-        let r = Redactor::new(MASTER, "v0-old-version");
+        let kek = test_kek();
+        let r = Redactor::new(&kek, "v0-old-version");
         let err = r.redact(raw_fixture()).unwrap_err();
         match err {
             RedactorError::StaleConsent { consented } => {
@@ -288,8 +318,12 @@ mod tests {
     fn redact_refuses_invalid_slug() {
         let mut raw = raw_fixture();
         raw.prompt_slug = "Has Caps and Spaces!".into();
-        let r = Redactor::new(MASTER, TERMS_VERSION);
-        assert!(matches!(r.redact(raw), Err(RedactorError::InvalidSlug { .. })));
+        let kek = test_kek();
+        let r = Redactor::new(&kek, TERMS_VERSION);
+        assert!(matches!(
+            r.redact(raw),
+            Err(RedactorError::InvalidSlug { .. })
+        ));
     }
 
     #[test]
@@ -317,7 +351,8 @@ mod tests {
     #[test]
     fn payload_serializes_with_expected_field_names() {
         // Wire shape pin: the benchmark service deserializes these names.
-        let r = Redactor::new(MASTER, TERMS_VERSION);
+        let kek = test_kek();
+        let r = Redactor::new(&kek, TERMS_VERSION);
         let payload = r.redact(raw_fixture()).unwrap();
         let json = serde_json::to_value(&payload).unwrap();
         for expected_field in [
@@ -339,7 +374,8 @@ mod tests {
 
     #[test]
     fn payload_round_trips_through_serde() {
-        let r = Redactor::new(MASTER, TERMS_VERSION);
+        let kek = test_kek();
+        let r = Redactor::new(&kek, TERMS_VERSION);
         let payload = r.redact(raw_fixture()).unwrap();
         let bytes = serde_json::to_vec(&payload).unwrap();
         let back: BenchmarkPayload = serde_json::from_slice(&bytes).unwrap();
@@ -348,7 +384,8 @@ mod tests {
 
     #[test]
     fn payload_carries_terms_version_pinning() {
-        let r = Redactor::new(MASTER, TERMS_VERSION);
+        let kek = test_kek();
+        let r = Redactor::new(&kek, TERMS_VERSION);
         let payload = r.redact(raw_fixture()).unwrap();
         assert_eq!(payload.terms_version(), TERMS_VERSION);
     }

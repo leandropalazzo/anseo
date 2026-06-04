@@ -36,13 +36,14 @@ pub struct ListQuery {
 
 async fn list(
     State(state): State<AppState>,
+    project: crate::extractors::EffectiveProject,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let params = RunListParams {
         limit: q.limit.unwrap_or(25),
         offset: q.offset.unwrap_or(0),
     };
-    let rows = list_runs(&state.storage, state.project_id, params)
+    let rows = list_runs(&state.storage, project.id(), params)
         .await
         .map_err(internal)?;
     Ok(Json(serde_json::json!({ "runs": rows })))

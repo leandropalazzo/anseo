@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AuditInput",
+  "type": "object",
+  "required": [
+    "target"
+  ],
+  "properties": {
+    "fail_on": {
+      "description": "Optional CI-gate thresholds: rule ids or severities (low/medium/high).",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "max_pages": {
+      "description": "Optional; default 25; clamped to [1, 200] server-side.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "target": {
+      "description": "URL, sitemap URL, file:// URL, or local HTML fixture path to audit.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

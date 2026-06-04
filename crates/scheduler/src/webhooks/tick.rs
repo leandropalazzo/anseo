@@ -91,8 +91,8 @@ pub async fn process_one_due(
             let attempts_so_far = delivery.attempt.max(0) as u32;
             match next_delay(attempts_so_far) {
                 Some(wait) => {
-                    let next_at = now
-                        + ChronoDuration::from_std(wait).unwrap_or(ChronoDuration::seconds(60));
+                    let next_at =
+                        now + ChronoDuration::from_std(wait).unwrap_or(ChronoDuration::seconds(60));
                     storage
                         .webhook_deliveries()
                         .mark_failed_retryable(

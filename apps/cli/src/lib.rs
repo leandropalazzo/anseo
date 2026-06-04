@@ -25,6 +25,12 @@ Competitors over time. Configure via opengeo.yaml; persist locally to PostgreSQL
 view in the Dashboard."
 )]
 pub struct Cli {
+    /// Select the active project by id (ULID) or brand name. Overrides the
+    /// working-dir `opengeo.yaml` / `ogeo project use` selection on any verb
+    /// that resolves a project (ADR-004 precedence; see `ogeo project`).
+    #[arg(long, global = true)]
+    pub project: Option<String>,
+
     #[command(subcommand)]
     pub command: Command,
 }
@@ -109,6 +115,61 @@ pub enum Command {
         #[command(subcommand)]
         sub: PluginSub,
     },
+
+    /// MCP server management (Phase 3 Story 16.7).
+    Mcp {
+        #[command(subcommand)]
+        sub: McpSub,
+    },
+
+    /// GEO recommendation verbs (Phase 3 Story 19.7).
+    Recommend {
+        #[command(subcommand)]
+        sub: RecommendSub,
+    },
+
+    /// AI crawler observability: verified bot frequency, pages, and trends.
+    Crawlers(commands::crawlers::CrawlerArgs),
+
+    /// Crawl owned pages and score citation-readiness (Epic 32).
+    Audit(commands::audit::AuditArgs),
+
+    /// Run the HTTP API and the background worker in one process (Story 37.1).
+    /// Requires `DATABASE_URL` (external Postgres). Binds `127.0.0.1` by default.
+    Serve(commands::serve::ServeArgs),
+
+    /// Manage projects: list, create, and select the working-dir default
+    /// (Story 36.6). See ADR-004 for the selection precedence.
+    Project {
+        #[command(subcommand)]
+        sub: ProjectSub,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ProjectSub {
+    /// List active (non-archived) projects.
+    List(commands::project::ListArgs),
+    /// Create a project from a brand name (derives its project_id).
+    Create(commands::project::CreateArgs),
+    /// Select a project as the working-dir default (persists a marker).
+    Use(commands::project::UseArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum RecommendSub {
+    /// Assemble live project facts, run the engine, and persist results.
+    Generate(commands::recommend::GenerateArgs),
+    /// List active recommendations for the current project.
+    List(commands::recommend::ListArgs),
+    /// Show one recommendation by id.
+    Show(commands::recommend::ShowArgs),
+    /// Acknowledge a surfaced recommendation.
+    Ack(commands::recommend::AckArgs),
+    /// Dismiss a recommendation.
+    Dismiss(commands::recommend::DismissArgs),
+    /// Mark a recommendation as acted, with optional evidence and note.
+    MarkActed(commands::recommend::MarkActedArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -116,6 +177,26 @@ pub enum PluginSub {
     /// Validate a plugin manifest YAML on disk (substrate-only check: no
     /// signature verification, no host load).
     Validate(commands::plugin::ValidateArgs),
+    /// Search the registry index for plugins.
+    Search(commands::plugin::SearchArgs),
+    /// Download, signature-verify, and install a plugin.
+    Install(commands::plugin::InstallArgs),
+    /// List installed plugins.
+    List(commands::plugin::ListArgs),
+    /// Remove an installed plugin.
+    Remove(commands::plugin::RemoveArgs),
+    /// Upgrade an installed plugin to a new version.
+    Upgrade(commands::plugin::UpgradeArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum McpSub {
+    /// Start the MCP server (delegates to opengeo-mcp binary).
+    Serve(commands::mcp::ServeArgs),
+    /// Show the status of a running MCP server.
+    Status(commands::mcp::StatusArgs),
+    /// Write Claude Desktop / Cursor / Zed config snippet.
+    InstallConfig(commands::mcp::InstallConfigArgs),
 }
 
 #[derive(Debug, Subcommand)]

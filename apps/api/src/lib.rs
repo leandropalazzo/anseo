@@ -2,6 +2,7 @@
 //! (FR-17..FR-20). Phase 1 keeps the API tightly scoped to what `apps/web`
 //! consumes; the public REST surface (Phase 2) builds on these handlers.
 
+pub mod boot;
 pub mod extractors;
 pub mod middleware;
 pub mod routes;
@@ -46,11 +47,15 @@ pub struct AppState {
     /// without a secret are absent here; the orchestrator synthesises a
     /// `failed` record for them on dispatch.
     pub provider_registry: Option<Arc<ProviderRegistry>>,
-    /// Story 0.11 substrate — the single configured project's wire name
-    /// (the `brand.name` from `opengeo.yaml`). The `X-OpenGEO-Project`
-    /// header is matched (case-insensitive after trim) against this
-    /// value. Phase 4 multi-project will replace this with a resolver
-    /// over the projects table.
+    /// Boot-derived project wire name (`brand.name` from `opengeo.yaml`).
+    ///
+    /// As of Epic 36 (Story 36.2) the `/v1/*` surface no longer pins to this
+    /// value — `extractors::project::project_header_guard` performs real
+    /// per-request resolution over the `projects` table (ADR-004 precedence)
+    /// and stamps a `ProjectScope` into request extensions. This field now
+    /// only serves the legacy single-project `/api/*` dashboard surface (which
+    /// carries no project header) as the `EffectiveProject` fallback, plus
+    /// boot-time seeding in `main`.
     pub configured_project: Arc<String>,
     /// Story 15.1 — in-memory progress map for `POST /v1/setup/clickhouse/install`.
     /// Keyed by the install `ulid` returned in the 202 response; populated by
@@ -84,28 +89,44 @@ pub fn router(state: AppState) -> Router {
     // SDK-consumer impact, and the forward-path / deprecation plan.
     let phase_1_reads_at_root = Router::new()
         .merge(routes::runs::router())
+        .merge(routes::run_detail::router())
         .merge(routes::citations::router())
         .merge(routes::visibility::router())
         .merge(routes::health::router());
 
     let phase_1_reads_under_v1 = Router::new()
         .merge(routes::runs::v1_router())
+        .merge(routes::run_detail::v1_router())
         .merge(routes::citations::v1_router())
         .merge(routes::visibility::v1_router())
         .merge(routes::health::v1_router());
 
-    let v1_surface = Router::new()
+    let v1_routes = Router::new()
         .merge(phase_1_reads_under_v1)
         .merge(routes::prompt_runs::v1_router())
         .merge(routes::prompts::v1_router())
         .merge(routes::brands::v1_router())
+        .merge(routes::brand::v1_router())
         .merge(routes::analytics::v1_router())
         .merge(routes::anomalies::v1_router())
         .merge(routes::comparisons::v1_router())
+        .merge(routes::crawlers::v1_router())
+        .merge(routes::audit::v1_router())
         .merge(routes::schedules::v1_router())
+        .merge(routes::alert_rules::v1_router())
         .merge(routes::setup::v1_router())
         .merge(routes::prompts_similarity::v1_router())
-        .merge(routes::events::router_under_v1_relative())
+        .merge(routes::providers::v1_router())
+        .merge(routes::recommendations::v1_router())
+        .merge(routes::mcp::v1_router())
+        .merge(routes::events::router_under_v1_relative());
+
+    // Premium surface — only compiled into the `pro` build. The default OSS
+    // build never references the entitlement-gated hallucination evaluator.
+    #[cfg(feature = "pro")]
+    let v1_routes = v1_routes.merge(routes::hallucination::v1_router());
+
+    let v1_surface = v1_routes
         // Story 0.11 — X-OpenGEO-Project header substrate. Layered
         // INSIDE the auth gate so unauthenticated callers still get a
         // 401 before any project-header consideration. Each layer is
@@ -120,12 +141,22 @@ pub fn router(state: AppState) -> Router {
             require_api_key,
         ));
 
+    // Story 36.3 — operator-scoped project registry. These endpoints manage
+    // the *set* of projects, so they are project-agnostic: gated by
+    // `require_api_key` but NOT by the `X-OpenGEO-Project` guard (you can't
+    // select a project before listing/creating one). Nested at `/v1` so they
+    // share the prefix without inheriting the per-request resolution layer.
+    let v1_operator_surface = routes::projects::v1_router().route_layer(
+        axum::middleware::from_fn_with_state(state.clone(), require_api_key),
+    );
+
     let phase_1_at_root_gated = phase_1_reads_at_root.route_layer(
         axum::middleware::from_fn_with_state(state.clone(), require_api_key),
     );
 
     let mut base = Router::new()
         .merge(phase_1_at_root_gated)
+        .nest("/v1", v1_operator_surface)
         .nest("/v1", v1_surface);
 
     // `POST /test/seed` is registered only when OPENGEO_TEST_MODE=1. The
@@ -185,9 +216,40 @@ pub fn check_bind_acceptable(
         return Err(format!(
             "OPENGEO_API_BIND=`{bind_addr}` is non-loopback but no active API keys exist \
              for this project. Generate one with `ogeo api key create --name <slug>` \
-             before binding to a public interface, or bind to 127.0.0.1 / ::1 for \
-             local-only access."
+             before binding to a public interface, set OPENGEO_BOOTSTRAP_API_KEY for \
+             trusted private-network stacks, or bind to 127.0.0.1 / ::1 for local-only \
+             access."
         ));
     }
     Ok(socket)
+}
+
+/// Derive the persisted `(sha256_hash, display_prefix)` for a bootstrap API
+/// key supplied verbatim via `OPENGEO_BOOTSTRAP_API_KEY`.
+///
+/// The boot path (`apps/api/src/main.rs`) seeds this key when a project has
+/// zero active keys, so a trusted private-network deployment — the Docker
+/// Compose stack, where the api binds `0.0.0.0` so the sibling `web`
+/// container can reach it but no operator has run `ogeo api key create` —
+/// satisfies [`check_bind_acceptable`] without hand-seeding the database.
+///
+/// Returns `Err` when the plaintext doesn't match the canonical
+/// `ogeo_<32 base62>` wire shape that the auth middleware's `looks_like_key`
+/// gate requires; seeding a malformed value would persist a key that can
+/// never authenticate a request, so we fail loudly at boot instead. Keeping
+/// the derivation pure (no DB) mirrors `check_bind_acceptable` so the policy
+/// is unit-testable without a live Postgres.
+pub fn bootstrap_key_material(plaintext: &str) -> Result<(String, String), String> {
+    use opengeo_core::api_key::{looks_like_key, sha256_hex, DISPLAY_PREFIX_LEN, KEY_PREFIX};
+    if !looks_like_key(plaintext) {
+        return Err(
+            "OPENGEO_BOOTSTRAP_API_KEY does not match the required `ogeo_<32 base62>` \
+             shape; generate a valid value with `ogeo api key create` (or omit the env \
+             var to keep the keyless-bind refusal)."
+                .to_string(),
+        );
+    }
+    let random = &plaintext[KEY_PREFIX.len()..];
+    let display_prefix: String = random.chars().take(DISPLAY_PREFIX_LEN).collect();
+    Ok((sha256_hex(plaintext), display_prefix))
 }

@@ -112,8 +112,6 @@ pub trait MetricsStore: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn metrics_store_trait_shape_is_frozen() {
         // Story 14.5 / R-403: the trait's method count + signature

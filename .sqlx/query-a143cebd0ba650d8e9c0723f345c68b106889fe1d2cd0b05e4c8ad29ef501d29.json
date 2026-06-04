@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE projects\n            SET archived_at = now()\n            WHERE id = $1 AND archived_at IS NULL\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a143cebd0ba650d8e9c0723f345c68b106889fe1d2cd0b05e4c8ad29ef501d29"
+}

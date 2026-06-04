@@ -124,6 +124,77 @@ pub fn extract_citations(message: &str) -> Vec<Citation> {
     out
 }
 
+/// Extract citations from a provider response's structured citation
+/// annotations. Perplexity (and OpenRouter when proxying it) attach sources
+/// as `choices[].message.annotations[]` objects of shape
+/// `{ "type": "url_citation", "url_citation": { "url": "…", … } }` rather than
+/// inlining the URLs in the message text, so the text-scanning
+/// [`extract_citations`] never sees them. Each unique `(url, domain)` collapses
+/// into one citation; the count of annotation occurrences is the frequency.
+pub fn extract_citations_from_annotations(raw_response: &serde_json::Value) -> Vec<Citation> {
+    let mut by_key: HashMap<(String, Option<String>), Citation> = HashMap::new();
+
+    let Some(choices) = raw_response.get("choices").and_then(|c| c.as_array()) else {
+        return Vec::new();
+    };
+    for choice in choices {
+        let Some(annotations) = choice
+            .get("message")
+            .and_then(|m| m.get("annotations"))
+            .and_then(|a| a.as_array())
+        else {
+            continue;
+        };
+        for ann in annotations {
+            let Some(url_str) = ann
+                .get("url_citation")
+                .and_then(|u| u.get("url"))
+                .and_then(|u| u.as_str())
+            else {
+                continue;
+            };
+            let raw = url_str.trim_end_matches(['.', ',', ';', ':', ')']);
+            let Ok(parsed) = Url::parse(raw) else {
+                continue;
+            };
+            let domain = parsed.host_str().unwrap_or("").to_lowercase();
+            if domain.is_empty() {
+                continue;
+            }
+            let source_type = infer_source_type(&domain, parsed.path());
+            let key = (domain.clone(), Some(raw.to_string()));
+            let entry = by_key.entry(key).or_insert_with(|| Citation {
+                url: Some(raw.to_string()),
+                domain: domain.clone(),
+                frequency: 0,
+                source_type,
+            });
+            entry.frequency += 1;
+        }
+    }
+
+    let mut out: Vec<Citation> = by_key.into_values().collect();
+    out.sort_by(|a, b| a.domain.cmp(&b.domain).then(b.url.cmp(&a.url)));
+    out
+}
+
+/// Merge two citation lists, summing frequencies for matching `(url, domain)`
+/// pairs. Used to combine inline-text citations with structured-annotation
+/// ones from the same response.
+pub fn merge_citations(a: Vec<Citation>, b: Vec<Citation>) -> Vec<Citation> {
+    let mut by_key: HashMap<(String, Option<String>), Citation> = HashMap::new();
+    for c in a.into_iter().chain(b) {
+        let key = (c.domain.clone(), c.url.clone());
+        by_key
+            .entry(key)
+            .and_modify(|e| e.frequency += c.frequency)
+            .or_insert(c);
+    }
+    let mut out: Vec<Citation> = by_key.into_values().collect();
+    out.sort_by(|a, b| a.domain.cmp(&b.domain).then(b.url.cmp(&a.url)));
+    out
+}
+
 fn infer_source_type(domain: &str, path: &str) -> Option<SourceType> {
     let d = domain.to_lowercase();
     if d.contains("reddit.com") {

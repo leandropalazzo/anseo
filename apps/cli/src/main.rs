@@ -3,7 +3,8 @@
 use clap::Parser;
 use opengeo_cli::{
     commands, AnalyticsSub, ApiKeySub, ApiSub, BenchmarkSub, CheckSub, Cli, Command, DashboardSub,
-    PluginSub, PromptSub, ReportSub, ScheduleSub, WebhookSub, WorkerSub,
+    McpSub, PluginSub, ProjectSub, PromptSub, RecommendSub, ReportSub, ScheduleSub, WebhookSub,
+    WorkerSub,
 };
 use opengeo_core::{telemetry::init_tracing, ExitCode, OpenGeoError};
 
@@ -14,6 +15,9 @@ fn main() {
     }
 
     let cli = Cli::parse();
+    // The global `--project` flag is threaded into the verbs that resolve a
+    // project (ADR-004 precedence: it overrides the working-dir selector).
+    let project_override = cli.project;
 
     let result: Result<(), OpenGeoError> = match cli.command {
         Command::Init(args) => commands::init::run(args),
@@ -24,7 +28,7 @@ fn main() {
             PromptSub::Run(args) => run_async(commands::run::run(args)),
         },
         Command::Report { sub } => match sub {
-            ReportSub::Generate(args) => commands::report::run(args),
+            ReportSub::Generate(args) => run_async(commands::report::run(args)),
         },
         Command::Check { sub } => match sub {
             CheckSub::Visibility(args) => commands::check::run(args),
@@ -54,9 +58,7 @@ fn main() {
         Command::Webhook { sub } => match sub {
             WebhookSub::Add(args) => run_async(commands::webhook::run_add(args)),
             WebhookSub::List(args) => run_async(commands::webhook::run_list(args)),
-            WebhookSub::RotateSecret(args) => {
-                run_async(commands::webhook::run_rotate_secret(args))
-            }
+            WebhookSub::RotateSecret(args) => run_async(commands::webhook::run_rotate_secret(args)),
             WebhookSub::Reenable(args) => run_async(commands::webhook::run_reenable(args)),
         },
         Command::Benchmark { sub } => match sub {
@@ -71,6 +73,38 @@ fn main() {
         },
         Command::Plugin { sub } => match sub {
             PluginSub::Validate(args) => commands::plugin::run_validate(args),
+            PluginSub::Search(args) => commands::plugin::run_search(args),
+            PluginSub::Install(args) => run_async(commands::plugin::run_install(args)),
+            PluginSub::List(args) => run_async(commands::plugin::run_list(args)),
+            PluginSub::Remove(args) => run_async(commands::plugin::run_remove(args)),
+            PluginSub::Upgrade(args) => run_async(commands::plugin::run_upgrade(args)),
+        },
+        Command::Mcp { sub } => match sub {
+            McpSub::Serve(args) => commands::mcp::run_serve(args),
+            McpSub::Status(args) => commands::mcp::run_status(args),
+            McpSub::InstallConfig(args) => commands::mcp::run_install_config(args),
+        },
+        Command::Recommend { sub } => match sub {
+            RecommendSub::Generate(mut args) => {
+                args.project = project_override.clone();
+                run_async(commands::recommend::run_generate(args))
+            }
+            RecommendSub::List(args) => run_async(commands::recommend::run_list(args)),
+            RecommendSub::Show(args) => run_async(commands::recommend::run_show(args)),
+            RecommendSub::Ack(args) => run_async(commands::recommend::run_ack(args)),
+            RecommendSub::Dismiss(args) => run_async(commands::recommend::run_dismiss(args)),
+            RecommendSub::MarkActed(args) => run_async(commands::recommend::run_mark_acted(args)),
+        },
+        Command::Crawlers(mut args) => {
+            args.project = project_override.clone();
+            run_async(commands::crawlers::run(args))
+        }
+        Command::Audit(args) => run_async(commands::audit::run(args)),
+        Command::Serve(args) => run_async(commands::serve::run(args)),
+        Command::Project { sub } => match sub {
+            ProjectSub::List(args) => run_async(commands::project::run_list(args)),
+            ProjectSub::Create(args) => run_async(commands::project::run_create(args)),
+            ProjectSub::Use(args) => run_async(commands::project::run_use(args)),
         },
     };
 

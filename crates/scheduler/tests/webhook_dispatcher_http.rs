@@ -89,7 +89,10 @@ async fn retries_on_429_rate_limit() {
         Duration::from_secs(5),
     )
     .await;
-    assert!(outcome.is_retryable(), "429 must be retryable, got {outcome:?}");
+    assert!(
+        outcome.is_retryable(),
+        "429 must be retryable, got {outcome:?}"
+    );
 }
 
 #[tokio::test]
@@ -136,7 +139,10 @@ async fn permanent_failure_on_404_gone_consumer() {
         Duration::from_secs(5),
     )
     .await;
-    assert!(matches!(outcome, DeliveryOutcome::PermanentFailure { status: 404, .. }));
+    assert!(matches!(
+        outcome,
+        DeliveryOutcome::PermanentFailure { status: 404, .. }
+    ));
 }
 
 #[tokio::test]
@@ -146,9 +152,7 @@ async fn timeout_is_retryable_with_no_status() {
     let mock = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/hook"))
-        .respond_with(
-            ResponseTemplate::new(200).set_delay(Duration::from_millis(2_000)),
-        )
+        .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_millis(2_000)))
         .mount(&mock)
         .await;
 

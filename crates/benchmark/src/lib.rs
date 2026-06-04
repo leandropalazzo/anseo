@@ -14,8 +14,10 @@
 //! redaction, HMAC project identity, and the contribution-terms version
 //! pinning the legal text the operator consented to.
 
+pub mod crypto;
 pub mod redactor;
 
+pub use crypto::{kek_secret_key, CryptoError, ProjectKek, SealedContribution};
 pub use redactor::{
     BenchmarkPayload, ProjectHmac, RawPromptRun, Redactor, RedactorError, TERMS_VERSION,
 };

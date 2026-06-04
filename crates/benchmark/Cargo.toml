@@ -1,6 +1,6 @@
 [package]
 name = "opengeo-benchmark"
-version = "0.5.0"
+version = "0.6.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -14,6 +14,9 @@ serde_json = { workspace = true }
 chrono = { workspace = true }
 sha2 = { workspace = true }
 hmac = { workspace = true }
+hex = { workspace = true }
+chacha20poly1305 = "0.10"
+zeroize = { version = "1.8", features = ["zeroize_derive"] }
 ulid = { workspace = true }
 thiserror = { workspace = true }
 sqlx = { workspace = true }

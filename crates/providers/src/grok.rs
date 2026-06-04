@@ -6,7 +6,7 @@
 
 use async_trait::async_trait;
 
-use opengeo_core::{DEFAULT_GROK_MODEL, ProviderName, Secret};
+use opengeo_core::{ProviderName, Secret, DEFAULT_GROK_MODEL};
 
 use crate::{
     map_reqwest_err, HttpClient, Provider, ProviderError, ProviderRequest, ProviderResponse,
@@ -77,9 +77,8 @@ impl Provider for GrokProvider {
             return Err(classify_status(status.as_u16(), &raw_text));
         }
 
-        let raw: serde_json::Value = serde_json::from_str(&raw_text).map_err(|e| {
-            ProviderError::invalid_response(format!("non-JSON Grok response: {e}"))
-        })?;
+        let raw: serde_json::Value = serde_json::from_str(&raw_text)
+            .map_err(|e| ProviderError::invalid_response(format!("non-JSON Grok response: {e}")))?;
 
         let message_text = extract_message_text(&raw).ok_or_else(|| {
             ProviderError::invalid_response("Grok response missing choices[0].message.content")
@@ -107,7 +106,10 @@ fn build_chat_body(request: &ProviderRequest) -> serde_json::Value {
         _ => serde_json::json!({}),
     };
     let obj = body.as_object_mut().expect("seeded as Object");
-    obj.insert("model".into(), serde_json::Value::String(request.model.clone()));
+    obj.insert(
+        "model".into(),
+        serde_json::Value::String(request.model.clone()),
+    );
     obj.insert(
         "messages".into(),
         serde_json::json!([{"role": "user", "content": request.prompt_text}]),

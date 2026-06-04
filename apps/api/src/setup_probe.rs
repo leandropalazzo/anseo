@@ -32,6 +32,12 @@ use crate::AppState;
 
 const DEFAULT_PROBE_TIMEOUT: Duration = Duration::from_secs(1);
 const DOCKER_PROBE_TIMEOUT: Duration = Duration::from_millis(500);
+/// The age-file secret backend decrypts via scrypt with an auto-tuned work
+/// factor targeting ~1s, so a cold read (cache miss at boot) can exceed the
+/// default 1s budget. opengeo_core caches the decrypted map by mtime, so only
+/// the first read after boot pays this; give it headroom so it doesn't falsely
+/// report every provider as `configured: false`.
+const API_KEYS_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Top-level `/v1/setup/status` response. Every field is required so the
 /// frontend can render skeletons without conditional checks.
@@ -196,7 +202,16 @@ pub async fn probe_clickhouse() -> ClickHouseSection {
         // `curl --max-time 1 -s -o /dev/null -w "%{http_code}"` so the
         // probe surfaces a meaningful HTTP status without adding deps.
         let output = tokio::process::Command::new("curl")
-            .args(["--max-time", "1", "-s", "-o", "/dev/null", "-w", "%{http_code}", &ping_url])
+            .args([
+                "--max-time",
+                "1",
+                "-s",
+                "-o",
+                "/dev/null",
+                "-w",
+                "%{http_code}",
+                &ping_url,
+            ])
             .output()
             .await
             .map_err(|e| e.to_string())?;
@@ -258,12 +273,11 @@ pub async fn probe_worker(state: &AppState) -> WorkerSection {
         )
         .fetch_optional(pool)
         .await?;
-        let last_tick: Option<DateTime<Utc>> =
-            sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
-                "SELECT MAX(tick_ts) FROM schedule_ticks",
-            )
-            .fetch_one(pool)
-            .await?;
+        let last_tick: Option<DateTime<Utc>> = sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
+            "SELECT MAX(tick_ts) FROM schedule_ticks",
+        )
+        .fetch_one(pool)
+        .await?;
         Ok::<_, sqlx::Error>((queue_depth, last_tick))
     };
     match timeout(DEFAULT_PROBE_TIMEOUT, fut).await {
@@ -357,7 +371,7 @@ pub async fn probe_api_keys() -> Vec<ApiKeyEntry> {
         }
         out
     });
-    match timeout(DEFAULT_PROBE_TIMEOUT, fut).await {
+    match timeout(API_KEYS_PROBE_TIMEOUT, fut).await {
         Ok(Ok(entries)) => entries,
         // Either timeout or join error — return a "best-effort empty"
         // list. The UI renders "unknown" when all entries are missing.

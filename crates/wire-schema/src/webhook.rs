@@ -109,11 +109,7 @@ impl<T> WebhookEvent<T> {
     /// Production callers use this so retried deliveries reuse the same
     /// `event_id` (idempotency); a fresh one only fires on the first
     /// emission.
-    pub fn new(
-        event_kind: impl Into<String>,
-        project_id: Ulid,
-        data: T,
-    ) -> Self {
+    pub fn new(event_kind: impl Into<String>, project_id: Ulid, data: T) -> Self {
         Self {
             event_kind: event_kind.into(),
             event_id: Ulid::new(),

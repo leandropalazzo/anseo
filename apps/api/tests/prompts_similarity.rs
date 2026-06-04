@@ -29,6 +29,7 @@ fn make_config(prompts: &[(&str, &str)]) -> Config {
         brand: BrandConfig {
             name: "Acme".to_string(),
             variants: Vec::new(),
+            site_url: None,
         },
         competitors: Vec::new(),
         prompts: prompts
@@ -43,6 +44,7 @@ fn make_config(prompts: &[(&str, &str)]) -> Config {
         schedules: Vec::new(),
         concurrency: 4,
         anomaly_sensitivity: AnomalySensitivity::default(),
+        analytics: None,
     }
 }
 
@@ -62,18 +64,13 @@ fn build_app(config: Option<Config>) -> axum::Router {
 
 async fn get_json(app: axum::Router, uri: &str) -> (StatusCode, serde_json::Value) {
     let resp = app
-        .oneshot(
-            Request::builder()
-                .uri(uri)
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
         .await
         .unwrap();
     let status = resp.status();
     let bytes = to_bytes(resp.into_body(), 1 << 20).await.unwrap();
-    let json = serde_json::from_slice::<serde_json::Value>(&bytes)
-        .unwrap_or(serde_json::Value::Null);
+    let json =
+        serde_json::from_slice::<serde_json::Value>(&bytes).unwrap_or(serde_json::Value::Null);
     (status, json)
 }
 
@@ -114,7 +111,10 @@ async fn near_match_above_threshold_is_returned() {
     let matches = body["matches"].as_array().unwrap();
     assert_eq!(matches.len(), 1);
     let j = matches[0]["estimated_jaccard"].as_f64().unwrap();
-    assert!(j >= 0.5 && j < 1.0, "expected near-match in [0.5,1.0), got {j}");
+    assert!(
+        (0.5..1.0).contains(&j),
+        "expected near-match in [0.5,1.0), got {j}"
+    );
 }
 
 #[tokio::test]

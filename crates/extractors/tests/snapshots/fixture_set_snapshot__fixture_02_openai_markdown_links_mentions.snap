@@ -1,5 +1,6 @@
 ---
 source: crates/extractors/tests/fixture_set_snapshot.rs
+assertion_line: 58
 expression: "extract_mentions(&body, &canonical_config())"
 ---
 - entity: Pinecone
@@ -7,18 +8,34 @@ expression: "extract_mentions(&body, &canonical_config())"
   rank: 1
   matched_text: Pinecone
   is_brand: true
+  sentiment:
+    label: positive
+    score: 70
+    lane: deterministic_lexicon
 - entity: Qdrant
   char_offset: 145
   rank: 2
   matched_text: Qdrant
   is_brand: false
+  sentiment:
+    label: positive
+    score: 70
+    lane: deterministic_lexicon
 - entity: Weaviate
   char_offset: 225
   rank: 3
   matched_text: Weaviate
   is_brand: false
+  sentiment:
+    label: positive
+    score: 80
+    lane: deterministic_lexicon
 - entity: Chroma
   char_offset: 306
   rank: 4
   matched_text: Chroma
   is_brand: false
+  sentiment:
+    label: positive
+    score: 80
+    lane: deterministic_lexicon

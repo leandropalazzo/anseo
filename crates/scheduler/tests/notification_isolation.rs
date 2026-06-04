@@ -34,9 +34,7 @@ async fn failing_slack_does_not_serialize_sibling_slack_or_smtp() {
     // so a serialized implementation would also stall the sibling.
     Mock::given(method("POST"))
         .and(path("/services/FAIL/HOOK"))
-        .respond_with(
-            ResponseTemplate::new(500).set_delay(Duration::from_millis(300)),
-        )
+        .respond_with(ResponseTemplate::new(500).set_delay(Duration::from_millis(300)))
         .mount(&failing)
         .await;
     Mock::given(method("POST"))
@@ -92,9 +90,20 @@ async fn failing_slack_does_not_serialize_sibling_slack_or_smtp() {
     // Each mock saw exactly the one POST destined for it — proves no
     // cross-talk or retry leak between targets.
     let failing_requests = failing.received_requests().await.expect("failing log");
-    let succeeding_requests = succeeding.received_requests().await.expect("succeeding log");
-    assert_eq!(failing_requests.len(), 1, "failing target received exactly one POST");
-    assert_eq!(succeeding_requests.len(), 1, "succeeding target received exactly one POST");
+    let succeeding_requests = succeeding
+        .received_requests()
+        .await
+        .expect("succeeding log");
+    assert_eq!(
+        failing_requests.len(),
+        1,
+        "failing target received exactly one POST"
+    );
+    assert_eq!(
+        succeeding_requests.len(),
+        1,
+        "succeeding target received exactly one POST"
+    );
 
     // Serialization check: a sequential implementation would take ≥
     // (300ms slow + 0ms fast) = 300ms+. Parallel should finish well

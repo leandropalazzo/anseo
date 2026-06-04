@@ -39,7 +39,11 @@ fn project_columns() -> Vec<ColumnExpectation> {
         ("name", "text", "NO", ""),
         ("organization_id", "uuid", "YES", ""),
         ("tenant_id", "uuid", "YES", ""),
+        ("competitors", "jsonb", "NO", "'[]'::jsonb"),
+        ("variants", "ARRAY", "NO", "'{}'::text[]"),
+        ("site_url", "text", "YES", ""),
         ("created_at", "timestamp with time zone", "NO", "now()"),
+        ("archived_at", "timestamp with time zone", "YES", ""),
     ]
 }
 
@@ -51,6 +55,7 @@ fn prompt_columns() -> Vec<ColumnExpectation> {
         ("text", "text", "NO", ""),
         ("organization_id", "uuid", "YES", ""),
         ("tenant_id", "uuid", "YES", ""),
+        ("tags", "ARRAY", "NO", "'{}'::text[]"),
         ("created_at", "timestamp with time zone", "NO", "now()"),
     ]
 }
@@ -71,6 +76,8 @@ fn prompt_run_columns() -> Vec<ColumnExpectation> {
         ("organization_id", "uuid", "YES", ""),
         ("tenant_id", "uuid", "YES", ""),
         ("created_at", "timestamp with time zone", "NO", "now()"),
+        ("schedule_tick_id", "uuid", "YES", ""),
+        ("provider_identity", "text", "YES", ""),
     ]
 }
 
@@ -82,6 +89,9 @@ fn mention_columns() -> Vec<ColumnExpectation> {
         ("char_offset", "integer", "NO", ""),
         ("rank", "integer", "NO", ""),
         ("matched_text", "text", "NO", ""),
+        ("sentiment_label", "text", "YES", ""),
+        ("sentiment_score", "smallint", "YES", ""),
+        ("sentiment_lane", "text", "YES", ""),
         ("organization_id", "uuid", "YES", ""),
         ("tenant_id", "uuid", "YES", ""),
         ("created_at", "timestamp with time zone", "NO", "now()"),
@@ -185,6 +195,7 @@ async fn migration_creates_phase1_tables_and_round_trips_prompt_runs(pool: PgPoo
         project_id,
         name: "headline".into(),
         text: "Who makes the best widget?".into(),
+        tags: Vec::new(),
         organization_id: None,
         tenant_id: None,
         created_at: Utc.with_ymd_and_hms(2026, 5, 25, 12, 0, 1).unwrap(),
@@ -332,6 +343,9 @@ async fn migration_creates_phase1_tables_and_round_trips_prompt_runs(pool: PgPoo
         char_offset: 0,
         rank: 1,
         matched_text: "Acme".into(),
+        sentiment_label: Some("neutral".into()),
+        sentiment_score: Some(50),
+        sentiment_lane: Some("deterministic_lexicon".into()),
         organization_id: None,
         tenant_id: None,
         created_at: Utc.with_ymd_and_hms(2026, 5, 25, 12, 2, 1).unwrap(),

@@ -45,11 +45,28 @@ pub mod events {
 /// Output goes to stdout. Safe to call once per process; subsequent calls return
 /// the underlying `SetGlobalDefaultError`.
 pub fn init_tracing(service_name: &str) -> Result<(), SetGlobalDefaultError> {
+    init_tracing_with_writer(service_name, std::io::stdout)
+}
+
+/// Like [`init_tracing`] but logs to **stderr** instead of stdout.
+///
+/// Required by the stdio MCP transport: stdout is the JSON-RPC protocol channel,
+/// so any log frame written there corrupts the stream and prevents the client
+/// from attaching. Use this in any binary that owns stdout for a wire protocol.
+pub fn init_tracing_stderr(service_name: &str) -> Result<(), SetGlobalDefaultError> {
+    init_tracing_with_writer(service_name, std::io::stderr)
+}
+
+/// Initialize the global tracing subscriber, sending bunyan JSON to `writer`.
+fn init_tracing_with_writer<W>(service_name: &str, writer: W) -> Result<(), SetGlobalDefaultError>
+where
+    W: for<'a> tracing_subscriber::fmt::MakeWriter<'a> + Send + Sync + 'static,
+{
     let env_filter = EnvFilter::try_from_env("OPENGEO_LOG")
         .or_else(|_| EnvFilter::try_from_default_env())
         .unwrap_or_else(|_| EnvFilter::new("opengeo=info"));
 
-    let formatting_layer = BunyanFormattingLayer::new(service_name.to_owned(), std::io::stdout);
+    let formatting_layer = BunyanFormattingLayer::new(service_name.to_owned(), writer);
     let subscriber = Registry::default()
         .with(env_filter)
         .with(JsonStorageLayer)

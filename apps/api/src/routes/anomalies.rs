@@ -144,7 +144,6 @@ impl WindowParam {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
@@ -154,7 +153,6 @@ enum KindParam {
     #[default]
     All,
 }
-
 
 #[derive(Debug, Deserialize)]
 pub struct AnomaliesQuery {
@@ -302,7 +300,10 @@ fn row_to_item(
         .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or(created_at);
-    let detail = payload.get("detail").cloned().unwrap_or(serde_json::json!({}));
+    let detail = payload
+        .get("detail")
+        .cloned()
+        .unwrap_or(serde_json::json!({}));
 
     // Best-effort detail unpacking. The detector's `detail` blob is
     // structurally stable per detector kind (see anomaly::zscore and

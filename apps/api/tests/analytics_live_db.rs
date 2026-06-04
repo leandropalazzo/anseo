@@ -26,8 +26,8 @@ use opengeo_core::api_key::{generate as gen_key, API_KEY_HEADER};
 use opengeo_core::{MentionId, ProjectId, PromptRunId};
 use opengeo_storage::models::{MentionRow, ProjectRow, PromptRow, PromptRunRow};
 use opengeo_storage::repositories::{
-    api_keys::ApiKeyRepo, mentions::MentionRepo, projects::ProjectRepo,
-    prompt_runs::PromptRunRepo, prompts::PromptRepo,
+    api_keys::ApiKeyRepo, mentions::MentionRepo, projects::ProjectRepo, prompt_runs::PromptRunRepo,
+    prompts::PromptRepo,
 };
 use sqlx::PgPool;
 use tower::ServiceExt;
@@ -35,8 +35,8 @@ use tower::ServiceExt;
 const BRAND: &str = "acme";
 
 async fn seed() -> (axum::Router, String, PgPool) {
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be exported for analytics_live_db");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be exported for analytics_live_db");
     let pool = PgPool::connect(&url).await.expect("connect");
     let storage = Arc::new(opengeo_storage::Storage::from_pool(pool.clone()));
     let project_id = ProjectId::new();
@@ -60,6 +60,7 @@ async fn seed() -> (axum::Router, String, PgPool) {
             project_id,
             name: "vector-db".to_string(),
             text: "Best vector database?".to_string(),
+            tags: Vec::new(),
             organization_id: None,
             tenant_id: None,
             created_at: now,
@@ -71,10 +72,7 @@ async fn seed() -> (axum::Router, String, PgPool) {
     // something to aggregate.
     let run_a = PromptRunId::new();
     let run_b = PromptRunId::new();
-    let runs = [
-        (run_a, "openai"),
-        (run_b, "anthropic"),
-    ];
+    let runs = [(run_a, "openai"), (run_b, "anthropic")];
     for (id, provider) in runs.iter() {
         PromptRunRepo::new(&pool)
             .insert(&PromptRunRow {
@@ -108,6 +106,9 @@ async fn seed() -> (axum::Router, String, PgPool) {
             char_offset: 0,
             rank: 2,
             matched_text: BRAND.to_string(),
+            sentiment_label: Some("neutral".to_string()),
+            sentiment_score: Some(50),
+            sentiment_lane: Some("deterministic_lexicon".to_string()),
             organization_id: None,
             tenant_id: None,
             created_at: now,
@@ -141,7 +142,12 @@ async fn seed() -> (axum::Router, String, PgPool) {
 
     let key = gen_key();
     ApiKeyRepo::new(&pool)
-        .insert(project_id, "fixture-key", &key.sha256_hash, &key.display_prefix)
+        .insert(
+            project_id,
+            "fixture-key",
+            &key.sha256_hash,
+            &key.display_prefix,
+        )
         .await
         .expect("seed api key");
 
@@ -160,11 +166,7 @@ async fn seed() -> (axum::Router, String, PgPool) {
     (router(state), key.plaintext, pool)
 }
 
-async fn get_json(
-    app: &axum::Router,
-    uri: &str,
-    api_key: &str,
-) -> (StatusCode, serde_json::Value) {
+async fn get_json(app: &axum::Router, uri: &str, api_key: &str) -> (StatusCode, serde_json::Value) {
     let response = app
         .clone()
         .oneshot(
@@ -234,7 +236,9 @@ async fn volatility_returns_payload_shape() {
     let (app, key, _pool) = seed().await;
     let (status, body) = get_json(
         &app,
-        &format!("/v1/analytics/volatility?prompt=vector-db&provider=openai&brand={BRAND}&window=7"),
+        &format!(
+            "/v1/analytics/volatility?prompt=vector-db&provider=openai&brand={BRAND}&window=7"
+        ),
         &key,
     )
     .await;
@@ -242,6 +246,219 @@ async fn volatility_returns_payload_shape() {
     // Single observation → CV is 0.0 by definition.
     assert_eq!(body["samples"], serde_json::json!(7));
     assert_eq!(body["value"], serde_json::json!(0.0));
-    let presence = body["presence_ratio"].as_f64().expect("presence_ratio is f64");
+    let presence = body["presence_ratio"]
+        .as_f64()
+        .expect("presence_ratio is f64");
     assert!((0.0..=1.0).contains(&presence), "presence_ratio in [0,1]");
+}
+
+/// Per-provider analytics surfaces must split OpenRouter runs by their
+/// upstream model. Two `openrouter` runs whose `provider_model_version`
+/// differ are two distinct upstreams, so the aggregate/display queries
+/// (which now group/select `pr.provider_identity`) must return them as
+/// two separate rows keyed `openrouter:<model>` — not a single collapsed
+/// `openrouter` row. Plain providers keep their bare name.
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn openrouter_runs_split_by_upstream_model() {
+    use opengeo_analytics::{citation_graph_rows, visibility_trend};
+
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be exported for analytics_live_db");
+    let pool = PgPool::connect(&url).await.expect("connect");
+    let storage = opengeo_storage::Storage::from_pool(pool.clone());
+    let project_id = ProjectId::new();
+    let now = Utc::now();
+
+    ProjectRepo::new(&pool)
+        .insert(&ProjectRow {
+            id: project_id,
+            name: format!("test-{}", project_id),
+            organization_id: None,
+            tenant_id: None,
+            created_at: now,
+        })
+        .await
+        .expect("seed project");
+
+    let prompt_id = opengeo_core::PromptId::new();
+    PromptRepo::new(&pool)
+        .insert(&PromptRow {
+            id: prompt_id,
+            project_id,
+            name: "vector-db".to_string(),
+            text: "Best vector database?".to_string(),
+            tags: Vec::new(),
+            organization_id: None,
+            tenant_id: None,
+            created_at: now,
+        })
+        .await
+        .expect("seed prompt");
+
+    // Two OpenRouter runs against the same prompt but DIFFERENT upstream
+    // models. `provider` is identical (`openrouter`); only the
+    // `provider_model_version` distinguishes them. The generated
+    // `provider_identity` column collapses to `openrouter:<model>`.
+    let run_gpt = PromptRunId::new();
+    let run_claude = PromptRunId::new();
+    let runs = [
+        (run_gpt, "openrouter", "openai/gpt-4o"),
+        (run_claude, "openrouter", "anthropic/claude-3.5-sonnet"),
+    ];
+    for (id, provider, model) in runs.iter() {
+        PromptRunRepo::new(&pool)
+            .insert(&PromptRunRow {
+                id: *id,
+                prompt_id,
+                provider: provider.to_string(),
+                provider_model_version: model.to_string(),
+                provider_region: None,
+                started_at: now,
+                finished_at: Some(now),
+                raw_response: serde_json::json!({"x": 1}),
+                request_parameters: serde_json::json!({}),
+                status: "ok".to_string(),
+                error_kind: None,
+                organization_id: None,
+                tenant_id: None,
+                created_at: now,
+            })
+            .await
+            .expect("seed run");
+    }
+
+    // Two brand mentions (acme + beta) + a citation on each run so the
+    // visibility, citation-graph, AND comparison aggregates each have a
+    // row to emit per upstream. `beta` gives the comparison endpoint its
+    // required second brand.
+    for run_id in [run_gpt, run_claude] {
+        for entity in [BRAND, "beta"] {
+            MentionRepo::new(&pool)
+                .insert(&MentionRow {
+                    id: MentionId::new(),
+                    prompt_run_id: run_id,
+                    entity: entity.to_string(),
+                    char_offset: 0,
+                    rank: 2,
+                    matched_text: entity.to_string(),
+                    sentiment_label: Some("neutral".to_string()),
+                    sentiment_score: Some(50),
+                    sentiment_lane: Some("deterministic_lexicon".to_string()),
+                    organization_id: None,
+                    tenant_id: None,
+                    created_at: now,
+                })
+                .await
+                .expect("seed mention");
+        }
+        sqlx::query(
+            r#"
+            INSERT INTO citations (id, prompt_run_id, domain, frequency)
+            VALUES ($1, $2, 'docs.acme.com', 1)
+            "#,
+        )
+        .bind(uuid::Uuid::new_v4())
+        .bind(run_id)
+        .execute(&pool)
+        .await
+        .expect("seed citation");
+    }
+
+    let gpt_id = "openrouter:openai/gpt-4o";
+    let claude_id = "openrouter:anthropic/claude-3.5-sonnet";
+
+    // visibility_trend (GROUP BY provider_identity): two rows, one per
+    // upstream identity — NOT one collapsed `openrouter` row.
+    let trend = visibility_trend(&storage, project_id, "vector-db", 7)
+        .await
+        .expect("visibility_trend");
+    let mut trend_providers: Vec<&str> = trend.iter().map(|p| p.provider.as_str()).collect();
+    trend_providers.sort_unstable();
+    trend_providers.dedup();
+    assert_eq!(
+        trend_providers,
+        vec![claude_id, gpt_id],
+        "visibility_trend must split the two OpenRouter upstreams"
+    );
+    assert!(
+        !trend.iter().any(|p| p.provider == "openrouter"),
+        "no bare `openrouter` row may survive the split"
+    );
+
+    // citation_graph_rows (GROUP BY provider_identity, domain): each
+    // upstream contributes its own provider×domain edge.
+    let cite_rows = citation_graph_rows(&storage, project_id, 7)
+        .await
+        .expect("citation_graph_rows");
+    let mut cite_providers: Vec<&str> = cite_rows.iter().map(|r| r.provider.as_str()).collect();
+    cite_providers.sort_unstable();
+    cite_providers.dedup();
+    assert_eq!(
+        cite_providers,
+        vec![claude_id, gpt_id],
+        "citation_graph_rows must split the two OpenRouter upstreams"
+    );
+    assert!(
+        cite_rows
+            .iter()
+            .any(|r| r.provider == gpt_id && r.domain == "docs.acme.com"),
+        "gpt-4o upstream edge present"
+    );
+    assert!(
+        cite_rows
+            .iter()
+            .any(|r| r.provider == claude_id && r.domain == "docs.acme.com"),
+        "claude upstream edge present"
+    );
+
+    // Comparison matrix (GROUP BY ..., provider_identity): route-level
+    // proof. Build the authenticated router and GET /v1/comparisons —
+    // the two upstreams must surface as two rows keyed by identity.
+    let key = gen_key();
+    ApiKeyRepo::new(&pool)
+        .insert(
+            project_id,
+            "fixture-key",
+            &key.sha256_hash,
+            &key.display_prefix,
+        )
+        .await
+        .expect("seed api key");
+    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let state = AppState {
+        storage: Arc::new(storage),
+        project_id,
+        events,
+        config: None,
+        provider_registry: None,
+        configured_project: std::sync::Arc::new("default".to_string()),
+        setup_install_state: std::sync::Arc::new(tokio::sync::RwLock::new(
+            std::collections::HashMap::new(),
+        )),
+    };
+    let app = router(state);
+    let (status, body) = get_json(
+        &app,
+        "/v1/comparisons?brands=acme,beta&window=7d",
+        &key.plaintext,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "comparisons body: {body}");
+    let rows = body["rows"].as_array().expect("rows is array");
+    let mut row_providers: Vec<&str> = rows
+        .iter()
+        .map(|r| r["provider"].as_str().expect("provider str"))
+        .collect();
+    row_providers.sort_unstable();
+    row_providers.dedup();
+    assert_eq!(
+        row_providers,
+        vec![claude_id, gpt_id],
+        "comparison matrix must split the two OpenRouter upstreams into two rows"
+    );
+    assert!(
+        !rows.iter().any(|r| r["provider"] == "openrouter"),
+        "no bare `openrouter` comparison row may survive the split"
+    );
 }

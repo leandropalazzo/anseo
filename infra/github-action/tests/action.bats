@@ -126,3 +126,39 @@ EOF
   [ "$status" -eq 0 ]
   [[ "$output" == *"--provider anthropic"* ]]
 }
+
+@test "audit mode does not require API key and forwards gate flags" {
+  unset OPENGEO_API_KEY
+  cat > "$STUB_BIN/ogeo" <<'EOF'
+#!/bin/sh
+echo '{"overall_score": 86, "gate": {"passed": true, "failed_findings": []}}'
+exit 0
+EOF
+  chmod +x "$STUB_BIN/ogeo"
+
+  run "$ENTRYPOINT" "" "" "" "" "https://api.opengeo.dev" "https://example.com/sitemap.xml" "medium" "7" "audit"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"audit https://example.com/sitemap.xml --fail-on medium --max-pages 7 --format json"* ]]
+
+  run cat "$GITHUB_OUTPUT"
+  [[ "$output" == *"audit-score=86"* ]]
+  [[ "$output" == *"audit-failed-findings=0"* ]]
+}
+
+@test "audit mode parses JSON outputs when gate fails" {
+  unset OPENGEO_API_KEY
+  cat > "$STUB_BIN/ogeo" <<'EOF'
+#!/bin/sh
+echo '{"overall_score": 42, "gate": {"passed": false, "failed_findings": [{"rule_id": "corroboration.outbound_links"}]}}'
+echo 'error: visibility check failed: audit gate failed for 1 finding(s)' >&2
+exit 1
+EOF
+  chmod +x "$STUB_BIN/ogeo"
+
+  run "$ENTRYPOINT" "" "" "" "" "https://api.opengeo.dev" "https://example.com" "high" "5" "audit"
+  [ "$status" -eq 1 ]
+
+  run cat "$GITHUB_OUTPUT"
+  [[ "$output" == *"audit-score=42"* ]]
+  [[ "$output" == *"audit-failed-findings=1"* ]]
+}

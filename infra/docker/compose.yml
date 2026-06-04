@@ -57,17 +57,45 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-opengeo}:${POSTGRES_PASSWORD:-opengeo}@postgres:5432/${POSTGRES_DB:-opengeo}
       REDIS_URL: redis://redis:6379
       OGEO_BIND_ADDR: 0.0.0.0:8080
+      # The api binds 0.0.0.0 so the sibling `web` container can reach it at
+      # api:8080 over the private compose bridge (host ports stay 127.0.0.1
+      # only — see NFR-14). A non-loopback bind requires ≥1 active API key
+      # (NFR-AuthHardenedByDefault); seed one on first boot via this key so the
+      # stack comes up without a manual `ogeo api key create`. This default is
+      # a well-known DEV credential — override OPENGEO_BOOTSTRAP_API_KEY for any
+      # non-local deployment. Must match the `ogeo_<32 base62>` wire shape.
+      OPENGEO_BOOTSTRAP_API_KEY: ${OPENGEO_BOOTSTRAP_API_KEY:-ogeo_DevComposeBootstrapKeyDoNotUse01}
       RUST_LOG: ${RUST_LOG:-info}
       # Path to opengeo.yaml inside the container. The API derives its
       # project_id from this file's brand.name (Story 2.1's stable-ID hash),
       # so it must match the YAML the CLI used when seeding data.
       OGEO_CONFIG: /opengeo.yaml
+      # Provider API keys set via the dashboard (POST /v1/setup/api-keys/:provider)
+      # are persisted through opengeo_core's secret-store chain. The OS keyring
+      # is unavailable in a headless container, so the durable leg is the
+      # age-encrypted secrets file — which requires a passphrase. Without it the
+      # chain silently falls through to an ephemeral in-memory store and keys
+      # vanish between requests. This is a well-known DEV passphrase; override
+      # OPENGEO_KEYRING_PASSPHRASE for any non-local deployment.
+      OPENGEO_KEYRING_PASSPHRASE: ${OPENGEO_KEYRING_PASSPHRASE:-dev-compose-secrets-passphrase}
+      # Headless container: no OS keychain. The keyring crate's secret-service
+      # backend blocks trying to reach a non-existent D-Bus daemon, stalling
+      # every secret get/set until the 1s probe timeout fires (which made
+      # dashboard-set keys read back as "not configured"). Skip the keyring leg
+      # so the chain uses the durable age-file directly.
+      OPENGEO_DISABLE_KEYRING: "1"
+      # Pin the age secrets file under a named volume so dashboard-set keys
+      # survive `docker compose up --build` recreations.
+      XDG_CONFIG_HOME: /data/config
     volumes:
       # Mount the project's opengeo.yaml read-only so api + future cli sidecars
       # see the same canonical declaration. Path is overridable via the
       # OGEO_PROJECT_CONFIG env var on the host; default points at the
       # screenshot/demo fixture.
       - ${OGEO_PROJECT_CONFIG:-./fixture-opengeo.yaml}:/opengeo.yaml:ro
+      # Durable home for the age-encrypted provider-secrets file
+      # (<XDG_CONFIG_HOME>/opengeo/secrets.age).
+      - api-secrets:/data/config
     ports:
       - "${OGEO_BIND_HOST:-127.0.0.1}:${OGEO_API_PORT:-8080}:8080"
     depends_on:
@@ -76,32 +104,51 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz || exit 1"]
+      # /healthz is auth-gated (monitoring must prove auth works), so the probe
+      # carries the same key the api seeds. `$$` escapes compose interpolation
+      # so the container shell expands its own OPENGEO_BOOTSTRAP_API_KEY at
+      # runtime — stays correct even when the operator overrides the key.
+      test: ["CMD-SHELL", "wget -q -O- --header=\"X-OpenGEO-API-Key: $$OPENGEO_BOOTSTRAP_API_KEY\" http://127.0.0.1:8080/healthz || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 12
       start_period: 10s
 
   worker:
-    # Placeholder until apps/worker ships its Dockerfile.
-    image: ${OPENGEO_WORKER_IMAGE:-busybox:1.36}
-    command: ["sh", "-c", "echo 'opengeo-worker placeholder; replace with apps/worker image'; sleep infinity"]
+    # Real background worker: polls due schedule ticks, runs the prompt ×
+    # provider matrix through the orchestrator, and drives webhook + ETL sweeps.
+    # Override OPENGEO_WORKER_IMAGE to use a published image; default `build:`
+    # produces a local image from apps/worker/Dockerfile.
+    build:
+      context: ../..
+      dockerfile: apps/worker/Dockerfile
+    image: ${OPENGEO_WORKER_IMAGE:-opengeo/worker:dev}
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-opengeo}:${POSTGRES_PASSWORD:-opengeo}@postgres:5432/${POSTGRES_DB:-opengeo}
       REDIS_URL: redis://redis:6379
       RUST_LOG: ${RUST_LOG:-info}
+      # Same canonical config the api derives its project_id from — the worker
+      # overlays the DB-authoritative brand row on top before dispatching ticks.
+      OGEO_CONFIG: /opengeo.yaml
+      # Provider keys live in the shared age-secrets file (api-secrets volume).
+      # Mirror the api's keyring env so build_real_registry reads the same keys
+      # the dashboard persisted: passphrase unlocks the age file; the keyring
+      # leg is skipped (no D-Bus in a headless container); XDG_CONFIG_HOME points
+      # the secret-store chain at the mounted volume.
+      OPENGEO_KEYRING_PASSPHRASE: ${OPENGEO_KEYRING_PASSPHRASE:-dev-compose-secrets-passphrase}
+      OPENGEO_DISABLE_KEYRING: "1"
+      XDG_CONFIG_HOME: /data/config
+    volumes:
+      # Same opengeo.yaml the api mounts (read-only).
+      - ${OGEO_PROJECT_CONFIG:-./fixture-opengeo.yaml}:/opengeo.yaml:ro
+      # Shared age-secrets home so the worker reads dashboard-set provider keys.
+      - api-secrets:/data/config
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "true"]
-      interval: 5s
-      timeout: 2s
-      retries: 3
-      start_period: 5s
 
   web:
     # Story 4.1 + 4.5: Next.js dashboard. Override OPENGEO_WEB_IMAGE to use a
@@ -113,6 +160,10 @@ services:
     restart: unless-stopped
     environment:
       OGEO_API_BASE_URL: http://api:8080
+      # Authenticate SSR fetches to the api with the same bootstrap key the
+      # api seeds (default is the shared dev credential above; override both
+      # via OPENGEO_BOOTSTRAP_API_KEY to keep them in lockstep).
+      OGEO_API_KEY: ${OPENGEO_BOOTSTRAP_API_KEY:-ogeo_DevComposeBootstrapKeyDoNotUse01}
     ports:
       - "${OGEO_BIND_HOST:-127.0.0.1}:${OGEO_WEB_PORT:-5173}:5173"
     depends_on:
@@ -120,11 +171,16 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5173 || exit 1"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
+      # 20s: the probe hits SSR `/`, which on every render (cache: no-store)
+      # makes ~7 live-API round-trips for the dashboard and measures 5–15s on
+      # CI runners. A shorter timeout kills each probe mid-render, so the
+      # container never reports healthy even though `/` ultimately returns 200.
+      timeout: 20s
       retries: 12
-      start_period: 15s
+      start_period: 30s
 
 volumes:
   postgres-data:
   redis-data:
+  api-secrets:

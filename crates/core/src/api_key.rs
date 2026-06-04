@@ -83,12 +83,10 @@ pub fn looks_like_key(plaintext: &str) -> bool {
     let Some(random) = plaintext.strip_prefix(KEY_PREFIX) else {
         return false;
     };
-    random.len() == RANDOM_LEN
-        && random.chars().all(|c| c.is_ascii_alphanumeric())
+    random.len() == RANDOM_LEN && random.chars().all(|c| c.is_ascii_alphanumeric())
 }
 
-const BASE62_CHARS: &[u8; 62] =
-    b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const BASE62_CHARS: &[u8; 62] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 fn hex_encode(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);
@@ -183,8 +181,7 @@ pub fn verify_token(token: &str, lookup: &KeyLookup) -> VerifyOutcome {
 /// RFC 7230 §3.2.3, so `Bearer\tfoo` is accepted.
 pub fn extract_bearer(header_value: Option<&str>) -> Option<&str> {
     let raw = header_value?.trim();
-    let (scheme, token) =
-        raw.split_once(|c: char| c.is_ascii_whitespace())?;
+    let (scheme, token) = raw.split_once(|c: char| c.is_ascii_whitespace())?;
     if !scheme.eq_ignore_ascii_case("bearer") {
         return None;
     }

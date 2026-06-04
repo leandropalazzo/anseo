@@ -215,10 +215,7 @@ impl<'a> WebhookDeliveryRepo<'a> {
     /// non-dropped row. Used by the dispatcher to decide whether to
     /// auto-disable the webhook (architecture §5.4: 5 consecutive
     /// permanent failures → disabled).
-    pub async fn count_consecutive_dropped(
-        &self,
-        webhook_id: Uuid,
-    ) -> Result<i64, Error> {
+    pub async fn count_consecutive_dropped(&self, webhook_id: Uuid) -> Result<i64, Error> {
         // Window over (webhook_id, created_at desc). The first non-
         // 'dropped' row terminates the count. Doable in pure SQL via a
         // CASE-in-CTE but the most-recent-N pattern is simpler.

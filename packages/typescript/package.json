@@ -1,0 +1,32 @@
+{
+  "name": "@opengeo/sdk",
+  "version": "0.0.0",
+  "description": "OpenGEO REST client — auto-generated from the canonical OpenAPI artifact.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/client.ts",
+      "default": "./src/client.ts"
+    },
+    "./runtime": {
+      "types": "./src/runtime.ts",
+      "default": "./src/runtime.ts"
+    },
+    "./schemas/*": {
+      "types": "./src/schemas/*.ts",
+      "default": "./src/schemas/*.ts"
+    }
+  },
+  "files": [
+    "src/**/*.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "regenerate": "make -C ../../infra/codegen ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

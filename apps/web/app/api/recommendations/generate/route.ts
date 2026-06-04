@@ -1,0 +1,19 @@
+// Server-side proxy for POST /v1/recommendations/generate so the operator API
+// key is attached from server env (client-triggered "Generate" button).
+
+import { NextResponse } from "next/server";
+import { API_BASE_URL, setupHeaders } from "@/lib/api";
+
+export async function POST() {
+  const r = await fetch(`${API_BASE_URL}/v1/recommendations/generate`, {
+    method: "POST",
+    headers: await setupHeaders(true),
+    body: "{}",
+    cache: "no-store",
+  });
+  const out = await r.text();
+  return new NextResponse(out, {
+    status: r.status,
+    headers: { "Content-Type": "application/json" },
+  });
+}

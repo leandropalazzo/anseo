@@ -26,6 +26,7 @@ pub mod capability;
 pub mod install_record;
 pub mod manifest;
 pub mod plugin_type;
+pub mod trend_kind;
 pub mod validation;
 
 pub use capability::{Capability, CapabilityParseError};

@@ -15,6 +15,8 @@
 //!
 //! Usage: `cargo run -p opengeo-wire-schema --bin gen-openapi`
 
+#![recursion_limit = "512"]
+
 use serde_json::json;
 
 fn main() {
@@ -242,6 +244,81 @@ fn build_spec() -> serde_json::Value {
                         "provider": { "type": "string" },
                         "dispatched_at": { "type": "string", "format": "date-time" }
                     }
+                },
+                "Recommendation": {
+                    "type": "object",
+                    "description": "Story 19.6 — a stored GEO Recommendation (architecture-phase3-geo-recommendations.md §8 wire shape) plus its DB lifecycle `state`.",
+                    "required": ["id", "project_id", "kind", "severity", "confidence_band", "state", "summary", "payload", "traceability", "reproducibility", "tags", "generated_at", "engine_version"],
+                    "properties": {
+                        "id": { "type": "string", "description": "ULID." },
+                        "project_id": { "type": "string", "description": "ULID." },
+                        "kind": { "type": "string" },
+                        "severity": { "type": "string" },
+                        "confidence_band": { "type": "string" },
+                        "state": { "type": "string", "enum": ["generated", "surfaced", "acknowledged", "acted", "measured", "dismissed", "stale"] },
+                        "summary": { "type": "string" },
+                        "payload": { "type": "object" },
+                        "traceability": { "type": "object" },
+                        "reproducibility": {
+                            "type": "object",
+                            "required": ["class"],
+                            "properties": {
+                                "class": { "type": "string" },
+                                "note": { "type": "string", "nullable": true }
+                            }
+                        },
+                        "tags": { "type": "array", "items": { "type": "string" } },
+                        "generated_at": { "type": "string", "format": "date-time" },
+                        "engine_version": { "type": "string" }
+                    }
+                },
+                "RecommendationListResponse": {
+                    "type": "object",
+                    "description": "Story 19.6 — cursor-paginated active recommendations. `next_cursor` is null on the last page.",
+                    "required": ["items", "next_cursor"],
+                    "properties": {
+                        "items": { "type": "array", "items": { "$ref": "#/components/schemas/Recommendation" } },
+                        "next_cursor": { "type": "string", "nullable": true, "description": "Opaque cursor for the next page; null when no further pages remain." }
+                    }
+                },
+                "GenerateRecommendationsAccepted": {
+                    "type": "object",
+                    "description": "Story 19.6 — 202 response from POST /v1/recommendations/generate. Per the Phase 2 async-write pattern, `status_url` points at the list endpoint where the results are readable.",
+                    "required": ["status", "generated_count", "inserted_count", "status_url"],
+                    "properties": {
+                        "status": { "type": "string" },
+                        "generated_count": { "type": "integer", "minimum": 0 },
+                        "inserted_count": { "type": "integer", "minimum": 0 },
+                        "status_url": { "type": "string" }
+                    }
+                },
+                "TransitionRecommendationRequest": {
+                    "type": "object",
+                    "description": "Story 19.6 — lifecycle transition (Story 19.4 state machine). Illegal edges return 409.",
+                    "required": ["to"],
+                    "properties": {
+                        "to": { "type": "string", "enum": ["surfaced", "acknowledged", "acted", "measured", "dismissed", "stale"] },
+                        "note": { "type": "string", "nullable": true },
+                        "evidence_url": { "type": "string", "nullable": true }
+                    }
+                },
+                "TransitionRecommendationResponse": {
+                    "type": "object",
+                    "required": ["recommendation", "warnings"],
+                    "properties": {
+                        "recommendation": { "$ref": "#/components/schemas/Recommendation" },
+                        "warnings": { "type": "array", "items": { "type": "object" } }
+                    }
+                },
+                "Sm14MetricResponse": {
+                    "type": "object",
+                    "description": "Story 19.5 — SM-14 adoption metric. `rate` is null when the denominator is zero.",
+                    "required": ["numerator", "denominator"],
+                    "properties": {
+                        "numerator": { "type": "integer" },
+                        "denominator": { "type": "integer" },
+                        "rate": { "type": "number", "nullable": true }
+                    }
                 }
             }
         },
@@ -422,6 +499,120 @@ fn build_spec() -> serde_json::Value {
                     }
                 }
             },
+            "/v1/recommendations/generate": {
+                "post": {
+                    "operationId": "generateRecommendations",
+                    "summary": "Story 19.6 — assemble an EngineInput from the project's live prompts/runs/citations, run the in-process engine, and persist the result. Returns 202 + a status_url per the Phase 2 async-write pattern.",
+                    "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" }
+                    ],
+                    "responses": {
+                        "202": {
+                            "description": "Accepted",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GenerateRecommendationsAccepted" } } }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" },
+                        "503": {
+                            "description": "No opengeo.yaml loaded; cannot assemble recommendation inputs.",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+                        }
+                    }
+                }
+            },
+            "/v1/recommendations": {
+                "get": {
+                    "operationId": "listRecommendations",
+                    "summary": "Story 19.6 — cursor-paginated active recommendations for the project, newest first.",
+                    "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" },
+                        { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 } },
+                        { "name": "cursor", "in": "query", "schema": { "type": "string", "description": "Opaque page cursor from a previous response's next_cursor." } }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RecommendationListResponse" } } }
+                        },
+                        "400": {
+                            "description": "Malformed cursor.",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                }
+            },
+            "/v1/recommendations/metrics": {
+                "get": {
+                    "operationId": "recommendationMetrics",
+                    "summary": "Story 19.5 — SM-14 adoption metric for the project (Acted∨Measured / Surfaced∨later, first-party Kinds only).",
+                    "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Sm14MetricResponse" } } }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                }
+            },
+            "/v1/recommendations/{id}": {
+                "get": {
+                    "operationId": "getRecommendation",
+                    "summary": "Story 19.6 — one recommendation + full traceability. 404 when the row is absent or owned by another project.",
+                    "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" },
+                        { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "description": "Recommendation ULID." } }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Recommendation" } } }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" },
+                        "404": {
+                            "description": "Recommendation not found.",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+                        }
+                    }
+                }
+            },
+            "/v1/recommendations/{id}/state": {
+                "patch": {
+                    "operationId": "transitionRecommendation",
+                    "summary": "Story 19.6 — apply a lifecycle transition (Story 19.4 state machine). Illegal transitions return 409.",
+                    "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" },
+                        { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "description": "Recommendation ULID." } }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": { "schema": { "$ref": "#/components/schemas/TransitionRecommendationRequest" } }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TransitionRecommendationResponse" } } }
+                        },
+                        "400": {
+                            "description": "Unknown target state or malformed id.",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" },
+                        "404": {
+                            "description": "Recommendation not found.",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+                        },
+                        "409": {
+                            "description": "Illegal lifecycle transition.",
+                            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+                        }
+                    }
+                }
+            },
             "/v1/projects/{project_id}/events": {
                 "get": {
                     "operationId": "subscribeEvents",
@@ -479,11 +670,29 @@ mod tests {
             "/v1/prompt-runs",
             "/v1/projects/{project_id}/events",
         ] {
-            assert!(
-                spec["paths"][path].is_object(),
-                "spec missing path {path}"
-            );
+            assert!(spec["paths"][path].is_object(), "spec missing path {path}");
         }
+    }
+
+    #[test]
+    fn spec_includes_story_19_6_recommendation_paths() {
+        let spec = build_spec();
+        for path in [
+            "/v1/recommendations",
+            "/v1/recommendations/generate",
+            "/v1/recommendations/metrics",
+            "/v1/recommendations/{id}",
+            "/v1/recommendations/{id}/state",
+        ] {
+            assert!(spec["paths"][path].is_object(), "spec missing path {path}");
+        }
+        assert!(
+            spec["paths"]["/v1/recommendations/generate"]["post"]["responses"]["202"].is_object()
+        );
+        assert!(
+            spec["paths"]["/v1/recommendations/{id}/state"]["patch"]["responses"]["409"]
+                .is_object()
+        );
     }
 
     #[test]

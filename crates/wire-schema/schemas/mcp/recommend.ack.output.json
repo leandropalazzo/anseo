@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RecommendTransitionOutput",
+  "description": "Shared output for the lifecycle-transition tools (`ack` / `dismiss` / `mark_acted`): the updated envelope verbatim plus any lifecycle warnings (e.g. `lifecycle.evidence_missing` from `mark_acted`).",
+  "type": "object",
+  "required": [
+    "recommendation",
+    "trace_id",
+    "warnings"
+  ],
+  "properties": {
+    "recommendation": true,
+    "trace_id": {
+      "type": "string"
+    },
+    "warnings": {
+      "type": "array",
+      "items": true
+    }
+  }
+}

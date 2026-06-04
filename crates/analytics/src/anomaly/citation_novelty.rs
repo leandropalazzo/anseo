@@ -73,7 +73,7 @@ pub fn detect(samples: &[CitationSample], cfg: Config) -> Vec<AnomalyVerdict> {
             verdicts.push(AnomalyVerdict {
                 kind: AnomalyKind::Citation,
                 observed_at: current.observed_at,
-                provider: current.provider,
+                provider: current.provider.clone(),
                 summary: format!("new_domain={domain} freq={freq}"),
                 detail: json!({
                     "signal": "new_high_frequency_domain",
@@ -121,7 +121,10 @@ mod tests {
         let mut series: Vec<CitationSample> = (1..=7)
             .map(|d| sample(d, &["docs.example.com", "docs.example.com"]))
             .collect();
-        series.push(sample(8, &["new.io", "new.io", "new.io", "docs.example.com"]));
+        series.push(sample(
+            8,
+            &["new.io", "new.io", "new.io", "docs.example.com"],
+        ));
         let verdicts = detect(&series, cfg());
         assert_eq!(verdicts.len(), 1);
         assert_eq!(verdicts[0].kind, AnomalyKind::Citation);
@@ -131,8 +134,7 @@ mod tests {
 
     #[test]
     fn single_appearance_of_new_domain_is_quiet() {
-        let mut series: Vec<CitationSample> =
-            (1..=7).map(|d| sample(d, &["a.com"])).collect();
+        let mut series: Vec<CitationSample> = (1..=7).map(|d| sample(d, &["a.com"])).collect();
         series.push(sample(8, &["a.com", "rare.io"]));
         let verdicts = detect(&series, cfg());
         assert!(verdicts.is_empty(), "{verdicts:?}");
@@ -140,8 +142,7 @@ mod tests {
 
     #[test]
     fn known_domain_does_not_emit_even_at_higher_frequency() {
-        let mut series: Vec<CitationSample> =
-            (1..=7).map(|d| sample(d, &["a.com"])).collect();
+        let mut series: Vec<CitationSample> = (1..=7).map(|d| sample(d, &["a.com"])).collect();
         series.push(sample(8, &["a.com", "a.com", "a.com", "a.com"]));
         let verdicts = detect(&series, cfg());
         assert!(verdicts.is_empty(), "{verdicts:?}");
@@ -150,11 +151,12 @@ mod tests {
     #[test]
     fn verdict_order_is_stable_for_parity_test() {
         // ARCH-26a — Postgres + ClickHouse outputs must be byte-equal.
-        let mut series: Vec<CitationSample> =
-            (1..=7).map(|d| sample(d, &["a.com"])).collect();
+        let mut series: Vec<CitationSample> = (1..=7).map(|d| sample(d, &["a.com"])).collect();
         series.push(sample(
             8,
-            &["zeta.io", "zeta.io", "alpha.io", "alpha.io", "mu.io", "mu.io"],
+            &[
+                "zeta.io", "zeta.io", "alpha.io", "alpha.io", "mu.io", "mu.io",
+            ],
         ));
         let verdicts = detect(&series, cfg());
         assert_eq!(verdicts.len(), 3);
@@ -165,8 +167,7 @@ mod tests {
 
     #[test]
     fn provider_field_is_carried_through() {
-        let mut series: Vec<CitationSample> =
-            (1..=7).map(|d| sample(d, &["a.com"])).collect();
+        let mut series: Vec<CitationSample> = (1..=7).map(|d| sample(d, &["a.com"])).collect();
         series.push(CitationSample {
             observed_at: Utc.with_ymd_and_hms(2026, 5, 8, 12, 0, 0).unwrap(),
             provider: ProviderName::Anthropic,

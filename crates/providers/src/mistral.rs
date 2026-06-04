@@ -6,7 +6,7 @@
 
 use async_trait::async_trait;
 
-use opengeo_core::{DEFAULT_MISTRAL_MODEL, ProviderName, Secret};
+use opengeo_core::{ProviderName, Secret, DEFAULT_MISTRAL_MODEL};
 
 use crate::{
     map_reqwest_err, HttpClient, Provider, ProviderError, ProviderRequest, ProviderResponse,
@@ -109,7 +109,10 @@ fn build_chat_body(request: &ProviderRequest) -> serde_json::Value {
         _ => serde_json::json!({}),
     };
     let obj = body.as_object_mut().expect("seeded as Object");
-    obj.insert("model".into(), serde_json::Value::String(request.model.clone()));
+    obj.insert(
+        "model".into(),
+        serde_json::Value::String(request.model.clone()),
+    );
     obj.insert(
         "messages".into(),
         serde_json::json!([{"role": "user", "content": request.prompt_text}]),

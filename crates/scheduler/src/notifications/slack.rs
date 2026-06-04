@@ -262,8 +262,12 @@ mod tests {
 
     #[test]
     fn build_payload_strips_mentions_by_default() {
-        let payload =
-            build_payload("schedule.missed", "<!channel> tick missed", DASHBOARD, false);
+        let payload = build_payload(
+            "schedule.missed",
+            "<!channel> tick missed",
+            DASHBOARD,
+            false,
+        );
         let blocks = payload["blocks"].as_array().unwrap();
         let summary = blocks[1]["text"]["text"].as_str().unwrap();
         assert!(!summary.contains("<!channel>"));
@@ -272,8 +276,7 @@ mod tests {
 
     #[test]
     fn build_payload_preserves_mentions_when_enabled() {
-        let payload =
-            build_payload("schedule.missed", "<!channel> tick missed", DASHBOARD, true);
+        let payload = build_payload("schedule.missed", "<!channel> tick missed", DASHBOARD, true);
         let blocks = payload["blocks"].as_array().unwrap();
         let summary = blocks[1]["text"]["text"].as_str().unwrap();
         assert!(summary.contains("<!channel>"));

@@ -18,7 +18,7 @@
 
 use async_trait::async_trait;
 
-use opengeo_core::{DEFAULT_OPENROUTER_MODEL, ProviderName, Secret};
+use opengeo_core::{ProviderName, Secret, DEFAULT_OPENROUTER_MODEL};
 
 use crate::{
     map_reqwest_err, HttpClient, Provider, ProviderError, ProviderRequest, ProviderResponse,
@@ -39,6 +39,61 @@ impl OpenRouterProvider {
         Self {
             http: HttpClient::new(api_key, base_url),
         }
+    }
+}
+
+/// OpenRouter-backed adapter registered under a concrete provider identity.
+///
+/// This lets operators store one OpenRouter key while the data model continues
+/// to record concrete providers (`gemini`, `perplexity`, etc.). Direct provider
+/// clients are registered first; this wrapper is only used as a fallback.
+pub struct RoutedOpenRouterProvider {
+    target: ProviderName,
+    upstream_vendor: &'static str,
+    inner: OpenRouterProvider,
+}
+
+impl RoutedOpenRouterProvider {
+    pub fn new(target: ProviderName, api_key: Secret) -> Option<Self> {
+        let upstream_vendor = match target {
+            ProviderName::Openai => "openai",
+            ProviderName::Anthropic => "anthropic",
+            ProviderName::Gemini => "google",
+            ProviderName::Perplexity => "perplexity",
+            ProviderName::Grok => "x-ai",
+            ProviderName::Mistral => "mistralai",
+            ProviderName::Openrouter | ProviderName::Plugin(_) => return None,
+        };
+        Some(Self {
+            target,
+            upstream_vendor,
+            inner: OpenRouterProvider::new(api_key),
+        })
+    }
+
+    fn upstream_model(&self, model: &str) -> String {
+        if model.contains('/') {
+            model.to_string()
+        } else {
+            format!("{}/{}", self.upstream_vendor, model)
+        }
+    }
+}
+
+#[async_trait]
+impl Provider for RoutedOpenRouterProvider {
+    fn name(&self) -> ProviderName {
+        self.target.clone()
+    }
+
+    fn validate_model(&self, model: &str) -> Result<String, ProviderError> {
+        self.inner.validate_model(&self.upstream_model(model))
+    }
+
+    async fn run(&self, request: ProviderRequest) -> Result<ProviderResponse, ProviderError> {
+        let mut response = self.inner.run(request).await?;
+        response.provider = self.target.clone();
+        Ok(response)
     }
 }
 
@@ -150,7 +205,10 @@ fn build_chat_body(request: &ProviderRequest) -> serde_json::Value {
         _ => serde_json::json!({}),
     };
     let obj = body.as_object_mut().expect("seeded as Object");
-    obj.insert("model".into(), serde_json::Value::String(request.model.clone()));
+    obj.insert(
+        "model".into(),
+        serde_json::Value::String(request.model.clone()),
+    );
     obj.insert(
         "messages".into(),
         serde_json::json!([{"role": "user", "content": request.prompt_text}]),
@@ -209,6 +267,17 @@ mod tests {
         let p = OpenRouterProvider::new(Secret::new("test"));
         assert!(p.validate_model("/gpt-4o").is_err());
         assert!(p.validate_model("openai/").is_err());
+    }
+
+    #[test]
+    fn routed_openrouter_keeps_concrete_identity_and_maps_model() {
+        let p = RoutedOpenRouterProvider::new(ProviderName::Gemini, Secret::new("test"))
+            .expect("gemini is routable through OpenRouter");
+        assert_eq!(p.name(), ProviderName::Gemini);
+        assert_eq!(
+            p.validate_model("gemini-1.5-pro").unwrap(),
+            "google/gemini-1.5-pro"
+        );
     }
 
     #[test]

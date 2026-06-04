@@ -8,12 +8,14 @@ pub mod anomaly;
 pub mod citation_graph;
 pub mod heatmap;
 pub mod metrics_store;
+pub mod sentiment;
 pub mod volatility;
 
 use chrono::{DateTime, Utc};
 use opengeo_core::{ProjectId, PromptRunId};
 use opengeo_storage::Storage;
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 
 pub use opengeo_storage::Error;
 
@@ -58,6 +60,20 @@ pub struct VisibilityPoint {
     pub provider: String,
     pub avg_rank: Option<f64>,
     pub presence_rate: f64,
+}
+
+/// One cell of the overall visibility matrix: the brand's footprint for a
+/// single (prompt × provider) pair over the window. `presence_rate` is the
+/// share of successful runs that mentioned the brand; `avg_rank` is the mean
+/// of each run's best mention rank (None when never mentioned).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VisibilityMatrixCell {
+    pub prompt_name: String,
+    pub provider: String,
+    pub run_count: i64,
+    pub mention_count: i64,
+    pub presence_rate: f64,
+    pub avg_rank: Option<f64>,
 }
 
 /// Recent Prompt Runs across a Project (FR-17). Joined to `prompts` to surface
@@ -178,7 +194,7 @@ pub async fn citation_graph_rows(
     let raw = sqlx::query_as!(
         Raw,
         r#"
-        SELECT pr.provider                AS "provider!: String",
+        SELECT pr.provider_identity       AS "provider!: String",
                c.domain                   AS "domain!: String",
                SUM(c.frequency)::bigint   AS "weight!: i64"
         FROM citations c
@@ -187,7 +203,7 @@ pub async fn citation_graph_rows(
         WHERE p.project_id = $1
           AND pr.started_at >= now() - ($2::text)::interval
           AND pr.status     = 'ok'
-        GROUP BY pr.provider, c.domain
+        GROUP BY pr.provider_identity, c.domain
         ORDER BY SUM(c.frequency) DESC
         LIMIT 5000
         "#,
@@ -229,7 +245,7 @@ pub async fn heatmap_rows(
         r#"
         SELECT
             (pr.started_at AT TIME ZONE 'UTC')::date AS "date!: chrono::NaiveDate",
-            pr.provider                              AS "provider!: String",
+            pr.provider_identity                     AS "provider!: String",
             (
                 SELECT MIN(m.rank)
                 FROM mentions m
@@ -301,7 +317,7 @@ pub async fn volatility_samples(
             JOIN prompts p ON p.id = pr.prompt_id
             WHERE p.project_id = $1
               AND p.name       = $2
-              AND pr.provider  = $4
+              AND pr.provider_identity = $4
               AND pr.started_at >= now() - ($5::text)::interval
               AND pr.started_at <= now()
               AND pr.status    = 'ok'
@@ -348,7 +364,7 @@ pub async fn visibility_trend(
         VisibilityPoint,
         r#"
         WITH window_runs AS (
-            SELECT pr.id, pr.provider, pr.started_at
+            SELECT pr.id, pr.provider_identity, pr.started_at
             FROM prompt_runs pr
             JOIN prompts p ON p.id = pr.prompt_id
             WHERE p.project_id = $1
@@ -358,7 +374,7 @@ pub async fn visibility_trend(
         )
         SELECT
             date_trunc('day', wr.started_at) AS "bucket_start!: DateTime<Utc>",
-            wr.provider                       AS "provider!: String",
+            wr.provider_identity              AS "provider!: String",
             NULL::double precision            AS "avg_rank: f64",
             1.0::double precision             AS "presence_rate!: f64"
         FROM window_runs wr
@@ -372,4 +388,262 @@ pub async fn visibility_trend(
     .fetch_all(storage.pool())
     .await?;
     Ok(rows)
+}
+
+/// Overall visibility matrix — one row per (prompt × provider) across ALL the
+/// project's prompts, so operators see the whole footprint at a glance instead
+/// of switching prompt-by-prompt. `brand_entity` is the primary brand whose
+/// mentions define presence/rank. Raw query (no `.sqlx` cache entry needed).
+pub async fn visibility_matrix(
+    storage: &Storage,
+    project_id: ProjectId,
+    brand_entity: &str,
+    days: i32,
+) -> Result<Vec<VisibilityMatrixCell>, Error> {
+    let days = days.clamp(1, 365);
+    let interval = format!("{days} days");
+    let rows = sqlx::query(
+        r#"
+        WITH run_rank AS (
+            SELECT
+                p.name               AS prompt_name,
+                pr.provider_identity AS provider,
+                (
+                    SELECT MIN(m.rank)
+                    FROM mentions m
+                    WHERE m.prompt_run_id = pr.id
+                      AND m.entity        = $2
+                ) AS rank
+            FROM prompt_runs pr
+            JOIN prompts p ON p.id = pr.prompt_id
+            WHERE p.project_id = $1
+              AND pr.started_at >= now() - ($3::text)::interval
+              AND pr.status    = 'ok'
+        )
+        SELECT
+            prompt_name,
+            provider,
+            COUNT(*)::bigint                  AS run_count,
+            COUNT(rank)::bigint               AS mention_count,
+            AVG(rank)::double precision       AS avg_rank
+        FROM run_rank
+        GROUP BY prompt_name, provider
+        ORDER BY prompt_name, provider
+        "#,
+    )
+    .bind(project_id)
+    .bind(brand_entity)
+    .bind(interval)
+    .fetch_all(storage.pool())
+    .await?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for r in rows {
+        let run_count: i64 = r.try_get("run_count")?;
+        let mention_count: i64 = r.try_get("mention_count")?;
+        let avg_rank: Option<f64> = r.try_get("avg_rank")?;
+        let presence_rate = if run_count > 0 {
+            mention_count as f64 / run_count as f64
+        } else {
+            0.0
+        };
+        out.push(VisibilityMatrixCell {
+            prompt_name: r.try_get("prompt_name")?,
+            provider: r.try_get("provider")?,
+            run_count,
+            mention_count,
+            presence_rate,
+            avg_rank,
+        });
+    }
+    Ok(out)
+}
+
+/// All-prompts visibility trend — presence/rank per (day × provider) summed
+/// across every prompt in the project. Powers the aggregate trend heatmap that
+/// complements [`visibility_matrix`]. Raw query (no `.sqlx` cache entry).
+pub async fn visibility_trend_all(
+    storage: &Storage,
+    project_id: ProjectId,
+    brand_entity: &str,
+    days: i32,
+) -> Result<Vec<VisibilityPoint>, Error> {
+    let days = days.clamp(1, 365);
+    let interval = format!("{days} days");
+    let rows = sqlx::query(
+        r#"
+        WITH run_rank AS (
+            SELECT
+                date_trunc('day', pr.started_at) AS bucket,
+                pr.provider_identity             AS provider,
+                (
+                    SELECT MIN(m.rank)
+                    FROM mentions m
+                    WHERE m.prompt_run_id = pr.id
+                      AND m.entity        = $2
+                ) AS rank
+            FROM prompt_runs pr
+            JOIN prompts p ON p.id = pr.prompt_id
+            WHERE p.project_id = $1
+              AND pr.started_at >= now() - ($3::text)::interval
+              AND pr.status    = 'ok'
+        )
+        SELECT
+            bucket                                                            AS bucket_start,
+            provider,
+            AVG(rank)::double precision                                       AS avg_rank,
+            (COUNT(rank)::double precision / NULLIF(COUNT(*), 0)::double precision) AS presence_rate
+        FROM run_rank
+        GROUP BY bucket, provider
+        ORDER BY bucket
+        "#,
+    )
+    .bind(project_id)
+    .bind(brand_entity)
+    .bind(interval)
+    .fetch_all(storage.pool())
+    .await?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for r in rows {
+        out.push(VisibilityPoint {
+            bucket_start: r.try_get("bucket_start")?,
+            provider: r.try_get("provider")?,
+            avg_rank: r.try_get("avg_rank")?,
+            presence_rate: r.try_get::<Option<f64>, _>("presence_rate")?.unwrap_or(0.0),
+        });
+    }
+    Ok(out)
+}
+
+/// One hourly bucket of project-wide KPIs for the Overview sparklines.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KpiTrendPoint {
+    pub bucket_start: DateTime<Utc>,
+    pub run_count: i64,
+    /// Fraction in [0,1] of runs that succeeded in the bucket.
+    pub success_rate: f64,
+    /// Mean latency (ms) over successful runs reporting a duration; null when none.
+    pub avg_latency_ms: Option<f64>,
+}
+
+/// Hourly project-wide KPI trend over the trailing `hours` window. Powers the
+/// Overview "success rate / runs / latency" tile sparklines, which need a
+/// per-bucket series rather than a single aggregate. Hourly (not daily) so a
+/// single active day still yields a meaningful curve. Runtime query — no
+/// `.sqlx` cache entry needed.
+pub async fn kpi_trend(
+    storage: &Storage,
+    project_id: ProjectId,
+    hours: i32,
+) -> Result<Vec<KpiTrendPoint>, Error> {
+    let hours = hours.clamp(1, 24 * 365);
+    let interval = format!("{hours} hours");
+    let rows = sqlx::query(
+        r#"
+        SELECT
+            date_trunc('hour', pr.started_at)                            AS bucket_start,
+            COUNT(pr.id)::bigint                                         AS run_count,
+            SUM(CASE WHEN pr.status = 'ok' THEN 1 ELSE 0 END)::bigint    AS ok_count,
+            AVG(
+              CASE
+                WHEN pr.status = 'ok' AND pr.finished_at IS NOT NULL
+                THEN EXTRACT(EPOCH FROM (pr.finished_at - pr.started_at)) * 1000.0
+                ELSE NULL
+              END
+            )::double precision                                          AS avg_latency_ms
+        FROM prompt_runs pr
+        JOIN prompts p ON p.id = pr.prompt_id
+        WHERE p.project_id = $1
+          AND pr.started_at >= now() - ($2::text)::interval
+        GROUP BY 1
+        ORDER BY 1
+        "#,
+    )
+    .bind(project_id)
+    .bind(interval)
+    .fetch_all(storage.pool())
+    .await?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for r in rows {
+        let run_count: i64 = r.try_get("run_count")?;
+        let ok_count: i64 = r.try_get("ok_count")?;
+        out.push(KpiTrendPoint {
+            bucket_start: r.try_get("bucket_start")?,
+            run_count,
+            success_rate: if run_count > 0 {
+                ok_count as f64 / run_count as f64
+            } else {
+                0.0
+            },
+            avg_latency_ms: r.try_get("avg_latency_ms")?,
+        });
+    }
+    Ok(out)
+}
+
+/// One hourly frequency point for a single citation domain.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CitationTrendPoint {
+    pub bucket_start: DateTime<Utc>,
+    pub frequency: i64,
+}
+
+/// Per-domain hourly citation-frequency trend for the project's top `limit`
+/// domains over the trailing `hours` window. Powers the sparkline column in the
+/// citations table. Returns a map of `domain -> ordered hourly points`. Runtime
+/// query — no `.sqlx` cache entry needed.
+pub async fn citation_trend(
+    storage: &Storage,
+    project_id: ProjectId,
+    hours: i32,
+    limit: i64,
+) -> Result<std::collections::HashMap<String, Vec<CitationTrendPoint>>, Error> {
+    let hours = hours.clamp(1, 24 * 365);
+    let limit = limit.clamp(1, 500);
+    let interval = format!("{hours} hours");
+    let rows = sqlx::query(
+        r#"
+        WITH top_domains AS (
+            SELECT c.domain
+            FROM citations c
+            JOIN prompt_runs pr ON pr.id = c.prompt_run_id
+            JOIN prompts p      ON p.id  = pr.prompt_id
+            WHERE p.project_id = $1
+              AND pr.started_at >= now() - ($2::text)::interval
+            GROUP BY c.domain
+            ORDER BY SUM(c.frequency) DESC
+            LIMIT $3
+        )
+        SELECT
+            c.domain                          AS domain,
+            date_trunc('hour', pr.started_at) AS bucket_start,
+            SUM(c.frequency)::bigint          AS frequency
+        FROM citations c
+        JOIN prompt_runs pr ON pr.id = c.prompt_run_id
+        JOIN prompts p      ON p.id  = pr.prompt_id
+        WHERE p.project_id = $1
+          AND pr.started_at >= now() - ($2::text)::interval
+          AND c.domain IN (SELECT domain FROM top_domains)
+        GROUP BY c.domain, 2
+        ORDER BY c.domain, 2
+        "#,
+    )
+    .bind(project_id)
+    .bind(interval)
+    .bind(limit)
+    .fetch_all(storage.pool())
+    .await?;
+
+    let mut out: std::collections::HashMap<String, Vec<CitationTrendPoint>> =
+        std::collections::HashMap::new();
+    for r in rows {
+        let domain: String = r.try_get("domain")?;
+        out.entry(domain).or_default().push(CitationTrendPoint {
+            bucket_start: r.try_get("bucket_start")?,
+            frequency: r.try_get("frequency")?,
+        });
+    }
+    Ok(out)
 }

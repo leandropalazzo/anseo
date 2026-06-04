@@ -158,7 +158,5 @@ async fn slack_validate_url_refuses_non_hooks_slack_com_targets() {
         validate_url("https://discord.com/api/webhooks/123/abc"),
         Err(SlackConfigError::NonSlackUrl { .. })
     ));
-    assert!(
-        validate_url("https://hooks.slack.com/services/T0000/B0000/xxxxxxxxxxxxxxxx").is_ok()
-    );
+    assert!(validate_url("https://hooks.slack.com/services/T0000/B0000/xxxxxxxxxxxxxxxx").is_ok());
 }

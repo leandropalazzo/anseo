@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT COUNT(*) AS \"count!\"\n            FROM prompt_runs pr\n            JOIN prompts p ON p.id = pr.prompt_id\n            WHERE p.project_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "de4a6a9922f6d80fa7da7690a67c38b891feaa6ca7f980b56024a8ee3502ee12"
+}

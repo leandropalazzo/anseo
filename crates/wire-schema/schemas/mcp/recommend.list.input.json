@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RecommendListInput",
+  "type": "object",
+  "required": [
+    "project"
+  ],
+  "properties": {
+    "cursor": {
+      "description": "Opaque page cursor from a previous response's `next_cursor`.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "limit": {
+      "description": "Optional; default 50, max 200 (validated server-side).",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "project": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

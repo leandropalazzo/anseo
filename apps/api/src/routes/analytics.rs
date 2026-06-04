@@ -24,7 +24,11 @@ use serde::Deserialize;
 use crate::middleware::auth::AuthenticatedProject;
 use crate::AppState;
 
-fn err_body(status: StatusCode, error: &str, message: &str) -> (StatusCode, Json<serde_json::Value>) {
+fn err_body(
+    status: StatusCode,
+    error: &str,
+    message: &str,
+) -> (StatusCode, Json<serde_json::Value>) {
     (
         status,
         Json(serde_json::json!({
@@ -153,22 +157,15 @@ async fn volatility_handler(
         ));
     }
     let window = validate_window(q.window)?;
-    let samples = volatility_samples(
-        &state.storage,
-        project_id,
-        prompt,
-        provider,
-        brand,
-        window,
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, route = "volatility", "fetch failed");
-        err_body(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "internal_error",
-            "volatility fetch failed",
-        )
-    })?;
+    let samples = volatility_samples(&state.storage, project_id, prompt, provider, brand, window)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, route = "volatility", "fetch failed");
+            err_body(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                "volatility fetch failed",
+            )
+        })?;
     Ok(Json(volatility::compute(&samples)))
 }

@@ -5,8 +5,11 @@
 //! query methods (lists, filters, joins) land in later stories alongside the
 //! features that need them.
 
+pub mod alert_rules;
 pub mod api_keys;
+pub mod audit;
 pub mod benchmark_consent;
+pub mod brand_accuracy;
 pub mod citations;
 pub mod mentions;
 pub mod plugin_installs;
@@ -14,5 +17,6 @@ pub mod projects;
 pub mod prompt_runs;
 pub mod prompts;
 pub mod recommendations;
+pub mod run_provenance;
 pub mod webhook_deliveries;
 pub mod webhooks;

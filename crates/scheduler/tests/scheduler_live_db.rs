@@ -9,7 +9,9 @@ use chrono::{TimeZone, Utc};
 use opengeo_core::ProjectId;
 use opengeo_scheduler::events::{LifecycleEvent, SchedulePayload};
 use opengeo_scheduler::transport::{listen, publish};
-use opengeo_scheduler::worker::{anchor_next_tick, claim_tick, event_channel, reap_orphans, ClaimOutcome, REAPER_IDLE_SECONDS};
+use opengeo_scheduler::worker::{
+    anchor_next_tick, claim_tick, event_channel, reap_orphans, ClaimOutcome, REAPER_IDLE_SECONDS,
+};
 use opengeo_scheduler::{parse_cadence, ScheduleValidationError};
 use opengeo_storage::Storage;
 use sqlx::PgPool;
@@ -67,15 +69,19 @@ async fn p0_102_at_most_once_two_workers_race_same_tick() {
     // Spawn two concurrent claims with distinct claimed_by values.
     let pool_a = pool.clone();
     let pool_b = pool.clone();
-    let handle_a = tokio::spawn(async move {
-        claim_tick(&pool_a, schedule_id, tick_ts, "worker-a").await
-    });
-    let handle_b = tokio::spawn(async move {
-        claim_tick(&pool_b, schedule_id, tick_ts, "worker-b").await
-    });
+    let handle_a =
+        tokio::spawn(async move { claim_tick(&pool_a, schedule_id, tick_ts, "worker-a").await });
+    let handle_b =
+        tokio::spawn(async move { claim_tick(&pool_b, schedule_id, tick_ts, "worker-b").await });
 
-    let outcome_a = handle_a.await.expect("worker-a join").expect("claim_a result");
-    let outcome_b = handle_b.await.expect("worker-b join").expect("claim_b result");
+    let outcome_a = handle_a
+        .await
+        .expect("worker-a join")
+        .expect("claim_a result");
+    let outcome_b = handle_b
+        .await
+        .expect("worker-b join")
+        .expect("claim_b result");
 
     // Exactly one Claimed, exactly one AlreadyClaimed.
     let claimed_count = [&outcome_a, &outcome_b]
@@ -153,17 +159,21 @@ async fn p0_103_rollforward_reaper_marks_orphan_with_full_payload() {
     let ticket = &reaped[0];
     assert_eq!(ticket.tick_id, tick_id);
     assert_eq!(ticket.schedule_id, schedule_id);
-    assert_eq!(ticket.project_id, project_uuid, "CTE JOIN must populate project_id");
-    assert!(!ticket.schedule_name.is_empty(), "schedule_name must be populated");
+    assert_eq!(
+        ticket.project_id, project_uuid,
+        "CTE JOIN must populate project_id"
+    );
+    assert!(
+        !ticket.schedule_name.is_empty(),
+        "schedule_name must be populated"
+    );
 
     // Row status flipped to rolled_forward.
-    let status: String = sqlx::query_scalar(
-        r#"SELECT status FROM schedule_ticks WHERE id = $1"#,
-    )
-    .bind(tick_id)
-    .fetch_one(&pool)
-    .await
-    .expect("status fetch");
+    let status: String = sqlx::query_scalar(r#"SELECT status FROM schedule_ticks WHERE id = $1"#)
+        .bind(tick_id)
+        .fetch_one(&pool)
+        .await
+        .expect("status fetch");
     assert_eq!(status, "rolled_forward");
 }
 
@@ -197,13 +207,11 @@ async fn p0_103_reaper_leaves_fresh_claims_alone() {
         "fresh claim must not be reaped"
     );
 
-    let status: String = sqlx::query_scalar(
-        r#"SELECT status FROM schedule_ticks WHERE id = $1"#,
-    )
-    .bind(tick_id)
-    .fetch_one(&pool)
-    .await
-    .expect("status");
+    let status: String = sqlx::query_scalar(r#"SELECT status FROM schedule_ticks WHERE id = $1"#)
+        .bind(tick_id)
+        .fetch_one(&pool)
+        .await
+        .expect("status");
     assert_eq!(status, "claimed");
 }
 

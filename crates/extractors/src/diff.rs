@@ -63,6 +63,7 @@ fn same_citation(a: &Citation, b: &Citation) -> bool {
 mod tests {
     use super::*;
     use crate::citations::SourceType;
+    use crate::sentiment::Sentiment;
 
     fn mention(entity: &str, is_brand: bool) -> Mention {
         Mention {
@@ -71,6 +72,7 @@ mod tests {
             rank: 1,
             matched_text: entity.into(),
             is_brand,
+            sentiment: Sentiment::neutral(),
         }
     }
 

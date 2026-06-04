@@ -20,6 +20,12 @@ pub mod kinds {
     pub const SCHEDULE_DEBOUNCED: &str = "schedule.debounced";
     pub const VISIBILITY_ANOMALY: &str = "visibility.anomaly";
     pub const CITATION_ANOMALY: &str = "citation.anomaly";
+    // Story 19.6 — GEO Recommendation lifecycle events. Reuse the Phase 2
+    // HMAC signer + retry ladder unchanged (architecture §4.4 webhook surface).
+    pub const RECOMMENDATION_GENERATED: &str = "recommendation.generated";
+    pub const RECOMMENDATION_SURFACED: &str = "recommendation.surfaced";
+    pub const RECOMMENDATION_ACTED: &str = "recommendation.acted";
+    pub const RECOMMENDATION_MEASURED: &str = "recommendation.measured";
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -75,6 +81,25 @@ pub struct AnomalyPayload {
     pub emitted_at: DateTime<Utc>,
 }
 
+/// GEO Recommendation lifecycle payload (Story 19.6). Carries the
+/// recommendation identity + the state it transitioned into, so a webhook
+/// consumer can route on `state` without a follow-up GET. The wire shape uses
+/// plain strings for `kind`/`state` (not the typed Rust enums) to stay stable
+/// for non-Rust consumers, matching the [`AnomalyPayload`] convention.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RecommendationPayload {
+    pub event_id: Uuid,
+    pub project_id: Uuid,
+    pub recommendation_id: Uuid,
+    /// The Recommendation Kind wire string (e.g. `docs_not_cited_for_prompt`).
+    pub recommendation_kind: String,
+    /// The lifecycle state this event marks (`generated`/`surfaced`/`acted`/
+    /// `measured`).
+    pub state: String,
+    pub summary: String,
+    pub emitted_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind")]
 pub enum LifecycleEvent {
@@ -98,6 +123,14 @@ pub enum LifecycleEvent {
     VisibilityAnomaly(AnomalyPayload),
     #[serde(rename = "citation.anomaly")]
     CitationAnomaly(AnomalyPayload),
+    #[serde(rename = "recommendation.generated")]
+    RecommendationGenerated(RecommendationPayload),
+    #[serde(rename = "recommendation.surfaced")]
+    RecommendationSurfaced(RecommendationPayload),
+    #[serde(rename = "recommendation.acted")]
+    RecommendationActed(RecommendationPayload),
+    #[serde(rename = "recommendation.measured")]
+    RecommendationMeasured(RecommendationPayload),
 }
 
 impl LifecycleEvent {
@@ -114,6 +147,10 @@ impl LifecycleEvent {
             Self::Debounced(_) => kinds::SCHEDULE_DEBOUNCED,
             Self::VisibilityAnomaly(_) => kinds::VISIBILITY_ANOMALY,
             Self::CitationAnomaly(_) => kinds::CITATION_ANOMALY,
+            Self::RecommendationGenerated(_) => kinds::RECOMMENDATION_GENERATED,
+            Self::RecommendationSurfaced(_) => kinds::RECOMMENDATION_SURFACED,
+            Self::RecommendationActed(_) => kinds::RECOMMENDATION_ACTED,
+            Self::RecommendationMeasured(_) => kinds::RECOMMENDATION_MEASURED,
         }
     }
 
@@ -128,6 +165,10 @@ impl LifecycleEvent {
             Self::TickFailed(p) => p.base.project_id,
             Self::TickCapped(p) => p.base.project_id,
             Self::VisibilityAnomaly(p) | Self::CitationAnomaly(p) => p.project_id,
+            Self::RecommendationGenerated(p)
+            | Self::RecommendationSurfaced(p)
+            | Self::RecommendationActed(p)
+            | Self::RecommendationMeasured(p) => p.project_id,
         }
     }
 
@@ -142,6 +183,10 @@ impl LifecycleEvent {
             Self::TickFailed(p) => p.base.event_id,
             Self::TickCapped(p) => p.base.event_id,
             Self::VisibilityAnomaly(p) | Self::CitationAnomaly(p) => p.event_id,
+            Self::RecommendationGenerated(p)
+            | Self::RecommendationSurfaced(p)
+            | Self::RecommendationActed(p)
+            | Self::RecommendationMeasured(p) => p.event_id,
         }
     }
 }
@@ -200,6 +245,48 @@ mod tests {
         let json = serde_json::to_value(&evt).unwrap();
         assert_eq!(json["cap_name"], "project_daily_usd");
         assert_eq!(json["cap_threshold"], 50.0);
+    }
+
+    fn sample_rec_payload(state: &str) -> RecommendationPayload {
+        RecommendationPayload {
+            event_id: Uuid::nil(),
+            project_id: Uuid::nil(),
+            recommendation_id: Uuid::nil(),
+            recommendation_kind: "docs_not_cited_for_prompt".into(),
+            state: state.into(),
+            summary: "docs not cited".into(),
+            emitted_at: Utc.with_ymd_and_hms(2026, 5, 30, 12, 0, 0).unwrap(),
+        }
+    }
+
+    #[test]
+    fn recommendation_events_carry_arch_44_kind_strings() {
+        let cases = [
+            (
+                LifecycleEvent::RecommendationGenerated(sample_rec_payload("generated")),
+                "recommendation.generated",
+            ),
+            (
+                LifecycleEvent::RecommendationSurfaced(sample_rec_payload("surfaced")),
+                "recommendation.surfaced",
+            ),
+            (
+                LifecycleEvent::RecommendationActed(sample_rec_payload("acted")),
+                "recommendation.acted",
+            ),
+            (
+                LifecycleEvent::RecommendationMeasured(sample_rec_payload("measured")),
+                "recommendation.measured",
+            ),
+        ];
+        for (evt, want) in cases {
+            assert_eq!(evt.kind(), want);
+            let json = serde_json::to_value(&evt).unwrap();
+            assert_eq!(json["kind"], want);
+            // Round-trips through the tagged enum verbatim.
+            let back: LifecycleEvent = serde_json::from_value(json).unwrap();
+            assert_eq!(back, evt);
+        }
     }
 
     #[test]

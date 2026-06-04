@@ -144,7 +144,10 @@ mod tests {
     fn alternating_high_low_has_nonzero_cv() {
         let v = compute(s(&[Some(1.0), Some(10.0), Some(1.0), Some(10.0)]));
         let value = v.value.expect("present samples");
-        assert!(value > 0.5, "alternating 1↔10 should be highly volatile, got {value}");
+        assert!(
+            value > 0.5,
+            "alternating 1↔10 should be highly volatile, got {value}"
+        );
         assert!(value <= 1.0, "value must be clamped to ≤ 1.0");
     }
 
@@ -165,7 +168,10 @@ mod tests {
         // mean give a CV < 1 that should pass through without clamping.
         let v = compute(s(&[Some(1.0), Some(100.0)]));
         let value = v.value.expect("present samples");
-        assert!(value < 1.0, "two-point symmetric CV should be < 1, got {value}");
+        assert!(
+            value < 1.0,
+            "two-point symmetric CV should be < 1, got {value}"
+        );
         assert!(value > 0.9);
     }
 
@@ -212,7 +218,7 @@ mod tests {
         // "—" placeholder for null. A future serde-rename refactor must
         // not silently change this.
         let v = compute(s(&[]));
-        let json = serde_json::to_value(&v).unwrap();
+        let json = serde_json::to_value(v).unwrap();
         assert!(json["value"].is_null());
         assert_eq!(json["samples"], 0);
     }

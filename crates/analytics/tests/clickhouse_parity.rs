@@ -63,6 +63,7 @@ async fn seed_postgres_runs(
             project_id,
             name: prompt_name.to_string(),
             text: "parity fixture".into(),
+            tags: Vec::new(),
             organization_id: None,
             tenant_id: None,
             created_at: now,
@@ -166,10 +167,7 @@ async fn citation_summary_parity_across_backends() {
         &pool,
         project_id,
         prompt,
-        &[
-            (t, "openai"),
-            (t + Duration::hours(1), "anthropic"),
-        ],
+        &[(t, "openai"), (t + Duration::hours(1), "anthropic")],
         &[
             (0, "docs.acme.com", 2, Some("docs")),
             (0, "arxiv.org", 1, Some("paper")),
@@ -187,9 +185,8 @@ async fn citation_summary_parity_across_backends() {
         .await
         .expect("seed ch citation_totals");
 
-    let pg_store = PostgresMetricsStore::new(Arc::new(opengeo_storage::Storage::from_pool(
-        pool.clone(),
-    )));
+    let pg_store =
+        PostgresMetricsStore::new(Arc::new(opengeo_storage::Storage::from_pool(pool.clone())));
     let from_pg = pg_store
         .citation_summary(project_id, SummaryParams { limit: 50 })
         .await
@@ -206,8 +203,16 @@ async fn citation_summary_parity_across_backends() {
     );
     for (a, b) in from_pg.iter().zip(from_ch.iter()) {
         assert_eq!(a.domain, b.domain, "domain order disagrees");
-        assert_eq!(a.frequency, b.frequency, "frequency disagrees for {}", a.domain);
-        assert_eq!(a.source_type, b.source_type, "source_type disagrees for {}", a.domain);
+        assert_eq!(
+            a.frequency, b.frequency,
+            "frequency disagrees for {}",
+            a.domain
+        );
+        assert_eq!(
+            a.source_type, b.source_type,
+            "source_type disagrees for {}",
+            a.domain
+        );
     }
 
     cleanup_postgres(&pool, project_id).await;
@@ -262,9 +267,8 @@ async fn visibility_trend_parity_across_backends() {
         .await
         .expect("seed ch visibility_points");
 
-    let pg_store = PostgresMetricsStore::new(Arc::new(opengeo_storage::Storage::from_pool(
-        pool.clone(),
-    )));
+    let pg_store =
+        PostgresMetricsStore::new(Arc::new(opengeo_storage::Storage::from_pool(pool.clone())));
     let from_pg = pg_store
         .visibility_trend(project_id, prompt, TrendParams { days: 30 })
         .await
@@ -284,9 +288,7 @@ async fn visibility_trend_parity_across_backends() {
     // sort both before comparing.
     let mut from_pg = from_pg;
     let mut from_ch = from_ch;
-    let sort_key = |p: &opengeo_analytics::VisibilityPoint| {
-        (p.bucket_start, p.provider.clone())
-    };
+    let sort_key = |p: &opengeo_analytics::VisibilityPoint| (p.bucket_start, p.provider.clone());
     from_pg.sort_by_key(sort_key);
     from_ch.sort_by_key(sort_key);
     for (a, b) in from_pg.iter().zip(from_ch.iter()) {

@@ -54,9 +54,7 @@ pub struct AnomalyVerdict {
     pub detail: serde_json::Value,
 }
 
-pub use citation_novelty::{
-    detect as detect_citation_novelty_single_provider, CitationSample,
-};
+pub use citation_novelty::{detect as detect_citation_novelty_single_provider, CitationSample};
 pub use zscore::{detect as detect_visibility_single_provider, RankSample};
 
 /// Run the z-score detector across a mixed-Provider sample stream.
@@ -66,17 +64,14 @@ pub use zscore::{detect as detect_visibility_single_provider, RankSample};
 /// distribution corrupt another's. This helper groups by Provider (stable
 /// order by `ProviderName`'s wire string) and dispatches to the per-Provider
 /// `detect` so callers cannot mis-use the underlying detectors.
-pub fn detect_visibility(
-    samples: &[RankSample],
-    cfg: zscore::Config,
-) -> Vec<AnomalyVerdict> {
-    let mut by_provider: std::collections::BTreeMap<&'static str, Vec<RankSample>> =
+pub fn detect_visibility(samples: &[RankSample], cfg: zscore::Config) -> Vec<AnomalyVerdict> {
+    let mut by_provider: std::collections::BTreeMap<String, Vec<RankSample>> =
         std::collections::BTreeMap::new();
     for s in samples {
         by_provider
-            .entry(s.provider.as_wire_str())
+            .entry(s.provider.as_wire_str().into_owned())
             .or_default()
-            .push(*s);
+            .push(s.clone());
     }
     let mut all = Vec::new();
     for series in by_provider.values() {
@@ -92,11 +87,11 @@ pub fn detect_citation_novelty(
     samples: &[CitationSample],
     cfg: citation_novelty::Config,
 ) -> Vec<AnomalyVerdict> {
-    let mut by_provider: std::collections::BTreeMap<&'static str, Vec<CitationSample>> =
+    let mut by_provider: std::collections::BTreeMap<String, Vec<CitationSample>> =
         std::collections::BTreeMap::new();
     for s in samples {
         by_provider
-            .entry(s.provider.as_wire_str())
+            .entry(s.provider.as_wire_str().into_owned())
             .or_default()
             .push(s.clone());
     }

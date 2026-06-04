@@ -1,20 +1,24 @@
-name: "OpenGEO Check Visibility"
-description: "Run an OpenGEO visibility check inside CI; fail the build if the brand's ranking is worse than the expected threshold."
+name: "OpenGEO CI Gate"
+description: "Run an OpenGEO visibility or site-audit gate inside CI."
 author: "OpenGEO"
 branding:
   icon: "trending-up"
   color: "purple"
 
 inputs:
+  mode:
+    description: "Gate to run: visibility or audit."
+    required: false
+    default: "visibility"
   prompt:
     description: "Declared Prompt slug (must already exist in the project's opengeo.yaml)."
-    required: true
+    required: false
   brand:
     description: "Brand name to check, as declared in opengeo.yaml."
-    required: true
+    required: false
   expect-rank-lte:
     description: "Maximum acceptable ranking (1 = top). The job fails if the observed rank is higher than this."
-    required: true
+    required: false
   provider:
     description: "Restrict the check to a single Provider (openai, anthropic, gemini, perplexity, grok, mistral, openrouter). Omit to check across every declared provider."
     required: false
@@ -23,12 +27,28 @@ inputs:
     description: "OpenGEO API base URL. Defaults to https://api.opengeo.dev."
     required: false
     default: "https://api.opengeo.dev"
+  audit-url:
+    description: "URL or sitemap URL to crawl when mode=audit."
+    required: false
+    default: ""
+  audit-fail-on:
+    description: "Audit fail threshold: a rule id or severity (low, medium, high)."
+    required: false
+    default: "high"
+  audit-max-pages:
+    description: "Maximum owned pages to crawl when mode=audit."
+    required: false
+    default: "25"
 
 outputs:
   observed-rank:
     description: "The observed ranking position (integer, or 'null' when the brand was absent)."
   matched-runs:
     description: "Count of Prompt Runs evaluated for this check."
+  audit-score:
+    description: "Overall audit citation-readiness score, 0-100."
+  audit-failed-findings:
+    description: "Count of findings that tripped the audit gate."
 
 runs:
   using: "docker"
@@ -39,3 +59,7 @@ runs:
     - "${{ inputs.expect-rank-lte }}"
     - "${{ inputs.provider }}"
     - "${{ inputs.api-base }}"
+    - "${{ inputs.audit-url }}"
+    - "${{ inputs.audit-fail-on }}"
+    - "${{ inputs.audit-max-pages }}"
+    - "${{ inputs.mode }}"

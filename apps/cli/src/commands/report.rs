@@ -10,7 +10,9 @@
 use std::path::PathBuf;
 
 use clap::{Args, ValueEnum};
-use opengeo_core::OpenGeoError;
+use opengeo_analytics::sentiment::SentimentPoint;
+use opengeo_core::{Config, OpenGeoError};
+use opengeo_storage::Storage;
 
 #[derive(Debug, Args)]
 pub struct ReportArgs {
@@ -34,10 +36,12 @@ pub enum ReportFormat {
     Markdown,
 }
 
-pub fn run(args: ReportArgs) -> Result<(), OpenGeoError> {
+pub async fn run(args: ReportArgs) -> Result<(), OpenGeoError> {
     // Parse --since for validation; we don't query DB rows yet but we want
     // bad inputs to fail at command-parse time.
-    let _window = parse_duration(&args.since)?;
+    let window = parse_duration(&args.since)?;
+    let days = (window / 86_400).clamp(1, 365) as i32;
+    let sentiment = load_sentiment(&args, days).await?;
 
     let stub = serde_json::json!({
         "schema_version": "0.1",
@@ -47,24 +51,40 @@ pub fn run(args: ReportArgs) -> Result<(), OpenGeoError> {
         "failed": 0,
         "by_provider": {},
         "by_prompt": {},
-        "note": "Phase 1 placeholder. Persistence + mention/citation roll-ups land in Story 3.1+.",
+        "sentiment": sentiment,
+        "note": "Set DATABASE_URL and keep opengeo.yaml available for live report aggregates.",
     });
 
     match args.format {
         ReportFormat::Human => {
-            println!("OpenGEO report (placeholder)");
+            println!("OpenGEO report");
             println!("  window:    {}", args.since);
             println!("  total runs: 0");
             println!("  succeeded:  0");
             println!("  failed:     0");
-            println!();
-            println!("Persistence + extraction land in Story 3.1+ — re-run once those are merged.");
+            if sentiment.is_empty() {
+                println!("  sentiment:  no classified mentions found");
+            } else {
+                println!("  sentiment:");
+                for point in &sentiment {
+                    println!(
+                        "    {} / {} / {}: +{:.0}% ={:.0}% -{:.0}% avg {:.1}",
+                        point.prompt,
+                        point.provider,
+                        point.entity,
+                        point.positive_share * 100.0,
+                        point.neutral_share * 100.0,
+                        point.negative_share * 100.0,
+                        point.average_score
+                    );
+                }
+            }
         }
         ReportFormat::Json => {
             println!("{}", serde_json::to_string_pretty(&stub).unwrap());
         }
         ReportFormat::Markdown => {
-            println!("# OpenGEO report (placeholder)");
+            println!("# OpenGEO report");
             println!();
             println!("| field | value |");
             println!("|---|---|");
@@ -73,10 +93,54 @@ pub fn run(args: ReportArgs) -> Result<(), OpenGeoError> {
             println!("| succeeded | 0 |");
             println!("| failed | 0 |");
             println!();
-            println!("_Persistence + extraction land in Story 3.1+._");
+            println!("## Sentiment");
+            if sentiment.is_empty() {
+                println!();
+                println!("No classified mentions found.");
+            } else {
+                println!();
+                println!(
+                    "| prompt | provider | entity | positive | neutral | negative | avg score |"
+                );
+                println!("|---|---|---|---:|---:|---:|---:|");
+                for point in &sentiment {
+                    println!(
+                        "| {} | {} | {} | {:.0}% | {:.0}% | {:.0}% | {:.1} |",
+                        point.prompt,
+                        point.provider,
+                        point.entity,
+                        point.positive_share * 100.0,
+                        point.neutral_share * 100.0,
+                        point.negative_share * 100.0,
+                        point.average_score
+                    );
+                }
+            }
         }
     }
     Ok(())
+}
+
+async fn load_sentiment(args: &ReportArgs, days: i32) -> Result<Vec<SentimentPoint>, OpenGeoError> {
+    let Some(url) = std::env::var("DATABASE_URL").ok() else {
+        return Ok(Vec::new());
+    };
+    let path = args
+        .config
+        .as_deref()
+        .unwrap_or_else(|| "opengeo.yaml".as_ref());
+    let yaml = match std::fs::read_to_string(path) {
+        Ok(yaml) => yaml,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let cfg = Config::from_yaml_str(&yaml)
+        .map_err(|e| OpenGeoError::Config(format!("could not parse {}: {e}", path.display())))?;
+    let storage = Storage::connect(&url)
+        .await
+        .map_err(|e| OpenGeoError::Internal(anyhow::anyhow!(e)))?;
+    opengeo_analytics::sentiment::sentiment_points(&storage, cfg.project_id(), days)
+        .await
+        .map_err(|e| OpenGeoError::Internal(anyhow::anyhow!(e)))
 }
 
 /// Parse `7d` / `24h` / `60m` / `90s`. Returns the duration in seconds.

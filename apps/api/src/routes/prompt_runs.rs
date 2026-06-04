@@ -54,9 +54,7 @@ pub struct CreatePromptRunResponse {
 /// 400 message. Pure-logic — the orchestrator dispatch lives behind
 /// the `Storage` accessor in [`create_prompt_run`] (deferred to a
 /// follow-up round once the orchestrator's API-mode entry point lands).
-pub fn validate_request(
-    request: &CreatePromptRunRequest,
-) -> Result<(), String> {
+pub fn validate_request(request: &CreatePromptRunRequest) -> Result<(), String> {
     let trimmed = request.prompt_name.trim();
     if trimmed.is_empty() {
         return Err("`prompt_name` must not be empty".to_string());
@@ -286,6 +284,9 @@ async fn create_prompt_run(
     };
 
     let now = chrono::Utc::now();
+    let run_id = record.id;
+    let message_text = record.message_text.clone();
+    let raw_response_for_extraction = record.raw_response.clone();
     let row = opengeo_storage::models::PromptRunRow {
         id: record.id,
         prompt_id: prompt.id,
@@ -327,6 +328,25 @@ async fn create_prompt_run(
                 })),
             )
         })?;
+
+    // Parse the response into mentions + citations so the analytics surfaces
+    // (brand rank, visibility, share of voice) have data. `config` carries the
+    // DB brand overlay (brand name + competitors). Best-effort: extraction
+    // failure is logged but does not fail the already-persisted run.
+    if let Some(text) = message_text.as_deref() {
+        if let Err(e) = opengeo_extractors::extract_and_persist(
+            &state.storage,
+            config,
+            run_id,
+            text,
+            &raw_response_for_extraction,
+            now,
+        )
+        .await
+        {
+            tracing::warn!(error = %e, "mention/citation extraction failed for live run");
+        }
+    }
 
     Ok((
         StatusCode::ACCEPTED,
@@ -406,7 +426,10 @@ mod tests {
                 provider: p.into(),
                 triggered_by: None,
             };
-            assert!(validate_request(&req).is_ok(), "provider `{p}` should validate");
+            assert!(
+                validate_request(&req).is_ok(),
+                "provider `{p}` should validate"
+            );
         }
     }
 

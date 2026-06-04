@@ -48,7 +48,12 @@ pub async fn run_create(args: CreateArgs) -> Result<(), OpenGeoError> {
     let key = api_key::generate();
     storage
         .api_keys()
-        .insert(project_id, &args.name, &key.sha256_hash, &key.display_prefix)
+        .insert(
+            project_id,
+            &args.name,
+            &key.sha256_hash,
+            &key.display_prefix,
+        )
         .await
         .map_err(|e| OpenGeoError::Internal(anyhow::anyhow!(e)))?;
 
@@ -116,7 +121,10 @@ pub async fn run_revoke(args: RevokeArgs) -> Result<(), OpenGeoError> {
     if revoked {
         println!("Revoked API key `{}`.", args.name);
     } else {
-        println!("No active API key named `{}` found (already revoked or never existed).", args.name);
+        println!(
+            "No active API key named `{}` found (already revoked or never existed).",
+            args.name
+        );
     }
     Ok(())
 }

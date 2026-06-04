@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RecommendMarkActedInput",
+  "type": "object",
+  "required": [
+    "project",
+    "recommendation_id"
+  ],
+  "properties": {
+    "evidence_url": {
+      "description": "Optional evidence URL — the LLM client surfaces what changed. Decision L4 exposes both `evidence_url` and `note` as optional.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "note": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "project": {
+      "type": "string"
+    },
+    "recommendation_id": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

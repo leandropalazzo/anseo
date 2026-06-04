@@ -34,8 +34,8 @@ impl MetricsStore for PostgresMetricsStore {
         // VisibilityPoint is the same type whether reached via the
         // legacy crate::visibility_trend or this trait — re-exported
         // in metrics_store.rs to keep one source of truth.
-        let rows = crate::visibility_trend(&self.storage, project_id, prompt_slug, params.days)
-            .await?;
+        let rows =
+            crate::visibility_trend(&self.storage, project_id, prompt_slug, params.days).await?;
         Ok(rows)
     }
 
@@ -94,10 +94,9 @@ mod tests {
         // Pin the deferred behaviour so a future contributor either
         // implements it or updates this test. Either path beats
         // silently returning the wrong data.
-        let lazy_pool = sqlx::PgPool::connect_lazy(
-            "postgres://opengeo:opengeo@127.0.0.1:1/__anom_smoke__",
-        )
-        .unwrap();
+        let lazy_pool =
+            sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__anom_smoke__")
+                .unwrap();
         let storage = Arc::new(opengeo_storage::Storage::from_pool(lazy_pool));
         let store = PostgresMetricsStore::new(storage);
         let result = store

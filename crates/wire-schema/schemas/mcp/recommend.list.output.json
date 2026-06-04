@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RecommendListOutput",
+  "type": "object",
+  "required": [
+    "recommendations",
+    "trace_id"
+  ],
+  "properties": {
+    "next_cursor": {
+      "description": "`null` on the last page.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "recommendations": {
+      "description": "Active recommendations, newest first; each item is the engine wire envelope verbatim (§4).",
+      "type": "array",
+      "items": true
+    },
+    "trace_id": {
+      "type": "string"
+    }
+  }
+}

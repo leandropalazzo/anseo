@@ -7,6 +7,10 @@
 #   $3 = expect-rank-lte (integer)
 #   $4 = provider filter (empty string = all providers)
 #   $5 = api-base URL
+#   $6 = audit URL (mode=audit)
+#   $7 = audit fail-on rule/severity (mode=audit)
+#   $8 = audit max-pages (mode=audit)
+#   $9 = mode (visibility|audit)
 #
 # Reads OPENGEO_API_KEY from env (consumers wire it via `env:` in the
 # workflow step). Writes a $GITHUB_STEP_SUMMARY entry per FR-44 so the
@@ -27,6 +31,64 @@ BRAND="${2:-}"
 EXPECT_RANK_LTE="${3:-}"
 PROVIDER="${4:-}"
 API_BASE="${5:-https://api.opengeo.dev}"
+AUDIT_URL="${6:-}"
+AUDIT_FAIL_ON="${7:-high}"
+AUDIT_MAX_PAGES="${8:-25}"
+MODE="${9:-visibility}"
+
+if [ "$MODE" = "audit" ]; then
+  if [ -z "$AUDIT_URL" ]; then
+    echo "::error::audit-url is required when mode=audit."
+    exit 64
+  fi
+
+  set -- audit "$AUDIT_URL" \
+      --fail-on "$AUDIT_FAIL_ON" \
+      --max-pages "$AUDIT_MAX_PAGES" \
+      --format json
+
+  RC=0
+  ERR_FILE="$(mktemp)"
+  RESULT_JSON=$(ogeo "$@" 2>"$ERR_FILE") || RC=$?
+  ERROR_TEXT=$(cat "$ERR_FILE")
+  rm -f "$ERR_FILE"
+  printf 'ogeo invoked with: %s\nogeo replied: %s\n%s\n' "$*" "$RESULT_JSON" "$ERROR_TEXT" >&2
+
+  AUDIT_SCORE=$(echo "$RESULT_JSON" | jq -r '.overall_score // 0' 2>/dev/null || echo 0)
+  AUDIT_FAILED_FINDINGS=$(echo "$RESULT_JSON" | jq -r '.gate.failed_findings | length // 0' 2>/dev/null || echo 0)
+
+  {
+    echo "audit-score=$AUDIT_SCORE"
+    echo "audit-failed-findings=$AUDIT_FAILED_FINDINGS"
+  } >> "${GITHUB_OUTPUT:-/dev/null}"
+
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    {
+      echo "## OpenGEO site audit"
+      echo ""
+      echo "| Field | Value |"
+      echo "| ----- | ----- |"
+      echo "| URL | \`$AUDIT_URL\` |"
+      echo "| Fail on | \`$AUDIT_FAIL_ON\` |"
+      echo "| Max pages | $AUDIT_MAX_PAGES |"
+      echo "| Overall score | $AUDIT_SCORE |"
+      echo "| Failed findings | $AUDIT_FAILED_FINDINGS |"
+      echo ""
+      if [ "$RC" -eq 0 ]; then
+        echo "✓ Audit gate passed."
+      else
+        echo "✗ Audit gate failed. CI build failed."
+      fi
+    } >> "$GITHUB_STEP_SUMMARY"
+  fi
+
+  exit "$RC"
+fi
+
+if [ "$MODE" != "visibility" ]; then
+  echo "::error::mode must be either visibility or audit."
+  exit 64
+fi
 
 if [ -z "${OPENGEO_API_KEY:-}" ]; then
   echo "::error::OPENGEO_API_KEY env var is required. Set it via the workflow's env: block."

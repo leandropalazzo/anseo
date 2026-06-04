@@ -83,8 +83,7 @@ fn split_csv(raw: &str) -> Vec<String> {
 /// `Window` variant for serialization. `1d` is widened to `Window::SevenDays`
 /// for the wire field to honor the `CompareBrandsOutput` shape; the
 /// `window_days` info is faithfully reflected in the row data itself.
-fn parse_window(raw: Option<&str>) -> Result<(i32, Window), (StatusCode, Json<serde_json::Value>)>
-{
+fn parse_window(raw: Option<&str>) -> Result<(i32, Window), (StatusCode, Json<serde_json::Value>)> {
     match raw.unwrap_or("7d") {
         "1d" => Ok((1, Window::SevenDays)),
         "7d" => Ok((7, Window::SevenDays)),
@@ -267,7 +266,7 @@ async fn fetch_comparison_rows(
         SELECT
             p.id                                  AS prompt_id,
             p.name                                AS prompt_name,
-            pr.provider                           AS provider,
+            pr.provider_identity                  AS provider,
             m.entity                              AS entity,
             MIN(m.rank)::int                      AS ranking,
             COUNT(*)::bigint                      AS mention_count
@@ -280,7 +279,7 @@ async fn fetch_comparison_rows(
           AND m.entity      = ANY($3::text[])
           AND (cardinality($4::text[]) = 0 OR p.name      = ANY($4::text[]))
           AND (cardinality($5::text[]) = 0 OR pr.provider = ANY($5::text[]))
-        GROUP BY p.id, p.name, pr.provider, m.entity
+        GROUP BY p.id, p.name, pr.provider_identity, m.entity
         "#,
     )
     .bind(project_id)

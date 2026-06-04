@@ -35,11 +35,20 @@ fn provider_error_kind_phase1_variants_remain_present() {
     // (`prompt_runs.error_kind IN (...)`) and the Phase 1 CLI's
     // exit-code mapping.
     let pairs = [
-        (ProviderErrorKind::ProviderUnauthorized, "provider_unauthorized"),
-        (ProviderErrorKind::ProviderRateLimited, "provider_rate_limited"),
+        (
+            ProviderErrorKind::ProviderUnauthorized,
+            "provider_unauthorized",
+        ),
+        (
+            ProviderErrorKind::ProviderRateLimited,
+            "provider_rate_limited",
+        ),
         (ProviderErrorKind::ProviderTimeout, "provider_timeout"),
         (ProviderErrorKind::Provider5xx, "provider_5xx"),
-        (ProviderErrorKind::ProviderInvalidResponse, "provider_invalid_response"),
+        (
+            ProviderErrorKind::ProviderInvalidResponse,
+            "provider_invalid_response",
+        ),
         (ProviderErrorKind::NetworkError, "network_error"),
     ];
     for (variant, wire) in pairs {

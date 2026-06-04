@@ -1,35 +1,34 @@
-//! `X-OpenGEO-Project` header substrate (Story 0.11, decision L2).
+//! `X-OpenGEO-Project` per-request project resolution (Epic 36, ADR-004).
 //!
-//! Contract — Phase 2, single configured project:
+//! Story 36.2 activates **real per-request resolution** over the `projects`
+//! table and removes the boot-time single-project pin. Every `/v1/*` request
+//! is resolved to a concrete [`opengeo_core::ProjectId`] before any handler
+//! runs; handlers read that resolved scope from request extensions (via the
+//! typed [`ProjectScope`] extractor) so two requests for different projects
+//! never read each other's data.
 //!
-//! 1. Header is **accepted** on every `/v1/*` route. SDK consumers (MCP
-//!    server Epic 16, browser extension Epic 18) start sending it on day
-//!    one so the Phase 4 multi-project rollout is a server-side switch.
-//! 2. If the value matches the configured project name, or equals the
-//!    reserved sentinel `"default"`, proceed. (Match is
-//!    case-insensitive after trimming, matching the canonicalisation
-//!    used by `opengeo_core::Config::project_id`.)
-//! 3. If the value mismatches AND isn't `"default"`, return **403 +
-//!    `error_kind: "project_not_found"`**. Phase 4 will replace this
-//!    with a real lookup; for now mismatch is unambiguously a wrong
-//!    project.
-//! 4. If the header is absent, infer the single configured project and
-//!    proceed. A **one-time WARN** per process logs the absence, so the
-//!    operator sees a nudge to update SDK consumers without a per-
-//!    request log storm.
+//! Precedence (ADR-004), highest first:
 //!
-//! The contract is enforced two ways, by design:
+//! 1. **Explicit value** — an explicitly-supplied project identifier. At the
+//!    HTTP layer the explicit value *is* the `X-OpenGEO-Project` header, so
+//!    tiers (1) and (2) coincide here. The shared [`resolve_project`] resolver
+//!    keeps the tier distinct so the CLI/MCP surfaces (later Epic 36 stories)
+//!    can pass an explicit flag that out-ranks an ambient header.
+//! 2. **`X-OpenGEO-Project` header** — resolved by brand name against the
+//!    `projects` table (case-insensitive after trim, matching the
+//!    `project_id_for_name` canonicalisation). The reserved sentinel
+//!    `"default"` resolves to the legacy sole-active project.
+//! 3. **Legacy sole-active-project fallback** — when no explicit/header value
+//!    is supplied AND exactly one active project exists, resolve to it. This
+//!    keeps single-project deployments working without sending the header.
+//! 4. Otherwise -> **404 `project_not_found`**. We never silently fall back to
+//!    a boot-configured default: an unknown or ambiguous project is an error,
+//!    not a default.
 //!
-//! - **Route-layer middleware** ([`project_header_guard`]) wraps the
-//!   entire `/v1` surface in `apps/api/src/lib.rs`. This catches every
-//!   route — including the parallel Phase 3 stories (0.7-0.10, 0.12)
-//!   that don't know about the header yet — without per-handler edits.
-//! - **Typed extractor** ([`ProjectId`]) is published so handlers that
-//!   want the resolved project name in their signature can take
-//!   `_project: ProjectId`. Both layers apply the same logic; if the
-//!   middleware passes, the extractor can never fail.
-
-use std::sync::OnceLock;
+//! Enforcement is a single route-layer middleware ([`project_header_guard`])
+//! mounted over the whole `/v1` surface in `apps/api/src/lib.rs`. It stamps the
+//! resolved [`ProjectScope`] into request extensions; the typed extractor is a
+//! noop lookup of that extension.
 
 use axum::body::Body;
 use axum::extract::{FromRequestParts, Request, State};
@@ -37,93 +36,148 @@ use axum::http::{request::Parts, HeaderName, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use opengeo_core::{project_id_for_name, ProjectId as CoreProjectId};
+use opengeo_storage::Storage;
 use serde_json::json;
 
 use crate::AppState;
 
-/// Canonical header name. The static value is the form clients see on
-/// the wire; `HeaderName::from_static` requires lowercase, so the
-/// matching helpers below normalise to lowercase before lookup.
+/// Canonical header name. The static value is the form clients see on the wire;
+/// `HeaderName::from_static` requires lowercase, so the matching helpers below
+/// normalise to lowercase before lookup.
 pub const PROJECT_HEADER: &str = "X-OpenGEO-Project";
 
-/// Reserved sentinel that always resolves to "the one configured
-/// project" in Phase 2. SDKs that don't yet read project config can
-/// hard-code `"default"` and continue to function under Phase 4
-/// once the operator declares their project name as `"default"` or
-/// updates the SDK.
+/// Reserved sentinel resolving to "the one active project". A single-project
+/// deployment can hard-code `"default"` and keep working; it resolves through
+/// the legacy sole-active-project fallback.
 pub const DEFAULT_PROJECT_SENTINEL: &str = "default";
 
-/// One-shot guard for the "header absent" warning. The first request
-/// without the header logs once at WARN; subsequent requests log
-/// nothing. Per-process, not per-request, to avoid log storms.
-static WARNED_ABSENT_HEADER: OnceLock<()> = OnceLock::new();
-
-/// Resolved project name for the current request. Phase 2 carries the
-/// single configured project; Phase 4 will carry the resolved scope.
+/// The resolved project scope for the current request: the concrete storage
+/// [`CoreProjectId`] plus the wire-visible brand name. Stamped into request
+/// extensions by [`project_header_guard`]; handlers read it via the
+/// [`ProjectScope`] extractor so every read is scoped to the resolved project.
 #[derive(Debug, Clone)]
-pub struct ProjectId(pub String);
+pub struct ProjectScope {
+    /// The concrete storage id — the value every project-scoped query keys on.
+    pub id: CoreProjectId,
+    /// The wire-visible project (brand) name, for logging / echoing back.
+    pub name: String,
+}
 
-impl ProjectId {
-    /// Borrow the project name as `&str` for handlers that just want
-    /// to log or thread it through to storage.
-    pub fn as_str(&self) -> &str {
-        &self.0
+impl ProjectScope {
+    /// The resolved storage id (the isolation boundary for all reads/writes).
+    pub fn id(&self) -> CoreProjectId {
+        self.id
+    }
+
+    /// The wire-visible project name.
+    pub fn name(&self) -> &str {
+        &self.name
     }
 }
 
-/// Outcome of applying the header contract.
-enum HeaderDecision {
-    /// Header matched the configured project, equaled `"default"`, or
-    /// was absent — proceed with the resolved name.
-    Accept(String),
-    /// Header was present and mismatched — 403 + `project_not_found`.
-    Reject,
+/// Backwards-compatible alias. Earlier stories published `ProjectId` as the
+/// resolved-wire-name extractor; it now carries the full resolved scope.
+pub type ProjectId = ProjectScope;
+
+/// Why resolution failed. Currently only one variant, but kept as an enum so
+/// future tiers (ambiguous explicit value, archived project) map cleanly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResolveError {
+    /// No project matched the supplied precedence chain.
+    NotFound,
 }
 
-fn decide(header_value: Option<&str>, configured: &str) -> HeaderDecision {
-    let Some(raw) = header_value else {
-        // Absence is allowed in Phase 2. Log once per process.
-        if WARNED_ABSENT_HEADER.set(()).is_ok() {
-            tracing::warn!(
-                event = "api.project_header.absent",
-                header = PROJECT_HEADER,
-                "request to /v1/* without X-OpenGEO-Project header; \
-                 Phase 2 single-project mode infers the configured project, \
-                 but Phase 4 will require this header. Update SDK consumers."
-            );
+/// Shared, reusable project resolver implementing the ADR-004 precedence chain.
+///
+/// `explicit` is a project identifier supplied out-of-band (a CLI/MCP flag);
+/// `header` is the `X-OpenGEO-Project` value. Both are resolved by **brand
+/// name** against the `projects` table. When neither is supplied (or the
+/// header is the `"default"` sentinel), the legacy sole-active-project fallback
+/// applies. Returns the resolved [`ProjectScope`] or [`ResolveError::NotFound`].
+///
+/// This is the single source of truth for project resolution so the CLI and
+/// MCP surfaces (later Epic 36 stories) reuse the exact same precedence.
+pub async fn resolve_project(
+    storage: &Storage,
+    explicit: Option<&str>,
+    header: Option<&str>,
+) -> Result<ProjectScope, ResolveError> {
+    // Tier 1 + 2: an explicit value out-ranks the header; either is resolved
+    // by brand name. The `"default"` sentinel is treated as "no value" so it
+    // falls through to the legacy sole-active fallback below.
+    let named = explicit
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .or_else(|| header.map(str::trim).filter(|s| !s.is_empty()))
+        .filter(|s| !s.eq_ignore_ascii_case(DEFAULT_PROJECT_SENTINEL));
+
+    if let Some(name) = named {
+        // Derive the deterministic id from the brand name, then confirm a live
+        // (non-archived) row actually exists. An id with no row is unknown.
+        let id = project_id_for_name(name);
+        match storage.projects().get_project(id).await {
+            Ok(Some(row)) => {
+                return Ok(ProjectScope {
+                    id: row.id,
+                    name: row.name,
+                });
+            }
+            Ok(None) => return Err(ResolveError::NotFound),
+            Err(err) => {
+                tracing::error!(
+                    event = "api.project_resolve.storage_error",
+                    error = %err,
+                    "storage error resolving named project; treating as not found"
+                );
+                return Err(ResolveError::NotFound);
+            }
         }
-        return HeaderDecision::Accept(configured.to_string());
-    };
-    let candidate = raw.trim();
-    if candidate.eq_ignore_ascii_case(DEFAULT_PROJECT_SENTINEL)
-        || candidate.eq_ignore_ascii_case(configured.trim())
-    {
-        return HeaderDecision::Accept(configured.to_string());
     }
-    HeaderDecision::Reject
+
+    // Tier 3: legacy sole-active-project fallback. Exactly one active project
+    // resolves; zero or many active projects is ambiguous -> not found.
+    match storage.projects().get_single_brand().await {
+        Ok(Some(brand)) => Ok(ProjectScope {
+            id: brand.id,
+            name: brand.name,
+        }),
+        Ok(None) => Err(ResolveError::NotFound),
+        Err(err) => {
+            tracing::error!(
+                event = "api.project_resolve.storage_error",
+                error = %err,
+                "storage error in sole-active-project fallback; treating as not found"
+            );
+            Err(ResolveError::NotFound)
+        }
+    }
 }
 
 fn project_header_name() -> HeaderName {
     HeaderName::from_static("x-opengeo-project")
 }
 
-fn forbidden_body() -> Response {
+/// 404 body for an unresolved project. Keeps the historical `project_not_found`
+/// error shape (`error` + `error_kind`) so existing SDK consumers' error
+/// handling is unchanged; only the status moves from 403 to 404 per ADR-004.
+fn not_found_body() -> Response {
     (
-        StatusCode::FORBIDDEN,
+        StatusCode::NOT_FOUND,
         Json(json!({
             "error": "project_not_found",
             "error_kind": "project_not_found",
             "message": format!(
-                "{} header value does not match this server's configured project",
-                PROJECT_HEADER
+                "no project resolved for this request (checked explicit value, \
+                 {PROJECT_HEADER} header, then the sole-active-project fallback)"
             ),
         })),
     )
         .into_response()
 }
 
-/// Route-layer middleware enforcing the contract for every `/v1/*` route.
-/// Mounted in `apps/api/src/lib.rs` alongside `require_api_key`.
+/// Route-layer middleware enforcing per-request resolution for every `/v1/*`
+/// route. Mounted in `apps/api/src/lib.rs` alongside `require_api_key`.
 pub async fn project_header_guard(
     State(state): State<AppState>,
     mut request: Request<Body>,
@@ -133,86 +187,85 @@ pub async fn project_header_guard(
     let header_value = request
         .headers()
         .get(&header_name)
-        .and_then(|v| v.to_str().ok());
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
 
-    let configured = state.configured_project.as_str();
-    match decide(header_value, configured) {
-        HeaderDecision::Accept(name) => {
-            // Stamp the resolved name into request extensions so the
-            // typed `ProjectId` extractor (if used) is a noop lookup.
-            request.extensions_mut().insert(ProjectId(name));
+    match resolve_project(&state.storage, None, header_value.as_deref()).await {
+        Ok(scope) => {
+            request.extensions_mut().insert(scope);
             Ok(next.run(request).await)
         }
-        HeaderDecision::Reject => Err(forbidden_body()),
+        Err(ResolveError::NotFound) => Err(not_found_body()),
     }
 }
 
 #[axum::async_trait]
-impl<S> FromRequestParts<S> for ProjectId
+impl<S> FromRequestParts<S> for ProjectScope
 where
     S: Send + Sync,
 {
     type Rejection = Response;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        _state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         // The route-layer middleware (`project_header_guard`) is the sole
-        // enforcement point — it runs on the entire `/v1` surface and
-        // stamps the resolved `ProjectId` into request extensions before
-        // any handler sees the request. So by the time this extractor
-        // fires, the project is already resolved.
-        //
-        // Handlers that opt into the typed extractor (`_project: ProjectId`)
-        // get the resolved name; handlers that don't take it are still
-        // protected by the middleware.
+        // enforcement point — it runs on the entire `/v1` surface and stamps
+        // the resolved `ProjectScope` into request extensions before any
+        // handler sees the request. By the time this extractor fires, the
+        // project is already resolved.
         parts
             .extensions
-            .get::<ProjectId>()
+            .get::<ProjectScope>()
             .cloned()
-            .ok_or_else(forbidden_body)
+            .ok_or_else(not_found_body)
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// The effective project for a handler that serves BOTH the project-guarded
+/// `/v1/*` surface and the legacy single-project `/api/*` dashboard surface.
+///
+/// On `/v1/*` the [`project_header_guard`] has already stamped a [`ProjectScope`]
+/// into request extensions (real per-request resolution), so this yields it
+/// verbatim. On `/api/*` — which carries no project guard and is single-project
+/// by design — no scope is stamped, so this falls back to the boot-derived
+/// `AppState::project_id` / `AppState::configured_project`.
+///
+/// Handlers that only mount under `/v1/*` can take [`ProjectScope`] directly;
+/// shared handlers take `EffectiveProject` so a missing extension is the legacy
+/// dashboard, not a 404.
+#[derive(Debug, Clone)]
+pub struct EffectiveProject {
+    pub id: CoreProjectId,
+    pub name: String,
+}
 
-    #[test]
-    fn matching_value_accepted() {
-        match decide(Some("acme"), "acme") {
-            HeaderDecision::Accept(n) => assert_eq!(n, "acme"),
-            HeaderDecision::Reject => panic!("matching value rejected"),
-        }
+impl EffectiveProject {
+    pub fn id(&self) -> CoreProjectId {
+        self.id
     }
 
-    #[test]
-    fn matching_value_case_insensitive() {
-        match decide(Some(" ACME "), "acme") {
-            HeaderDecision::Accept(n) => assert_eq!(n, "acme"),
-            HeaderDecision::Reject => panic!("case-insensitive match rejected"),
-        }
+    pub fn name(&self) -> &str {
+        &self.name
     }
+}
 
-    #[test]
-    fn default_sentinel_accepted() {
-        match decide(Some("default"), "acme") {
-            HeaderDecision::Accept(n) => assert_eq!(n, "acme"),
-            HeaderDecision::Reject => panic!("default sentinel rejected"),
+#[axum::async_trait]
+impl FromRequestParts<AppState> for EffectiveProject {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        if let Some(scope) = parts.extensions.get::<ProjectScope>() {
+            return Ok(EffectiveProject {
+                id: scope.id,
+                name: scope.name.clone(),
+            });
         }
-    }
-
-    #[test]
-    fn mismatch_rejected() {
-        assert!(matches!(decide(Some("other"), "acme"), HeaderDecision::Reject));
-    }
-
-    #[test]
-    fn absent_header_accepted() {
-        match decide(None, "acme") {
-            HeaderDecision::Accept(n) => assert_eq!(n, "acme"),
-            HeaderDecision::Reject => panic!("absent header rejected"),
-        }
+        // Legacy `/api/*` single-project surface: no per-request resolution.
+        Ok(EffectiveProject {
+            id: state.project_id,
+            name: state.configured_project.as_str().to_string(),
+        })
     }
 }

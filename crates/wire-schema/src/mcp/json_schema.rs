@@ -19,7 +19,8 @@ pub struct McpSchemaEntry {
     pub schema_json: String,
 }
 
-/// All 12 MCP schemas (6 tools × input/output).
+/// All 22 MCP schemas — 6 Phase-2 tools + 5 Story-19.7 `recommend.*` tools,
+/// each × input/output.
 pub fn all_schemas() -> Vec<McpSchemaEntry> {
     vec![
         entry("run_prompt.input", schema_for!(RunPromptInput)),
@@ -32,8 +33,41 @@ pub fn all_schemas() -> Vec<McpSchemaEntry> {
         entry("get_citations.output", schema_for!(GetCitationsOutput)),
         entry("list_trends.input", schema_for!(ListTrendsInput)),
         entry("list_trends.output", schema_for!(ListTrendsOutput)),
-        entry("search_benchmarks.input", schema_for!(SearchBenchmarksInput)),
-        entry("search_benchmarks.output", schema_for!(SearchBenchmarksOutput)),
+        entry(
+            "search_benchmarks.input",
+            schema_for!(SearchBenchmarksInput),
+        ),
+        entry(
+            "search_benchmarks.output",
+            schema_for!(SearchBenchmarksOutput),
+        ),
+        entry("recommend.list.input", schema_for!(RecommendListInput)),
+        entry("recommend.list.output", schema_for!(RecommendListOutput)),
+        entry("recommend.show.input", schema_for!(RecommendShowInput)),
+        entry("recommend.show.output", schema_for!(RecommendShowOutput)),
+        entry("recommend.ack.input", schema_for!(RecommendAckInput)),
+        entry(
+            "recommend.ack.output",
+            schema_for!(RecommendTransitionOutput),
+        ),
+        entry(
+            "recommend.dismiss.input",
+            schema_for!(RecommendDismissInput),
+        ),
+        entry(
+            "recommend.dismiss.output",
+            schema_for!(RecommendTransitionOutput),
+        ),
+        entry(
+            "recommend.mark_acted.input",
+            schema_for!(RecommendMarkActedInput),
+        ),
+        entry(
+            "recommend.mark_acted.output",
+            schema_for!(RecommendTransitionOutput),
+        ),
+        entry("audit.input", schema_for!(AuditInput)),
+        entry("audit.output", schema_for!(AuditOutput)),
     ]
 }
 

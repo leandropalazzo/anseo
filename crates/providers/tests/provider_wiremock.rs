@@ -13,7 +13,6 @@ use opengeo_providers::{
     mistral::MistralProvider, openai::OpenAiProvider, openrouter::OpenRouterProvider,
     perplexity::PerplexityProvider, Provider, ProviderRequest,
 };
-use wiremock as _wiremock;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -147,7 +146,8 @@ async fn gemini_400_with_api_key_message_maps_to_unauthorized() {
     Mock::given(method("POST"))
         .and(path("/v1beta/models/gemini-1.5-pro-002:generateContent"))
         .respond_with(
-            ResponseTemplate::new(400).set_body_string("API key not valid. Please pass a valid API key."),
+            ResponseTemplate::new(400)
+                .set_body_string("API key not valid. Please pass a valid API key."),
         )
         .mount(&mock)
         .await;

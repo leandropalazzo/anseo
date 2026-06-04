@@ -8,7 +8,7 @@
 
 use async_trait::async_trait;
 
-use opengeo_core::{DEFAULT_GEMINI_MODEL, ProviderName, Secret};
+use opengeo_core::{ProviderName, Secret, DEFAULT_GEMINI_MODEL};
 
 use crate::{
     map_reqwest_err, HttpClient, Provider, ProviderError, ProviderRequest, ProviderResponse,

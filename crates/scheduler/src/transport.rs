@@ -46,10 +46,7 @@ pub enum TransportError {
 ///
 /// In practice Story 10.2's worker emits NOTIFY in the same connection as the
 /// `claim_tick` / state-update queries, which is sufficient.
-pub async fn publish(
-    pool: &PgPool,
-    event: &LifecycleEvent,
-) -> Result<(), TransportError> {
+pub async fn publish(pool: &PgPool, event: &LifecycleEvent) -> Result<(), TransportError> {
     let payload = serde_json::to_string(event)?;
     sqlx::query("SELECT pg_notify($1, $2)")
         .bind(EVENTS_CHANNEL)

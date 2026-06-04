@@ -34,18 +34,12 @@ pub enum DeliveryOutcome {
     /// Retryable failure — transient network error, 5xx, 429, or 408.
     /// Repo transition: `mark_failed_retryable` with the next ladder
     /// step.
-    RetryableFailure {
-        status: Option<u16>,
-        reason: String,
-    },
+    RetryableFailure { status: Option<u16>, reason: String },
     /// Non-retryable failure — 4xx other than 408/429. The consumer told
     /// us this event will never succeed (bad signature, bad shape,
     /// gone). Repo transition: `mark_dropped` immediately, skipping the
     /// remaining ladder.
-    PermanentFailure {
-        status: u16,
-        reason: String,
-    },
+    PermanentFailure { status: u16, reason: String },
 }
 
 impl DeliveryOutcome {
@@ -70,18 +64,12 @@ pub fn classify_response(status: u16, body_snippet: &str) -> DeliveryOutcome {
     if status == 408 || status == 429 || (500..600).contains(&status) {
         return DeliveryOutcome::RetryableFailure {
             status: Some(status),
-            reason: format!(
-                "HTTP {status}: {}",
-                truncate_for_audit(body_snippet)
-            ),
+            reason: format!("HTTP {status}: {}", truncate_for_audit(body_snippet)),
         };
     }
     DeliveryOutcome::PermanentFailure {
         status,
-        reason: format!(
-            "HTTP {status}: {}",
-            truncate_for_audit(body_snippet)
-        ),
+        reason: format!("HTTP {status}: {}", truncate_for_audit(body_snippet)),
     }
 }
 
@@ -106,10 +94,7 @@ pub async fn deliver_one(
     match request.send().await {
         Ok(response) => {
             let status = response.status().as_u16();
-            let snippet = response
-                .text()
-                .await
-                .unwrap_or_else(|_| String::new());
+            let snippet = response.text().await.unwrap_or_else(|_| String::new());
             let outcome = classify_response(status, &snippet);
             (outcome, truncate_for_audit(&snippet))
         }

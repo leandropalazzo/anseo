@@ -2,9 +2,9 @@
 //!
 //! Per AD-Phase3-MCP-Process-Model (architecture-phase3-mcp-server.md §5) the
 //! MCP server never bypasses the API to the storage layer. Every call hits
-//! `/v1` over loopback HTTP and forwards both `Authorization: Bearer <key>`
-//! and `X-OpenGEO-Project: <project>` (L2 of the Phase 3 kickoff decisions —
-//! header is added day-one even though Phase 2 ignores it).
+//! `/v1` over loopback HTTP and forwards both `X-OpenGEO-API-Key: <key>`
+//! (the header the API's `require_api_key` middleware reads) and
+//! `X-OpenGEO-Project: <project>` (L2 of the Phase 3 kickoff decisions).
 //!
 //! Story 16.1 ships the client wrapper. The tool stubs do NOT call it; the
 //! handlers in 16.2-16.5 do. We construct it at boot so config errors surface
@@ -47,7 +47,7 @@ impl ApiClient {
         let url = format!("{}{}", self.base_url, path);
         self.inner
             .get(url)
-            .bearer_auth(&self.api_key)
+            .header("X-OpenGEO-API-Key", &self.api_key)
             .header("X-OpenGEO-Project", &self.project)
     }
 
@@ -58,7 +58,18 @@ impl ApiClient {
         let url = format!("{}{}", self.base_url, path);
         self.inner
             .post(url)
-            .bearer_auth(&self.api_key)
+            .header("X-OpenGEO-API-Key", &self.api_key)
+            .header("X-OpenGEO-Project", &self.project)
+    }
+
+    /// Issue a `PATCH` against `<base_url><path>`. Always carries the auth +
+    /// project headers per L2.
+    #[allow(dead_code)] // exercised by story 19.7 recommend.* tools
+    pub fn patch(&self, path: &str) -> reqwest::RequestBuilder {
+        let url = format!("{}{}", self.base_url, path);
+        self.inner
+            .patch(url)
+            .header("X-OpenGEO-API-Key", &self.api_key)
             .header("X-OpenGEO-Project", &self.project)
     }
 

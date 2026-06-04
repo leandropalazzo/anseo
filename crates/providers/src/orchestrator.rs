@@ -107,10 +107,10 @@ impl OrchestratorFilter {
             Some(allow) => allow.iter().any(|s| s == name),
         }
     }
-    pub fn matches_provider(&self, p: ProviderName) -> bool {
+    pub fn matches_provider(&self, p: &ProviderName) -> bool {
         match &self.providers {
             None => true,
-            Some(allow) => allow.contains(&p),
+            Some(allow) => allow.contains(p),
         }
     }
 }
@@ -147,60 +147,70 @@ impl Orchestrator {
                 .expect("declared prompts always resolve to an id");
 
             for provider_cfg in self.config.providers.iter() {
-                if !filter.matches_provider(provider_cfg.name) {
+                if !filter.matches_provider(&provider_cfg.name) {
                     continue;
                 }
-                let Some(provider) = self.providers.get(&provider_cfg.name).cloned() else {
-                    // Provider declared in config but no instance registered
-                    // (e.g. missing API key). Synthesise a failed record so
-                    // the orchestrator's output covers the full matrix.
-                    handles.push(tokio::spawn({
-                        let prompt_name = prompt.name.clone();
-                        let provider_name = provider_cfg.name;
-                        let model = provider_cfg
-                            .model
-                            .clone()
-                            .unwrap_or_else(|| provider_name.default_model().to_string());
-                        async move {
-                            unregistered_record(
-                                project_id,
-                                prompt_id,
-                                prompt_name,
-                                provider_name,
-                                model,
-                            )
-                        }
-                    }));
-                    continue;
+
+                // Resolve the model list. OpenRouter may declare a `models`
+                // list to fan one key out across multiple `<vendor>/<model>`
+                // upstreams — each becomes its own run. Everyone else (and
+                // OpenRouter with a single `model`) resolves to one model.
+                let models: Vec<String> = match &provider_cfg.models {
+                    Some(ms) if !ms.is_empty() => ms.clone(),
+                    _ => vec![provider_cfg
+                        .model
+                        .clone()
+                        .unwrap_or_else(|| provider_cfg.name.default_model().to_string())],
                 };
 
-                let prompt_text = prompt.text.clone();
-                let prompt_name = prompt.name.clone();
-                let provider_name = provider_cfg.name;
-                let model = provider_cfg
-                    .model
-                    .clone()
-                    .unwrap_or_else(|| provider_name.default_model().to_string());
-                let timeout = Duration::from_secs(provider_cfg.timeout_seconds.max(1));
-                let semaphore = semaphore.clone();
+                let maybe_provider = self.providers.get(&provider_cfg.name).cloned();
 
-                handles.push(tokio::spawn(async move {
-                    let _permit = semaphore
-                        .acquire_owned()
+                for model in models {
+                    let Some(provider) = maybe_provider.clone() else {
+                        // Provider declared in config but no instance registered
+                        // (e.g. missing API key). Synthesise a failed record per
+                        // (prompt, provider, model) so the output covers the full
+                        // matrix.
+                        handles.push(tokio::spawn({
+                            let prompt_name = prompt.name.clone();
+                            let provider_name = provider_cfg.name.clone();
+                            async move {
+                                unregistered_record(
+                                    project_id,
+                                    prompt_id,
+                                    prompt_name,
+                                    provider_name,
+                                    model,
+                                )
+                            }
+                        }));
+                        continue;
+                    };
+
+                    let prompt_text = prompt.text.clone();
+                    let prompt_name = prompt.name.clone();
+                    let provider_name = provider_cfg.name.clone();
+                    let timeout = Duration::from_secs(provider_cfg.timeout_seconds.max(1));
+                    let semaphore = semaphore.clone();
+
+                    handles.push(tokio::spawn(async move {
+                        let _permit = semaphore
+                            .acquire_owned()
+                            .await
+                            .expect("semaphore is never closed");
+                        execute_single(
+                            provider,
+                            project_id,
+                            prompt_id,
+                            prompt_name,
+                            provider_name,
+                            model,
+                            prompt_text,
+                            timeout,
+                        )
                         .await
-                        .expect("semaphore is never closed");
-                    execute_single(
-                        provider,
-                        project_id,
-                        prompt_id,
-                        prompt_name,
-                        provider_name,
-                        model,
-                        prompt_text,
-                        timeout,
-                    )
-                    .await
-                }));
+                    }));
+                }
             }
         }
 
@@ -373,7 +383,7 @@ fn unregistered_record(
         project_id,
         prompt_id,
         prompt_name,
-        provider: provider_name,
+        provider: provider_name.clone(),
         provider_model_version: model,
         provider_region: None,
         started_at: now,
@@ -470,6 +480,59 @@ providers:
         assert_eq!(ok, 4, "all should succeed: {records:?}");
     }
 
+    const OPENROUTER_MODELS_YAML: &str = r#"
+schema_version: '0.2'
+brand:
+  name: Acme
+prompts:
+  - name: discovery
+    text: best tools?
+providers:
+  - name: openrouter
+    models: [openai/gpt-4o, anthropic/claude-3.5-sonnet]
+"#;
+
+    #[tokio::test]
+    async fn openrouter_models_list_fans_out_one_run_per_upstream() {
+        let cfg = Config::from_yaml_str(OPENROUTER_MODELS_YAML).unwrap();
+        let openrouter = MockProvider::new(ProviderName::Openrouter)
+            .accept_model("openai/gpt-4o")
+            .accept_model("anthropic/claude-3.5-sonnet")
+            .queue_response("ok-1")
+            .queue_response("ok-2");
+        let mut registry: ProviderRegistry = HashMap::new();
+        registry.insert(ProviderName::Openrouter, Arc::new(openrouter));
+
+        let orch = Orchestrator::new(cfg, registry);
+        let records = orch.run_all(OrchestratorFilter::default()).await;
+        // 1 prompt × 2 upstream models = 2 runs, all under the openrouter identity.
+        assert_eq!(records.len(), 2, "{records:?}");
+        assert!(
+            records.iter().all(|r| r.status == PromptRunStatus::Ok),
+            "{records:?}"
+        );
+        assert!(records
+            .iter()
+            .all(|r| r.provider == ProviderName::Openrouter));
+    }
+
+    #[tokio::test]
+    async fn openrouter_models_thread_each_upstream_model() {
+        // With no client registered, the orchestrator synthesises one failed
+        // record per (prompt, provider, model) — which threads each upstream
+        // model verbatim, proving the per-model fan-out.
+        let cfg = Config::from_yaml_str(OPENROUTER_MODELS_YAML).unwrap();
+        let orch = Orchestrator::new(cfg, HashMap::new());
+        let records = orch.run_all(OrchestratorFilter::default()).await;
+        assert_eq!(records.len(), 2, "{records:?}");
+        let mut models: Vec<&str> = records
+            .iter()
+            .map(|r| r.provider_model_version.as_str())
+            .collect();
+        models.sort();
+        assert_eq!(models, vec!["anthropic/claude-3.5-sonnet", "openai/gpt-4o"]);
+    }
+
     #[tokio::test]
     async fn failure_isolation_does_not_block_siblings() {
         let cfg = Config::from_yaml_str(YAML).unwrap();
@@ -547,7 +610,7 @@ providers:
         let records = orch.run_all(OrchestratorFilter::default()).await;
         let by_provider: HashMap<ProviderName, Vec<&PromptRunRecord>> =
             records.iter().fold(HashMap::new(), |mut acc, r| {
-                acc.entry(r.provider).or_default().push(r);
+                acc.entry(r.provider.clone()).or_default().push(r);
                 acc
             });
         for rec in by_provider.get(&ProviderName::Anthropic).unwrap() {

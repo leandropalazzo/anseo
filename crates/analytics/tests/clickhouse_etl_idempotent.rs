@@ -37,25 +37,13 @@ fn ch() -> ClickHouseMetricsStore {
 async fn count(ch: &ClickHouseMetricsStore, project_id: ProjectId) -> (i64, i64) {
     let bytes: [u8; 16] = project_id.into_ulid().to_bytes();
     let pid_uuid = Uuid::from_bytes(bytes).to_string();
-    let vp_sql = format!(
-        "SELECT count() AS n FROM visibility_points WHERE project_id = '{pid_uuid}'"
-    );
-    let ct_sql = format!(
-        "SELECT count() AS n FROM citation_totals WHERE project_id = '{pid_uuid}'"
-    );
+    let vp_sql =
+        format!("SELECT count() AS n FROM visibility_points WHERE project_id = '{pid_uuid}'");
+    let ct_sql =
+        format!("SELECT count() AS n FROM citation_totals WHERE project_id = '{pid_uuid}'");
 
-    #[derive(serde::Deserialize)]
-    struct Row {
-        n: String,
-    }
-    let vp = ch
-        .execute(&vp_sql)
-        .await
-        .ok()
-        .map(|_| 0i64)
-        .or(Some(0))
-        .unwrap();
-    let _ = vp;
+    // Warm the public execute surface; the count is read back via run_count.
+    let _ = ch.execute(&vp_sql).await;
 
     // Re-query via a select helper available through the public surface.
     let vp_count = run_count(ch, &vp_sql).await;
@@ -63,7 +51,7 @@ async fn count(ch: &ClickHouseMetricsStore, project_id: ProjectId) -> (i64, i64)
     (vp_count, ct_count)
 }
 
-async fn run_count(ch: &ClickHouseMetricsStore, sql: &str) -> i64 {
+async fn run_count(_ch: &ClickHouseMetricsStore, sql: &str) -> i64 {
     // ClickHouse returns count() as a UInt64 → ship as toString().
     let wrapped = sql.replace("count()", "toString(count())");
     #[derive(serde::Deserialize)]
@@ -72,7 +60,9 @@ async fn run_count(ch: &ClickHouseMetricsStore, sql: &str) -> i64 {
     }
     let url = format!(
         "{}/?database={}",
-        std::env::var("CLICKHOUSE_URL").unwrap().trim_end_matches('/'),
+        std::env::var("CLICKHOUSE_URL")
+            .unwrap()
+            .trim_end_matches('/'),
         std::env::var("CLICKHOUSE_DATABASE").unwrap_or_else(|_| "default".into())
     );
     let body = format!("{wrapped} FORMAT JSONEachRow");
@@ -119,6 +109,7 @@ async fn migrate_project_twice_yields_identical_state() {
             project_id,
             name: "vector-db".to_string(),
             text: "idem fixture".into(),
+            tags: Vec::new(),
             organization_id: None,
             tenant_id: None,
             created_at: now,
@@ -188,11 +179,17 @@ async fn migrate_project_twice_yields_identical_state() {
     let _ = sqlx::query("DELETE FROM citations WHERE prompt_run_id IN (SELECT id FROM prompt_runs WHERE prompt_id = $1)")
         .bind(prompt_id).execute(&pool).await;
     let _ = sqlx::query("DELETE FROM prompt_runs WHERE prompt_id = $1")
-        .bind(prompt_id).execute(&pool).await;
+        .bind(prompt_id)
+        .execute(&pool)
+        .await;
     let _ = sqlx::query("DELETE FROM prompts WHERE id = $1")
-        .bind(prompt_id).execute(&pool).await;
+        .bind(prompt_id)
+        .execute(&pool)
+        .await;
     let _ = sqlx::query("DELETE FROM projects WHERE id = $1")
-        .bind(project_id).execute(&pool).await;
+        .bind(project_id)
+        .execute(&pool)
+        .await;
     let bytes: [u8; 16] = project_id.into_ulid().to_bytes();
     let pid_uuid = Uuid::from_bytes(bytes).to_string();
     let _ = ch_store

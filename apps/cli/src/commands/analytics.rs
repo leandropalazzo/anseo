@@ -32,10 +32,12 @@ pub struct MigrateArgs {
 }
 
 pub async fn run_migrate(args: MigrateArgs) -> Result<(), OpenGeoError> {
-    let database_url = std::env::var("DATABASE_URL").map_err(|_| {
-        OpenGeoError::Config("DATABASE_URL must be set".into())
-    })?;
-    let path = args.config.clone().unwrap_or_else(|| PathBuf::from("opengeo.yaml"));
+    let database_url = std::env::var("DATABASE_URL")
+        .map_err(|_| OpenGeoError::Config("DATABASE_URL must be set".into()))?;
+    let path = args
+        .config
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("opengeo.yaml"));
     let cfg = opengeo_core::Config::from_path(&path).map_err(|e| {
         OpenGeoError::Config(format!(
             "failed to read project config at `{}`: {e}",
@@ -57,27 +59,44 @@ pub async fn run_migrate(args: MigrateArgs) -> Result<(), OpenGeoError> {
     #[cfg(feature = "clickhouse")]
     {
         use opengeo_analytics::metrics_store::clickhouse::ClickHouseMetricsStore;
-        use opengeo_analytics::metrics_store::clickhouse_etl::migrate_project;
+        use opengeo_analytics::metrics_store::clickhouse_etl::{
+            migrate_project_resumable, ResumableConfig,
+        };
+        // Apply forward-only migrations so the `analytics_migration_state`
+        // checkpoint table exists before the resumable ETL touches it.
+        storage
+            .migrate()
+            .await
+            .map_err(|e| OpenGeoError::Config(format!("migration failed: {e}")))?;
         let ch = ClickHouseMetricsStore::from_env().map_err(|_| {
             OpenGeoError::Config(
                 "CLICKHOUSE_URL, CLICKHOUSE_USER, CLICKHOUSE_PASSWORD, CLICKHOUSE_DATABASE must be set".into(),
             )
         })?;
-        let report = migrate_project(
+        let report = migrate_project_resumable(
             &storage,
             &ch,
             project_id,
             &prompt_slugs,
             args.days,
             args.citation_limit,
+            &ResumableConfig::default(),
         )
         .await
         .map_err(|e| OpenGeoError::Config(format!("ETL failed: {e}")))?;
+        // Interrupt-safe: a SIGTERM mid-run leaves `finished=false`; the next
+        // invocation resumes from `last_completed_batch_id`.
         println!(
-            "✓ ClickHouse primed for project {project_id}\n\
-             - visibility_points: {} rows migrated\n\
-             - citation_totals: {} rows migrated",
-            report.visibility_rows_migrated, report.citation_rows_migrated
+            "✓ ClickHouse ETL for project {project_id}\n\
+             - batches: {}/{} completed\n\
+             - status: {}",
+            report.batches_completed,
+            report.total_batches,
+            if report.finished {
+                "finished"
+            } else {
+                "interrupted (resume to continue)"
+            }
         );
         Ok(())
     }

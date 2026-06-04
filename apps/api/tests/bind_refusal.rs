@@ -5,7 +5,7 @@
 //! env-var reads and a DB count, so unit coverage here pins the entire
 //! policy without needing a live Postgres.
 
-use opengeo_api::check_bind_acceptable;
+use opengeo_api::{bootstrap_key_material, check_bind_acceptable};
 
 #[test]
 fn loopback_v4_with_zero_keys_no_test_mode_accepts() {
@@ -62,4 +62,28 @@ fn ipv6_link_local_is_non_loopback() {
     // the key-count gate applies.
     let err = check_bind_acceptable("[fe80::1]:8080", false, 0).unwrap_err();
     assert!(err.contains("no active API keys"));
+}
+
+#[test]
+fn bootstrap_key_material_derives_hash_and_prefix_for_valid_key() {
+    use opengeo_core::api_key::{sha256_hex, DISPLAY_PREFIX_LEN, KEY_PREFIX};
+    let plaintext = format!("{KEY_PREFIX}{}", "A".repeat(32));
+    let (hash, prefix) = bootstrap_key_material(&plaintext).unwrap();
+    // Hash must match the same sha256_hex the auth middleware computes from
+    // the wire token, or the seeded key could never authenticate.
+    assert_eq!(hash, sha256_hex(&plaintext));
+    assert_eq!(hash.len(), 64);
+    // Prefix is the first DISPLAY_PREFIX_LEN chars of the random portion.
+    assert_eq!(prefix.len(), DISPLAY_PREFIX_LEN);
+    assert_eq!(prefix, "A".repeat(DISPLAY_PREFIX_LEN));
+}
+
+#[test]
+fn bootstrap_key_material_rejects_malformed_shape() {
+    // Wrong prefix, too short, and empty must all be refused so a typo'd
+    // env value fails loudly instead of seeding an unusable key.
+    for bad in ["sk-not-ours", "ogeo_short", "", "ogeo_"] {
+        let err = bootstrap_key_material(bad).unwrap_err();
+        assert!(err.contains("ogeo_<32 base62>"), "unexpected msg: {err}");
+    }
 }

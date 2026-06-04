@@ -35,3 +35,7 @@ coverage/
 .env.local
 .env.*.local
 .env.clickhouse
+
+# Competitor analysis assets (local only, not for GitHub)
+clairon_analisis/
+clairon_analysis/

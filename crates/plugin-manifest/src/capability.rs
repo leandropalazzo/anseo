@@ -94,9 +94,7 @@ impl Serialize for Capability {
             Capability::ReadSecret { keys } => map.serialize_entry("keys", keys)?,
             Capability::EmitEvent { kinds } => map.serialize_entry("kinds", kinds)?,
             Capability::ExtractorConfidenceOverride => {}
-            Capability::AnalyticsWindow { windows } => {
-                map.serialize_entry("windows", windows)?
-            }
+            Capability::AnalyticsWindow { windows } => map.serialize_entry("windows", windows)?,
         }
         map.end()
     }
@@ -147,9 +145,7 @@ impl<'de> Deserialize<'de> for Capability {
                     "emit-event" => Ok(Capability::EmitEvent {
                         kinds: kinds.unwrap_or_default(),
                     }),
-                    "extractor-confidence-override" => {
-                        Ok(Capability::ExtractorConfidenceOverride)
-                    }
+                    "extractor-confidence-override" => Ok(Capability::ExtractorConfidenceOverride),
                     "analytics-window" => Ok(Capability::AnalyticsWindow {
                         windows: windows.unwrap_or_default(),
                     }),

@@ -35,7 +35,7 @@ impl MockProvider {
     pub fn queue_response(self, text: impl Into<String>) -> Self {
         let text = text.into();
         let response = ProviderResponse {
-            provider: self.identity,
+            provider: self.identity.clone(),
             model: "mock-model".to_string(),
             region: None,
             raw_response: serde_json::json!({"mock": true, "message": text}),
@@ -54,7 +54,7 @@ impl MockProvider {
 #[async_trait]
 impl Provider for MockProvider {
     fn name(&self) -> ProviderName {
-        self.identity
+        self.identity.clone()
     }
 
     fn validate_model(&self, model: &str) -> Result<String, ProviderError> {

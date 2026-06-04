@@ -34,8 +34,11 @@ pub fn v1_router() -> Router<AppState> {
         .route("/schedules", get(list_schedules).post(create_schedule))
         .route(
             "/schedules/:id",
-            get(get_schedule).put(update_schedule).delete(delete_schedule),
+            get(get_schedule)
+                .put(update_schedule)
+                .delete(delete_schedule),
         )
+        .route("/schedules/:id/run", axum::routing::post(run_schedule_now))
 }
 
 #[derive(Debug, Serialize)]
@@ -135,9 +138,16 @@ async fn create_schedule(
 ) -> Result<(StatusCode, Json<ScheduleSummary>), (StatusCode, Json<serde_json::Value>)> {
     let name = request.name.trim().to_string();
     if name.is_empty() {
-        return Err(err(StatusCode::BAD_REQUEST, "invalid_name", "`name` is required"));
+        return Err(err(
+            StatusCode::BAD_REQUEST,
+            "invalid_name",
+            "`name` is required",
+        ));
     }
-    if !name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
         return Err(err(
             StatusCode::BAD_REQUEST,
             "invalid_name",
@@ -158,21 +168,36 @@ async fn create_schedule(
             "`providers` must list at least one provider",
         ));
     }
+    // Providers are wire names (e.g. `"openai"`) plus an OpenRouter-only
+    // pinned-model form `"openrouter:<vendor>/<model>"` — each pinned model is
+    // its own run, mirroring how standalone providers fan out. The raw strings
+    // are persisted verbatim; here we only resolve a `ProviderName` per entry
+    // for the cost projection (pinned OpenRouter models each count as a cell).
     let mut parsed_providers: Vec<ProviderName> = Vec::with_capacity(request.providers.len());
     for p in &request.providers {
-        let Some(parsed) = ProviderName::parse(p) else {
-            return Err(err(
-                StatusCode::BAD_REQUEST,
-                "invalid_provider",
-                &format!(
-                    "unsupported provider `{p}`; expected one of {}",
-                    ProviderName::all_wire_names().join(", ")
-                ),
-            ));
+        let parsed = if let Some(model) = p.strip_prefix("openrouter:") {
+            if model.trim().is_empty() {
+                return Err(err(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_provider",
+                    &format!("`{p}` is missing an OpenRouter model after the colon"),
+                ));
+            }
+            ProviderName::Openrouter
+        } else {
+            let Some(parsed) = ProviderName::parse(p) else {
+                return Err(err(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_provider",
+                    &format!(
+                        "unsupported provider `{p}`; expected one of {} (or `openrouter:<vendor>/<model>`)",
+                        ProviderName::all_wire_names().join(", ")
+                    ),
+                ));
+            };
+            parsed
         };
-        if !parsed_providers.contains(&parsed) {
-            parsed_providers.push(parsed);
-        }
+        parsed_providers.push(parsed);
     }
 
     let candidate = ScheduleConfig {
@@ -199,14 +224,10 @@ async fn create_schedule(
     let id = Uuid::new_v4();
     let acknowledged_at = if above_cap { Some(Utc::now()) } else { None };
     let prompts_json = serde_json::to_value(&candidate.prompts).expect("Vec<String> serializes");
-    let providers_json = serde_json::to_value(
-        candidate
-            .providers
-            .iter()
-            .map(|p| p.as_wire_str())
-            .collect::<Vec<_>>(),
-    )
-    .expect("Vec<&str> serializes");
+    // Persist the raw provider strings so OpenRouter pinned-model entries
+    // (`openrouter:<vendor>/<model>`) survive the round-trip; the dispatcher
+    // re-interprets them at tick time.
+    let providers_json = serde_json::to_value(&request.providers).expect("Vec<String> serializes");
 
     let inserted = sqlx::query(
         r#"
@@ -323,21 +344,19 @@ async fn delete_schedule(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
-    let result = sqlx::query(
-        r#"DELETE FROM schedules WHERE id = $1 AND project_id = $2"#,
-    )
-    .bind(id)
-    .bind(project_id)
-    .execute(state.storage.pool())
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "schedule delete failed");
-        err(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "internal_error",
-            "schedule delete failed",
-        )
-    })?;
+    let result = sqlx::query(r#"DELETE FROM schedules WHERE id = $1 AND project_id = $2"#)
+        .bind(id)
+        .bind(project_id)
+        .execute(state.storage.pool())
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "schedule delete failed");
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                "schedule delete failed",
+            )
+        })?;
     if result.rows_affected() == 0 {
         return Err(err(
             StatusCode::NOT_FOUND,
@@ -348,6 +367,78 @@ async fn delete_schedule(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Debug, Serialize)]
+pub struct RunNowResponse {
+    pub tick_id: Uuid,
+    pub prompt_run_count: u32,
+    pub failed_run_count: u32,
+}
+
+/// `POST /v1/schedules/:id/run` — dispatch a schedule immediately, ignoring its
+/// cadence + paused flag. Runs synchronously through the same orchestrator the
+/// worker uses, persisting `prompt_runs` linked to a fresh `schedule_tick`.
+async fn run_schedule_now(
+    Extension(AuthenticatedProject(project_id)): Extension<AuthenticatedProject>,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<RunNowResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let Some(config) = state.config.as_ref() else {
+        return Err(err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "config_unavailable",
+            "no project config loaded; cannot run schedules until `opengeo.yaml` is readable",
+        ));
+    };
+    let Some(registry) = state.provider_registry.as_ref() else {
+        return Err(err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "registry_unavailable",
+            "provider registry unavailable; configure at least one provider key first",
+        ));
+    };
+
+    let project_uuid = Uuid::from_bytes(project_id.into_ulid().to_bytes());
+    let outcome = opengeo_scheduler::dispatch::run_schedule_now(
+        state.storage.pool(),
+        &state.storage,
+        config,
+        registry,
+        id,
+        project_uuid,
+        "api-run-now",
+        Utc::now(),
+    )
+    .await
+    .map_err(|e| match e {
+        opengeo_scheduler::worker::WorkerError::TickAlreadyClaimed => err(
+            StatusCode::CONFLICT,
+            "tick_already_claimed",
+            "a run for this schedule is already in flight; try again in a moment",
+        ),
+        other => {
+            tracing::error!(error = %other, schedule_id = %id, "manual schedule run failed");
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "run_failed",
+                "schedule run failed",
+            )
+        }
+    })?;
+
+    match outcome {
+        Some(o) => Ok(Json(RunNowResponse {
+            tick_id: o.tick_id,
+            prompt_run_count: o.prompt_run_count,
+            failed_run_count: o.failed_run_count,
+        })),
+        None => Err(err(
+            StatusCode::NOT_FOUND,
+            "schedule_not_found",
+            "no schedule with that id is declared in this project",
+        )),
+    }
+}
+
 fn map_validation_error(e: ScheduleValidationError) -> (StatusCode, Json<serde_json::Value>) {
     match &e {
         ScheduleValidationError::UnsupportedCadence(expr) => err(
@@ -355,14 +446,23 @@ fn map_validation_error(e: ScheduleValidationError) -> (StatusCode, Json<serde_j
             "unsupported_cadence",
             &format!("`cron` `{expr}` is not a supported cadence"),
         ),
-        ScheduleValidationError::PerScheduleHourlyCap { ticks_per_hour, cap, .. } => err(
+        ScheduleValidationError::PerScheduleHourlyCap {
+            ticks_per_hour,
+            cap,
+            ..
+        } => err(
             StatusCode::BAD_REQUEST,
             "schedule_density_cap",
             &format!(
                 "schedule would tick {ticks_per_hour:.2}×/hour, above the cap of {cap:.2}/hour"
             ),
         ),
-        ScheduleValidationError::ProviderDailyCap { provider, ticks_per_day, cap, .. } => err(
+        ScheduleValidationError::ProviderDailyCap {
+            provider,
+            ticks_per_day,
+            cap,
+            ..
+        } => err(
             StatusCode::BAD_REQUEST,
             "provider_density_cap",
             &format!(

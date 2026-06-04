@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 
 use opengeo_core::{BrandConfig, CompetitorConfig, Config};
 
+use crate::sentiment::{classify_sentiment, Sentiment};
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Mention {
     /// Canonical entity name. For the brand: `BrandConfig::name`. For each
@@ -28,6 +30,8 @@ pub struct Mention {
     pub matched_text: String,
     /// True if this mention is the brand (vs a competitor).
     pub is_brand: bool,
+    /// Deterministic mention-level brand-tone signal.
+    pub sentiment: Sentiment,
 }
 
 /// Extract all mentions for the configured brand + competitors, sorted by
@@ -47,6 +51,7 @@ pub fn extract_mentions(message: &str, config: &Config) -> Vec<Mention> {
             rank: 0, // filled below
             matched_text: matched,
             is_brand: true,
+            sentiment: classify_sentiment(message, offset),
         });
     }
 
@@ -59,6 +64,7 @@ pub fn extract_mentions(message: &str, config: &Config) -> Vec<Mention> {
                 rank: 0,
                 matched_text: matched,
                 is_brand: false,
+                sentiment: classify_sentiment(message, offset),
             });
         }
     }
@@ -120,6 +126,7 @@ pub fn config_with(brand: &str, competitors: &[&str]) -> Config {
         brand: BrandConfig {
             name: brand.into(),
             variants: vec![],
+            site_url: None,
         },
         competitors: competitors
             .iter()
@@ -133,6 +140,7 @@ pub fn config_with(brand: &str, competitors: &[&str]) -> Config {
         schedules: vec![],
         concurrency: 4,
         anomaly_sensitivity: Default::default(),
+        analytics: None,
     }
 }
 
@@ -149,6 +157,7 @@ mod tests {
         assert_eq!(compute_ranking(&mentions), Some(1));
         assert!(mentions[0].is_brand);
         assert!(!mentions[1].is_brand);
+        assert_eq!(mentions[0].sentiment.label.as_str(), "positive");
     }
 
     #[test]
@@ -187,5 +196,17 @@ mod tests {
         let mentions = extract_mentions(msg, &cfg);
         assert_eq!(mentions.len(), 1);
         assert_eq!(mentions[0].char_offset, 0);
+    }
+
+    #[test]
+    fn mention_carries_byte_stable_sentiment() {
+        let cfg = config_with("Acme", &[]);
+        let msg = "Acme is slow and unreliable compared with alternatives.";
+        let first = extract_mentions(msg, &cfg);
+        let second = extract_mentions(msg, &cfg);
+        assert_eq!(first, second);
+        assert_eq!(first[0].sentiment.label.as_str(), "negative");
+        assert!((0..=100).contains(&first[0].sentiment.score));
+        assert_eq!(first[0].sentiment.lane, "deterministic_lexicon");
     }
 }

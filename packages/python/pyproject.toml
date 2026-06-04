@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opengeo"
+version = "0.0.0"
+description = "OpenGEO REST client — auto-generated from the canonical OpenAPI artifact."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = [
+  "httpx>=0.27",
+  "attrs>=23.2",
+  "python-dateutil>=2.8",
+]
+
+[project.urls]
+Homepage = "https://opengeo.dev"
+Source = "https://github.com/opengeo/opengeo"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["opengeo*"]
+exclude = ["opengeo.*.__pycache__*"]

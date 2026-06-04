@@ -138,3 +138,67 @@ async fn rerun_does_not_lose_history(pool: PgPool) {
         .unwrap_or(0);
     assert_eq!(total, 8, "every re-run appends new rows (FR-6)");
 }
+
+/// Story 31-3 — `persist_records` records a provenance trail per run: a
+/// `provider_call` step (ok/error), `response_persisted`, and the three
+/// skipped extraction/ranking stages. ≥3 rows per run; ordered by `at`.
+#[sqlx::test(migrations = "../storage/migrations")]
+async fn persist_records_writes_provenance_trail(pool: PgPool) {
+    let storage = Storage::from_pool(pool);
+    let cfg = Config::from_yaml_str(YAML).unwrap();
+
+    // One failing provider call (openai p1) and the rest succeeding.
+    let openai = MockProvider::new(ProviderName::Openai)
+        .accept_model("mock-model")
+        .queue_failure(ProviderError::rate_limited("429"))
+        .queue_response("openai-ok");
+    let anthropic = MockProvider::new(ProviderName::Anthropic)
+        .accept_model("mock-model")
+        .queue_response("anthropic-ok-1")
+        .queue_response("anthropic-ok-2");
+    let mut registry: ProviderRegistry = HashMap::new();
+    registry.insert(ProviderName::Openai, Arc::new(openai));
+    registry.insert(ProviderName::Anthropic, Arc::new(anthropic));
+
+    let records = Orchestrator::new(cfg.clone(), registry)
+        .run_all(OrchestratorFilter::default())
+        .await;
+    let persisted = persist_records(&storage, &cfg, &records).await.unwrap();
+    assert_eq!(persisted.len(), 4);
+
+    // Every run gets exactly 5 provenance rows (provider_call,
+    // response_persisted, mention_extraction, citation_extraction, ranking).
+    let total_prov: i64 = sqlx::query_scalar!("SELECT COUNT(*) FROM run_provenance")
+        .fetch_one(storage.pool())
+        .await
+        .unwrap()
+        .unwrap_or(0);
+    assert_eq!(total_prov, 4 * 5);
+
+    // The single failed run records provider_call=error; the rest are ok.
+    let provider_call_errors: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM run_provenance WHERE step='provider_call' AND status='error'"
+    )
+    .fetch_one(storage.pool())
+    .await
+    .unwrap()
+    .unwrap_or(0);
+    assert_eq!(provider_call_errors, 1);
+
+    // Spot-check one run's trail via the repo, asserting ordered steps.
+    let any_run = persisted[0].run_id;
+    let steps = storage.run_provenance().list_by_run(any_run).await.unwrap();
+    let names: Vec<&str> = steps.iter().map(|s| s.step.as_str()).collect();
+    assert_eq!(
+        names,
+        vec![
+            "provider_call",
+            "response_persisted",
+            "mention_extraction",
+            "citation_extraction",
+            "ranking",
+        ]
+    );
+    assert_eq!(steps[1].status, "ok"); // response_persisted always ok
+    assert_eq!(steps[4].status, "skipped"); // ranking skipped (3.2 pending)
+}

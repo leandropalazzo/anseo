@@ -13,8 +13,11 @@
 //! and across debounce windows.
 
 use crate::events::{LifecycleEvent, SchedulePayload};
-use crate::{parse_cadence, Cadence, ScheduleValidationError};
-use chrono::{DateTime, Duration, Utc};
+use crate::{
+    parse_recurrence, Cadence, CalendarCadence, CalendarSpec, Recurrence, ScheduleValidationError,
+};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Utc};
+use chrono_tz::Tz;
 use sqlx::{PgPool, Row};
 use tokio::sync::broadcast;
 use uuid::Uuid;
@@ -32,8 +35,12 @@ pub const EVENT_CHANNEL_CAPACITY: usize = 1024;
 pub enum WorkerError {
     #[error("database error")]
     Database(#[from] sqlx::Error),
+    #[error("storage error")]
+    Storage(#[from] opengeo_storage::Error),
     #[error("invalid schedule cadence")]
     InvalidCadence(#[from] ScheduleValidationError),
+    #[error("a tick for this instant is already claimed")]
+    TickAlreadyClaimed,
 }
 
 /// Outcome of a single `claim_tick` attempt.
@@ -156,10 +163,7 @@ pub struct ReapedTick {
 /// The "next aligned slot" rule is what makes a worker that comes back online
 /// after a 2.5-hour outage record `missed` for the skipped slot and fire on
 /// the next aligned slot rather than firing immediately.
-pub fn anchor_next_tick(
-    cadence: Cadence,
-    last_run: DateTime<Utc>,
-) -> DateTime<Utc> {
+pub fn anchor_next_tick(cadence: Cadence, last_run: DateTime<Utc>) -> DateTime<Utc> {
     let interval_minutes = (1440.0 / cadence.ticks_per_day).round() as i64;
     if interval_minutes <= 0 {
         return last_run + Duration::minutes(1);
@@ -176,7 +180,60 @@ pub fn next_tick_for(
     cadence_expr: &str,
     last_run: DateTime<Utc>,
 ) -> Result<DateTime<Utc>, ScheduleValidationError> {
-    Ok(anchor_next_tick(parse_cadence(cadence_expr)?, last_run))
+    match parse_recurrence(cadence_expr)? {
+        Recurrence::Frequency(cadence) => Ok(anchor_next_tick(cadence, last_run)),
+        Recurrence::Calendar(spec) => next_calendar_tick(&spec, last_run)
+            .ok_or_else(|| ScheduleValidationError::UnsupportedCadence(cadence_expr.into())),
+    }
+}
+
+/// Compute the next wall-clock occurrence of a calendar recurrence strictly
+/// after `last_run`. Walks forward day-by-day in the recurrence timezone,
+/// landing on the first matching day at `hour:minute`. Returns `None` when the
+/// timezone is unknown or no occurrence is found within a bounded horizon
+/// (defensive — every well-formed spec resolves within a handful of days).
+///
+/// DST handling: a local time that doesn't exist (spring-forward gap) or is
+/// ambiguous (fall-back) is resolved to the earliest valid instant; a fully
+/// nonexistent local time on a given day causes that day to be skipped.
+fn next_calendar_tick(spec: &CalendarSpec, last_run: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    let tz: Tz = spec.tz.parse().ok()?;
+    let local_anchor = last_run.with_timezone(&tz);
+    let anchor_date = local_anchor.date_naive();
+
+    // Bounded horizon: daily/weekly resolve within 7 days; every-N-days within
+    // 2N. 800 days is a generous ceiling that also guards malformed input.
+    for offset in 0..800 {
+        let date = anchor_date.checked_add_signed(Duration::days(offset))?;
+        if !day_matches(&spec.cadence, anchor_date, date) {
+            continue;
+        }
+        let naive = date.and_hms_opt(spec.hour, spec.minute, 0)?;
+        let Some(local) = tz.from_local_datetime(&naive).earliest() else {
+            continue; // local time falls in a DST gap on this date.
+        };
+        let instant = local.with_timezone(&Utc);
+        if instant > last_run {
+            return Some(instant);
+        }
+    }
+    None
+}
+
+/// Whether `date` satisfies the cadence's day rule, given `anchor` (the local
+/// date of the last run) for every-N-days phase alignment.
+fn day_matches(cadence: &CalendarCadence, anchor: NaiveDate, date: NaiveDate) -> bool {
+    match cadence {
+        CalendarCadence::Daily => true,
+        CalendarCadence::Weekly(days) => {
+            let dow = date.weekday().num_days_from_sunday();
+            days.contains(&dow)
+        }
+        CalendarCadence::EveryNDays(n) => {
+            let diff = (date - anchor).num_days();
+            diff >= 0 && diff % (*n as i64) == 0
+        }
+    }
 }
 
 /// Returns true when `now` is within `debounce_minutes` of `last_manual_run`.
@@ -237,6 +294,7 @@ pub fn payload_for(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parse_cadence;
     use chrono::TimeZone;
 
     fn at(h: u32, m: u32) -> DateTime<Utc> {
@@ -343,14 +401,51 @@ mod tests {
         // Verify the epoch-anchored shape for intervals > 24 h.
         // Every-48-h slots align to 1970-01-01T00:00 + 2N days, so the
         // next slot after any timestamp is the next "even unix-day" midnight.
-        let cadence = super::Cadence {
-            ticks_per_day: 0.5,
-        }; // every 48 h
+        let cadence = super::Cadence { ticks_per_day: 0.5 }; // every 48 h
         let next = anchor_next_tick(cadence, at(14, 23));
         // Next slot is strictly after, lands on a midnight, and within 48 h.
         assert!(next > at(14, 23));
         assert_eq!(next.timestamp() % 60, 0);
         assert_eq!(next.timestamp() % 3600, 0); // hour-aligned
         assert!((next - at(14, 23)) <= Duration::hours(48));
+    }
+
+    #[test]
+    fn calendar_daily_lands_on_local_time_of_day() {
+        // 2026-05-28 is EDT (UTC-4). 09:30 local == 13:30 UTC.
+        let next = next_tick_for("TZ=America/New_York daily at 09:30", at(8, 0)).unwrap();
+        assert_eq!(next, Utc.with_ymd_and_hms(2026, 5, 28, 13, 30, 0).unwrap());
+    }
+
+    #[test]
+    fn calendar_daily_rolls_to_next_day_when_time_passed() {
+        // last_run at 18:00 UTC (14:00 EDT) is past today's 09:30 local slot,
+        // so the next occurrence is tomorrow at 09:30 EDT == 13:30 UTC.
+        let next = next_tick_for("TZ=America/New_York daily at 09:30", at(18, 0)).unwrap();
+        assert_eq!(next, Utc.with_ymd_and_hms(2026, 5, 29, 13, 30, 0).unwrap());
+    }
+
+    #[test]
+    fn calendar_weekly_picks_next_listed_weekday() {
+        // 2026-05-28 is a Thursday. Next Mon/Fri after Thu 08:00 UTC is
+        // Friday 2026-05-29 at 09:00 EDT == 13:00 UTC.
+        let next =
+            next_tick_for("TZ=America/New_York weekly on mon,fri at 09:00", at(8, 0)).unwrap();
+        assert_eq!(next, Utc.with_ymd_and_hms(2026, 5, 29, 13, 0, 0).unwrap());
+    }
+
+    #[test]
+    fn calendar_every_n_days_anchors_to_last_run() {
+        // Anchor date 2026-05-28; every 3 days → next slot at +3 days at 06:00
+        // local, since today's 06:00 local already passed (last_run 08:00 UTC
+        // == 04:00 EDT, before 06:00, so actually fires today).
+        let next = next_tick_for("TZ=America/New_York every 3 days at 06:00", at(8, 0)).unwrap();
+        // 06:00 EDT == 10:00 UTC, still after 08:00 UTC → today.
+        assert_eq!(next, Utc.with_ymd_and_hms(2026, 5, 28, 10, 0, 0).unwrap());
+    }
+
+    #[test]
+    fn calendar_unknown_timezone_is_unsupported() {
+        assert!(next_tick_for("TZ=Mars/Olympus daily at 09:30", at(8, 0)).is_err());
     }
 }

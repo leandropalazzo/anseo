@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn limit_default_is_under_cap() {
-        assert!(DEFAULT_LIMIT <= MAX_LIMIT);
+        const { assert!(DEFAULT_LIMIT <= MAX_LIMIT) };
     }
 
     #[test]

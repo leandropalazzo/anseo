@@ -24,6 +24,294 @@
       }
     },
     "schemas": {
+      "AuditFinding": {
+        "type": "object",
+        "required": [
+          "rule_id",
+          "category",
+          "severity",
+          "status",
+          "score",
+          "message",
+          "recommendation_kind",
+          "evidence"
+        ],
+        "properties": {
+          "rule_id": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "identity",
+              "extractability",
+              "corroboration"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "warn",
+              "fail"
+            ]
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "message": {
+            "type": "string"
+          },
+          "recommendation_kind": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AuditReport": {
+        "type": "object",
+        "required": [
+          "target",
+          "overall_score",
+          "pages"
+        ],
+        "properties": {
+          "target": {
+            "type": "string"
+          },
+          "overall_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PageAudit"
+            }
+          },
+          "gate": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GateSummary"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "AuditRequest": {
+        "type": "object",
+        "required": [
+          "target"
+        ],
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "URL, sitemap URL, file:// URL, or local HTML fixture path."
+          },
+          "max_pages": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 25,
+            "nullable": true
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 60000,
+            "default": 10000,
+            "nullable": true
+          },
+          "fail_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Rule ids or severities (low/medium/high)."
+          }
+        }
+      },
+      "AuditRunItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "target",
+          "overall_score",
+          "pages_crawled",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "overall_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "pages_crawled": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "gate_passed": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuditRunList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditRunItem"
+            }
+          }
+        }
+      },
+      "BrandCompetitor": {
+        "type": "object",
+        "required": [
+          "name",
+          "variants"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "BrandUpdate": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "competitors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrandCompetitor"
+            }
+          },
+          "site_url": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "BrandUpdateResult": {
+        "type": "object",
+        "required": [
+          "project_id",
+          "name",
+          "variants",
+          "competitors",
+          "restart_required"
+        ],
+        "properties": {
+          "project_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "competitors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrandCompetitor"
+            }
+          },
+          "site_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "restart_required": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BrandView": {
+        "type": "object",
+        "required": [
+          "project_id",
+          "name",
+          "variants",
+          "competitors"
+        ],
+        "properties": {
+          "project_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "competitors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrandCompetitor"
+            }
+          },
+          "site_url": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "CitationSummaryResponse": {
         "properties": {
           "domains": {
@@ -34,6 +322,52 @@
           }
         },
         "type": "object"
+      },
+      "ClaimVerdict": {
+        "type": "object",
+        "required": [
+          "entity",
+          "claim_text",
+          "claim_kind",
+          "status",
+          "rationale",
+          "prompt_run_id",
+          "observed_at"
+        ],
+        "properties": {
+          "entity": {
+            "type": "string"
+          },
+          "claim_text": {
+            "type": "string"
+          },
+          "claim_kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accurate",
+              "inaccurate",
+              "unverifiable",
+              "premium_disabled"
+            ]
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "matched_fact_key": {
+            "type": "string",
+            "nullable": true
+          },
+          "prompt_run_id": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "ClickHouseInstallAccepted": {
         "description": "Story 15.1 — 202 response from POST /v1/setup/clickhouse/install. `install_id` is a ULID the caller can use to subscribe to the SSE progress stream. MOCK in 15.1; real Docker calls land in Story 15.3.",
@@ -64,8 +398,8 @@
             "type": "string"
           },
           "progress": {
-            "maximum": 1.0,
-            "minimum": 0.0,
+            "maximum": 1,
+            "minimum": 0,
             "type": "number"
           },
           "step": {
@@ -176,6 +510,267 @@
         ],
         "type": "object"
       },
+      "CrawlReferRatio": {
+        "type": "object",
+        "properties": {
+          "bot_id": {
+            "type": "string"
+          },
+          "verified_crawl_hits": {
+            "type": "integer"
+          },
+          "attributed_referrals": {
+            "type": "integer"
+          },
+          "ratio": {
+            "type": "number",
+            "nullable": true
+          },
+          "state": {
+            "$ref": "#/components/schemas/CrawlReferState"
+          }
+        },
+        "required": [
+          "bot_id",
+          "verified_crawl_hits",
+          "attributed_referrals",
+          "state"
+        ]
+      },
+      "CrawlReferReport": {
+        "description": "Roadmap Epic 33 crawl-to-refer ratio. When referral attribution is unavailable, state is crawls_only and ratio is null.",
+        "type": "object",
+        "properties": {
+          "window_start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "window_end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CrawlReferState"
+          },
+          "bots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrawlReferRatio"
+            }
+          }
+        },
+        "required": [
+          "window_start",
+          "window_end",
+          "state",
+          "bots"
+        ]
+      },
+      "CrawlReferState": {
+        "type": "string",
+        "enum": [
+          "complete",
+          "crawls_only"
+        ]
+      },
+      "CrawlerBotMetric": {
+        "properties": {
+          "bot_id": {
+            "type": "string"
+          },
+          "error_hits": {
+            "type": "integer"
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "verified_hits": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bot_id",
+          "hits",
+          "verified_hits",
+          "error_hits"
+        ],
+        "type": "object"
+      },
+      "CrawlerIngestRequest": {
+        "type": "object",
+        "required": [
+          "lines"
+        ],
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Raw access-log lines (nginx/Apache), one hit per line."
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "common",
+              "combined"
+            ],
+            "default": "combined"
+          },
+          "privacy_mode": {
+            "type": "string",
+            "enum": [
+              "hashed",
+              "truncated",
+              "raw"
+            ],
+            "default": "hashed"
+          }
+        }
+      },
+      "CrawlerIngestResult": {
+        "type": "object",
+        "required": [
+          "parsed",
+          "ingested",
+          "skipped"
+        ],
+        "properties": {
+          "parsed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ingested": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "CrawlerMetricsResponse": {
+        "description": "Roadmap Epic 31 crawler observability metrics. Headline payloads exclude unverified crawler hits unless `include_unverified=true` is requested.",
+        "properties": {
+          "bots": {
+            "items": {
+              "$ref": "#/components/schemas/CrawlerBotMetric"
+            },
+            "type": "array"
+          },
+          "error_paths": {
+            "items": {
+              "$ref": "#/components/schemas/CrawlerPathMetric"
+            },
+            "type": "array"
+          },
+          "include_unverified": {
+            "type": "boolean"
+          },
+          "top_paths": {
+            "items": {
+              "$ref": "#/components/schemas/CrawlerPathMetric"
+            },
+            "type": "array"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/CrawlerTrendBucket"
+            },
+            "type": "array"
+          },
+          "window_end": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "window_start": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "window_start",
+          "window_end",
+          "include_unverified",
+          "bots",
+          "top_paths",
+          "error_paths",
+          "trend"
+        ],
+        "type": "object"
+      },
+      "CrawlerPathMetric": {
+        "properties": {
+          "error_hits": {
+            "type": "integer"
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "hits",
+          "error_hits"
+        ],
+        "type": "object"
+      },
+      "CrawlerTrendBucket": {
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "hits": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "hits"
+        ],
+        "type": "object"
+      },
+      "CreateProjectRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "site_url": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CreateProjectResponse": {
+        "type": "object",
+        "required": [
+          "project_id",
+          "name"
+        ],
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "ulid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "CreatePromptRunRequest": {
         "properties": {
           "prompt_name": {
@@ -250,6 +845,407 @@
         "required": [
           "error",
           "message"
+        ],
+        "type": "object"
+      },
+      "GateFinding": {
+        "type": "object",
+        "required": [
+          "page_url",
+          "rule_id",
+          "severity",
+          "message"
+        ],
+        "properties": {
+          "page_url": {
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "GateSummary": {
+        "type": "object",
+        "required": [
+          "passed",
+          "fail_on",
+          "failed_findings"
+        ],
+        "properties": {
+          "passed": {
+            "type": "boolean"
+          },
+          "fail_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "failed_findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GateFinding"
+            }
+          }
+        }
+      },
+      "GenerateRecommendationsAccepted": {
+        "description": "Story 19.6 — 202 response from POST /v1/recommendations/generate. Per the Phase 2 async-write pattern, `status_url` points at the list endpoint where the results are readable.",
+        "properties": {
+          "generated_count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "inserted_count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "status_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "generated_count",
+          "inserted_count",
+          "status_url"
+        ],
+        "type": "object"
+      },
+      "GrafanaCrawlerQuery": {
+        "properties": {
+          "days": {
+            "maximum": 365,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "include_unverified": {
+            "default": false,
+            "type": "boolean"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GrafanaCrawlerSeries": {
+        "properties": {
+          "datapoints": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "datapoints"
+        ],
+        "type": "object"
+      },
+      "HallucinationSummary": {
+        "type": "object",
+        "required": [
+          "entitlement",
+          "window_days",
+          "ground_truth_facts",
+          "totals",
+          "recent"
+        ],
+        "properties": {
+          "entitlement": {
+            "type": "string",
+            "enum": [
+              "oss_disabled",
+              "premium_enabled"
+            ]
+          },
+          "window_days": {
+            "type": "integer"
+          },
+          "ground_truth_facts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totals": {
+            "$ref": "#/components/schemas/HallucinationTotals"
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimVerdict"
+            }
+          }
+        }
+      },
+      "HallucinationTotals": {
+        "type": "object",
+        "required": [
+          "accurate",
+          "inaccurate",
+          "unverifiable",
+          "premium_disabled",
+          "total"
+        ],
+        "properties": {
+          "accurate": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "inaccurate": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unverifiable": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "premium_disabled": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "KindAdoption": {
+        "type": "object",
+        "required": [
+          "kind",
+          "surfaced",
+          "acted",
+          "dismissed"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "surfaced": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "acted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dismissed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "adoption_rate": {
+            "type": "number",
+            "nullable": true
+          }
+        }
+      },
+      "PageAudit": {
+        "type": "object",
+        "required": [
+          "url",
+          "score",
+          "findings"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditFinding"
+            }
+          }
+        }
+      },
+      "ProjectListResponse": {
+        "type": "object",
+        "required": [
+          "projects"
+        ],
+        "properties": {
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectView"
+            }
+          }
+        }
+      },
+      "ProjectView": {
+        "type": "object",
+        "required": [
+          "project_id",
+          "name",
+          "created_at"
+        ],
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "format": "ulid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Recommendation": {
+        "description": "Story 19.6 — a stored GEO Recommendation (architecture-phase3-geo-recommendations.md §8 wire shape) plus its DB lifecycle `state`.",
+        "properties": {
+          "confidence_band": {
+            "type": "string"
+          },
+          "engine_version": {
+            "type": "string"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "ULID.",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          },
+          "project_id": {
+            "description": "ULID.",
+            "type": "string"
+          },
+          "reproducibility": {
+            "properties": {
+              "class": {
+                "type": "string"
+              },
+              "note": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "class"
+            ],
+            "type": "object"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "generated",
+              "surfaced",
+              "acknowledged",
+              "acted",
+              "measured",
+              "dismissed",
+              "stale"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "traceability": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "kind",
+          "severity",
+          "confidence_band",
+          "state",
+          "summary",
+          "payload",
+          "traceability",
+          "reproducibility",
+          "tags",
+          "generated_at",
+          "engine_version"
+        ],
+        "type": "object"
+      },
+      "RecommendationIntelligence": {
+        "type": "object",
+        "required": [
+          "by_kind"
+        ],
+        "properties": {
+          "by_kind": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KindAdoption"
+            }
+          }
+        }
+      },
+      "RecommendationListResponse": {
+        "description": "Story 19.6 — cursor-paginated active recommendations. `next_cursor` is null on the last page.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Recommendation"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Opaque cursor for the next page; null when no further pages remain.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
         ],
         "type": "object"
       },
@@ -433,6 +1429,145 @@
         ],
         "type": "object"
       },
+      "Sm14MetricResponse": {
+        "description": "Story 19.5 — SM-14 adoption metric. `rate` is null when the denominator is zero.",
+        "properties": {
+          "denominator": {
+            "type": "integer"
+          },
+          "numerator": {
+            "type": "integer"
+          },
+          "rate": {
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "required": [
+          "numerator",
+          "denominator"
+        ],
+        "type": "object"
+      },
+      "TransitionRecommendationRequest": {
+        "description": "Story 19.6 — lifecycle transition (Story 19.4 state machine). Illegal edges return 409.",
+        "properties": {
+          "evidence_url": {
+            "nullable": true,
+            "type": "string"
+          },
+          "note": {
+            "nullable": true,
+            "type": "string"
+          },
+          "to": {
+            "enum": [
+              "surfaced",
+              "acknowledged",
+              "acted",
+              "measured",
+              "dismissed",
+              "stale"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "to"
+        ],
+        "type": "object"
+      },
+      "TransitionRecommendationResponse": {
+        "properties": {
+          "recommendation": {
+            "$ref": "#/components/schemas/Recommendation"
+          },
+          "warnings": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "recommendation",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "VisibilitySentimentPoint": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "entity": {
+            "type": "string"
+          },
+          "day": {
+            "type": "string"
+          },
+          "positive": {
+            "type": "integer"
+          },
+          "neutral": {
+            "type": "integer"
+          },
+          "negative": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "positive_share": {
+            "type": "number"
+          },
+          "neutral_share": {
+            "type": "number"
+          },
+          "negative_share": {
+            "type": "number"
+          },
+          "average_score": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "prompt",
+          "provider",
+          "entity",
+          "day",
+          "positive",
+          "neutral",
+          "negative",
+          "total",
+          "positive_share",
+          "neutral_share",
+          "negative_share",
+          "average_score"
+        ]
+      },
+      "VisibilitySentimentResponse": {
+        "type": "object",
+        "properties": {
+          "window_days": {
+            "type": "integer"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VisibilitySentimentPoint"
+            }
+          }
+        },
+        "required": [
+          "window_days",
+          "points"
+        ]
+      },
       "VisibilityTrendResponse": {
         "properties": {
           "points": {
@@ -460,6 +1595,98 @@
   },
   "openapi": "3.0.3",
   "paths": {
+    "/v1/audit": {
+      "post": {
+        "operationId": "runAudit",
+        "summary": "Roadmap Epic 32 — crawl a URL/sitemap and score citation-readiness against in-tree heuristics (Identity, Extractability, Corroboration). Optional CI-gate thresholds.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty target.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "502": {
+            "description": "Audit crawl failed for the requested target.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audit/runs": {
+      "get": {
+        "operationId": "listAuditRuns",
+        "summary": "Roadmap Epic 32 — persisted site-audit history for the project, newest first.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditRunList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/v1/citations/summary": {
       "get": {
         "operationId": "citationSummary",
@@ -566,6 +1793,247 @@
         "summary": "Phase 3 Story 0.8 — deterministic brand-vs-competitors comparison matrix (substrate for MCP `compare_brands`)."
       }
     },
+    "/v1/crawlers/ingest": {
+      "post": {
+        "operationId": "crawlerIngest",
+        "summary": "Roadmap Epic 31 — ingest raw web-server access-log lines, normalize + verify bot identity, and write crawler events for this project.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrawlerIngestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlerIngestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty ingest.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/crawlers/metrics": {
+      "get": {
+        "operationId": "crawlerMetrics",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "default": 30,
+              "maximum": 365,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_unverified",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlerMetricsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid window."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "summary": "Roadmap Epic 31 — crawler frequency, top paths, stuck/error pages, and trend. Verified-only by default."
+      }
+    },
+    "/v1/crawlers/ratio": {
+      "get": {
+        "operationId": "crawlerRatio",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlReferReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "summary": "Roadmap Epic 33 — crawl-to-refer ratio by verified bot, degraded to crawls_only until referral attribution exists."
+      }
+    },
+    "/v1/grafana/crawlers/query": {
+      "post": {
+        "operationId": "grafanaCrawlerQuery",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrafanaCrawlerQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GrafanaCrawlerSeries"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Grafana JSON datasource series."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid window."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "summary": "Roadmap Epic 31 — Grafana JSON datasource query for crawler trends."
+      }
+    },
+    "/v1/hallucination/summary": {
+      "get": {
+        "operationId": "hallucinationSummary",
+        "summary": "Roadmap Epic 34 — aggregate collected brand claims and their entitlement-gated accuracy verdicts. OSS build returns premium_disabled verdicts (open-core boundary).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 30
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HallucinationSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/v1/healthz": {
       "get": {
         "operationId": "healthz",
@@ -591,6 +2059,153 @@
           }
         },
         "summary": "Health probe"
+      }
+    },
+    "/v1/projects": {
+      "get": {
+        "operationId": "listProjects",
+        "summary": "List active (non-archived) projects. Operator-scoped; not gated by X-OpenGEO-Project.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProject",
+        "summary": "Create a project from a brand. project_id is derived from the name and returned.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateProjectResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "A project with this derived id already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/projects/{id}": {
+      "get": {
+        "operationId": "getProject",
+        "summary": "Fetch a single project by id.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "ulid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No project with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/projects/{id}/archive": {
+      "post": {
+        "operationId": "archiveProject",
+        "summary": "Soft-delete a project (idempotent). It drops out of the list but its data is preserved.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "ulid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Archived."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No project with this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/projects/{project_id}/events": {
@@ -680,6 +2295,268 @@
         "summary": "Dispatch a one-shot prompt run for an already-declared Prompt and Provider."
       }
     },
+    "/v1/recommendations": {
+      "get": {
+        "operationId": "listRecommendations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque page cursor from a previous response's next_cursor.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationListResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed cursor."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "summary": "Story 19.6 — cursor-paginated active recommendations for the project, newest first."
+      }
+    },
+    "/v1/recommendations/generate": {
+      "post": {
+        "operationId": "generateRecommendations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateRecommendationsAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No opengeo.yaml loaded; cannot assemble recommendation inputs."
+          }
+        },
+        "summary": "Story 19.6 — assemble an EngineInput from the project's live prompts/runs/citations, run the in-process engine, and persist the result. Returns 202 + a status_url per the Phase 2 async-write pattern."
+      }
+    },
+    "/v1/recommendations/intelligence": {
+      "get": {
+        "operationId": "recommendationIntelligence",
+        "summary": "Story 19.5+ — per-kind adoption: surfaced / acted / dismissed counts (the what-works-vs-what-doesn't loop). First-party only.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationIntelligence"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/recommendations/metrics": {
+      "get": {
+        "operationId": "recommendationMetrics",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sm14MetricResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "summary": "Story 19.5 — SM-14 adoption metric for the project (Acted∨Measured / Surfaced∨later, first-party Kinds only)."
+      }
+    },
+    "/v1/recommendations/{id}": {
+      "get": {
+        "operationId": "getRecommendation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Recommendation ULID.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recommendation"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Recommendation not found."
+          }
+        },
+        "summary": "Story 19.6 — one recommendation + full traceability. 404 when the row is absent or owned by another project."
+      }
+    },
+    "/v1/recommendations/{id}/state": {
+      "patch": {
+        "operationId": "transitionRecommendation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Recommendation ULID.",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRecommendationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransitionRecommendationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unknown target state or malformed id."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Recommendation not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Illegal lifecycle transition."
+          }
+        },
+        "summary": "Story 19.6 — apply a lifecycle transition (Story 19.4 state machine). Illegal transitions return 409."
+      }
+    },
     "/v1/runs": {
       "get": {
         "operationId": "listRuns",
@@ -721,6 +2598,76 @@
           }
         },
         "summary": "List recent Prompt Runs"
+      }
+    },
+    "/v1/setup/brand": {
+      "get": {
+        "operationId": "getBrand",
+        "summary": "Read the DB-authoritative brand config (name, variants, competitors, site_url).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandView"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateBrand",
+        "summary": "Update brand config. Changing the name re-derives project_id (allowed only before the first run) and sets restart_required.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandUpdateResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "Rename blocked by existing runs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/setup/clickhouse/install": {
@@ -828,6 +2775,42 @@
           }
         },
         "summary": "Story 15.1 — synchronous status probe across Postgres, ClickHouse, worker, webhook target, API keys, and Docker. Always returns 200; individual sections report `state: \"unknown\"` on probe failure or timeout."
+      }
+    },
+    "/v1/visibility/sentiment": {
+      "get": {
+        "operationId": "visibilitySentiment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 365,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisibilitySentimentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "summary": "Roadmap Epic 30 — sentiment aggregate under the existing visibility resource."
       }
     },
     "/v1/visibility/trend": {

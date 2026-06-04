@@ -13,7 +13,9 @@
 //! must not pre-empt them.
 
 use chrono::{DateTime, Utc};
-use opengeo_core::ids::{CitationId, MentionId, ProjectId, PromptId, PromptRunId};
+use opengeo_core::ids::{
+    CitationId, ClaimId, GroundTruthFactId, MentionId, ProjectId, PromptId, PromptRunId,
+};
 use serde_json::Value as JsonValue;
 use uuid::Uuid;
 
@@ -26,12 +28,31 @@ pub struct ProjectRow {
     pub created_at: DateTime<Utc>,
 }
 
+/// DB-authoritative brand config for a project. Kept separate from
+/// [`ProjectRow`] so the many `ProjectRow` construction sites (tests, seeds)
+/// stay untouched — the `variants`/`competitors` columns carry DB defaults.
+#[derive(Debug, Clone)]
+pub struct BrandRow {
+    pub id: ProjectId,
+    pub name: String,
+    /// Brand-name variants/aliases.
+    pub variants: Vec<String>,
+    /// Competitor set as a JSONB array of `{ name, variants }` objects,
+    /// mirroring `opengeo_core::CompetitorConfig`.
+    pub competitors: JsonValue,
+    /// Optional URL of the brand's owned website.
+    pub site_url: Option<String>,
+}
+
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct PromptRow {
     pub id: PromptId,
     pub project_id: ProjectId,
     pub name: String,
     pub text: String,
+    /// Free-form labels for grouping/rollups. AI-generated prompts carry
+    /// "AUTO" when no existing tag is a better match.
+    pub tags: Vec<String>,
     pub organization_id: Option<Uuid>,
     pub tenant_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
@@ -63,6 +84,9 @@ pub struct MentionRow {
     pub char_offset: i32,
     pub rank: i32,
     pub matched_text: String,
+    pub sentiment_label: Option<String>,
+    pub sentiment_score: Option<i16>,
+    pub sentiment_lane: Option<String>,
     pub organization_id: Option<Uuid>,
     pub tenant_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
@@ -78,5 +102,50 @@ pub struct CitationRow {
     pub source_type: Option<String>,
     pub organization_id: Option<Uuid>,
     pub tenant_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct ExtractedClaimRow {
+    pub id: ClaimId,
+    pub prompt_run_id: PromptRunId,
+    pub entity: String,
+    pub claim_text: String,
+    pub claim_kind: String,
+    pub char_offset: Option<i32>,
+    pub confidence: i16,
+    pub extractor_lane: String,
+    pub organization_id: Option<Uuid>,
+    pub tenant_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct GroundTruthFactRow {
+    pub id: GroundTruthFactId,
+    pub project_id: ProjectId,
+    pub entity: String,
+    pub fact_key: String,
+    pub fact_value: String,
+    pub source_url: Option<String>,
+    pub source_label: Option<String>,
+    pub source_type: Option<String>,
+    pub valid_from: Option<DateTime<Utc>>,
+    pub valid_to: Option<DateTime<Utc>>,
+    pub organization_id: Option<Uuid>,
+    pub tenant_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Summary row for the site-audit history list (Epic 32). The full report is
+/// kept as JSONB in `audit_runs.report`; this struct carries the scalar
+/// columns the history list renders.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct AuditRunSummary {
+    pub id: Uuid,
+    pub target: String,
+    pub overall_score: i16,
+    pub pages_crawled: i32,
+    pub gate_passed: Option<bool>,
     pub created_at: DateTime<Utc>,
 }

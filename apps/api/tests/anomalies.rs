@@ -21,10 +21,9 @@ use opengeo_core::ProjectId;
 use tower::ServiceExt;
 
 fn build_router() -> axum::Router {
-    let lazy_pool = sqlx::PgPool::connect_lazy(
-        "postgres://opengeo:opengeo@127.0.0.1:1/__anomalies_test__",
-    )
-    .expect("connect_lazy never IOs synchronously");
+    let lazy_pool =
+        sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__anomalies_test__")
+            .expect("connect_lazy never IOs synchronously");
     let storage = Arc::new(opengeo_storage::Storage::from_pool(lazy_pool));
     let (events, _rx) = opengeo_scheduler::worker::event_channel();
     let state = AppState {

@@ -26,6 +26,7 @@ pub mod openrouter;
 pub mod orchestrator;
 pub mod perplexity;
 pub mod persistence;
+pub mod plugin;
 pub mod registry;
 
 use async_trait::async_trait;
@@ -224,3 +225,4 @@ pub use orchestrator::{
     Orchestrator, OrchestratorFilter, PromptRunRecord, PromptRunStatus, ProviderRegistry,
     RunSummary,
 };
+pub use plugin::PluginProvider;

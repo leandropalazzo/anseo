@@ -54,6 +54,32 @@ impl<'a> PromptRunRepo<'a> {
         Ok(row.id)
     }
 
+    /// Prompt Runs for a prompt with `started_at >= since` (Story 19.6
+    /// EngineInput window aggregation). Runtime `query_as` to keep the offline
+    /// `.sqlx/` cache untouched.
+    pub async fn list_by_prompt_since(
+        &self,
+        prompt_id: PromptId,
+        since: chrono::DateTime<chrono::Utc>,
+    ) -> Result<Vec<PromptRunRow>, Error> {
+        let pid = uuid::Uuid::from_bytes(prompt_id.into_ulid().to_bytes());
+        let rows = sqlx::query_as::<_, PromptRunRow>(
+            r#"
+            SELECT id, prompt_id, provider, provider_model_version, provider_region,
+                   started_at, finished_at, raw_response, request_parameters,
+                   status, error_kind, organization_id, tenant_id, created_at
+            FROM prompt_runs
+            WHERE prompt_id = $1 AND started_at >= $2
+            ORDER BY started_at, id
+            "#,
+        )
+        .bind(pid)
+        .bind(since)
+        .fetch_all(self.pool)
+        .await?;
+        Ok(rows)
+    }
+
     pub async fn get(&self, id: PromptRunId) -> Result<Option<PromptRunRow>, Error> {
         let row = sqlx::query_as!(
             PromptRunRow,

@@ -12,7 +12,7 @@ pub const DEFAULT_PROJECT_MONTHLY_CAP_USD: f64 = 50.0;
 /// Approximate average days/month used for cron projection.
 pub const AVERAGE_DAYS_PER_MONTH: f64 = 30.4375;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ModelCost {
     pub provider: ProviderName,
     pub model: &'static str,
@@ -28,7 +28,7 @@ pub struct CostProjection {
     pub projected_monthly_usd: f64,
 }
 
-pub fn default_model_cost(provider: ProviderName) -> ModelCost {
+pub fn default_model_cost(provider: &ProviderName) -> ModelCost {
     let usd_per_million_tokens = match provider {
         ProviderName::Openai => 7.50,
         ProviderName::Anthropic => 9.00,
@@ -37,15 +37,17 @@ pub fn default_model_cost(provider: ProviderName) -> ModelCost {
         ProviderName::Grok => 7.00,
         ProviderName::Mistral => 4.00,
         ProviderName::Openrouter => 7.50,
+        // Plugin providers are not part of first-party cost projection.
+        ProviderName::Plugin(_) => 0.0,
     };
     ModelCost {
-        provider,
+        provider: provider.clone(),
         model: provider.default_model(),
         usd_per_million_tokens,
     }
 }
 
-pub fn estimate_run_cost_usd(provider: ProviderName, estimated_tokens: u64) -> f64 {
+pub fn estimate_run_cost_usd(provider: &ProviderName, estimated_tokens: u64) -> f64 {
     let cost = default_model_cost(provider);
     (estimated_tokens as f64 / 1_000_000.0) * cost.usd_per_million_tokens
 }
@@ -58,7 +60,7 @@ pub fn project_monthly_cost(
     let runs_per_month = ticks_per_day * AVERAGE_DAYS_PER_MONTH * prompt_count as f64;
     let usd_per_tick: f64 = providers
         .iter()
-        .map(|provider| estimate_run_cost_usd(*provider, DEFAULT_ESTIMATED_TOKENS_PER_RUN))
+        .map(|provider| estimate_run_cost_usd(provider, DEFAULT_ESTIMATED_TOKENS_PER_RUN))
         .sum::<f64>()
         * prompt_count as f64;
     CostProjection {
@@ -66,7 +68,7 @@ pub fn project_monthly_cost(
         estimated_tokens_per_run: DEFAULT_ESTIMATED_TOKENS_PER_RUN,
         usd_per_run: providers
             .iter()
-            .map(|provider| estimate_run_cost_usd(*provider, DEFAULT_ESTIMATED_TOKENS_PER_RUN))
+            .map(|provider| estimate_run_cost_usd(provider, DEFAULT_ESTIMATED_TOKENS_PER_RUN))
             .sum(),
         projected_monthly_usd: usd_per_tick * AVERAGE_DAYS_PER_MONTH * ticks_per_day,
     }
@@ -80,7 +82,7 @@ mod tests {
     fn default_costs_cover_every_phase_2_provider() {
         for name in ProviderName::all_wire_names() {
             let provider = ProviderName::parse(name).unwrap();
-            let cost = default_model_cost(provider);
+            let cost = default_model_cost(&provider);
             assert_eq!(cost.provider, provider);
             assert_eq!(cost.model, provider.default_model());
             assert!(cost.usd_per_million_tokens > 0.0);

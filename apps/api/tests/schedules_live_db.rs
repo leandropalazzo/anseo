@@ -23,8 +23,8 @@ use sqlx::PgPool;
 use tower::ServiceExt;
 
 async fn seed() -> (axum::Router, String) {
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be exported for schedules_live_db");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be exported for schedules_live_db");
     let pool = PgPool::connect(&url).await.expect("connect");
     let storage = Arc::new(opengeo_storage::Storage::from_pool(pool.clone()));
     let project_id = ProjectId::new();
@@ -41,7 +41,12 @@ async fn seed() -> (axum::Router, String) {
         .expect("seed project");
     let key = gen_key();
     ApiKeyRepo::new(&pool)
-        .insert(project_id, "fixture-key", &key.sha256_hash, &key.display_prefix)
+        .insert(
+            project_id,
+            "fixture-key",
+            &key.sha256_hash,
+            &key.display_prefix,
+        )
         .await
         .expect("seed key");
     let (events, _rx) = opengeo_scheduler::worker::event_channel();
@@ -77,7 +82,11 @@ async fn req(
         }
         None => Body::empty(),
     };
-    let response = app.clone().oneshot(builder.body(body).unwrap()).await.unwrap();
+    let response = app
+        .clone()
+        .oneshot(builder.body(body).unwrap())
+        .await
+        .unwrap();
     let status = response.status();
     let bytes = to_bytes(response.into_body(), 256 * 1024).await.unwrap();
     let json = if bytes.is_empty() {
@@ -107,14 +116,28 @@ async fn create_get_update_delete_round_trip() {
         })),
     )
     .await;
-    assert_eq!(create_status, StatusCode::CREATED, "create response: {created}");
+    assert_eq!(
+        create_status,
+        StatusCode::CREATED,
+        "create response: {created}"
+    );
     assert_eq!(created["name"], "daily-mock");
     assert_eq!(created["cron"], "daily");
     assert_eq!(created["paused"], false);
-    assert!(created["projected_monthly_usd"].is_number(), "expected projected_monthly_usd");
+    assert!(
+        created["projected_monthly_usd"].is_number(),
+        "expected projected_monthly_usd"
+    );
     let id = created["id"].as_str().expect("id is string").to_string();
 
-    let (get_status, got) = req(&app, Method::GET, &format!("/v1/schedules/{id}"), &key, None).await;
+    let (get_status, got) = req(
+        &app,
+        Method::GET,
+        &format!("/v1/schedules/{id}"),
+        &key,
+        None,
+    )
+    .await;
     assert_eq!(get_status, StatusCode::OK);
     assert_eq!(got["id"], id);
 
@@ -129,10 +152,24 @@ async fn create_get_update_delete_round_trip() {
     assert_eq!(pause_status, StatusCode::OK);
     assert_eq!(paused["paused"], true);
 
-    let (del_status, _) = req(&app, Method::DELETE, &format!("/v1/schedules/{id}"), &key, None).await;
+    let (del_status, _) = req(
+        &app,
+        Method::DELETE,
+        &format!("/v1/schedules/{id}"),
+        &key,
+        None,
+    )
+    .await;
     assert_eq!(del_status, StatusCode::NO_CONTENT);
 
-    let (after_get_status, _) = req(&app, Method::GET, &format!("/v1/schedules/{id}"), &key, None).await;
+    let (after_get_status, _) = req(
+        &app,
+        Method::GET,
+        &format!("/v1/schedules/{id}"),
+        &key,
+        None,
+    )
+    .await;
     assert_eq!(after_get_status, StatusCode::NOT_FOUND);
 }
 
@@ -146,7 +183,14 @@ async fn duplicate_name_returns_409() {
         "prompts": ["vector-db"],
         "providers": ["openai"],
     });
-    let (first, _) = req(&app, Method::POST, "/v1/schedules", &key, Some(body.clone())).await;
+    let (first, _) = req(
+        &app,
+        Method::POST,
+        "/v1/schedules",
+        &key,
+        Some(body.clone()),
+    )
+    .await;
     assert_eq!(first, StatusCode::CREATED);
     let (second, payload) = req(&app, Method::POST, "/v1/schedules", &key, Some(body)).await;
     assert_eq!(second, StatusCode::CONFLICT);

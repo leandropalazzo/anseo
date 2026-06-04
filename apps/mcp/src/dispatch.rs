@@ -9,9 +9,7 @@ use ulid::Ulid;
 
 use crate::error::McpToolError;
 use crate::http_client::ApiClient;
-use crate::protocol::{
-    ErrorResponse, Id, Request, Response, INVALID_PARAMS, METHOD_NOT_FOUND,
-};
+use crate::protocol::{ErrorResponse, Id, Request, Response, INVALID_PARAMS, METHOD_NOT_FOUND};
 use crate::tools::{self, Tool};
 
 /// Output of dispatching one request — either a success or error response, or
@@ -24,8 +22,7 @@ pub enum Outbound {
 
 pub struct Dispatcher {
     tools: Vec<Box<dyn Tool>>,
-    /// Held for use by tool handlers (Story 16.2+); unused in 16.1 dispatch.
-    _api: ApiClient,
+    api: ApiClient,
     server_version: &'static str,
 }
 
@@ -33,7 +30,7 @@ impl Dispatcher {
     pub fn new(api: ApiClient) -> Self {
         Self {
             tools: tools::registry(),
-            _api: api,
+            api,
             server_version: env!("CARGO_PKG_VERSION"),
         }
     }
@@ -124,43 +121,42 @@ impl Dispatcher {
             ErrorResponse::new(id.clone(), INVALID_PARAMS, "missing params")
                 .with_data(json!({ "trace_id": trace_id }))
         })?;
-        let name = params
-            .get("name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                ErrorResponse::new(id.clone(), INVALID_PARAMS, "params.name missing")
-                    .with_data(json!({ "trace_id": trace_id }))
-            })?;
+        let name = params.get("name").and_then(|v| v.as_str()).ok_or_else(|| {
+            ErrorResponse::new(id.clone(), INVALID_PARAMS, "params.name missing")
+                .with_data(json!({ "trace_id": trace_id }))
+        })?;
         let args = params
             .get("arguments")
             .cloned()
             .unwrap_or(serde_json::Value::Null);
 
-        let tool = self.tools.iter().find(|t| t.name() == name).ok_or_else(|| {
-            ErrorResponse::new(
-                id.clone(),
-                METHOD_NOT_FOUND,
-                format!("unknown tool: {name}"),
-            )
-            .with_data(json!({ "trace_id": trace_id }))
-        })?;
+        let tool = self
+            .tools
+            .iter()
+            .find(|t| t.name() == name)
+            .ok_or_else(|| {
+                ErrorResponse::new(
+                    id.clone(),
+                    METHOD_NOT_FOUND,
+                    format!("unknown tool: {name}"),
+                )
+                .with_data(json!({ "trace_id": trace_id }))
+            })?;
 
-        match tool.call(args) {
+        match tool.call(args, &self.api) {
             Ok(value) => Ok(value),
-            Err(McpToolError::NotImplemented) => Err(ErrorResponse::new(
-                id,
-                METHOD_NOT_FOUND,
-                "tool not implemented",
-            )
-            .with_data(json!({ "trace_id": trace_id, "tool": name }))),
+            Err(McpToolError::NotImplemented) => {
+                Err(
+                    ErrorResponse::new(id, METHOD_NOT_FOUND, "tool not implemented")
+                        .with_data(json!({ "trace_id": trace_id, "tool": name })),
+                )
+            }
             Err(McpToolError::Upstream(env)) => {
                 let data = serde_json::to_value(&env).unwrap_or(json!({}));
-                Err(ErrorResponse::new(
-                    id,
-                    crate::protocol::INTERNAL_ERROR,
-                    env.message.clone(),
+                Err(
+                    ErrorResponse::new(id, crate::protocol::INTERNAL_ERROR, env.message.clone())
+                        .with_data(json!({ "trace_id": trace_id, "tool": name, "upstream": data })),
                 )
-                .with_data(json!({ "trace_id": trace_id, "tool": name, "upstream": data })))
             }
         }
     }

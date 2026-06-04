@@ -33,6 +33,17 @@ use crate::metrics_store::{
 /// without touching downstream code.
 pub const SCHEMA_DDL: &str = include_str!("./clickhouse_schema.sql");
 
+/// One pre-aggregated visibility row staged for insertion:
+/// `(project_id, prompt_name, provider, bucket_start, avg_rank, presence_rate)`.
+pub type VisibilityPointRow<'a> = (
+    opengeo_core::ProjectId,
+    &'a str,
+    &'a str,
+    DateTime<Utc>,
+    Option<f64>,
+    f64,
+);
+
 #[derive(Debug, thiserror::Error)]
 pub enum ClickHouseError {
     #[error("ClickHouse HTTP request failed")]
@@ -160,9 +171,8 @@ impl ClickHouseMetricsStore {
             if line.trim().is_empty() {
                 continue;
             }
-            let parsed: T = serde_json::from_str(line).map_err(|e| {
-                ClickHouseError::Decode(format!("line `{line}`: {e}"))
-            })?;
+            let parsed: T = serde_json::from_str(line)
+                .map_err(|e| ClickHouseError::Decode(format!("line `{line}`: {e}")))?;
             out.push(parsed);
         }
         Ok(out)
@@ -171,7 +181,7 @@ impl ClickHouseMetricsStore {
     /// Test-only seed helper. Inserts pre-aggregated visibility points.
     pub async fn seed_visibility_points(
         &self,
-        rows: &[(opengeo_core::ProjectId, &str, &str, DateTime<Utc>, Option<f64>, f64)],
+        rows: &[VisibilityPointRow<'_>],
     ) -> Result<(), ClickHouseError> {
         if rows.is_empty() {
             return Ok(());
@@ -271,11 +281,12 @@ impl MetricsStore for ClickHouseMetricsStore {
                AND visibility_points.bucket_start <= now() \
              ORDER BY visibility_points.bucket_start, provider"
         );
-        let raw: Vec<VisibilityPointRaw> = self.select(&sql).await.map_err(MetricsStoreError::from)?;
+        let raw: Vec<VisibilityPointRaw> =
+            self.select(&sql).await.map_err(MetricsStoreError::from)?;
         let mut out = Vec::with_capacity(raw.len());
         for row in raw {
-            let bucket_start = DateTime::<Utc>::from_timestamp(row.bucket_epoch, 0)
-                .ok_or_else(|| {
+            let bucket_start =
+                DateTime::<Utc>::from_timestamp(row.bucket_epoch, 0).ok_or_else(|| {
                     MetricsStoreError::from(ClickHouseError::Decode(format!(
                         "bucket_epoch {} is out of DateTime range",
                         row.bucket_epoch
@@ -308,7 +319,8 @@ impl MetricsStore for ClickHouseMetricsStore {
              ORDER BY SUM(citation_totals.frequency) DESC \
              LIMIT {limit}"
         );
-        let raw: Vec<CitationSummaryRaw> = self.select(&sql).await.map_err(MetricsStoreError::from)?;
+        let raw: Vec<CitationSummaryRaw> =
+            self.select(&sql).await.map_err(MetricsStoreError::from)?;
         let mut out = Vec::with_capacity(raw.len());
         for row in raw {
             let frequency: i64 = row.total_frequency.parse().map_err(|e| {

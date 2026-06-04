@@ -117,10 +117,7 @@ impl<'a> ApiKeyRepo<'a> {
     /// List rows visible to operators. Includes revoked rows for audit;
     /// callers can filter. Ordered by creation desc so the most recent key
     /// is first.
-    pub async fn list_for_project(
-        &self,
-        project_id: ProjectId,
-    ) -> Result<Vec<ApiKeyRow>, Error> {
+    pub async fn list_for_project(&self, project_id: ProjectId) -> Result<Vec<ApiKeyRow>, Error> {
         let rows = sqlx::query(
             r#"
             SELECT id, project_id, name, prefix, last_used_at,
@@ -154,10 +151,7 @@ impl<'a> ApiKeyRepo<'a> {
     /// `apps/api/src/main.rs` to gate non-loopback binds for THIS project —
     /// a key for an unrelated project must not unlock a public bind for a
     /// different project's API.
-    pub async fn count_active_for_project(
-        &self,
-        project_id: ProjectId,
-    ) -> Result<i64, Error> {
+    pub async fn count_active_for_project(&self, project_id: ProjectId) -> Result<i64, Error> {
         let row = sqlx::query(
             r#"
             SELECT COUNT(*) AS count

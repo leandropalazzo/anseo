@@ -101,7 +101,9 @@ fn validate_catches_invalid_name() {
     let mut m = good_manifest();
     m.name = "Has Spaces!".into();
     let errs = m.validate().unwrap_err();
-    assert!(errs.iter().any(|e| matches!(e, ValidationError::InvalidName(_))));
+    assert!(errs
+        .iter()
+        .any(|e| matches!(e, ValidationError::InvalidName(_))));
 }
 
 #[test]

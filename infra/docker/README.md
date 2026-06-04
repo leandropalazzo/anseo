@@ -26,6 +26,21 @@ docker compose ps          # confirm postgres + redis are healthy
 docker compose down        # tear down
 ```
 
+For day-to-day local deployment from the workspace root, prefer the deploy
+helper:
+
+```sh
+scripts/local-deploy.sh
+scripts/local-deploy.sh --plan
+scripts/local-deploy.sh --force-build
+```
+
+The helper checks that Docker is reachable, starts OrbStack on macOS when it is
+installed but not running, fingerprints the local inputs for `api`, `worker`,
+and `web`, rebuilds only stale app images, then brings the Compose stack up and
+waits for service health checks. Its fingerprint state lives under
+`.git/opengeo-local-deploy`, so it does not add working-tree files.
+
 ## Localhost-only by default
 
 All published ports bind to `127.0.0.1` (Story 1.4 AC). Override with the `OGEO_BIND_HOST` env var only after reading the privacy posture in the root `README.md`.

@@ -60,6 +60,7 @@ async fn seeded_router_and_project() -> (axum::Router, ProjectId, String) {
             project_id,
             name: "fixture-prompt".to_string(),
             text: "What is the best vector DB?".to_string(),
+            tags: Vec::new(),
             organization_id: None,
             tenant_id: None,
             created_at: now,
@@ -199,8 +200,7 @@ async fn live_provider_without_loaded_config_returns_503() {
 /// `ProviderUnauthorized` via `unregistered_record`. We assert the
 /// row lands in the DB with `status = "failed"` and that the API
 /// returns 202.
-async fn seeded_router_with_config_no_keys(
-) -> (axum::Router, ProjectId, String) {
+async fn seeded_router_with_config_no_keys() -> (axum::Router, ProjectId, String) {
     let database_url = std::env::var("DATABASE_URL")
         .expect("DATABASE_URL must be exported for the prompt_run_persist live-DB tests");
     let pool = sqlx::PgPool::connect(&database_url)
@@ -244,6 +244,7 @@ providers:
             project_id,
             name: "fixture-prompt".to_string(),
             text: "What is the best vector DB?".to_string(),
+            tags: Vec::new(),
             organization_id: None,
             tenant_id: None,
             created_at: now,
@@ -252,7 +253,12 @@ providers:
         .expect("seed prompt");
     let key = gen_key();
     ApiKeyRepo::new(&pool)
-        .insert(project_id, "fixture-key", &key.sha256_hash, &key.display_prefix)
+        .insert(
+            project_id,
+            "fixture-key",
+            &key.sha256_hash,
+            &key.display_prefix,
+        )
         .await
         .expect("seed api key");
 
@@ -267,8 +273,7 @@ providers:
     // building a registry and seed an empty one — that exercises the
     // same `unregistered_record` code path as the "no key" case.
     let (events, _rx) = opengeo_scheduler::worker::event_channel();
-    let empty_registry: opengeo_providers::ProviderRegistry =
-        std::collections::HashMap::new();
+    let empty_registry: opengeo_providers::ProviderRegistry = std::collections::HashMap::new();
     let state = AppState {
         storage,
         project_id,
@@ -312,8 +317,7 @@ async fn live_provider_without_key_persists_failed_row_and_returns_202() {
     assert_eq!(payload["project_id"], project_id.to_string());
     assert_eq!(payload["provider"], "openai");
 
-    let run_id: opengeo_core::PromptRunId =
-        payload["run_id"].as_str().unwrap().parse().unwrap();
+    let run_id: opengeo_core::PromptRunId = payload["run_id"].as_str().unwrap().parse().unwrap();
     let pool = sqlx::PgPool::connect(&std::env::var("DATABASE_URL").unwrap())
         .await
         .unwrap();
@@ -334,7 +338,11 @@ async fn live_provider_without_key_persists_failed_row_and_returns_202() {
 #[tokio::test]
 #[ignore = "requires DATABASE_URL + OPENAI_API_KEY"]
 async fn live_provider_with_key_round_trips() {
-    if std::env::var("OPENAI_API_KEY").ok().filter(|v| !v.is_empty()).is_none() {
+    if std::env::var("OPENAI_API_KEY")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .is_none()
+    {
         eprintln!("OPENAI_API_KEY not set; skipping live-provider test");
         return;
     }
@@ -374,6 +382,7 @@ providers:
             project_id,
             name: "fixture-prompt".to_string(),
             text: "Reply with the single word OK.".to_string(),
+            tags: Vec::new(),
             organization_id: None,
             tenant_id: None,
             created_at: now,
@@ -382,12 +391,17 @@ providers:
         .ok();
     let key = gen_key();
     ApiKeyRepo::new(&pool)
-        .insert(project_id, "live-key", &key.sha256_hash, &key.display_prefix)
+        .insert(
+            project_id,
+            "live-key",
+            &key.sha256_hash,
+            &key.display_prefix,
+        )
         .await
         .expect("seed key");
 
-    let registry = opengeo_providers::registry::build_real_registry(&cfg)
-        .expect("build real registry");
+    let registry =
+        opengeo_providers::registry::build_real_registry(&cfg).expect("build real registry");
     let (events, _rx) = opengeo_scheduler::worker::event_channel();
     let state = AppState {
         storage,

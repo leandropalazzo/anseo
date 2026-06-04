@@ -1,0 +1,112 @@
+/* OpenGEO Signal design tokens — Chunk UX-A foundation.
+ *
+ * Two themes (Signal-dark default, Signal-light) selected via
+ * `<html data-theme="dark" | "light">`. All component CSS reads
+ * `var(--name)` only — never raw hex.
+ *
+ * Source of truth: _bmad-output/planning-artifacts/ux-redesign-2026-05-29/
+ *   project/src/tokens.jsx (Signal sections).
+ *
+ * A11y rule (UX-DR): every provider color MUST be paired with the `█`
+ * density glyph in `<ProviderDot>` so color-blind operators can read it.
+ */
+
+:root,
+:root[data-theme="dark"] {
+  /* Typography */
+  --font-display: var(--font-jetbrains-mono), "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+  --font-body:    var(--font-jetbrains-mono), "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+  --font-mono:    var(--font-jetbrains-mono), "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
+  --font-serif:   var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+  --display-tracking: -0.02em;
+  --ui-tracking:      0.01em;
+  --label-transform:  uppercase;
+
+  /* Surfaces */
+  --bg:        #08090A;
+  --bg-elev:   #0E1012;
+  --bg-elev-2: #15181B;
+  --bg-sunken: #050506;
+
+  /* Text */
+  --text:       #E8E8E3;
+  --text-muted: #8B8C86;
+  /* WCAG 2.1 AA (1.4.3): faint labels (.label-eyebrow, table headers) must
+   * clear 4.5:1 against every elevation. #54564F was 2.39–2.68:1 — fails.
+   * #828379 is 4.64–5.19:1 across --bg / --bg-elev / --bg-elev-2. */
+  --text-faint: #828379;
+
+  /* Borders */
+  --border:        rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.36);
+  --hairline:      rgba(255, 255, 255, 0.04);
+
+  /* Accent — signal yellow */
+  --accent:      oklch(0.86 0.17 95);
+  --accent-ink:  #0A0A0A;
+  --accent-soft: oklch(0.86 0.17 95 / 0.12);
+
+  /* Semantic */
+  --ok:     oklch(0.74 0.14 155);
+  --warn:   oklch(0.78 0.16 70);
+  --danger: oklch(0.66 0.20 25);
+  --info:   oklch(0.70 0.13 230);
+
+  /* Metrics */
+  --radius:     0px;
+  --radius-sm:  0px;
+  --radius-lg:  0px;
+  --shadow:     none;
+  --shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --row-h:        28px;
+  --row-h-tight:  24px;
+  --density-x:    10px;
+  --density-y:    6px;
+  --font-size-base: 12px;
+  --font-size-sm:   11px;
+  --font-size-xs:   10px;
+
+  /* Provider colors (constant across themes). Pair with `█` glyph. */
+  --p-openai:     oklch(0.74 0.14 165);
+  --p-anthropic:  oklch(0.72 0.14 50);
+  --p-gemini:     oklch(0.70 0.17 255);
+  --p-perplexity: oklch(0.66 0.10 215);
+  --p-grok:       oklch(0.66 0.02 250);
+  --p-mistral:    oklch(0.72 0.16 30);
+  --p-openrouter: oklch(0.70 0.13 300);
+  --p-deepseek:   oklch(0.70 0.14 225);
+  /* Neutral fallback for unknown provider identities. */
+  --p-unknown:    oklch(0.60 0.01 250);
+}
+
+:root[data-theme="light"] {
+  --bg:        #FAFAF7;
+  --bg-elev:   #FFFFFF;
+  --bg-elev-2: #F2F0EA;
+  --bg-sunken: #F2EFE8;
+
+  --text:       #101012;
+  --text-muted: #5A5B57;
+  /* AA fix (was #9A9B95 = 2.46–2.80:1). #6B6C65 is 4.66–5.31:1 across
+   * the light --bg / --bg-elev / --bg-elev-2 surfaces. */
+  --text-faint: #6B6C65;
+
+  --border:        rgba(0, 0, 0, 0.14);
+  --border-strong: rgba(0, 0, 0, 0.42);
+  --hairline:      rgba(0, 0, 0, 0.05);
+
+  /* Signal yellow dimmed for legibility on cream: ~3.4:1 vs #FAFAF7,
+   * keeps focus/accent affordance visible without losing the brand hue. */
+  --accent:      oklch(0.62 0.16 95);
+  --accent-soft: oklch(0.62 0.16 95 / 0.22);
+  --shadow-pop:  0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+/* `prefers-reduced-motion` gate — components opt into pulses through
+ * `var(--motion-pulse, ...)` so disabling here suppresses them globally. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-pulse:   none;
+    --motion-fade-in: none;
+  }
+}

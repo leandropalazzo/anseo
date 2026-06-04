@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AuditOutput",
+  "type": "object",
+  "required": [
+    "findings",
+    "overall_score",
+    "pages_crawled",
+    "target",
+    "trace_id"
+  ],
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/AuditFindingRecord"
+      }
+    },
+    "gate_passed": {
+      "description": "Present only when `fail_on` was supplied.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "overall_score": {
+      "type": "integer",
+      "format": "uint8",
+      "minimum": 0.0
+    },
+    "pages_crawled": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "target": {
+      "type": "string"
+    },
+    "trace_id": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "AuditFindingRecord": {
+      "type": "object",
+      "required": [
+        "category",
+        "message",
+        "page_url",
+        "rule_id",
+        "severity",
+        "status"
+      ],
+      "properties": {
+        "category": {
+          "description": "`identity|extractability|corroboration`.",
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "page_url": {
+          "type": "string"
+        },
+        "rule_id": {
+          "type": "string"
+        },
+        "severity": {
+          "description": "`low|medium|high`.",
+          "type": "string"
+        },
+        "status": {
+          "description": "`pass|warn|fail`.",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -78,6 +78,10 @@ impl Storage {
         repositories::projects::ProjectRepo::new(&self.pool)
     }
 
+    pub fn audit(&self) -> repositories::audit::AuditRepo<'_> {
+        repositories::audit::AuditRepo::new(&self.pool)
+    }
+
     pub fn prompts(&self) -> repositories::prompts::PromptRepo<'_> {
         repositories::prompts::PromptRepo::new(&self.pool)
     }
@@ -94,13 +98,18 @@ impl Storage {
         repositories::citations::CitationRepo::new(&self.pool)
     }
 
+    /// Epic 34 — OSS claim + ground-truth storage. Premium evaluation lives in
+    /// the commercial hallucination crate and depends on this surface, not the
+    /// other way around.
+    pub fn brand_accuracy(&self) -> repositories::brand_accuracy::BrandAccuracyRepo<'_> {
+        repositories::brand_accuracy::BrandAccuracyRepo::new(&self.pool)
+    }
+
     pub fn api_keys(&self) -> repositories::api_keys::ApiKeyRepo<'_> {
         repositories::api_keys::ApiKeyRepo::new(&self.pool)
     }
 
-    pub fn webhook_deliveries(
-        &self,
-    ) -> repositories::webhook_deliveries::WebhookDeliveryRepo<'_> {
+    pub fn webhook_deliveries(&self) -> repositories::webhook_deliveries::WebhookDeliveryRepo<'_> {
         repositories::webhook_deliveries::WebhookDeliveryRepo::new(&self.pool)
     }
 
@@ -108,24 +117,25 @@ impl Storage {
         repositories::webhooks::WebhookRepo::new(&self.pool)
     }
 
-    pub fn benchmark_consent(
-        &self,
-    ) -> repositories::benchmark_consent::BenchmarkConsentRepo<'_> {
+    pub fn benchmark_consent(&self) -> repositories::benchmark_consent::BenchmarkConsentRepo<'_> {
         repositories::benchmark_consent::BenchmarkConsentRepo::new(&self.pool)
     }
 
     /// Story 0.12 — Epic 17 GEO Recommendations substrate. No callers
     /// yet; Epic 17 stories wire up the recommender producers.
-    pub fn recommendations(
-        &self,
-    ) -> repositories::recommendations::RecommendationsRepo<'_> {
+    pub fn recommendations(&self) -> repositories::recommendations::RecommendationsRepo<'_> {
         repositories::recommendations::RecommendationsRepo::new(&self.pool)
     }
 
     /// Story 0.12 — Epic 19 Plugin SDK install/uninstall audit log.
-    pub fn plugin_installs(
-        &self,
-    ) -> repositories::plugin_installs::PluginInstallsRepo<'_> {
+    pub fn plugin_installs(&self) -> repositories::plugin_installs::PluginInstallsRepo<'_> {
         repositories::plugin_installs::PluginInstallsRepo::new(&self.pool)
+    }
+
+    /// Story 31-3 — per-run provenance / lifecycle-step audit log. Written by
+    /// the orchestrator write path (`persist_records`), read by
+    /// `GET /runs/:id/provenance`.
+    pub fn run_provenance(&self) -> repositories::run_provenance::RunProvenanceRepo<'_> {
+        repositories::run_provenance::RunProvenanceRepo::new(&self.pool)
     }
 }

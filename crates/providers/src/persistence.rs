@@ -63,6 +63,7 @@ pub async fn persist_records(
                 project_id,
                 name: prompt.name.clone(),
                 text: prompt.text.clone(),
+                tags: Vec::new(),
                 organization_id: None,
                 tenant_id: None,
                 created_at: Utc::now(),
@@ -71,7 +72,7 @@ pub async fn persist_records(
         .await?;
     }
 
-    // 3. Prompt run inserts.
+    // 3. Prompt run inserts + provenance capture (Story 31-3).
     let mut out = Vec::with_capacity(records.len());
     for record in records {
         let row = PromptRunRow {
@@ -91,12 +92,87 @@ pub async fn persist_records(
             created_at: Utc::now(),
         };
         let id = storage.prompt_runs().insert(&row).await?;
+        record_provenance(storage, id, record).await?;
         out.push(PersistedRun {
             run_id: id,
             status: record.status,
         });
     }
     Ok(out)
+}
+
+/// Append the lifecycle provenance trail for one persisted run (Story 31-3).
+///
+/// This is the canonical run write path, but it is intentionally additive —
+/// it records the stages that are *cleanly reachable here* and marks the rest
+/// `skipped` rather than restructuring the orchestrator:
+///
+/// - `provider_call`      — `ok` when the orchestrator produced a successful
+///   record, `error` when the provider call failed (carries `error_kind`).
+/// - `response_persisted` — `ok`; the `prompt_runs` row was just inserted.
+/// - `mention_extraction` / `citation_extraction` / `ranking` — recorded as
+///   `skipped`. Mention/citation extraction (Story 3.2) is not yet invoked in
+///   this write path (`opengeo-providers` does not depend on
+///   `opengeo-extractors`), so there is no real count to attach. The rows are
+///   emitted so the provenance trail enumerates every lifecycle stage; once
+///   extraction lands here they flip to `ok` with a `count` in `detail`.
+///
+/// Provenance is best-effort instrumentation: a failure to write a step is
+/// surfaced like any other storage error so a real bug isn't swallowed, but it
+/// does not invent rows for stages that didn't run.
+async fn record_provenance(
+    storage: &Storage,
+    run_id: opengeo_core::PromptRunId,
+    record: &PromptRunRecord,
+) -> Result<(), opengeo_storage::Error> {
+    use opengeo_storage::repositories::run_provenance::StepStatus;
+    let prov = storage.run_provenance();
+
+    // provider_call — ok on success, error on a provider failure.
+    match record.status {
+        PromptRunStatus::Ok => {
+            prov.record(
+                run_id,
+                "provider_call",
+                StepStatus::Ok,
+                serde_json::json!({ "provider": record.provider.as_wire_str() }),
+            )
+            .await?;
+        }
+        PromptRunStatus::Failed => {
+            prov.record(
+                run_id,
+                "provider_call",
+                StepStatus::Error,
+                serde_json::json!({
+                    "provider": record.provider.as_wire_str(),
+                    "error_kind": record.error_kind.map(|k| k.as_wire_str()),
+                }),
+            )
+            .await?;
+        }
+    }
+
+    // response_persisted — the prompt_runs row was inserted just above.
+    prov.record(
+        run_id,
+        "response_persisted",
+        StepStatus::Ok,
+        serde_json::json!({ "status": record.status.as_wire_str() }),
+    )
+    .await?;
+
+    // Extraction + ranking are not invoked in this write path yet (Story 3.2);
+    // record them as skipped so the lifecycle trail is complete and honest.
+    let skipped_note = serde_json::json!({
+        "reason": "extraction not invoked in run write path (story 3.2 pending)"
+    });
+    for step in ["mention_extraction", "citation_extraction", "ranking"] {
+        prov.record(run_id, step, StepStatus::Skipped, skipped_note.clone())
+            .await?;
+    }
+
+    Ok(())
 }
 
 async fn upsert_project(storage: &Storage, row: &ProjectRow) -> Result<(), opengeo_storage::Error> {

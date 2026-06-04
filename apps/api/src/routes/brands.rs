@@ -51,48 +51,55 @@ async fn list_brands(
     Extension(AuthenticatedProject(project_id)): Extension<AuthenticatedProject>,
     State(state): State<AppState>,
 ) -> Result<Json<BrandsResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let Some(config) = state.config.as_ref() else {
-        return Err((
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(serde_json::json!({
-                "error": "config_unavailable",
-                "message": "API server booted without a readable `opengeo.yaml`; brand list cannot be resolved.",
-            })),
-        ));
-    };
-
-    // Build the declaration set: primary brand first, then competitors
-    // in YAML order. Variants are matched in addition to canonical names
-    // for the counts query (FR-3 "configurable name variants per entity").
+    // Build the declaration set: primary brand first, then competitors. The DB
+    // `projects` row is authoritative per-project (multi-project: the resolved
+    // project's brand, not a single boot-pinned one); fall back to the boot
+    // `opengeo.yaml` only when no row exists yet.
     let mut declared: Vec<(String, bool, Vec<String>)> = Vec::new();
-    declared.push((
-        config.brand.name.clone(),
-        true,
-        config.brand.variants.clone(),
-    ));
-    for comp in &config.competitors {
-        declared.push((comp.name.clone(), false, comp.variants.clone()));
+    match state.storage.projects().get_brand(project_id).await {
+        Ok(Some(row)) => {
+            declared.push((row.name.clone(), true, row.variants.clone()));
+            let comps: Vec<opengeo_core::CompetitorConfig> =
+                serde_json::from_value(row.competitors).unwrap_or_default();
+            for comp in comps {
+                declared.push((comp.name, false, comp.variants));
+            }
+        }
+        _ => {
+            let Some(config) = state.config.as_ref() else {
+                return Err((
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(serde_json::json!({
+                        "error": "config_unavailable",
+                        "message": "no project brand row and no readable `opengeo.yaml`; brand list cannot be resolved.",
+                    })),
+                ));
+            };
+            declared.push((
+                config.brand.name.clone(),
+                true,
+                config.brand.variants.clone(),
+            ));
+            for comp in &config.competitors {
+                declared.push((comp.name.clone(), false, comp.variants.clone()));
+            }
+        }
     }
 
     let mut items = Vec::with_capacity(declared.len());
     for (canonical_name, is_primary, variants) in declared {
-        let stats = fetch_brand_stats(
-            &state.storage,
-            project_id,
-            &canonical_name,
-            &variants,
-        )
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, brand = %canonical_name, "brand stats fetch failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": "internal_error",
-                    "message": "brand stats fetch failed",
-                })),
-            )
-        })?;
+        let stats = fetch_brand_stats(&state.storage, project_id, &canonical_name, &variants)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, brand = %canonical_name, "brand stats fetch failed");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({
+                        "error": "internal_error",
+                        "message": "brand stats fetch failed",
+                    })),
+                )
+            })?;
         items.push(BrandEntry {
             name: canonical_name,
             is_primary,
@@ -120,11 +127,10 @@ async fn fetch_brand_stats(
     // Case-insensitive set: canonical + variants (lowercased) for ANY()
     // membership. The `mentions.entity` column is the raw extracted
     // string — we match against the operator-declared aliases.
-    let mut match_set: Vec<String> =
-        std::iter::once(canonical_name.to_string())
-            .chain(variants.iter().cloned())
-            .map(|s| s.to_lowercase())
-            .collect();
+    let mut match_set: Vec<String> = std::iter::once(canonical_name.to_string())
+        .chain(variants.iter().cloned())
+        .map(|s| s.to_lowercase())
+        .collect();
     match_set.sort();
     match_set.dedup();
 
@@ -150,14 +156,14 @@ async fn fetch_brand_stats(
 
     let prov_rows = sqlx::query(
         r#"
-        SELECT DISTINCT pr.provider AS provider
+        SELECT DISTINCT pr.provider_identity AS provider
         FROM mentions m
         JOIN prompt_runs pr ON pr.id = m.prompt_run_id
         JOIN prompts     p  ON p.id  = pr.prompt_id
         WHERE p.project_id = $1
           AND pr.started_at >= now() - INTERVAL '7 days'
           AND LOWER(m.entity) = ANY($2)
-        ORDER BY pr.provider
+        ORDER BY pr.provider_identity
         "#,
     )
     .bind(project_id)

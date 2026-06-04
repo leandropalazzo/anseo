@@ -1,6 +1,6 @@
 [package]
 name = "opengeo-scheduler"
-version = "0.5.0"
+version = "0.6.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -16,10 +16,12 @@ live_db_tests = []
 opengeo-core = { path = "../core", features = ["sqlx"] }
 opengeo-providers = { path = "../providers" }
 opengeo-storage = { path = "../storage" }
+opengeo-extractors = { path = "../extractors" }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
+chrono-tz = { workspace = true }
 uuid = { workspace = true }
 ulid = { workspace = true }
 sqlx = { workspace = true }

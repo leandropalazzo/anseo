@@ -18,7 +18,9 @@ pub enum PluginType {
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
-#[error("unknown plugin type: `{0}` (expected one of: provider, extractor, analytics, output-format)")]
+#[error(
+    "unknown plugin type: `{0}` (expected one of: provider, extractor, analytics, output-format)"
+)]
 pub struct PluginTypeParseError(pub String);
 
 impl FromStr for PluginType {
