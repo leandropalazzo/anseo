@@ -123,8 +123,6 @@ pub fn router(state: AppState) -> Router {
 
     // Premium surface — only compiled into the `pro` build. The default OSS
     // build never references the entitlement-gated hallucination evaluator.
-    #[cfg(feature = "pro")]
-    let v1_routes = v1_routes.merge(routes::hallucination::v1_router());
 
     let v1_surface = v1_routes
         // Story 0.11 — X-OpenGEO-Project header substrate. Layered

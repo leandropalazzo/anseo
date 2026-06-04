@@ -8,8 +8,6 @@ pub mod citations;
 pub mod comparisons;
 pub mod crawlers;
 pub mod events;
-#[cfg(feature = "pro")]
-pub mod hallucination;
 pub mod health;
 pub mod mcp;
 pub mod projects;
