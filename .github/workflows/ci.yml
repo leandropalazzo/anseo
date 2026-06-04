@@ -51,18 +51,29 @@ jobs:
       rust: ${{ steps.filter.outputs.rust }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
         with:
-          filters: |
-            rust:
-              - 'crates/**'
-              - 'apps/api/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'rust-toolchain.toml'
-              - '.sqlx/**'
-              - '.github/workflows/ci.yml'
+          fetch-depth: 0
+      # API-free change detection: git diff needs no token scope (unlike
+      # dorny/paths-filter, whose PR-API call requires pull-requests:read and
+      # fails under a read-capped GITHUB_TOKEN, silently skipping the rust jobs).
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then echo "rust=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$EVENT" = "pull_request" ]; then base="$BASE_SHA"; else base="$BEFORE"; fi
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)"
+          fi
+          changed="$(git diff --name-only "$base" HEAD)"
+          echo "changed files:"; echo "$changed"
+          rust=false
+          if echo "$changed" | grep -qE '^(crates/|apps/(api|cli|worker|mcp)/|Cargo\.(toml|lock)|rust-toolchain\.toml|\.sqlx/|\.github/workflows/)'; then rust=true; fi
+          echo "rust=$rust" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
   # Rust lint (fmt + clippy)
