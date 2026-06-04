@@ -78,6 +78,78 @@ impl From<SecretStoreError> for crate::OpenGeoError {
     }
 }
 
+// ---------- Provider-secret key namespacing (Story 36.7) ----------
+//
+// Provider API keys were originally keyed in ONE global namespace by the bare
+// `provider` wire name (e.g. `"openai"`). Multi-project (Epic 36) needs each
+// project to carry its own provider credentials, so we introduce a
+// project-scoped key:
+//
+//     "<project_id>:<provider>"
+//
+// The legacy bare-`provider` key is retained as a back-compat READ fallback so
+// existing single-project deployments keep resolving (see
+// [`get_provider_secret`]).
+//
+// IMPORTANT: this namespace is intentionally DISTINCT from the benchmark
+// envelope-encryption KEK namespace (Story 39.1), which keys KEKs as
+// `"benchmark-kek:<project_id>"`. Provider keys lead with the raw `ProjectId`
+// (a ULID), and a ULID can never equal the literal `"benchmark-kek"`, so the
+// two namespaces can never alias one another. The constant below records the
+// reserved benchmark prefix so this invariant is documented at the provider
+// call site too.
+
+/// Reserved key prefix owned by the benchmark KEK namespace (Story 39.1,
+/// `crates/benchmark/src/crypto.rs`). Provider-secret keys MUST NOT use this
+/// prefix; the project-scoped provider key shape (`<project_id>:<provider>`)
+/// cannot collide with it because a `ProjectId` is a ULID and never equals the
+/// literal `"benchmark-kek"`.
+pub const BENCHMARK_KEK_KEY_PREFIX: &str = "benchmark-kek";
+
+/// Build the project-scoped storage key for a provider secret.
+///
+/// The shape is `"<project_id>:<provider>"`. Use this everywhere a
+/// project-scoped provider secret is read or written so the namespacing stays
+/// consistent across the CLI, API, and worker.
+pub fn provider_secret_key(project_id: &str, provider: &str) -> String {
+    format!("{project_id}:{provider}")
+}
+
+/// Read a provider secret with project-scoped → legacy-global fallback.
+///
+/// Resolution order:
+/// 1. Project-scoped key `"<project_id>:<provider>"`.
+/// 2. Legacy global key `"<provider>"` (back-compat for deployments that
+///    stored keys before per-project keying existed).
+///
+/// Returns [`SecretStoreError::NotFound`] (naming the bare `provider`) only
+/// when neither key resolves. Any non-`NotFound` store error short-circuits.
+pub fn get_provider_secret(
+    store: &dyn SecretStore,
+    project_id: &str,
+    provider: &str,
+) -> Result<Secret, SecretStoreError> {
+    let scoped = provider_secret_key(project_id, provider);
+    match store.get(&scoped) {
+        Ok(s) => Ok(s),
+        Err(SecretStoreError::NotFound { .. }) => store.get(provider),
+        Err(other) => Err(other),
+    }
+}
+
+/// Write a provider secret under the project-scoped namespace.
+///
+/// Writes always target the project-scoped key; the legacy global key is never
+/// written (it only exists as a read fallback for pre-existing deployments).
+pub fn set_provider_secret(
+    store: &dyn SecretStore,
+    project_id: &str,
+    provider: &str,
+    secret: Secret,
+) -> Result<(), SecretStoreError> {
+    store.set(&provider_secret_key(project_id, provider), secret)
+}
+
 /// Common interface every secret backend implements.
 pub trait SecretStore: Send + Sync {
     fn get(&self, provider: &str) -> Result<Secret, SecretStoreError>;
@@ -1062,5 +1134,104 @@ mod tests {
             Some(v) => std::env::set_var(AGE_PASSPHRASE_ENV, v),
             None => std::env::remove_var(AGE_PASSPHRASE_ENV),
         }
+    }
+
+    // ---------- Provider-secret keying (Story 36.7) ----------
+
+    #[test]
+    fn provider_secret_key_shape() {
+        assert_eq!(provider_secret_key("proj-a", "openai"), "proj-a:openai");
+    }
+
+    #[test]
+    fn provider_secret_project_scoped_isolation() {
+        // Two projects store the same provider under their own namespaces; a
+        // read for one project must never see the other's key.
+        let store = InMemoryStore::new();
+        set_provider_secret(&store, "proj-a", "openai", Secret::new("sk-a")).unwrap();
+        set_provider_secret(&store, "proj-b", "openai", Secret::new("sk-b")).unwrap();
+
+        assert_eq!(
+            get_provider_secret(&store, "proj-a", "openai")
+                .unwrap()
+                .expose(),
+            "sk-a"
+        );
+        assert_eq!(
+            get_provider_secret(&store, "proj-b", "openai")
+                .unwrap()
+                .expose(),
+            "sk-b"
+        );
+    }
+
+    #[test]
+    fn provider_secret_missing_for_unconfigured_project() {
+        let store = InMemoryStore::new();
+        set_provider_secret(&store, "proj-a", "openai", Secret::new("sk-a")).unwrap();
+        assert!(matches!(
+            get_provider_secret(&store, "proj-b", "openai"),
+            Err(SecretStoreError::NotFound { .. })
+        ));
+    }
+
+    #[test]
+    fn provider_secret_legacy_global_fallback() {
+        // A key stored under the legacy bare-provider namespace (pre-36.7) must
+        // still resolve for any project via the read fallback.
+        let store = InMemoryStore::new();
+        store.set("openai", Secret::new("sk-legacy")).unwrap();
+
+        assert_eq!(
+            get_provider_secret(&store, "any-project", "openai")
+                .unwrap()
+                .expose(),
+            "sk-legacy"
+        );
+    }
+
+    #[test]
+    fn provider_secret_scoped_wins_over_legacy() {
+        // When BOTH a project-scoped key and a legacy global key exist, the
+        // project-scoped one takes precedence.
+        let store = InMemoryStore::new();
+        store.set("openai", Secret::new("sk-legacy")).unwrap();
+        set_provider_secret(&store, "proj-a", "openai", Secret::new("sk-scoped")).unwrap();
+
+        assert_eq!(
+            get_provider_secret(&store, "proj-a", "openai")
+                .unwrap()
+                .expose(),
+            "sk-scoped"
+        );
+    }
+
+    #[test]
+    fn provider_and_benchmark_kek_namespaces_do_not_collide() {
+        // The benchmark KEK keys as `benchmark-kek:<project_id>`; provider
+        // secrets key as `<project_id>:<provider>`. Even when the same project
+        // id is used, the two keys are distinct strings and writing one must
+        // not affect reads of the other.
+        let store = InMemoryStore::new();
+        let project_id = "proj-shared";
+
+        // Provider secret write.
+        set_provider_secret(&store, project_id, "openai", Secret::new("sk-provider")).unwrap();
+        // Simulate a benchmark KEK write under its own namespace.
+        let kek_key = format!("{BENCHMARK_KEK_KEY_PREFIX}:{project_id}");
+        store.set(&kek_key, Secret::new("kek-material")).unwrap();
+
+        // Provider read returns the provider secret, not the KEK.
+        assert_eq!(
+            get_provider_secret(&store, project_id, "openai")
+                .unwrap()
+                .expose(),
+            "sk-provider"
+        );
+        // KEK read returns the KEK, not the provider secret.
+        assert_eq!(store.get(&kek_key).unwrap().expose(), "kek-material");
+
+        // And the two keys are genuinely different strings.
+        assert_ne!(provider_secret_key(project_id, "openai"), kek_key);
     }
 }

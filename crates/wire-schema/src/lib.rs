@@ -16,6 +16,7 @@
 
 pub mod error;
 pub mod mcp;
+pub mod parity;
 pub mod webhook;
 
 pub use error::{ApiError, ErrorEnvelope};

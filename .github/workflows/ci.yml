@@ -1,0 +1,174 @@
+# =============================================================================
+# PUBLIC LEAN WORKFLOW — ships to the public `opengeo` OSS repo
+#
+# This file is managed by scripts/publish-public.sh (opengeo-workspace).
+# It is installed as `.github/workflows/ci.yml` in the public `opengeo` repo
+# instead of copying the full `test.yml` suite (which contains workspace-only
+# jobs, premium coverage instrumentation, Playwright shards, and compose
+# smoke tests that require internal infrastructure).
+#
+# What it gates:
+#   1. OSS builds & tests green standalone (cargo build + cargo test)
+#   2. Story 38.0 leak-guard contract: no premium symbols must be reachable
+#      from the OSS crate graph
+#   3. Release signing hook on tag pushes
+#
+# What it deliberately OMITS (workspace-only):
+#   - rust-coverage (llvm rebuild, 15+ min, needs workspace secrets)
+#   - web-e2e-full  (2 Playwright shards, needs full app stack)
+#   - compose-smoke (needs internal infra images)
+#   - workspace-internal SDK jobs not relevant to OSS consumers
+# =============================================================================
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: 0
+  SQLX_OFFLINE: "true"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Path-filter: skip Rust jobs on docs/web-only changes
+  # ---------------------------------------------------------------------------
+  paths-filter:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'crates/**'
+              - 'apps/api/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+              - '.sqlx/**'
+              - '.github/workflows/ci.yml'
+
+  # ---------------------------------------------------------------------------
+  # Rust lint (fmt + clippy)
+  # ---------------------------------------------------------------------------
+  rust-lint:
+    name: Rust — fmt + clippy
+    runs-on: ubuntu-latest
+    needs: paths-filter
+    if: needs.paths-filter.outputs.rust == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      - name: install libdbus + pkg-config
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libdbus-1-dev pkg-config
+      - uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # Rust build + test (OSS standalone gate — Story 38.0 leak-guard contract)
+  # ---------------------------------------------------------------------------
+  rust-test:
+    name: Rust — cargo build + test
+    runs-on: ubuntu-latest
+    needs: paths-filter
+    if: needs.paths-filter.outputs.rust == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: opengeo
+          POSTGRES_PASSWORD: opengeo
+          POSTGRES_DB: opengeo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U opengeo -d opengeo_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://opengeo:opengeo@localhost:5432/opengeo_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: install libdbus + pkg-config
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libdbus-1-dev pkg-config
+      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo build --workspace
+        run: cargo build --workspace --locked
+      - name: cargo test --workspace
+        run: cargo test --workspace --locked
+
+  # ---------------------------------------------------------------------------
+  # Release signing hook — fires on tag pushes only
+  # Placeholder: replace with actual signing step (cosign / minisign / etc.)
+  # when the release pipeline is wired up.
+  # ---------------------------------------------------------------------------
+  release-sign:
+    name: Release — signing hook
+    runs-on: ubuntu-latest
+    needs: [rust-lint, rust-test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+      - name: verify tag annotation
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          echo "Preparing release for tag: $tag"
+          git tag -v "$tag" 2>/dev/null || echo "::notice::Tag is not GPG-signed; add cosign/minisign step here."
+      - name: placeholder — add release artifact signing here
+        run: |
+          echo "::notice::Wire cosign/minisign artifact signing in this step."
+
+  # ---------------------------------------------------------------------------
+  # CI gate — required status check for branch protection
+  # Skipped jobs (path-filtered) are treated as success.
+  # ---------------------------------------------------------------------------
+  ci-summary:
+    name: CI summary
+    runs-on: ubuntu-latest
+    needs: [paths-filter, rust-lint, rust-test]
+    if: always()
+    steps:
+      - name: gate
+        run: |
+          echo "paths-filter: ${{ needs.paths-filter.result }}"
+          echo "rust-lint:    ${{ needs.rust-lint.result }}"
+          echo "rust-test:    ${{ needs.rust-test.result }}"
+
+          # Required jobs: fail if they ran and failed/cancelled.
+          # "skipped" = path filter excluded them — acceptable.
+          if [[ "${{ needs.rust-lint.result }}" == "failure" || \
+                "${{ needs.rust-lint.result }}" == "cancelled" || \
+                "${{ needs.rust-test.result }}" == "failure" || \
+                "${{ needs.rust-test.result }}" == "cancelled" ]]; then
+            echo "::error::A required job failed or was cancelled."
+            exit 1
+          fi
+
+          echo "CI gate: all required jobs passed."

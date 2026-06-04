@@ -10,20 +10,33 @@
 //!   inside this function and only expose to the backend write path.
 
 use std::io::Read;
+use std::path::PathBuf;
 
 use clap::Args;
 use opengeo_core::{
-    default_chain, OpenGeoError, ProviderName, Secret, SecretStore, SecretStoreError,
+    default_chain, set_provider_secret, Config, OpenGeoError, ProviderName, Secret, SecretStore,
+    SecretStoreError,
 };
 
 #[derive(Debug, Args)]
 pub struct LoginArgs {
     /// Provider to authenticate.
     pub provider: String,
+
+    /// Path to `opengeo.yaml`, used to resolve the current project so the key
+    /// is stored under that project's namespace. Defaults to `./opengeo.yaml`.
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+
+    /// Explicit project id to store the key under, overriding the project
+    /// derived from `opengeo.yaml`. Useful for scripted multi-project setups.
+    #[arg(long)]
+    pub project: Option<String>,
 }
 
 pub fn run(args: LoginArgs) -> Result<(), OpenGeoError> {
     let provider = parse_provider(&args.provider)?;
+    let project_id = resolve_project_id(&args)?;
     let store = default_chain();
     let raw = read_secret_from_user(&provider)?;
 
@@ -34,15 +47,66 @@ pub fn run(args: LoginArgs) -> Result<(), OpenGeoError> {
     }
 
     let secret = Secret::new(raw);
-    store
-        .set(&provider.as_wire_str(), secret)
-        .map_err(map_store_err)?;
+    match &project_id {
+        // Story 36.7: store under the project-scoped namespace so each project
+        // carries its own provider credentials. The provider-registry read path
+        // prefers this key and falls back to the legacy global key.
+        Some(pid) => set_provider_secret(&store, pid, &provider.as_wire_str(), secret)
+            .map_err(map_store_err)?,
+        // No project could be resolved (no `opengeo.yaml`, no `--project`).
+        // Fall back to the legacy global namespace so a project-less setup keeps
+        // working exactly as before per-project keying existed.
+        None => store
+            .set(&provider.as_wire_str(), secret)
+            .map_err(map_store_err)?,
+    }
 
-    eprintln!(
-        "Stored `{provider}` API key via `{}` backend.",
-        store.backend_name()
-    );
+    match &project_id {
+        Some(pid) => eprintln!(
+            "Stored `{provider}` API key for project `{pid}` via `{}` backend.",
+            store.backend_name()
+        ),
+        None => eprintln!(
+            "Stored `{provider}` API key (global, no project resolved) via `{}` backend.",
+            store.backend_name()
+        ),
+    }
     Ok(())
+}
+
+/// Resolve the project id the key should be stored under.
+///
+/// Precedence:
+/// 1. An explicit `--project <id>` flag.
+/// 2. The `ProjectId` derived from `opengeo.yaml` (default `./opengeo.yaml`,
+///    or the path given by `--config`).
+///
+/// Returns `Ok(None)` when no config is present and no `--project` was given —
+/// the caller then stores the key under the legacy global namespace so a
+/// project-less setup keeps working. An explicitly-pointed `--config` that
+/// fails to load IS surfaced as an error (the user asked for that file).
+fn resolve_project_id(args: &LoginArgs) -> Result<Option<String>, OpenGeoError> {
+    if let Some(explicit) = &args.project {
+        return Ok(Some(explicit.clone()));
+    }
+    match &args.config {
+        Some(path) => {
+            let config = Config::from_path(path).map_err(|e| {
+                OpenGeoError::Auth(format!(
+                    "could not resolve the current project from `{}`: {e}. \
+                     Pass a valid `--config <path>` or `--project <id>`.",
+                    path.display()
+                ))
+            })?;
+            Ok(Some(config.project_id().to_string()))
+        }
+        // Default path: best-effort. Missing/invalid `opengeo.yaml` falls back
+        // to global keying rather than failing the login.
+        None => match Config::from_path(PathBuf::from("opengeo.yaml")) {
+            Ok(config) => Ok(Some(config.project_id().to_string())),
+            Err(_) => Ok(None),
+        },
+    }
 }
 
 fn parse_provider(s: &str) -> Result<ProviderName, OpenGeoError> {

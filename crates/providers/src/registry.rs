@@ -23,7 +23,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use opengeo_core::{default_chain, Config, ProviderName, Secret, SecretStore, SecretStoreError};
+use opengeo_core::{
+    default_chain, get_provider_secret, Config, ProviderName, Secret, SecretStoreError,
+};
 
 use crate::{
     gemini::GeminiProvider,
@@ -34,14 +36,22 @@ use crate::{
     AnthropicProvider, OpenAiProvider, Provider, ProviderRegistry,
 };
 
-/// Resolve the API secret for `provider` from env override or the default
-/// keychain chain. Returns `Ok(None)` when no secret is configured — callers
-/// should skip registering a client, letting the orchestrator synthesise a
-/// `failed` record via `unregistered_record`.
+/// Resolve the API secret for `provider`, scoped to `project_id` (Story 36.7).
 ///
-/// Any non-`NotFound` store error is surfaced as `Err`.
+/// Resolution order:
+/// 1. The provider's env-var override (process-global; env vars are not
+///    per-project). Useful in CI without touching the keychain.
+/// 2. The project-scoped keychain key `"<project_id>:<provider>"`.
+/// 3. The legacy global keychain key `"<provider>"` (back-compat for
+///    deployments that stored keys before per-project keying existed).
+///
+/// Returns `Ok(None)` when no secret is configured — callers should skip
+/// registering a client, letting the orchestrator synthesise a `failed` record
+/// via `unregistered_record`. Any non-`NotFound` store error is surfaced as
+/// `Err`.
 pub fn resolve_provider_secret(
     provider: &ProviderName,
+    project_id: &str,
 ) -> Result<Option<Secret>, SecretStoreError> {
     let env_var = env_var_for(provider);
     if let Ok(v) = std::env::var(env_var) {
@@ -50,7 +60,8 @@ pub fn resolve_provider_secret(
         }
     }
     let store = default_chain();
-    match store.get(&provider.as_wire_str()) {
+    // Project-scoped key first, then fall back to the legacy global key.
+    match get_provider_secret(&store, project_id, &provider.as_wire_str()) {
         Ok(s) => Ok(Some(s)),
         Err(SecretStoreError::NotFound { .. }) => Ok(None),
         Err(other) => Err(other),
@@ -118,6 +129,11 @@ fn build_client(name: &ProviderName, secret: Secret) -> Arc<dyn Provider> {
 ///    never listed in `opengeo.yaml` — the previous behaviour silently ignored
 ///    such keys. Handlers source the model from `ProviderName::default_model`.
 pub fn build_real_registry(config: &Config) -> Result<ProviderRegistry, SecretStoreError> {
+    // Story 36.7: provider secrets are keyed per project. Derive the project
+    // identity from the config (the same stable `ProjectId` used elsewhere) so
+    // each project resolves its own keys, with a back-compat fall through to
+    // legacy global keys inside `resolve_provider_secret`.
+    let project_id = config.project_id().to_string();
     let mut registry: ProviderRegistry = HashMap::new();
     for provider_cfg in &config.providers {
         // Plugin providers are registered by the plugin loader, not from the
@@ -125,7 +141,7 @@ pub fn build_real_registry(config: &Config) -> Result<ProviderRegistry, SecretSt
         if provider_cfg.name.is_plugin() {
             continue;
         }
-        let Some(secret) = resolve_provider_secret(&provider_cfg.name)? else {
+        let Some(secret) = resolve_provider_secret(&provider_cfg.name, &project_id)? else {
             tracing::warn!(
                 provider = %provider_cfg.name,
                 env_var = env_var_for(&provider_cfg.name),
@@ -145,7 +161,7 @@ pub fn build_real_registry(config: &Config) -> Result<ProviderRegistry, SecretSt
         if registry.contains_key(&name) {
             continue;
         }
-        if let Some(secret) = resolve_provider_secret(&name)? {
+        if let Some(secret) = resolve_provider_secret(&name, &project_id)? {
             tracing::info!(
                 provider = %name,
                 "registering provider from stored key (not declared in config)"
@@ -154,7 +170,9 @@ pub fn build_real_registry(config: &Config) -> Result<ProviderRegistry, SecretSt
         }
     }
 
-    if let Some(openrouter_secret) = resolve_provider_secret(&ProviderName::Openrouter)? {
+    if let Some(openrouter_secret) =
+        resolve_provider_secret(&ProviderName::Openrouter, &project_id)?
+    {
         for name in OPENROUTER_ROUTABLE_PROVIDERS {
             if registry.contains_key(&name) {
                 continue;

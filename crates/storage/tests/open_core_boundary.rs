@@ -1,9 +1,3 @@
-//! Open-core boundary guard for the OSS storage crate.
-//!
-//! The premium brand-accuracy / hallucination evaluator must never be a
-//! dependency of the OSS storage crate. (The commercial OSS-vs-Pro matrix is
-//! tracked in the private overlay, not in this public repo.)
-
 #[test]
 fn storage_crate_has_no_premium_hallucination_dependency() {
     let manifest = std::fs::read_to_string(format!("{}/Cargo.toml", env!("CARGO_MANIFEST_DIR")))

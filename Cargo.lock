@@ -1978,9 +1978,11 @@ dependencies = [
  "futures",
  "opengeo-analytics",
  "opengeo-audit",
+ "opengeo-benchmark",
  "opengeo-core",
  "opengeo-crawler-ingest",
  "opengeo-extractors",
+ "opengeo-hallucination",
  "opengeo-providers",
  "opengeo-recommendations",
  "opengeo-scheduler",
@@ -2146,17 +2148,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "opengeo-hallucination"
+version = "0.6.0"
+dependencies = [
+ "chrono",
+ "opengeo-core",
+ "opengeo-storage",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "opengeo-mcp"
 version = "0.6.0"
 dependencies = [
  "anyhow",
  "axum",
+ "chrono",
+ "opengeo-api",
  "opengeo-core",
  "opengeo-plugin-manifest",
+ "opengeo-scheduler",
+ "opengeo-storage",
  "opengeo-wire-schema",
  "reqwest",
  "serde",
  "serde_json",
+ "sqlx",
  "tokio",
  "tokio-stream",
  "tower 0.4.13",
@@ -2164,6 +2183,7 @@ dependencies = [
  "tracing-bunyan-formatter",
  "tracing-subscriber",
  "ulid",
+ "uuid",
 ]
 
 [[package]]

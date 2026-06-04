@@ -6,6 +6,7 @@
 //! than `assert_cmd` shell invocation.
 
 pub mod commands;
+pub mod datastore;
 pub mod scaffold;
 
 use clap::{Parser, Subcommand};

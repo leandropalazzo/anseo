@@ -510,6 +510,29 @@
         ],
         "type": "object"
       },
+      "ContributionStatus": {
+        "type": "object",
+        "description": "Outcome of the benchmark consent + envelope gate. `sealed`: opted in with a KEK, redacted + sealed. `skipped_not_opted_in`: no active opt-in. `kek_missing`: opted in but no per-project KEK available, so the contribution could NOT be sealed (the run is still recorded; benchmark data is flagged, never silently dropped). `redaction_rejected`: redaction refused the run (e.g. stale consent terms).",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "sealed",
+              "skipped_not_opted_in",
+              "kek_missing",
+              "redaction_rejected"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Present only when status is redaction_rejected."
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
       "CrawlReferRatio": {
         "type": "object",
         "properties": {
@@ -1033,6 +1056,87 @@
             "minimum": 0
           }
         }
+      },
+      "IngestRunRequest": {
+        "type": "object",
+        "description": "One externally-executed prompt run submitted for ingestion.",
+        "properties": {
+          "prompt_slug": {
+            "type": "string",
+            "description": "Slug-safe identifier of a prompt already declared in the resolved project."
+          },
+          "provider": {
+            "type": "string",
+            "description": "Provider the external run was executed against (e.g. openai)."
+          },
+          "model": {
+            "type": "string",
+            "description": "Provider model/version string the external run used."
+          },
+          "response_text": {
+            "type": "string",
+            "nullable": true,
+            "description": "Raw provider response text. Optional when citation_domains is supplied directly."
+          },
+          "citation_domains": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "Source domains observed in citations. When omitted, extracted from response_text."
+          },
+          "observed_rank": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "description": "The brand's observed rank in this run, if computed by the caller."
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the external run was observed. Defaults to now."
+          }
+        },
+        "required": [
+          "prompt_slug",
+          "provider",
+          "model"
+        ]
+      },
+      "IngestRunResponse": {
+        "type": "object",
+        "description": "Result of recording an external run, including the benchmark contribution outcome.",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "prompt_slug": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "contribution": {
+            "$ref": "#/components/schemas/ContributionStatus"
+          }
+        },
+        "required": [
+          "run_id",
+          "project_id",
+          "prompt_slug",
+          "provider",
+          "observed_at",
+          "contribution"
+        ]
       },
       "KindAdoption": {
         "type": "object",
@@ -2059,6 +2163,63 @@
           }
         },
         "summary": "Health probe"
+      }
+    },
+    "/v1/ingest/run": {
+      "post": {
+        "operationId": "ingestExternalRun",
+        "summary": "Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-sealed-contribution path as native runs.",
+        "description": "Records a prompt run executed against a provider OUTSIDE OpenGEO's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-OpenGEO-Project header. If the project has an active benchmark opt-in on the current terms, the contribution is redacted and envelope-sealed under the project's per-project KEK. Benchmark data is never silently dropped: if the project opted in but no KEK is available, the run is still recorded and the response reports contribution.status = \"kek_missing\".",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Run recorded. The contribution field reports whether a benchmark contribution was sealed, skipped, or blocked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "The project did not resolve, or the prompt slug is not declared in the project.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/projects": {

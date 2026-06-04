@@ -21,6 +21,7 @@ opengeo-crawler-ingest = { path = "../../crates/crawler-ingest" }
 opengeo-audit = { path = "../../crates/audit" }
 opengeo-providers = { path = "../../crates/providers" }
 opengeo-extractors = { path = "../../crates/extractors" }
+opengeo-benchmark = { path = "../../crates/benchmark" }
 opengeo-scheduler = { path = "../../crates/scheduler" }
 opengeo-recommendations = { path = "../../crates/recommendations" }
 opengeo-wire-schema = { path = "../../crates/wire-schema" }

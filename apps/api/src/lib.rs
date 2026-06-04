@@ -104,6 +104,7 @@ pub fn router(state: AppState) -> Router {
     let v1_routes = Router::new()
         .merge(phase_1_reads_under_v1)
         .merge(routes::prompt_runs::v1_router())
+        .merge(routes::ingest::v1_router())
         .merge(routes::prompts::v1_router())
         .merge(routes::brands::v1_router())
         .merge(routes::brand::v1_router())
@@ -123,7 +124,6 @@ pub fn router(state: AppState) -> Router {
 
     // Premium surface — only compiled into the `pro` build. The default OSS
     // build never references the entitlement-gated hallucination evaluator.
-
     let v1_surface = v1_routes
         // Story 0.11 — X-OpenGEO-Project header substrate. Layered
         // INSIDE the auth gate so unauthenticated callers still get a

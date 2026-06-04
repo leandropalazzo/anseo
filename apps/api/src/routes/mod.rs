@@ -9,6 +9,7 @@ pub mod comparisons;
 pub mod crawlers;
 pub mod events;
 pub mod health;
+pub mod ingest;
 pub mod mcp;
 pub mod projects;
 pub mod prompt_runs;

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opengeo-observe"
+version = "0.1.0"
+description = "Thin instrumentation SDK to POST externally-executed LLM runs to the OpenGEO Run-Ingestion API (POST /v1/ingest/run)."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+# Zero runtime dependencies — standard-library urllib only.
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://opengeo.dev"
+Source = "https://github.com/opengeo/opengeo"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["opengeo_observe*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

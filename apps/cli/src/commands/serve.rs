@@ -15,14 +15,18 @@
 //!   fires a shared `watch` channel; the API uses it for axum graceful shutdown
 //!   and the worker loop selects on it to break out of its poll loop.
 //!
-//! Web embedding (37.2), MCP fold (37.3), and managed child Postgres (37.4) are
-//! later stories; here the datastore is an external `DATABASE_URL`.
+//! Datastore (37.4): when `DATABASE_URL` is set the external Postgres is used
+//! unchanged; when it is absent a managed child Postgres is provisioned and
+//! supervised for the process lifetime (see [`crate::datastore`]). The handle is
+//! held in this function's scope so the child is stopped on shutdown.
 
 use clap::Args;
 use opengeo_api::boot::{build_api, serve_with_shutdown, ApiBootConfig};
 use opengeo_core::OpenGeoError;
 use opengeo_storage::Storage;
 use opengeo_worker::run::{load_dispatch_context, run_poll_loop};
+
+use crate::datastore::{resolve_from_env, Datastore};
 
 /// Default port when neither `--port` nor a port in `--bind` is given.
 const DEFAULT_PORT: u16 = 8080;
@@ -64,11 +68,19 @@ fn resolve_config_path(projects_dir: &Option<std::path::PathBuf>) -> String {
 }
 
 pub async fn run(args: ServeArgs) -> Result<(), OpenGeoError> {
-    let database_url = std::env::var("DATABASE_URL").map_err(|_| {
-        OpenGeoError::Config(
-            "DATABASE_URL must be set for `ogeo serve` (external Postgres; managed datastore is Story 37.4)".into(),
-        )
-    })?;
+    // Resolve the datastore: external `DATABASE_URL` if set (behavior unchanged),
+    // otherwise provision + start a managed child Postgres. `_datastore` is held
+    // for the whole `serve` lifetime; dropping it on return stops the child.
+    let datastore = resolve_from_env()?;
+    if matches!(datastore, Datastore::Managed(_)) {
+        println!("ogeo serve — no DATABASE_URL; using the managed child Postgres datastore");
+        tracing::info!(
+            event = "serve.datastore_managed",
+            "provisioned a managed child Postgres (no DATABASE_URL set)"
+        );
+    }
+    let database_url = datastore.database_url().to_string();
+    let _datastore = datastore;
     let bind_addr = resolve_bind(&args.bind, args.port);
     let config_path = resolve_config_path(&args.projects_dir);
 
