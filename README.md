@@ -1,87 +1,127 @@
 # OpenGEO
 
-OpenGEO is the local, self-hosted observability loop for AI search visibility.
+OpenGEO is the self-hostable observability stack for AI search visibility — track how your brand ranks in LLM responses, against your competitors, over time. Fully open source (MIT); runs entirely in your own deployment.
 
 ```bash
-# Phase 1 local loop
-ogeo init
-ogeo login openai
+ogeo init                                  # scaffold opengeo.yaml
+ogeo login openai                          # store a provider key (OS keychain / age file / env)
 ogeo login anthropic
-ogeo prompt run
-ogeo report generate --format markdown
+ogeo prompt run                            # run declared prompts × providers, extract + persist
+ogeo report generate --format markdown     # summarize a recent window
+ogeo check visibility --expect-rank-lte 3  # CI gate on ranking (FR-15)
+ogeo dashboard open                        # open the local dashboard
 ```
 
-Phase 1 ships the closed local path:
+The closed local loop:
 
 ```text
-YAML config -> CLI prompt runs -> provider calls -> extraction -> PostgreSQL persistence -> Docker Compose
+YAML config -> CLI prompt runs -> provider calls -> mention/citation extraction -> PostgreSQL persistence -> dashboard -> ogeo serve (or Docker Compose)
 ```
 
-This repository is a Cargo workspace containing the OpenGEO core, providers, extractors, storage, CLI, API server, MCP server, and worker. The OpenGEO web dashboard is developed separately and is not included here.
+**v0.5.0** wrapped that loop in a full operability surface (the OSS GA): a programmable REST `/v1` API with auto-generated TypeScript + Python SDKs, scheduled runs with anomaly alerts and webhook/Slack/SMTP delivery, ClickHouse-backed analytics, seven provider adapters, a GitHub Action, and a redesigned dashboard.
+
+**v0.6.0** closes Phase 3: an MCP server, a GEO recommendation engine, guided setup/deployment flows, plus a plugin SDK and a browser extension (both shipping as preview/substrate — see the caveats below). See [`CHANGELOG.md`](CHANGELOG.md).
+
+## Deployment tiers
+
+One multi-project core, three ways to run it:
+
+- **Tier 0 — solo CLI.** `ogeo` against a local Postgres; no long-running services.
+- **Tier 1 — single binary.** `ogeo serve` supervises the API + in-process worker with a managed child Postgres — one process, no Compose.
+- **Tier 2 — Docker Compose.** API + worker + web + Postgres + ClickHouse (`infra/docker`).
+
+A single operator runs **multiple projects** (brands) per deployment; the CLI, web dashboard, and MCP server all thread the selected project through every call.
+
+## Repo model (inverted open-core, ADR-007)
+
+This public `opengeo` repo is the **canonical OSS source of truth** — make OSS changes here. A private `opengeo-internal` repo overlays it via git submodule and adds commercial/Pro capabilities (premium hallucination/brand-accuracy verdicts, hosted-cloud infra) — **none of which appears in this repo**. See [`docs/open-core-boundary.md`](docs/open-core-boundary.md) for the full MIT-OSS vs private split.
 
 ## Layout
 
 ```text
 apps/
-  api/      Axum API binary
-  worker/   background worker binary
+  api/      Axum REST `/v1` API binary
+  worker/   background worker (scheduled runs, alert/webhook delivery)
   cli/      `ogeo` CLI binary
   mcp/      MCP server binary
+  web/      Next.js dashboard (the canonical OpenGEO dashboard)
 crates/
-  core/         shared core contracts
-  providers/    provider adapters
-  extractors/   mention and citation extraction
-  storage/      PostgreSQL persistence
-  analytics/    analytics query layer
-  scheduler/    Phase 2 scheduler stub
-  plugin-host/  Phase 3 plugin host stub
-  wire-schema/  shared API/schema DTOs
+  core/             shared core contracts (Secret, error/exit-code taxonomy, secret store)
+  providers/        provider adapters (OpenAI, Anthropic, Gemini, Perplexity, Grok, Mistral, OpenRouter)
+  extractors/       mention and citation extraction
+  storage/          PostgreSQL persistence + migrations
+  analytics/        analytics query layer (Postgres + ClickHouse)
+  scheduler/        schedule evaluation
+  benchmark/        public-benchmark consent + payload (client)
+  recommendations/  GEO recommendation engine
+  plugin-host/      plugin host + sandbox (ed25519 TOFU signing, capability catalog)
+  plugin-manifest/  plugin manifest tooling
+  wire-schema/      shared API/schema DTOs + OpenAPI generation
+extension/          MV3 browser extension (preview)
+packages/           generated TypeScript / Python / Go SDKs
 infra/
-  docker/
-  k8s/
-  terraform/
+  docker/           Docker Compose stack
+  github-action/    `ogeo check` GitHub Action (bats + smoke tests)
 ```
 
 ## Toolchain
 
 - Rust: `1.95.0`, edition 2021, pinned in `rust-toolchain.toml`
+- Node: LTS; package manager `pnpm` (for `apps/web`)
 
 ## Verification
 
 ```bash
 cargo build
 cargo test
-cargo metadata --no-deps
+
+cd apps/web && pnpm install && pnpm build && pnpm lint
 ```
 
-## CLI Error Mapping
+## Programmable surface (REST `/v1` + SDKs)
 
-OpenGEO CLI commands return structured exit codes per PRD §11.4. CI integrations can rely on these being stable within a major version.
+`apps/api` exposes a read + write REST API under `/v1`, authenticated with per-project API keys. OpenAPI is generated from `crates/wire-schema`, and the TypeScript + Python + Go SDKs in `packages/` are generated from that spec (a CI drift gate keeps them in sync).
 
-| Code | Meaning |
-|------|---------|
-| 0    | Success |
-| 1    | Visibility check failed (Ranking exceeded threshold; FR-15) |
-| 2    | Provider error (see Provider Error Taxonomy below) |
-| 64   | Config error (malformed YAML, missing required field, unknown Provider/model) |
-| 65   | Data error (corrupted persisted data, schema-version mismatch) |
-| 66   | Auth/permission error (Phase 4 RBAC denial; Phase 2+ invalid API token) |
-| 70   | Internal error (uncaught panic, bug) |
+```bash
+ogeo api key create --name ci        # plaintext shown once
+cargo run -p opengeo-api             # serve on :8080
+```
 
-When a CLI command exits with code `2`, the structured output (and the `error_kind` field on JSON-format reports) carries one of the following stable values per PRD §11.5:
+## Scheduling, alerts & webhooks
 
-- `provider_unauthorized` — 401/403 from Provider (bad/missing API key)
-- `provider_rate_limited` — 429 from Provider
-- `provider_timeout` — request exceeded configured timeout
-- `provider_5xx` — Provider returned 5xx
-- `provider_invalid_response` — response failed schema/parse expectations
-- `network_error` — DNS / TCP / TLS failure reaching Provider
+YAML `v0.2` schedule definitions drive the background worker (at-most-once delivery), which surfaces visibility + citation anomalies and fans notifications out to webhooks (HMAC-signed, retry ladder, auto-disable), Slack, and SMTP.
 
-Both contracts are defined in `crates/core/src/error.rs`.
+## Analytics (ClickHouse)
 
-## Privacy Posture
+A ClickHouse analytics backend with a Postgres↔ClickHouse parity test and live routes (`/v1/analytics/{citation-graph,heatmap,volatility}`). Migrate idempotently with `ogeo analytics migrate-to-clickhouse`.
 
-Phase 1 is localhost-first. Provider keys stay local, raw responses stay in the user's deployment, and OpenGEO sends no telemetry to OpenGEO-controlled services unless a later explicit opt-in feature is implemented.
+## MCP server
+
+`apps/mcp` is a Model Context Protocol server (stdio + HTTP/SSE) that lets an LLM client (Claude Desktop, Cursor, Zed) query and drive a project. Seven tools: `run_prompt`, `get_visibility`, `get_citations`, `list_trends`, `compare_brands`, `search_benchmarks`, `recommend`.
+
+```bash
+ogeo mcp serve
+ogeo mcp install-config              # write a Claude Desktop / Cursor / Zed snippet
+```
+
+## GEO recommendations
+
+The `recommendations` crate emits prioritized, reproducible recommendations (deterministic kinds plus LLM-assisted kinds behind a determinism allow-list + cost cap), each with a lifecycle (surfaced → acknowledged → acted/dismissed) and webhook events. Available via `ogeo recommend`, REST `/v1/recommendations`, and the MCP `recommend` tool.
+
+## Preview surfaces
+
+Two surfaces are in the tree but ship as **preview** — substrate and contracts are landed, but several behaviors are still mock-backed. Treat them as not-yet-production:
+
+- **Plugin SDK** (`crates/plugin-host`, `crates/plugin-manifest`, `ogeo plugin`) — manifest validation, ed25519 TOFU signing + revocation, namespace claims, and the capability catalog are real; sandbox execution, the registry, and marketplace surfaces are mock-backed.
+- **Browser extension** (`extension/`) — the MV3 manifest, service worker, paste-token bind, and the five-layer privacy invariant are real; per-site adapters, Shadow-DOM overlays, citation chips, popup, and the prompt-analysis classifier are mock-backed.
+
+## CLI error mapping
+
+CLI commands return structured exit codes (stable within a major version): `0` success · `1` visibility check failed · `2` provider error · `64` config error · `65` data error · `66` auth/permission · `70` internal. On `2`, the `error_kind` field carries `provider_unauthorized` / `provider_rate_limited` / `provider_timeout` / `provider_5xx` / `provider_invalid_response` / `network_error`. Defined in `crates/core/src/error.rs`.
+
+## Privacy posture
+
+Localhost-first. Provider keys stay local, raw responses stay in your deployment, and OpenGEO sends no telemetry to OpenGEO-controlled services except via explicit opt-in (e.g. the public benchmark).
 
 ## License
 
