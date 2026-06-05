@@ -209,8 +209,11 @@ async fn via_cli_marker(h: &Harness, project_id: ProjectId) -> ProjectId {
     // Write the marker in the same format `run_use` does.
     let marker_dir = dir.path().join(".opengeo");
     std::fs::create_dir_all(&marker_dir).expect("create marker dir");
-    std::fs::write(marker_dir.join("selected-project"), format!("{project_id}\n"))
-        .expect("write marker");
+    std::fs::write(
+        marker_dir.join("selected-project"),
+        format!("{project_id}\n"),
+    )
+    .expect("write marker");
 
     cli_project::resolve_project_id(&h.storage, dir.path(), None)
         .await
@@ -246,14 +249,12 @@ async fn project_selection_is_consistent_across_all_three_surfaces() {
 
     // CLI (flag) resolves to the same project_id as the header surface.
     assert_eq!(
-        a_cli_flag,
-        h.id_a,
+        a_cli_flag, h.id_a,
         "selecting A via --project flag: CLI must resolve to A's id"
     );
     // CLI (marker) resolves to the same project_id.
     assert_eq!(
-        a_cli_marker,
-        h.id_a,
+        a_cli_marker, h.id_a,
         "selecting A via marker: CLI must resolve to A's id"
     );
 
@@ -270,13 +271,11 @@ async fn project_selection_is_consistent_across_all_three_surfaces() {
         "selecting B: header and MCP surfaces must return identical data"
     );
     assert_eq!(
-        b_cli_flag,
-        h.id_b,
+        b_cli_flag, h.id_b,
         "selecting B via --project flag: CLI must resolve to B's id"
     );
     assert_eq!(
-        b_cli_marker,
-        h.id_b,
+        b_cli_marker, h.id_b,
         "selecting B via marker: CLI must resolve to B's id"
     );
 
@@ -288,18 +287,31 @@ async fn project_selection_is_consistent_across_all_three_surfaces() {
     );
     assert_ne!(a_mcp, b_mcp, "MCP surface: A and B must be distinguishable");
     assert_ne!(a_cli_flag, b_cli_flag, "CLI flag: A and B must differ");
-    assert_ne!(a_cli_marker, b_cli_marker, "CLI marker: A and B must differ");
+    assert_ne!(
+        a_cli_marker, b_cli_marker,
+        "CLI marker: A and B must differ"
+    );
 
     // The delta observed on the HTTP and MCP surfaces equals the delta the CLI
     // resolver observed: every surface moved from exactly A to exactly B.
-    assert_eq!(a_header["project_id"].as_str().unwrap(), a_cli_flag.to_string().as_str(),
-        "A: header project_id == CLI flag project_id");
-    assert_eq!(b_header["project_id"].as_str().unwrap(), b_cli_flag.to_string().as_str(),
-        "B: header project_id == CLI flag project_id");
-    assert_eq!(a_cli_flag, a_cli_marker,
-        "CLI flag and marker must resolve to the same id for A");
-    assert_eq!(b_cli_flag, b_cli_marker,
-        "CLI flag and marker must resolve to the same id for B");
+    assert_eq!(
+        a_header["project_id"].as_str().unwrap(),
+        a_cli_flag.to_string().as_str(),
+        "A: header project_id == CLI flag project_id"
+    );
+    assert_eq!(
+        b_header["project_id"].as_str().unwrap(),
+        b_cli_flag.to_string().as_str(),
+        "B: header project_id == CLI flag project_id"
+    );
+    assert_eq!(
+        a_cli_flag, a_cli_marker,
+        "CLI flag and marker must resolve to the same id for A"
+    );
+    assert_eq!(
+        b_cli_flag, b_cli_marker,
+        "CLI flag and marker must resolve to the same id for B"
+    );
 }
 
 /// An unknown project is rejected identically on all three surfaces — a wrong
@@ -328,8 +340,7 @@ async fn unknown_project_is_rejected_on_all_three_surfaces() {
     );
 
     // Surface 2 — MCP selector: same rejection.
-    let api = ApiClient::new(h.base_url.clone(), h.key.clone(), bogus.clone())
-        .expect("ApiClient");
+    let api = ApiClient::new(h.base_url.clone(), h.key.clone(), bogus.clone()).expect("ApiClient");
     let mcp_status = api
         .get(SCOPED_PATH)
         .send()
@@ -345,8 +356,7 @@ async fn unknown_project_is_rejected_on_all_three_surfaces() {
     // silently fall through to another project. (With two projects in the DB the
     // legacy sole-active fallback is disabled, so a bad name must always error.)
     let dir = TempDir::new().expect("tempdir");
-    let cli_result =
-        cli_project::resolve_project_id(&h.storage, dir.path(), Some(&bogus)).await;
+    let cli_result = cli_project::resolve_project_id(&h.storage, dir.path(), Some(&bogus)).await;
     assert!(
         cli_result.is_err(),
         "CLI --project with an unknown name must return Err (got Ok({:?}))",
@@ -378,8 +388,14 @@ async fn reselecting_same_project_is_stable_on_all_surfaces() {
     assert_eq!(c1, c2, "CLI flag: re-selecting A must be stable");
 
     // All three agree on the final resolved id.
-    assert_eq!(a1["project_id"].as_str().unwrap(), c1.to_string().as_str(),
-        "header and CLI flag must agree on A's project_id");
-    assert_eq!(m1["project_id"].as_str().unwrap(), c1.to_string().as_str(),
-        "MCP and CLI flag must agree on A's project_id");
+    assert_eq!(
+        a1["project_id"].as_str().unwrap(),
+        c1.to_string().as_str(),
+        "header and CLI flag must agree on A's project_id"
+    );
+    assert_eq!(
+        m1["project_id"].as_str().unwrap(),
+        c1.to_string().as_str(),
+        "MCP and CLI flag must agree on A's project_id"
+    );
 }
