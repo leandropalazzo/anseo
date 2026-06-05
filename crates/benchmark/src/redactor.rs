@@ -47,13 +47,23 @@ pub const TERMS_VERSION: &str = "v1-2026-05-28";
 /// project's KEK (see [`crate::crypto::ProjectKek`]), which renders every
 /// sealed contribution undecryptable. The HMAC key is derived from the KEK
 /// bytes, so destroying the KEK also retires the linkage key.
+///
+/// **Security hard gate**: there is NO `compute(raw_bytes, …)` constructor.
+/// The only way to produce a `ProjectHmac` is via
+/// [`ProjectHmac::from_kek`], which requires a live [`ProjectKek`]. This is
+/// the compile-time half of the Story 39.1 gate: no KEK → no linkage
+/// identifier → no `BenchmarkPayload`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectHmac(String);
 
 impl ProjectHmac {
-    pub fn compute(master_secret: &[u8], project_id: &str) -> Self {
-        let mut mac =
-            HmacSha256::new_from_slice(master_secret).expect("HMAC-SHA256 accepts any key length");
+    /// Derive the linkage HMAC from `kek`'s internal key bytes.
+    ///
+    /// The KEK bytes double as the HMAC key, so destroying the KEK also
+    /// retires the linkage identifier for every sealed contribution.
+    pub fn from_kek(kek: &ProjectKek, project_id: &str) -> Self {
+        let mut mac = HmacSha256::new_from_slice(kek.linkage_key())
+            .expect("HMAC-SHA256 accepts any key length");
         mac.update(project_id.as_bytes());
         let bytes = mac.finalize().into_bytes();
         let mut hex = String::with_capacity(bytes.len() * 2);
@@ -198,7 +208,7 @@ impl<'a> Redactor<'a> {
             });
         }
 
-        let project_hmac = ProjectHmac::compute(self.kek.linkage_key(), &raw.project_id);
+        let project_hmac = ProjectHmac::from_kek(self.kek, &raw.project_id);
         let observed_at_hour = round_to_hour(raw.observed_at);
 
         Ok(BenchmarkPayload {
@@ -236,8 +246,6 @@ mod tests {
     use crate::crypto::ProjectKek;
     use chrono::{Datelike, TimeZone};
     use opengeo_core::InMemoryStore;
-
-    const MASTER: &[u8] = b"project-master-secret-bytes-32-x";
 
     /// A KEK to drive `Redactor` in tests. Provisioned in a throwaway
     /// in-memory store so each test gets a real per-project key.
@@ -328,23 +336,36 @@ mod tests {
 
     #[test]
     fn project_hmac_is_stable_across_invocations() {
-        let h1 = ProjectHmac::compute(MASTER, "01ARZ");
-        let h2 = ProjectHmac::compute(MASTER, "01ARZ");
+        // Same KEK + same project_id → identical linkage HMAC every time.
+        let kek = test_kek();
+        let h1 = ProjectHmac::from_kek(&kek, "01ARZ");
+        let h2 = ProjectHmac::from_kek(&kek, "01ARZ");
         assert_eq!(h1, h2);
         assert_eq!(h1.as_hex().len(), 64);
     }
 
     #[test]
-    fn project_hmac_changes_with_master_secret_rotation() {
-        let h1 = ProjectHmac::compute(b"master-1", "01ARZ");
-        let h2 = ProjectHmac::compute(b"master-2", "01ARZ");
-        assert_ne!(h1, h2);
+    fn project_hmac_changes_with_kek_rotation() {
+        // Story 39.1 KEK-rotation replaces the old master-secret-rotation
+        // test. A fresh KEK for the same project yields a different linkage
+        // HMAC, which is the expected behaviour after a KEK is destroyed and
+        // re-provisioned.
+        let store = InMemoryStore::durable_for_tests();
+        let kek1 = ProjectKek::load_or_create(&store, "01ARZ").unwrap();
+        let h1 = ProjectHmac::from_kek(&kek1, "01ARZ");
+        // Destroy the first KEK, then provision a fresh one.
+        ProjectKek::destroy(&store, "01ARZ").unwrap();
+        let kek2 = ProjectKek::load_or_create(&store, "01ARZ").unwrap();
+        let h2 = ProjectHmac::from_kek(&kek2, "01ARZ");
+        assert_ne!(h1, h2, "rotated KEK must yield a different linkage HMAC");
     }
 
     #[test]
     fn project_hmac_differs_across_project_ids() {
-        let h1 = ProjectHmac::compute(MASTER, "01ARZ");
-        let h2 = ProjectHmac::compute(MASTER, "01XYZ");
+        // Same KEK, different project_id → different HMAC.
+        let kek = test_kek();
+        let h1 = ProjectHmac::from_kek(&kek, "01ARZ");
+        let h2 = ProjectHmac::from_kek(&kek, "01XYZ");
         assert_ne!(h1, h2);
     }
 
