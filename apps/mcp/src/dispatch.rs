@@ -83,9 +83,7 @@ impl Dispatcher {
                 Ok(json!({}))
             }
             "tools/list" => Ok(self.handle_tools_list(&trace_id)),
-            "tools/call" => {
-                self.handle_tools_call(id.clone(), req.params, &trace_id, &selector)
-            }
+            "tools/call" => self.handle_tools_call(id.clone(), req.params, &trace_id, &selector),
             "ping" => Ok(json!({})),
             other => Err(ErrorResponse::new(
                 id.clone(),
@@ -157,8 +155,8 @@ impl Dispatcher {
         // Story 36.5: `project` in `tools/call` params overrides the transport
         // hint, which in turn overrides the boot-time env default.
         let call_project = params.get("project").and_then(|v| v.as_str());
-        let effective_project: Option<&str> = call_project
-            .or_else(|| selector.transport_hint.as_deref());
+        let effective_project: Option<&str> =
+            call_project.or_else(|| selector.transport_hint.as_deref());
 
         let args = params
             .get("arguments")
@@ -198,16 +196,16 @@ impl Dispatcher {
                 )
             }
             // AC 36.5-3: unknown project → structured tool error.
-            Err(McpToolError::UnknownProject(project)) => Err(ErrorResponse::new(
-                id,
-                INVALID_PARAMS,
-                format!("unknown project: {project}"),
-            )
-            .with_data(json!({
-                "trace_id": trace_id,
-                "tool": name,
-                "project": project,
-            }))),
+            Err(McpToolError::UnknownProject(project)) => {
+                Err(
+                    ErrorResponse::new(id, INVALID_PARAMS, format!("unknown project: {project}"))
+                        .with_data(json!({
+                            "trace_id": trace_id,
+                            "tool": name,
+                            "project": project,
+                        })),
+                )
+            }
             Err(McpToolError::Upstream(env)) => {
                 let data = serde_json::to_value(&env).unwrap_or(json!({}));
                 Err(
@@ -265,7 +263,10 @@ mod tests {
                 assert_eq!(err.error.code, METHOD_NOT_FOUND);
                 assert!(err.error.message.contains("unknown tool"));
             }
-            other => panic!("expected Outbound::Failure, got {:?}", std::mem::discriminant(&other)),
+            other => panic!(
+                "expected Outbound::Failure, got {:?}",
+                std::mem::discriminant(&other)
+            ),
         }
     }
 
@@ -285,7 +286,10 @@ mod tests {
             Outbound::Failure(err) => {
                 assert_eq!(err.error.code, METHOD_NOT_FOUND);
             }
-            other => panic!("expected Outbound::Failure, got {:?}", std::mem::discriminant(&other)),
+            other => panic!(
+                "expected Outbound::Failure, got {:?}",
+                std::mem::discriminant(&other)
+            ),
         }
     }
 
@@ -306,7 +310,10 @@ mod tests {
             Outbound::Failure(err) => {
                 assert_eq!(err.error.code, METHOD_NOT_FOUND);
             }
-            other => panic!("expected Outbound::Failure, got {:?}", std::mem::discriminant(&other)),
+            other => panic!(
+                "expected Outbound::Failure, got {:?}",
+                std::mem::discriminant(&other)
+            ),
         }
     }
 
@@ -334,7 +341,9 @@ mod tests {
                 _args: serde_json::Value,
                 api: &ApiClient,
             ) -> Result<serde_json::Value, McpToolError> {
-                Err(McpToolError::UnknownProject(api.current_project().to_owned()))
+                Err(McpToolError::UnknownProject(
+                    api.current_project().to_owned(),
+                ))
             }
         }
 
@@ -359,7 +368,10 @@ mod tests {
 
         match dispatcher.dispatch_with_selector(req, selector) {
             Outbound::Failure(err) => {
-                assert_eq!(err.error.code, INVALID_PARAMS, "must use INVALID_PARAMS code");
+                assert_eq!(
+                    err.error.code, INVALID_PARAMS,
+                    "must use INVALID_PARAMS code"
+                );
                 assert!(
                     err.error.message.contains("unknown project"),
                     "message must name the error class"

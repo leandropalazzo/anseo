@@ -77,7 +77,9 @@ pub(crate) fn map_project_not_found(
     api: &ApiClient,
 ) -> Option<McpToolError> {
     if status == reqwest::StatusCode::NOT_FOUND {
-        Some(McpToolError::UnknownProject(api.current_project().to_owned()))
+        Some(McpToolError::UnknownProject(
+            api.current_project().to_owned(),
+        ))
     } else {
         None
     }
