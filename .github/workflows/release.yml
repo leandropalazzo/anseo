@@ -1,0 +1,91 @@
+# =============================================================================
+# RELEASE — publish multi-arch container images to GHCR on version tags
+#
+# Triggered by: push of any tag matching v* (e.g. v0.3.0)
+# Publishes:
+#   ghcr.io/<owner>/opengeo/api:<tag>
+#   ghcr.io/<owner>/opengeo/worker:<tag>
+#   ghcr.io/<owner>/opengeo/web:<tag>
+#
+# Tags generated (semver flavour):
+#   v1.2.3  → 1.2.3, 1.2, 1, latest
+#
+# Build provenance attestation is emitted for each image via SLSA.
+# Story 38.15
+# =============================================================================
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+
+jobs:
+  build-and-push:
+    name: Build & push — ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, worker, web]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Multi-arch emulation (arm64 via QEMU)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Extended Buildx with multi-platform support
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Authenticate to GHCR using the built-in GITHUB_TOKEN — no PAT required
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Generate canonical image tags from the pushed git tag
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/opengeo/${{ matrix.app }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # Build for amd64 + arm64 and push both manifests atomically
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+
+      # Emit SLSA Level-2 build provenance attestation
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/opengeo/${{ matrix.app }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
