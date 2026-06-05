@@ -24,6 +24,12 @@ pub struct ServeInfo {
     pub tier: String,
 }
 
+impl Default for ServeInfo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ServeInfo {
     /// Build a new `ServeInfo` stamped at the current UTC instant.
     pub fn new() -> Self {
