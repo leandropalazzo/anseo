@@ -153,8 +153,11 @@ impl<'a> EntityRepo<'a> {
         verification_method: Option<&str>,
     ) -> Result<(), Error> {
         let now = chrono::Utc::now();
-        let verified_at: Option<chrono::DateTime<chrono::Utc>> =
-            if status == "verified" { Some(now) } else { None };
+        let verified_at: Option<chrono::DateTime<chrono::Utc>> = if status == "verified" {
+            Some(now)
+        } else {
+            None
+        };
         sqlx::query(
             r#"
             UPDATE entities
@@ -331,10 +334,7 @@ impl<'a> EntityRepo<'a> {
     /// Resolve display_name and claim_status for a domain, falling back to
     /// the raw domain string and `unclaimed` when no registry entry exists
     /// (Story 43.1 AC-4).
-    pub async fn resolve_display(
-        &self,
-        domain: &str,
-    ) -> Result<(String, String), Error> {
+    pub async fn resolve_display(&self, domain: &str) -> Result<(String, String), Error> {
         match self.get(domain).await? {
             Some(e) => Ok((e.display_name, e.claim_status)),
             None => Ok((domain.to_owned(), "unclaimed".to_owned())),
@@ -363,7 +363,7 @@ fn fold_char(c: char) -> char {
     match c {
         // Cyrillic confusables (most common IDN homograph attack set)
         'А' | 'а' => 'a', // Cyrillic А/а → Latin a
-        'В' => 'b',        // Cyrillic В → b
+        'В' => 'b',       // Cyrillic В → b
         'С' | 'с' => 'c',
         'Е' | 'е' => 'e',
         'Н' => 'h', // Cyrillic Н → H
@@ -371,12 +371,12 @@ fn fold_char(c: char) -> char {
         'Ј' | 'ј' => 'j',
         'К' => 'k',
         'М' => 'm',
-        'Ν' => 'n', // Greek Ν → N
+        'Ν' => 'n',                   // Greek Ν → N
         'Ο' | 'ο' | 'О' | 'о' => 'o', // Greek Ο / Cyrillic О
-        'Р' | 'р' => 'p', // Cyrillic Р → p
-        'ρ' => 'p',        // Greek rho
+        'Р' | 'р' => 'p',             // Cyrillic Р → p
+        'ρ' => 'p',                   // Greek rho
         'Т' => 't',
-        'υ' => 'u', // Greek upsilon
+        'υ' => 'u',                   // Greek upsilon
         'Х' | 'х' | 'Χ' | 'χ' => 'x', // Cyrillic Х / Greek Χ
         'Υ' | 'Ү' => 'y',
         'Ζ' | 'ζ' => 'z',
@@ -449,9 +449,7 @@ fn levenshtein_le2(a: &str, b: &str) -> usize {
         curr[0] = i;
         for j in 1..=n {
             let cost = usize::from(av[i - 1] != bv[j - 1]);
-            curr[j] = (curr[j - 1] + 1)
-                .min(prev[j] + 1)
-                .min(prev[j - 1] + cost);
+            curr[j] = (curr[j - 1] + 1).min(prev[j] + 1).min(prev[j - 1] + cost);
         }
         std::mem::swap(&mut prev, &mut curr);
     }
@@ -494,18 +492,12 @@ mod tests {
 
     #[test]
     fn normalize_domain_strips_trailing_slash_only() {
-        assert_eq!(
-            EntityRepo::normalize_domain("example.com/"),
-            "example.com"
-        );
+        assert_eq!(EntityRepo::normalize_domain("example.com/"), "example.com");
     }
 
     #[test]
     fn normalize_domain_already_normalized_is_identity() {
-        assert_eq!(
-            EntityRepo::normalize_domain("example.com"),
-            "example.com"
-        );
+        assert_eq!(EntityRepo::normalize_domain("example.com"), "example.com");
     }
 
     #[test]
@@ -577,13 +569,13 @@ mod tests {
     #[test]
     fn regression_corpus_labeled_pairs() {
         let corpus: &[(&str, &str, &str)] = &[
-            ("Apple", "\u{0410}pple", "merge"),          // Cyrillic А → auto-merge
-            ("Acme Inc", "Acme, Inc.", "review"),          // punctuation → review
-            ("Acme", "Acmee", "merge"),                    // edit distance 1 → auto-merge
-            ("Acme", "Acme Inc", "review"),                // prefix → review
-            ("Globex Corp", "Initech", "split"),           // unrelated
-            ("OpenAI", "openai", "merge"),                 // case → auto-merge
-            ("Google LLC", "Google, LLC", "merge"),        // comma = edit-distance 1 → auto-merge
+            ("Apple", "\u{0410}pple", "merge"),     // Cyrillic А → auto-merge
+            ("Acme Inc", "Acme, Inc.", "review"),   // punctuation → review
+            ("Acme", "Acmee", "merge"),             // edit distance 1 → auto-merge
+            ("Acme", "Acme Inc", "review"),         // prefix → review
+            ("Globex Corp", "Initech", "split"),    // unrelated
+            ("OpenAI", "openai", "merge"),          // case → auto-merge
+            ("Google LLC", "Google, LLC", "merge"), // comma = edit-distance 1 → auto-merge
         ];
         for (a, b, expected) in corpus {
             let score = display_name_similarity(a, b);
