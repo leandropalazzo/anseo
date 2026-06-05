@@ -22,6 +22,7 @@ use tokio::sync::{broadcast, RwLock};
 use tower_http::cors::{Any, CorsLayer};
 use ulid::Ulid;
 
+use crate::routes::serve_status::ServeInfo;
 use crate::routes::setup::InstallState;
 
 use crate::middleware::auth::require_api_key;
@@ -65,6 +66,11 @@ pub struct AppState {
     /// requests. The map is intentionally process-local — the install flow
     /// is operator-driven, not multi-instance.
     pub setup_install_state: Arc<RwLock<HashMap<Ulid, InstallState>>>,
+    /// Story 37.1 — supervisor metadata injected by `ogeo serve` when running
+    /// the API and worker in the same process. `None` when the API binary is
+    /// used standalone (the `/v1/serve/status` endpoint returns `mode:
+    /// "standalone"` in that case).
+    pub serve_info: Option<Arc<ServeInfo>>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -124,6 +130,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::entities::v1_router())
         .merge(routes::leaderboard::v1_router())
         .merge(routes::density_check::v1_router())
+        .merge(routes::serve_status::v1_router())
         .merge(routes::events::router_under_v1_relative());
 
     // Premium surface — only compiled into the `pro` build. The default OSS

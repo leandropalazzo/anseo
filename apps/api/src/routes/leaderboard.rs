@@ -244,16 +244,13 @@ struct LeaderboardRow {
 mod tests {
     use super::*;
 
+    // Off + on share one process-global env var; combine into one sequential
+    // test so parallel `cargo test` threads can't race set_var/remove_var.
     #[test]
-    fn flag_off_by_default() {
-        // Unset env → disabled.
-        // NB: env state bleeds between tests in the same process; guard carefully.
+    fn flag_off_then_on() {
         std::env::remove_var("ANSEO_NAMED_BRAND_LEADERBOARD");
         assert!(!named_leaderboard_enabled());
-    }
 
-    #[test]
-    fn flag_on_with_true() {
         std::env::set_var("ANSEO_NAMED_BRAND_LEADERBOARD", "true");
         assert!(named_leaderboard_enabled());
         std::env::remove_var("ANSEO_NAMED_BRAND_LEADERBOARD");

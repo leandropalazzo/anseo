@@ -36,6 +36,7 @@ fn build_router() -> (axum::Router, ProjectId) {
         provider_registry: None,
         configured_project: Arc::new("default".to_string()),
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        serve_info: None,
     };
     (router(state), project_id)
 }
@@ -61,6 +62,7 @@ fn build_setup_only_router() -> axum::Router {
         provider_registry: None,
         configured_project: Arc::new("default".to_string()),
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        serve_info: None,
     };
     axum::Router::new()
         .nest("/v1", opengeo_api::routes::setup::v1_router())

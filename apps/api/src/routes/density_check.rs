@@ -224,9 +224,13 @@ async fn compute_density_check(
 mod tests {
     use super::*;
 
+    // Env vars are process-global and `cargo test` runs tests in parallel
+    // threads, so the default-value check and the override check MUST live in a
+    // single test — otherwise one test's set_var races the other's read. Same
+    // for the G-NAME flag pair below.
     #[test]
-    fn thresholds_default_values() {
-        // Remove any test-env overrides first.
+    fn thresholds_defaults_and_env_override() {
+        // Defaults: clear any inherited overrides first.
         for k in &[
             "ANSEO_G_DENSITY_MIN_CONTRIBUTORS",
             "ANSEO_G_DENSITY_MIN_CATEGORIES",
@@ -240,10 +244,8 @@ mod tests {
         assert_eq!(t.min_categories, 20);
         assert_eq!(t.min_domains_per_category, 10);
         assert_eq!(t.min_runs_per_segment, 100);
-    }
 
-    #[test]
-    fn thresholds_env_override() {
+        // Override: set, assert, then restore so no other test observes it.
         std::env::set_var("ANSEO_G_DENSITY_MIN_CONTRIBUTORS", "50");
         let t = DensityThresholds::default();
         assert_eq!(t.min_contributors, 50);
@@ -251,13 +253,9 @@ mod tests {
     }
 
     #[test]
-    fn g_name_flag_off_by_default() {
+    fn g_name_flag_off_then_on() {
         std::env::remove_var("ANSEO_G_NAME_ENABLED");
         assert!(!g_name_enabled());
-    }
-
-    #[test]
-    fn g_name_flag_on() {
         std::env::set_var("ANSEO_G_NAME_ENABLED", "true");
         assert!(g_name_enabled());
         std::env::remove_var("ANSEO_G_NAME_ENABLED");

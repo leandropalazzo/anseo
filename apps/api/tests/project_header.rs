@@ -181,6 +181,7 @@ fn lazy_app() -> axum::Router {
         provider_registry: None,
         configured_project: Arc::new("default".to_string()),
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        serve_info: None,
     };
     router(state)
 }

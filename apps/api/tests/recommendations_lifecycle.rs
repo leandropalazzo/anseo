@@ -80,6 +80,7 @@ fn state_for(pool: &sqlx::PgPool, project_id: ProjectId) -> AppState {
         provider_registry: None,
         configured_project: Arc::new("default".to_string()),
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        serve_info: None,
     }
 }
 
@@ -188,6 +189,7 @@ providers:
         provider_registry: None,
         configured_project: Arc::new("default".to_string()),
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        serve_info: None,
     };
     let app = router(state);
 

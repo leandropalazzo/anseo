@@ -36,6 +36,7 @@ fn lazy_router() -> axum::Router {
         provider_registry: None,
         configured_project: Arc::new("default".to_string()),
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        serve_info: None,
     };
     router(state)
 }
@@ -127,6 +128,7 @@ async fn live_app() -> Option<(axum::Router, String)> {
         provider_registry: None,
         configured_project: Arc::new("home".to_string()),
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        serve_info: None,
     };
     Some((router(state), key.plaintext))
 }
