@@ -139,6 +139,49 @@ jobs:
       - name: cargo test --workspace
         run: cargo test --workspace --locked
 
+  # ---------------------------------------------------------------------------
+  # rust-managed-pg — Story 37.4 AC4: the DUAL-BACKEND gate.
+  #
+  # `rust-test` above proves the schema + .sqlx cache run green against an
+  # EXTERNAL Tier-2 Postgres (the `postgres:` service with DATABASE_URL set).
+  # This job proves the OTHER half: it boots the MANAGED CHILD Postgres that
+  # `anseo serve` provisions when DATABASE_URL is ABSENT — installing the PG
+  # server binaries onto PATH (initdb/pg_ctl), NOT running them as a service —
+  # and applies the SAME embedded migrations against it. Both backends green on
+  # one set of migration files = the dual-backend gate.
+  # ---------------------------------------------------------------------------
+  rust-managed-pg:
+    name: Rust — managed child Postgres (dual-backend gate)
+    runs-on: ubuntu-latest
+    needs: paths-filter
+    if: needs.paths-filter.outputs.rust == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      - name: install libdbus + pkg-config + postgresql server binaries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libdbus-1-dev pkg-config postgresql postgresql-contrib
+          # Ubuntu installs the server tools under /usr/lib/postgresql/<ver>/bin
+          # rather than on PATH; expose initdb/pg_ctl/createdb for the test.
+          PG_BIN="$(dirname "$(find /usr/lib/postgresql -name pg_ctl | sort | tail -1)")"
+          echo "discovered postgres bin dir: $PG_BIN"
+          echo "$PG_BIN" >> "$GITHUB_PATH"
+      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: Swatinem/rust-cache@v2
+      - name: verify initdb/pg_ctl are on PATH
+        run: |
+          which initdb pg_ctl createdb
+          initdb --version
+      - name: managed-child migration gate
+        # SQLX_OFFLINE keeps the build from needing a live DATABASE_URL; the test
+        # boots the child and runs migrations at RUNTIME. The env flag opts this
+        # runner into the (slow, binary-dependent) boot.
+        env:
+          SQLX_OFFLINE: "true"
+          ANSEO_TEST_MANAGED_PG: "1"
+        run: cargo test --locked -p anseo-cli --test managed_pg_migrations -- --test-threads=1 --nocapture
+
   rust-coverage:
     name: Rust — coverage
     runs-on: ubuntu-latest
@@ -331,20 +374,22 @@ jobs:
     name: CI summary
     runs-on: ubuntu-latest
     needs:
-      [paths-filter, rust-lint, rust-test, rust-coverage, web-lint-unit, web-e2e, compose-smoke]
+      [paths-filter, rust-lint, rust-test, rust-managed-pg, rust-coverage, web-lint-unit, web-e2e, compose-smoke]
     if: always()
     steps:
       - name: gate
         run: |
-          echo "rust-lint:     ${{ needs.rust-lint.result }}"
-          echo "rust-test:     ${{ needs.rust-test.result }}"
-          echo "rust-coverage: ${{ needs.rust-coverage.result }}"
+          echo "rust-lint:       ${{ needs.rust-lint.result }}"
+          echo "rust-test:       ${{ needs.rust-test.result }}"
+          echo "rust-managed-pg: ${{ needs.rust-managed-pg.result }}"
+          echo "rust-coverage:   ${{ needs.rust-coverage.result }}"
           echo "web-lint-unit: ${{ needs.web-lint-unit.result }}"
           echo "web-e2e:       ${{ needs.web-e2e.result }}"
           echo "compose-smoke: ${{ needs.compose-smoke.result }}"
           # skipped (path-filtered / event-gated) is acceptable; only failure/cancelled fail the gate.
           for r in \
             "${{ needs.rust-lint.result }}" "${{ needs.rust-test.result }}" \
+            "${{ needs.rust-managed-pg.result }}" \
             "${{ needs.rust-coverage.result }}" "${{ needs.web-lint-unit.result }}" \
             "${{ needs.web-e2e.result }}" "${{ needs.compose-smoke.result }}"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then

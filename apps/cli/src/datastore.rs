@@ -211,18 +211,21 @@ impl DataLayout {
 
     /// Derive the connection URL for the managed cluster over its Unix socket.
     ///
-    /// libpq accepts the socket directory in the `host` query parameter
-    /// (percent-encoded), connecting to the current OS user with no password.
+    /// The percent-encoded socket directory goes in the AUTHORITY host position
+    /// (`postgres://user@%2Fpath%2Frun/db`), not a `?host=` query param. Both
+    /// are valid for libpq, but sqlx's URL parser rejects an empty authority
+    /// host (`EmptyHost`), so the socket dir must live in the authority for the
+    /// pool to connect. Connects as the current OS user with no password.
     pub fn database_url(&self) -> String {
         let user = std::env::var("USER")
             .or_else(|_| std::env::var("USERNAME"))
             .unwrap_or_else(|_| "postgres".to_string());
         let socket = self.socket_dir();
         format!(
-            "postgres://{user}@/{db}?host={host}",
+            "postgres://{user}@{host}/{db}",
             user = user,
-            db = MANAGED_DB_NAME,
             host = encode_host(&socket.to_string_lossy()),
+            db = MANAGED_DB_NAME,
         )
     }
 }
@@ -241,6 +244,20 @@ fn encode_host(path: &str) -> String {
         }
     }
     out
+}
+
+/// The locale environment forced onto every spawned Postgres tool.
+///
+/// `initdb`, the postmaster, and `createdb` all read `LC_*`/`LANG` from the
+/// environment. On minimal or misconfigured hosts (fresh CI runners, slim
+/// containers, a shell with an unset/invalid locale) those values abort
+/// provisioning ("invalid locale") or refuse to start the postmaster
+/// ("postmaster became multithreaded during startup; set LC_ALL"). Pinning the
+/// always-available portable `C` locale makes the managed child boot
+/// deterministically regardless of the operator's environment — the zero-setup
+/// first-run guarantee. Operators who set `DATABASE_URL` bypass this entirely.
+fn deterministic_locale_env() -> [(&'static str, &'static str); 2] {
+    [("LC_ALL", "C"), ("LANG", "C")]
 }
 
 /// Real supervisor that shells out to an `initdb` / `pg_ctl` / `createdb`
@@ -263,6 +280,7 @@ impl PgCliSupervisor {
     fn run_tool(&self, tool: &str, args: &[&std::ffi::OsStr]) -> Result<(), OpenGeoError> {
         let status = std::process::Command::new(tool)
             .args(args)
+            .envs(deterministic_locale_env())
             .status()
             .map_err(|e| {
                 OpenGeoError::Config(format!(
@@ -289,6 +307,11 @@ impl ChildPostgres for PgCliSupervisor {
         let data_dir = self.layout.data_dir();
         std::fs::create_dir_all(&data_dir)
             .map_err(|e| OpenGeoError::Config(format!("failed to create data dir: {e}")))?;
+        // Pin encoding + locale explicitly. Without this `initdb` inherits the
+        // operator's `LANG`/`LC_*`, which on minimal/locale-less hosts (fresh
+        // CI runners, slim containers) is invalid and aborts the very
+        // zero-setup first run this datastore promises. `UTF8` + the portable
+        // `C` locale are always available and make provisioning deterministic.
         self.run_tool(
             "initdb",
             &[
@@ -296,6 +319,8 @@ impl ChildPostgres for PgCliSupervisor {
                 data_dir.as_os_str(),
                 std::ffi::OsStr::new("--auth=trust"),
                 std::ffi::OsStr::new("--no-sync"),
+                std::ffi::OsStr::new("--encoding=UTF8"),
+                std::ffi::OsStr::new("--locale=C"),
             ],
         )
     }
@@ -326,6 +351,7 @@ impl ChildPostgres for PgCliSupervisor {
             .arg("-h")
             .arg(&socket_dir)
             .arg(MANAGED_DB_NAME)
+            .envs(deterministic_locale_env())
             .status();
         Ok(self.layout.database_url())
     }
@@ -396,16 +422,27 @@ mod tests {
     fn database_url_uses_socket_host_not_tcp() {
         let layout = DataLayout::derive(Some("/d".into()), None).unwrap();
         let url = layout.database_url();
-        // No TCP host:port; the socket dir is passed via host= (percent-encoded).
+        // No TCP host:port; the percent-encoded socket dir is the authority host
+        // (sqlx rejects an empty authority host), followed by the db path.
         assert!(url.starts_with("postgres://"));
-        assert!(url.contains("@/opengeo?host="));
-        assert!(url.contains("%2Fd%2Fopengeo%2Frun"));
+        assert!(url.contains("@%2Fd%2Fopengeo%2Frun/opengeo"));
         assert!(!url.contains(":5432"));
+        assert!(!url.contains("?host="));
     }
 
     #[test]
     fn encode_host_escapes_slashes() {
         assert_eq!(encode_host("/a/b"), "%2Fa%2Fb");
+    }
+
+    #[test]
+    fn deterministic_locale_env_pins_portable_c_locale() {
+        // Every spawned Postgres tool must run under the portable `C` locale so
+        // a host with an unset/invalid `LC_*`/`LANG` cannot abort provisioning
+        // or the postmaster. Both vars are pinned to `C`.
+        let env = deterministic_locale_env();
+        assert!(env.contains(&("LC_ALL", "C")));
+        assert!(env.contains(&("LANG", "C")));
     }
 
     // ---- Idempotent-reuse decision (hermetic) -------------------------------
@@ -451,7 +488,7 @@ mod tests {
         }
         fn start(&self) -> Result<String, OpenGeoError> {
             self.started.fetch_add(1, Ordering::SeqCst);
-            Ok("postgres://managed@/opengeo?host=%2Ftmp".into())
+            Ok("postgres://managed@%2Ftmp/opengeo".into())
         }
         fn stop(&self) -> Result<(), OpenGeoError> {
             self.stopped.fetch_add(1, Ordering::SeqCst);
@@ -485,7 +522,7 @@ mod tests {
         let ds = resolve_datastore(None, Box::new(spy.clone())).unwrap();
         assert_eq!(spy.provisioned.load(Ordering::SeqCst), 1);
         assert_eq!(spy.started.load(Ordering::SeqCst), 1);
-        assert_eq!(ds.database_url(), "postgres://managed@/opengeo?host=%2Ftmp");
+        assert_eq!(ds.database_url(), "postgres://managed@%2Ftmp/opengeo");
         assert!(matches!(ds, Datastore::Managed(_)));
     }
 
@@ -517,7 +554,10 @@ mod tests {
         sup.provision().expect("provision");
         assert!(layout.is_initialised());
         let url = sup.start().expect("start");
-        assert!(url.contains("host="));
+        // Socket dir is the percent-encoded authority host, not a query param.
+        assert!(url.starts_with("postgres://"));
+        assert!(url.contains("%2F"));
+        assert!(!url.contains(":5432"));
         sup.stop().expect("stop");
     }
 }
