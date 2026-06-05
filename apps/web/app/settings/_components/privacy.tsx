@@ -56,7 +56,7 @@ export function PrivacySection() {
           />
           <PostureLine
             ok
-            label="No telemetry to OpenGEO"
+            label="No telemetry to Anseo"
             detail="Phase-1 default; verified at startup."
           />
           <PostureLine

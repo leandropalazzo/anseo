@@ -10,7 +10,7 @@ export function BillingSection() {
     <Card eyebrow="self-hosted · MIT" title="Billing">
       <EmptyState
         icon={Box}
-        title="OpenGEO is free, self-hosted, MIT-licensed."
+        title="Anseo is free, self-hosted, MIT-licensed."
         hint="No billing in local mode. Provider API costs are billed by them directly."
       />
     </Card>

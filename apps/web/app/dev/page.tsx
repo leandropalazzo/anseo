@@ -23,7 +23,7 @@ export default function DevPage() {
         </h1>
         <Card>
           <p className="m-0 text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-            Plugin author surfaces are disabled on Hosted Cloud. Run OpenGEO
+            Plugin author surfaces are disabled on Hosted Cloud. Run Anseo
             locally to load and hot-reload development plugins.
           </p>
         </Card>

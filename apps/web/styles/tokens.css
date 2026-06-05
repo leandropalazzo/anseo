@@ -46,6 +46,11 @@
   --accent-ink:  #0A0A0A;
   --accent-soft: oklch(0.86 0.17 95 / 0.12);
 
+  /* Chart ramp (mono bars) — shared with the public-web design system. */
+  --chart-1: oklch(0.86 0.17 95);
+  --chart-2: oklch(0.74 0.14 165);
+  --chart-3: oklch(0.70 0.17 255);
+
   /* Semantic */
   --ok:     oklch(0.74 0.14 155);
   --warn:   oklch(0.78 0.16 70);
@@ -99,6 +104,9 @@
    * keeps focus/accent affordance visible without losing the brand hue. */
   --accent:      oklch(0.62 0.16 95);
   --accent-soft: oklch(0.62 0.16 95 / 0.22);
+  --chart-1: oklch(0.62 0.16 95);
+  --chart-2: oklch(0.58 0.13 165);
+  --chart-3: oklch(0.55 0.16 255);
   --shadow-pop:  0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 

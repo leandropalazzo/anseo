@@ -26,7 +26,7 @@ export default async function McpPage() {
           </h1>
           <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
             Tools exposed to AI agents over the Model Context Protocol — the
-            same surfaces as the Web UI, served by the OpenGEO MCP server.
+            same surfaces as the Web UI, served by the Anseo MCP server.
           </p>
         </div>
       </header>

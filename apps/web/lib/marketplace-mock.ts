@@ -12,7 +12,7 @@ export const MARKETPLACE_MOCK: MarketplacePlugin[] = [
     version: "1.4.2",
     description:
       "Enriches prompt runs with live search-result snippets for citation grounding.",
-    author: "OpenGEO Labs",
+    author: "Anseo Labs",
     homepage: "https://github.com/opengeo/serp-enrichment",
     plugin_type: "extractor",
     verified: true,
@@ -45,7 +45,7 @@ export const MARKETPLACE_MOCK: MarketplacePlugin[] = [
     version: "2.0.1",
     description:
       "Adds rolling-window analytics aggregations backed by ClickHouse.",
-    author: "OpenGEO Labs",
+    author: "Anseo Labs",
     homepage: "https://github.com/opengeo/clickhouse-window",
     plugin_type: "analytics",
     verified: true,

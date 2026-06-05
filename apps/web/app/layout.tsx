@@ -17,9 +17,12 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OpenGEO Dashboard",
+  title: "Anseo Dashboard",
   description:
-    "Local dashboard for OpenGEO — track your brand's visibility in LLM responses.",
+    "Local dashboard for Anseo — track your brand's visibility in LLM responses.",
+  icons: {
+    icon: "/anseo-mark.svg",
+  },
 };
 
 export default function RootLayout({
