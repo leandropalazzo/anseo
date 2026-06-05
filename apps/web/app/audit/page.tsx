@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { fetchAuditRuns, fetchBrandConfig, type AuditRunItem } from "@/lib/api";
 
 import { AuditRunner } from "./_components/audit-runner";
@@ -24,20 +25,10 @@ export default async function AuditPage() {
 
   return (
     <section data-testid="audit-page" className="space-y-[12px]">
-      <header>
-        <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-          Site Audit
-        </h1>
-        <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-          Crawl{" "}
-          {brandName ? (
-            <span className="text-[color:var(--text)]">{brandName}</span>
-          ) : (
-            "your"
-          )}{" "}
-          owned pages and score citation-readiness against open, in-tree heuristics.
-        </p>
-      </header>
+      <PageHeader
+        title="Site Audit"
+        description={<>Crawl{" "}{brandName ? <span className="text-[color:var(--text)]">{brandName}</span> : "your"}{" "}owned pages and score citation-readiness against open, in-tree heuristics.</>}
+      />
       <AuditRunner initialTarget={siteUrl} brandName={brandName} />
 
       {history.length > 0 && (

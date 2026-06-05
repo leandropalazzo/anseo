@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   fetchBrands,
   fetchCrawlerMetrics,
@@ -57,33 +58,29 @@ export default async function CrawlersPage({
 
   return (
     <section data-testid="crawlers-page" className="space-y-[12px]">
-      <header className="flex items-end justify-between gap-[12px]">
-        <div>
-          <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-            Crawlers
-          </h1>
-          <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-            AI-bot hits on {primaryBrand ? <span className="text-[color:var(--text)]">{primaryBrand}</span> : "your site"} from your server logs and CDN, plus crawl-to-referral ratio.
-          </p>
-        </div>
-        <div className="flex items-center border border-[color:var(--border)]">
-          {WINDOWS.map((w) => (
-            <Link
-              key={w}
-              href={`/crawlers?days=${w}`}
-              aria-current={w === days ? "page" : undefined}
-              className={[
-                "px-[10px] py-[5px] font-[family-name:var(--font-mono)] text-[length:var(--font-size-xs)]",
-                w === days
-                  ? "bg-[color:var(--bg-elev-2)] text-[color:var(--text)]"
-                  : "text-[color:var(--text-muted)] hover:text-[color:var(--text)]",
-              ].join(" ")}
-            >
-              {w}d
-            </Link>
-          ))}
-        </div>
-      </header>
+      <PageHeader
+        title="Crawlers"
+        description={<>AI-bot hits on {primaryBrand ? <span className="text-[color:var(--text)]">{primaryBrand}</span> : "your site"} from your server logs and CDN, plus crawl-to-referral ratio.</>}
+        actions={
+          <div className="flex items-center border border-[color:var(--border)]">
+            {WINDOWS.map((w) => (
+              <Link
+                key={w}
+                href={`/crawlers?days=${w}`}
+                aria-current={w === days ? "page" : undefined}
+                className={[
+                  "px-[10px] py-[5px] font-[family-name:var(--font-mono)] text-[length:var(--font-size-xs)]",
+                  w === days
+                    ? "bg-[color:var(--bg-elev-2)] text-[color:var(--text)]"
+                    : "text-[color:var(--text-muted)] hover:text-[color:var(--text)]",
+                ].join(" ")}
+              >
+                {w}d
+              </Link>
+            ))}
+          </div>
+        }
+      />
 
       {!hasBots ? (
         <ConnectSource projectName={primaryBrand} />

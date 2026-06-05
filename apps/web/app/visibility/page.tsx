@@ -7,6 +7,7 @@ import {
 } from "@/lib/api";
 import { IS_DEMO } from "@/lib/data-source";
 
+import { PageHeader } from "@/components/ui/page-header";
 import type { PromptOption } from "./_components/prompt-picker";
 import type { TrendPoint } from "./_components/trend-chart";
 import { VisibilityTabs } from "./_components/visibility-tabs";
@@ -123,14 +124,10 @@ export default async function VisibilityPage({
 
   return (
     <section data-testid="visibility-page" className="space-y-[12px]">
-      <header>
-        <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-          Visibility
-        </h1>
-        <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-          Per-prompt trend and an overall, all-prompts visibility matrix.
-        </p>
-      </header>
+      <PageHeader
+        title="Visibility"
+        description="Per-prompt trend and an overall, all-prompts visibility matrix."
+      />
       <VisibilityTabs
         byPrompt={{
           prompts,

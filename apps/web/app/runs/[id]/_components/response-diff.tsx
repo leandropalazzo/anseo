@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Eye } from "lucide-react";
 
 import { DemoBadge } from "@/components/demo-badge";
-import { EmptyState } from "@/components/empty-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";

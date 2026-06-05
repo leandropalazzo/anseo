@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { EmptyState } from "@/components/empty-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
 import { Pill } from "@/components/ui/pill";
 import { SegControl } from "@/components/ui/seg-control";

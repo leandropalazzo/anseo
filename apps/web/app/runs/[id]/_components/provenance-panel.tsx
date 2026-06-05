@@ -1,4 +1,4 @@
-import { EmptyState } from "@/components/empty-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/card";
 import { Icon, ICON_DEFAULTS } from "@/lib/icons";
 import type { RunProvenanceStep } from "@/lib/api/run-detail";

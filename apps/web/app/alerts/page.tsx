@@ -5,6 +5,7 @@ import {
   type AnomalyItem,
 } from "@/lib/api";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { AlertsView } from "./_components/alerts-view";
 
 /**
@@ -31,16 +32,10 @@ export default async function AlertsPage() {
 
   return (
     <section data-testid="alerts-page" className="flex flex-col gap-[12px]">
-      <header className="flex items-baseline justify-between">
-        <div>
-          <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-            Alerts
-          </h1>
-          <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-            Inbox of anomalies and the rules that fired them.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        title="Alerts"
+        description="Inbox of anomalies and the rules that fired them."
+      />
       <AlertsView incidents={incidents} rules={rules} />
     </section>
   );

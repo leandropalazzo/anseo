@@ -4,6 +4,7 @@ import { ArrowLeft, Code, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { Pill } from "@/components/ui/pill";
 import { fetchRunDetail, type RunDetail } from "@/lib/api";
 import {
@@ -98,9 +99,7 @@ export default async function RunDetailPage({
         >
           <ArrowLeft size={11} strokeWidth={1.5} /> Runs
         </Link>
-        <h1 className="text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-          Run unavailable
-        </h1>
+        <PageHeader title="Run unavailable" />
         <p className="font-[family-name:var(--font-mono)] text-[length:var(--font-size-sm)] text-[color:var(--warn)]">
           {String(e)}
         </p>
@@ -166,9 +165,7 @@ export default async function RunDetailPage({
                 {run.id} · <LocalTime iso={run.started_at} mode="datetime" />
               </span>
             </div>
-            <h1 className="m-0 mt-[6px] text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-              {run.prompt_name}
-            </h1>
+            <h1 className="m-0 mt-[6px] text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">{run.prompt_name}</h1>
             <div className="mt-[6px] flex flex-wrap gap-[6px]">
               <Pill mono>prompt: {run.prompt_name}</Pill>
               <Pill mono>provider: {run.provider}</Pill>

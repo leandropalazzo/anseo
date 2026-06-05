@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchMcpToolStats, fetchMcpCalls, type McpCallRow } from "@/lib/api";
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 
 const KNOWN_TOOLS = [
   "run_prompt",
@@ -39,12 +40,10 @@ export default async function McpToolDetailPage({
 
   return (
     <section className="flex flex-col gap-[12px]">
-      <header>
-        <div className="label-eyebrow text-[color:var(--text-faint)]">MCP tools / {tool}</div>
-        <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-          {tool}
-        </h1>
-      </header>
+      <PageHeader
+        title={tool}
+        description={<span className="label-eyebrow text-[color:var(--text-faint)]">MCP tools / {tool}</span>}
+      />
 
       {/* Stats row */}
       <div className="grid grid-cols-4 gap-[12px]">

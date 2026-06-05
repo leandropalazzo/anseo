@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { Sparkline } from "@/components/charts/sparkline";
 import { Card } from "@/components/ui/card";
 import { DemoBadge } from "@/components/demo-badge";
-import { EmptyState } from "@/components/empty-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { StatTile } from "@/components/ui/stat-tile";
 import {
   fetchAnomalies,

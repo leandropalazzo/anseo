@@ -1,4 +1,5 @@
 import { fetchMarketplacePlugins, type MarketplacePlugin } from "@/lib/api";
+import { PageHeader } from "@/components/ui/page-header";
 
 import { MarketplaceBrowse } from "./_components/marketplace-browse";
 
@@ -17,15 +18,10 @@ export default async function MarketplacePage() {
       data-testid="marketplace-page"
       className="flex flex-col gap-[12px]"
     >
-      <header>
-        <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-          Marketplace
-        </h1>
-        <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-          Discover and inspect plugins. Installs run from the{" "}
-          <code className="font-[family-name:var(--font-mono)]">ogeo</code> CLI.
-        </p>
-      </header>
+      <PageHeader
+        title="Marketplace"
+        description={<>Discover and inspect plugins. Installs run from the <code className="font-[family-name:var(--font-mono)]">ogeo</code> CLI.</>}
+      />
       <MarketplaceBrowse plugins={plugins} />
     </section>
   );
