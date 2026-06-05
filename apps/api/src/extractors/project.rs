@@ -21,6 +21,9 @@
 //! 3. **Legacy sole-active-project fallback** — when no explicit/header value
 //!    is supplied AND exactly one active project exists, resolve to it. This
 //!    keeps single-project deployments working without sending the header.
+//!    **Story 36.11 (RISK-6)** guarantees this tier keeps v0.2.0 single-project
+//!    installations working unchanged after upgrading to the multi-project
+//!    binary: no manual migration or header adoption is required.
 //! 4. Otherwise -> **404 `project_not_found`**. We never silently fall back to
 //!    a boot-configured default: an unknown or ambiguous project is an error,
 //!    not a default.
