@@ -1,4 +1,6 @@
 pub mod alert_rules;
+pub mod density_check;
+pub mod leaderboard;
 pub mod analytics;
 pub mod anomalies;
 pub mod audit;
