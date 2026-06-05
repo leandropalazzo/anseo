@@ -24,11 +24,11 @@
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use opengeo_api::extractors::{resolve_project, ResolveError, PROJECT_HEADER};
-use tower::ServiceExt;
 use opengeo_core::{project_id_for_name, BrandConfig};
 use opengeo_storage::repositories::projects::ProjectRepo;
 use opengeo_storage::Storage;
 use sqlx::PgPool;
+use tower::ServiceExt;
 
 /// These tests manipulate the process-global `projects` table (the
 /// sole-active fallback is a COUNT over it), so they must not run
@@ -165,9 +165,9 @@ async fn fallback_is_ambiguous_with_two_projects() {
 // ---------------------------------------------------------------------------
 
 fn lazy_app() -> axum::Router {
-    use std::sync::Arc;
     use opengeo_api::{router, AppState};
     use opengeo_core::ProjectId;
+    use std::sync::Arc;
     let lazy_pool =
         sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__ph_test__")
             .expect("connect_lazy is sync");
