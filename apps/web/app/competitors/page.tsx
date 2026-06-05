@@ -1,6 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { DemoBadge } from "@/components/demo-badge";
-import { EmptyState } from "@/components/empty-state";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   fetchBrands,
   fetchComparisons,
@@ -221,17 +222,11 @@ export default async function CompetitorsPage() {
 
   return (
     <section data-testid="competitors-page" className="space-y-[12px]">
-      <header className="flex items-start justify-between gap-[12px]">
-        <div>
-          <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-            Competitors
-          </h1>
-          <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-            Share-of-voice, head-to-head, movers, and weekly win/loss roll-up.
-          </p>
-        </div>
-        {resolved.isDemo && <DemoBadge />}
-      </header>
+      <PageHeader
+        title="Competitors"
+        description="Share-of-voice, head-to-head, movers, and weekly win/loss roll-up."
+        actions={resolved.isDemo ? <DemoBadge /> : undefined}
+      />
 
       {resolved.isEmpty ? (
         <Card eyebrow="competitors" title="No comparison data yet">

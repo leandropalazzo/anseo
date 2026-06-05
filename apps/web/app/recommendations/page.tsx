@@ -10,6 +10,7 @@ import {
   type Recommendation,
 } from "@/lib/api";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { GenerateButton } from "./_components/generate-button";
 import { QuickActions } from "./_components/quick-actions";
 import { NdpMarkerFor, PriorityLabel } from "./_components/priority-label";
@@ -46,17 +47,11 @@ export default async function RecommendationsPage() {
       data-testid="recommendations-page"
       className="flex flex-col gap-[12px]"
     >
-      <header className="flex items-baseline justify-between">
-        <div>
-          <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-            Recommendations
-          </h1>
-          <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-            Active recommendations, highest priority first.
-          </p>
-        </div>
-        <GenerateButton />
-      </header>
+      <PageHeader
+        title="Recommendations"
+        description="Active recommendations, highest priority first."
+        actions={<GenerateButton />}
+      />
 
       {intelligence.length > 0 && <IntelligencePanel rows={intelligence} />}
 

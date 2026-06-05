@@ -7,7 +7,13 @@ import { ICON_DEFAULTS } from "@/lib/icons";
 export interface EmptyStateProps {
   icon?: LucideIcon;
   title: ReactNode;
+  /** Supporting text rendered below the title. */
   hint?: ReactNode;
+  /**
+   * @deprecated Use `hint` instead. Kept for backward-compat while the legacy
+   * `components/empty-state.tsx` callers are migrated.
+   */
+  message?: ReactNode;
   action?: ReactNode;
   className?: string;
 }
@@ -17,9 +23,12 @@ export function EmptyState({
   icon: IconCmp = Box,
   title,
   hint,
+  message,
   action,
   className,
 }: EmptyStateProps) {
+  // Resolve hint from either prop so callers can use either name.
+  const resolvedHint = hint ?? message;
   return (
     <div
       className={[
@@ -36,9 +45,9 @@ export function EmptyState({
       <div className="mt-[12px] text-[length:var(--font-size-base)] text-[color:var(--text)]">
         {title}
       </div>
-      {hint && (
+      {resolvedHint && (
         <div className="mt-[4px] font-[family-name:var(--font-mono)] text-[length:var(--font-size-xs)] text-[color:var(--text-muted)]">
-          {hint}
+          {resolvedHint}
         </div>
       )}
       {action && <div className="mt-[14px]">{action}</div>}

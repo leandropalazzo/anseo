@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   fetchHallucinationSummary,
   type ClaimVerdict,
@@ -27,14 +28,10 @@ export default async function HallucinationPage() {
 
   return (
     <section data-testid="hallucination-page" className="space-y-[12px]">
-      <header>
-        <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-          Brand Accuracy
-        </h1>
-        <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-          Factual claims AI engines make about your brand, checked against ground-truth facts.
-        </p>
-      </header>
+      <PageHeader
+        title="Brand Accuracy"
+        description="Factual claims AI engines make about your brand, checked against ground-truth facts."
+      />
 
       {!summary ? (
         <EmptyState

@@ -1,30 +1,34 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import { ThemeToggle } from "@/app/theme-toggle";
-import { DeploymentSwitch } from "@/components/shell/deployment-switch";
 import { KBD } from "@/components/ui/kbd";
+import { NAV_GROUPS } from "@/components/shell/sidebar";
 import { fetchAnomalies } from "@/lib/api/anomalies";
 import { Icon, ICON_DEFAULTS, type LucideIcon } from "@/lib/icons";
 
-/** Maps the first path segment to the human breadcrumb label. */
-const ROUTE_TITLES: Readonly<Record<string, string>> = {
-  "": "Overview",
-  runs: "Prompt Runs",
-  visibility: "Visibility",
-  citations: "Citations",
-  competitors: "Competitors",
-  prompts: "Prompts",
-  alerts: "Alerts",
-  schedules: "Schedules",
-  mcp: "MCP Server",
-  settings: "Settings",
-  onboarding: "Get started",
-  "%5Fdesign-sandbox": "Design sandbox",
-  _design_sandbox: "Design sandbox",
-};
+/** Derive route → label map from the canonical NAV_GROUPS source of truth. */
+function buildRouteTitles(): Readonly<Record<string, string>> {
+  const map: Record<string, string> = {
+    // Root / is keyed by empty string
+    "": "Overview",
+    // Design sandbox has a URL-encoded segment
+    "%5Fdesign-sandbox": "Design sandbox",
+    _design_sandbox: "Design sandbox",
+  };
+  for (const group of NAV_GROUPS) {
+    for (const item of group.items) {
+      if (item.href === "/") continue; // already handled above
+      const seg = item.href.slice(1); // strip leading "/"
+      map[seg] = item.label;
+    }
+  }
+  return map;
+}
+
+const ROUTE_TITLES: Readonly<Record<string, string>> = buildRouteTitles();
 
 function titleForPath(pathname: string): string {
   if (pathname === "/" || pathname === "") return ROUTE_TITLES[""];
@@ -85,7 +89,6 @@ export function Topbar({ onOpenPalette }: TopbarProps) {
       <div className="flex items-center justify-between gap-[12px] px-[18px] py-[8px]">
         <Breadcrumbs project={project} title={title} />
         <div className="flex items-center gap-[8px]">
-          <DeploymentSwitch />
           <SearchTrigger onClick={onOpenPalette} />
           <IconBtn
             icon={Icon.Refresh}
@@ -100,7 +103,6 @@ export function Topbar({ onOpenPalette }: TopbarProps) {
             badge={alertCount && alertCount > 0 ? alertCount : undefined}
           />
           <ThemeToggle />
-          <UserAvatar initials="DA" />
         </div>
       </div>
     </header>
@@ -180,20 +182,5 @@ function IconBtn({
         </span>
       )}
     </button>
-  );
-}
-
-function UserAvatar({ initials }: { initials: string }): ReactNode {
-  return (
-    <div
-      aria-label={`User: ${initials}`}
-      className="inline-flex h-[24px] w-[24px] items-center justify-center border border-[color:var(--border-strong)] font-[family-name:var(--font-mono)] text-[10px] font-semibold text-[color:var(--accent-ink)]"
-      style={{
-        background:
-          "linear-gradient(135deg, var(--accent), color-mix(in oklch, var(--accent) 60%, var(--info)))",
-      }}
-    >
-      {initials}
-    </div>
   );
 }

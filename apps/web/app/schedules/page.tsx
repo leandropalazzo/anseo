@@ -6,6 +6,7 @@ import {
 } from "@/lib/api";
 
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { configuredConcreteProviderIds } from "@/lib/provider-colors";
 import { ScheduleGrid } from "../alerts/_components/schedule-grid";
 
@@ -38,15 +39,10 @@ export default async function SchedulesPage() {
 
   return (
     <section data-testid="schedules-page" className="flex flex-col gap-[12px]">
-      <header>
-        <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-          Schedules
-        </h1>
-        <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-          Declare prompt × provider matrices on a cadence, or trigger one on
-          demand with Run now.
-        </p>
-      </header>
+      <PageHeader
+        title="Schedules"
+        description="Declare prompt × provider matrices on a cadence, or trigger one on demand with Run now."
+      />
       <Card padding={false} title="Schedules">
         <ScheduleGrid
           schedules={schedules}

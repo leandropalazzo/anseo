@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import { demoOrEmpty, IS_DEMO } from "@/lib/data-source";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { CitationsView } from "./_components/citations-view";
 
 const EMPTY_GRAPH: CitationGraphData = { nodes: [], edges: [] };
@@ -73,15 +74,10 @@ export default async function CitationsPage() {
 
   return (
     <section data-testid="citations-page" className="space-y-[12px]">
-      <header>
-        <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-          Citations
-        </h1>
-        <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-          Top domains, the provider → domain citation network, and a
-          source-type breakdown.
-        </p>
-      </header>
+      <PageHeader
+        title="Citations"
+        description="Top domains, the provider → domain citation network, and a source-type breakdown."
+      />
       <CitationsView
         rows={rows}
         graph={graph}

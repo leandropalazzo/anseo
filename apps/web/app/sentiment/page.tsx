@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { Bar } from "@/components/charts/bar";
 import { fetchSentiment, type SentimentPoint } from "@/lib/api";
 
@@ -62,33 +63,29 @@ export default async function SentimentPage({
 
   return (
     <section data-testid="sentiment-page" className="space-y-[12px]">
-      <header className="flex items-end justify-between gap-[12px]">
-        <div>
-          <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-            Sentiment
-          </h1>
-          <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-            Tone of every classified brand mention — positive, neutral, or negative — across providers.
-          </p>
-        </div>
-        <div className="flex items-center border border-[color:var(--border)]">
-          {WINDOWS.map((w) => (
-            <Link
-              key={w}
-              href={`/sentiment?days=${w}`}
-              aria-current={w === days ? "page" : undefined}
-              className={[
-                "px-[10px] py-[5px] font-[family-name:var(--font-mono)] text-[length:var(--font-size-xs)]",
-                w === days
-                  ? "bg-[color:var(--bg-elev-2)] text-[color:var(--text)]"
-                  : "text-[color:var(--text-muted)] hover:text-[color:var(--text)]",
-              ].join(" ")}
-            >
-              {w}d
-            </Link>
-          ))}
-        </div>
-      </header>
+      <PageHeader
+        title="Sentiment"
+        description="Tone of every classified brand mention — positive, neutral, or negative — across providers."
+        actions={
+          <div className="flex items-center border border-[color:var(--border)]">
+            {WINDOWS.map((w) => (
+              <Link
+                key={w}
+                href={`/sentiment?days=${w}`}
+                aria-current={w === days ? "page" : undefined}
+                className={[
+                  "px-[10px] py-[5px] font-[family-name:var(--font-mono)] text-[length:var(--font-size-xs)]",
+                  w === days
+                    ? "bg-[color:var(--bg-elev-2)] text-[color:var(--text)]"
+                    : "text-[color:var(--text-muted)] hover:text-[color:var(--text)]",
+                ].join(" ")}
+              >
+                {w}d
+              </Link>
+            ))}
+          </div>
+        }
+      />
 
       {rolls.length === 0 ? (
         <EmptyState

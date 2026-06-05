@@ -8,6 +8,7 @@ import {
   isHostedCloud,
 } from "@/lib/dev-mode";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { DevOverview } from "./_components/dev-overview";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +19,7 @@ export default function DevPage() {
   if (isHostedCloud()) {
     return (
       <section data-testid="dev-hosted-refusal" className="flex flex-col gap-[8px]">
-        <h1 className="m-0 text-[length:22px] font-normal text-[color:var(--text)]">
-          Dev mode unavailable
-        </h1>
+        <PageHeader title="Dev mode unavailable" />
         <Card>
           <p className="m-0 text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
             Plugin author surfaces are disabled on Hosted Cloud. Run Anseo
@@ -37,15 +36,10 @@ export default function DevPage() {
   return (
     <section data-testid="dev-page" className="flex flex-col gap-[12px]">
       <DevBanner />
-      <header>
-        <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-          Plugin Dev
-        </h1>
-        <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-          Hot-reload, logs, and capability inspection for locally loaded
-          plugins.
-        </p>
-      </header>
+      <PageHeader
+        title="Plugin Dev"
+        description="Hot-reload, logs, and capability inspection for locally loaded plugins."
+      />
       <DevOverview state={DEV_PLUGIN_MOCK} />
     </section>
   );

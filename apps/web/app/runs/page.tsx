@@ -1,6 +1,7 @@
 import { fetchRuns } from "@/lib/api";
 import { genRuns, type MockRun } from "@/lib/mock";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { RunsView } from "./_components/runs-view";
 
 export default async function RunsPage() {
@@ -18,19 +19,15 @@ export default async function RunsPage() {
 
   return (
     <section data-testid="runs-page" className="flex flex-col gap-[12px]">
-      <header className="flex items-baseline justify-between">
-        <div>
-          <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-            Prompt Runs
-          </h1>
-          <p className="m-0 mt-[2px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-            Newest first. Tabs + provider chips filter the table.
-          </p>
-        </div>
-        <div className="font-[family-name:var(--font-mono)] text-[length:var(--font-size-xs)] text-[color:var(--text-faint)]">
-          {runs.length} rows
-        </div>
-      </header>
+      <PageHeader
+        title="Prompt Runs"
+        description="Newest first. Tabs + provider chips filter the table."
+        actions={
+          <div className="font-[family-name:var(--font-mono)] text-[length:var(--font-size-xs)] text-[color:var(--text-faint)]">
+            {runs.length} rows
+          </div>
+        }
+      />
       <RunsView runs={runs} />
     </section>
   );
