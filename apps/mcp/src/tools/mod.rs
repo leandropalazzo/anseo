@@ -65,6 +65,24 @@ fn parse_schema(raw: &str) -> serde_json::Value {
     serde_json::from_str(raw).expect("committed wire-schema snapshot must be valid JSON")
 }
 
+/// Story 36.5: map a 404 from the upstream API into an `UnknownProject` error
+/// when the request carried an explicit project selector via `X-OpenGEO-Project`.
+///
+/// Call this helper after receiving a non-2xx response from the API — it checks
+/// whether the status is 404 and returns `UnknownProject` so the dispatcher
+/// can surface a structured tool error to the MCP client instead of a generic
+/// upstream failure.
+pub(crate) fn map_project_not_found(
+    status: reqwest::StatusCode,
+    api: &ApiClient,
+) -> Option<McpToolError> {
+    if status == reqwest::StatusCode::NOT_FOUND {
+        Some(McpToolError::UnknownProject(api.current_project().to_owned()))
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

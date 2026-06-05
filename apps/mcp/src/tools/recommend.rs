@@ -90,6 +90,10 @@ impl Tool for RecommendList {
             .map_err(|e| upstream_err(&e.to_string()))?;
 
         if !resp.status().is_success() {
+            // Story 36.5: 404 from a project-scoped call → UnknownProject.
+            if let Some(e) = super::map_project_not_found(resp.status(), api) {
+                return Err(e);
+            }
             return Err(upstream_err(&format!(
                 "upstream /v1/recommendations returned {}",
                 resp.status()
@@ -152,6 +156,10 @@ impl Tool for RecommendShow {
             .map_err(|e| upstream_err(&e.to_string()))?;
 
         if !resp.status().is_success() {
+            // Story 36.5: 404 from a project-scoped call → UnknownProject.
+            if let Some(e) = super::map_project_not_found(resp.status(), api) {
+                return Err(e);
+            }
             return Err(upstream_err(&format!(
                 "upstream {path} returned {}",
                 resp.status()
@@ -182,6 +190,10 @@ fn transition(
         .map_err(|e| upstream_err(&e.to_string()))?;
 
     if !resp.status().is_success() {
+        // Story 36.5: 404 from a project-scoped call → UnknownProject.
+        if let Some(e) = super::map_project_not_found(resp.status(), api) {
+            return Err(e);
+        }
         return Err(upstream_err(&format!(
             "upstream {path} returned {}",
             resp.status()

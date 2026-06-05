@@ -98,7 +98,12 @@ impl Tool for CompareBrands {
 
         // 4. Handle non-2xx — 400 means placeholder brands were rejected;
         //    return an empty output. Other 4xx/5xx → upstream error.
+        //    Story 36.5: 404 from a project-scoped call → UnknownProject.
         if !status.is_success() {
+            if let Some(e) = super::map_project_not_found(status, api) {
+                return Err(e);
+            }
+
             let body = tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(async { resp.text().await })
             })

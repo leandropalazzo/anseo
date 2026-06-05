@@ -24,7 +24,7 @@ use axum::Router;
 use tokio::sync::Semaphore;
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::dispatch::{Dispatcher, Outbound};
+use crate::dispatch::{Dispatcher, Outbound, ProjectSelector};
 use crate::protocol::{ErrorResponse, Id, Request as RpcRequest, PARSE_ERROR};
 
 /// Maximum concurrent in-flight POST /mcp requests.
@@ -118,9 +118,17 @@ async fn handle_post(
         }
     };
 
+    // Story 36.5 AC-2: extract X-OpenGEO-Project transport hint.
+    let transport_hint = headers
+        .get("X-OpenGEO-Project")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_owned());
+    let selector = ProjectSelector { transport_hint };
+
     // Parse JSON-RPC request.
     let reply = match serde_json::from_slice::<RpcRequest>(&body) {
-        Ok(req) => state.dispatcher.dispatch(req),
+        Ok(req) => state.dispatcher.dispatch_with_selector(req, selector),
         Err(err) => Outbound::Failure(ErrorResponse::new(
             Id::Null,
             PARSE_ERROR,
