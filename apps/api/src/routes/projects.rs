@@ -232,3 +232,44 @@ async fn archive_project(
         })?;
     Ok(StatusCode::NO_CONTENT)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opengeo_core::ProjectId;
+    use opengeo_storage::models::ProjectRow;
+
+    #[test]
+    fn project_view_from_row_maps_fields() {
+        let id = ProjectId::new();
+        let now = chrono::Utc::now();
+        let row = ProjectRow {
+            id,
+            name: "Acme Corp".to_string(),
+            organization_id: None,
+            tenant_id: None,
+            created_at: now,
+        };
+        let view = ProjectView::from(row);
+        assert_eq!(view.project_id, id.to_string());
+        assert_eq!(view.name, "Acme Corp");
+        assert_eq!(view.created_at, now);
+    }
+
+    #[test]
+    fn parse_id_rejects_garbage() {
+        let result = parse_id("not-a-valid-id");
+        assert!(result.is_err());
+        let (code, _) = result.unwrap_err();
+        assert_eq!(code, StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn create_project_request_deserializes_defaults() {
+        let json = r#"{"name": "My Brand"}"#;
+        let req: CreateProjectRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.name, "My Brand");
+        assert!(req.variants.is_empty());
+        assert!(req.site_url.is_none());
+    }
+}
