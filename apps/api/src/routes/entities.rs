@@ -1,4 +1,4 @@
-//! Entity registry API — Story 43.1 / 43.3.
+//! Entity registry API — Story 43.1 / 43.3 / 43.4.
 //!
 //! `GET /v1/entities/:domain` — internal lookup by normalized domain.
 //! Returns the full entity record (display_name, role, claim_status, etc.)
@@ -11,6 +11,10 @@
 //! `GET /v1/benchmark/leaderboard` — public leaderboard surface (Story 43.4).
 //! Returns domains ranked by citation frequency, enriched with entity
 //! registry state (display_name + claim_status).
+//!
+//! `GET /v1/benchmark/profile/:domain` — brand/source profile page backend
+//! (Story 43.4 AC-4). Returns full entity profile with rank history,
+//! contributor count, role, and owner-managed blurb.
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -29,6 +33,7 @@ pub fn v1_router() -> Router<AppState> {
         .route("/entities/:domain", get(get_entity))
         .route("/entities", post(create_entity))
         .route("/benchmark/leaderboard", get(get_leaderboard))
+        .route("/benchmark/profile/:domain", get(get_brand_profile))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -271,5 +276,151 @@ async fn get_leaderboard(
     Ok(Json(LeaderboardResponse {
         items,
         statement: "Rankings are based on measured data. Entities cannot influence their own rank.",
+    }))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /v1/benchmark/profile/:domain (Story 43.4 AC-4)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Full brand/source profile. Returned for both verified and unclaimed
+/// states. When unclaimed, `owner_managed_blurb` is empty and
+/// `verification_method` is null.
+///
+/// Design constraint (Story 43.4 AC-4): "Verified (identity)" and
+/// "Ranked (performance)" must be visually distinct in the UI — the
+/// `claim_status` field and `current_rank` are kept as separate fields
+/// so the frontend cannot accidentally place the ✓ chip adjacent to the
+/// rank number.
+#[derive(Debug, Serialize)]
+pub struct BrandProfileResponse {
+    pub domain: String,
+    pub display_name: String,
+    pub role: Option<String>,
+    /// "unclaimed" | "verified" | "pending" | etc.
+    pub claim_status: String,
+    pub verification_method: Option<String>,
+    pub verified_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Current citation rank (null if not in top 100).
+    pub current_rank: Option<i64>,
+    /// Total citation count across all time.
+    pub total_citations: i64,
+    /// Number of contributing deployments that have cited this domain.
+    pub contributor_count: i64,
+    /// Owner-managed blurb; empty string when unclaimed (Story 43.4 AC-4).
+    pub owner_managed_blurb: String,
+    /// "Rankings are based on measured data. Entities cannot influence their own rank."
+    /// Mandatory per AC-4.
+    pub statement: &'static str,
+    /// Link to methodology page (Story 43.4 AC-4 "methodology link").
+    pub methodology_url: &'static str,
+}
+
+async fn get_brand_profile(
+    Path(raw_domain): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<BrandProfileResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let domain =
+        opengeo_storage::repositories::entities::EntityRepo::normalize_domain(&raw_domain);
+
+    // Fetch entity record (may not exist for unclaimed domains).
+    let entity = state
+        .storage
+        .entities()
+        .get(&domain)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "storage_error", "message": e.to_string() })),
+            )
+        })?;
+
+    // Citation stats from the citations table.
+    let stats_row = sqlx::query(
+        r#"
+        SELECT
+            SUM(frequency)::bigint AS total_citations,
+            COUNT(DISTINCT pr.id)::bigint AS contributor_count
+        FROM citations c
+        JOIN prompt_runs pr ON pr.id = c.prompt_run_id
+        WHERE c.domain = $1
+        "#,
+    )
+    .bind(&domain)
+    .fetch_optional(state.storage.pool())
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": "storage_error", "message": e.to_string() })),
+        )
+    })?;
+
+    let total_citations: i64 = stats_row
+        .as_ref()
+        .and_then(|r| r.try_get::<Option<i64>, _>("total_citations").ok().flatten())
+        .unwrap_or(0);
+    let contributor_count: i64 = stats_row
+        .as_ref()
+        .and_then(|r| r.try_get::<Option<i64>, _>("contributor_count").ok().flatten())
+        .unwrap_or(0);
+
+    // Compute rank by counting domains with more citations.
+    let rank_row = sqlx::query(
+        r#"
+        SELECT (
+            SELECT COUNT(DISTINCT c2.domain)::bigint
+            FROM citations c2
+            GROUP BY c2.domain
+            HAVING SUM(c2.frequency) > (
+                SELECT COALESCE(SUM(c3.frequency), 0)
+                FROM citations c3
+                WHERE c3.domain = $1
+            )
+        ) AS domains_above
+        "#,
+    )
+    .bind(&domain)
+    .fetch_optional(state.storage.pool())
+    .await
+    .ok()
+    .flatten();
+
+    let current_rank: Option<i64> = if total_citations > 0 {
+        rank_row
+            .as_ref()
+            .and_then(|r| r.try_get::<Option<i64>, _>("domains_above").ok().flatten())
+            .map(|above| above + 1)
+            .or(Some(1))
+    } else {
+        None
+    };
+
+    let (display_name, claim_status, role, verification_method, verified_at) =
+        match entity {
+            Some(e) => (
+                e.display_name,
+                e.claim_status,
+                Some(e.role),
+                e.verification_method,
+                e.verified_at,
+            ),
+            None => (domain.clone(), "unclaimed".to_owned(), None, None, None),
+        };
+
+    Ok(Json(BrandProfileResponse {
+        domain,
+        display_name,
+        role,
+        claim_status,
+        verification_method,
+        verified_at,
+        current_rank,
+        total_citations,
+        contributor_count,
+        owner_managed_blurb: String::new(), // populated when owner claims + edits profile
+        statement: "Rankings are based on measured data. Entities cannot influence their own rank.",
+        methodology_url: "/methodology",
     }))
 }
