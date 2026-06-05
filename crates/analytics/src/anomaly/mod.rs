@@ -25,8 +25,8 @@
 pub mod citation_novelty;
 pub mod zscore;
 
+use anseo_core::ProviderName;
 use chrono::{DateTime, Utc};
-use opengeo_core::ProviderName;
 use serde::{Deserialize, Serialize};
 
 /// Wire-stable taxonomy for anomaly verdicts. Maps onto the ARCH-17 event
@@ -105,8 +105,8 @@ pub fn detect_citation_novelty(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anseo_core::ProviderName;
     use chrono::{TimeZone, Utc};
-    use opengeo_core::ProviderName;
 
     #[test]
     fn visibility_grouping_isolates_per_provider_statistics() {

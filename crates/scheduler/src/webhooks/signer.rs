@@ -1,10 +1,10 @@
 //! HMAC-SHA256 signing + verification for Phase 2 webhook deliveries
 //! (architecture §5.2, FR-35, R-201).
 //!
-//! Wire shape (X-OpenGEO-Signature header):
+//! Wire shape (X-Anseo-Signature header):
 //!
 //! ```text
-//! X-OpenGEO-Signature: v1=t={unix-timestamp},s={hex-encoded-hmac-sha256}
+//! X-Anseo-Signature: v1=t={unix-timestamp},s={hex-encoded-hmac-sha256}
 //! ```
 //!
 //! Canonical message the HMAC is computed over:
@@ -37,7 +37,12 @@ pub const DEFAULT_REPLAY_WINDOW_SECONDS: i64 = 300;
 
 /// Wire-stable header name. Stable across Phase 2; a Phase 3 v2 scheme
 /// would land alongside (`v2=…`), not replace.
-pub const SIGNATURE_HEADER: &str = "X-OpenGEO-Signature";
+pub const SIGNATURE_HEADER: &str = "X-Anseo-Signature";
+
+/// Deprecated pre-rename header name. Accepted for one release for back-compat
+/// with consumers that still verify the old `X-OpenGEO-Signature` envelope.
+#[deprecated(since = "0.7.0", note = "use X-Anseo-Signature instead")]
+pub const SIGNATURE_HEADER_LEGACY: &str = "X-OpenGEO-Signature";
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum VerifyError {
@@ -170,7 +175,7 @@ mod tests {
 
     #[test]
     fn header_constant_matches_arch_5_2() {
-        assert_eq!(SIGNATURE_HEADER, "X-OpenGEO-Signature");
+        assert_eq!(SIGNATURE_HEADER, "X-Anseo-Signature");
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use opengeo_core::ids::{ProjectId, PromptId};
+use anseo_core::ids::{ProjectId, PromptId};
 use sqlx::PgPool;
 
 use crate::error::Error;

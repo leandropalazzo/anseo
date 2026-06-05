@@ -6,8 +6,8 @@
 
 use std::path::PathBuf;
 
+use anseo_core::OpenGeoError;
 use clap::Args;
-use opengeo_core::OpenGeoError;
 
 #[derive(Debug, Args)]
 pub struct VisibilityArgs {
@@ -47,7 +47,7 @@ pub fn run(args: VisibilityArgs) -> Result<(), OpenGeoError> {
         args.config,
     );
     Err(OpenGeoError::Provider {
-        kind: opengeo_core::ProviderErrorKind::NetworkError,
+        kind: anseo_core::ProviderErrorKind::NetworkError,
         message: "`ogeo check visibility` requires persisted Prompt Runs; \
                   ships fully in Story 3.2 once extraction lands."
             .into(),

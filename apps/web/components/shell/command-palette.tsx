@@ -116,7 +116,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           const next = cur === "dark" ? "light" : "dark";
           document.documentElement.setAttribute("data-theme", next);
           try {
-            localStorage.setItem("ogeo-theme", next);
+            localStorage.setItem("anseo-theme", next);
           } catch {
             /* ignore */
           }

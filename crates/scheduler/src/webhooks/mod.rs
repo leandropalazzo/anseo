@@ -4,7 +4,7 @@
 //! wiring land in follow-up rounds:
 //!
 //! - [`signer`] — HMAC-SHA256 signing + timing-safe verification of the
-//!   `X-OpenGEO-Signature: v1=t={ts},s={hex}` wire shape (architecture §5.2).
+//!   `X-Anseo-Signature: v1=t={ts},s={hex}` wire shape (architecture §5.2).
 //! - [`retry`] — the canonical retry ladder (1s, 30s, 5min, 1h, 6h),
 //!   auto-disable after 5 permanent failures (architecture §5.4).
 

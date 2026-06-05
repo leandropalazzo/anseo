@@ -76,7 +76,7 @@ def _to_iso(value: Any) -> Any:
     return value
 
 
-class OpenGeoObserver:
+class AnseoObserver:
     """Thin client around ``POST /v1/ingest/run``."""
 
     def __init__(
@@ -178,9 +178,9 @@ def observe_run(
 ) -> ObserveRunResult:
     """One-shot convenience: construct an observer and record a single run.
 
-    Prefer reusing an :class:`OpenGeoObserver` when sending many runs.
+    Prefer reusing an :class:`AnseoObserver` when sending many runs.
     """
-    observer = OpenGeoObserver(
+    observer = AnseoObserver(
         base_url=base_url,
         api_key=api_key,
         project=project,

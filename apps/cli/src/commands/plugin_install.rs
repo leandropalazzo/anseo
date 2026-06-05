@@ -8,7 +8,7 @@
 //! Install (signed path, arch §5.4):
 //!   1. fetch artifacts from the registry,
 //!   2. verify against the revocation list + root-signed namespace claim + the
-//!      author signature + the TOFU pin (`opengeo_plugin_host::signing`),
+//!      author signature + the TOFU pin (`anseo_plugin_host::signing`),
 //!   3. materialize the bundle under `<home>/plugins/<id>/<version>/`,
 //!   4. pin the namespace key in `trusted_keys.toml` and record the install in
 //!      `installed.toml`,
@@ -20,11 +20,11 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use opengeo_plugin_host::capability::{upgrade_plan, CapabilitySet};
-use opengeo_plugin_host::signing::{
+use anseo_plugin_host::capability::{upgrade_plan, CapabilitySet};
+use anseo_plugin_host::signing::{
     verify_signed_plugin, NamespaceClaim, SignatureStatus, SignedPlugin,
 };
-use opengeo_storage::repositories::plugin_installs::{NewPluginInstall, PluginInstallsRepo};
+use anseo_storage::repositories::plugin_installs::{NewPluginInstall, PluginInstallsRepo};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
@@ -231,7 +231,7 @@ pub async fn install_plugin(
 
 pub async fn list_installed(
     pool: &PgPool,
-) -> Result<Vec<opengeo_storage::repositories::plugin_installs::PluginInstallRow>, PluginError> {
+) -> Result<Vec<anseo_storage::repositories::plugin_installs::PluginInstallRow>, PluginError> {
     PluginInstallsRepo::new(pool)
         .find_active()
         .await
@@ -276,7 +276,7 @@ pub async fn upgrade_plugin(
         .find(|e| e.id == id)
         .ok_or_else(|| PluginError::NotInstalled(id.to_string()))?;
 
-    let old_manifest = opengeo_plugin_manifest::PluginManifest::load_from_path(
+    let old_manifest = anseo_plugin_manifest::PluginManifest::load_from_path(
         &home
             .join("plugins")
             .join(id)

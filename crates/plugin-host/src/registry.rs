@@ -42,7 +42,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
-use opengeo_plugin_manifest::PluginManifest;
+use anseo_plugin_manifest::PluginManifest;
 
 use crate::signing::{
     verify_signed_plugin, NamespaceClaim, RevocationList, SignatureStatus, SignedPlugin,
@@ -55,7 +55,11 @@ pub const DEFAULT_REGISTRY_URL: &str =
     "https://raw.githubusercontent.com/opengeo/plugin-registry/main";
 
 /// Environment variable that overrides the registry base URL.
-pub const REGISTRY_URL_ENV: &str = "OPENGEO_PLUGIN_REGISTRY_URL";
+pub const REGISTRY_URL_ENV: &str = "ANSEO_PLUGIN_REGISTRY_URL";
+
+/// Deprecated alias for [`REGISTRY_URL_ENV`]. Accepted for one release.
+#[deprecated(since = "0.7.0", note = "use ANSEO_PLUGIN_REGISTRY_URL instead")]
+pub const REGISTRY_URL_ENV_LEGACY: &str = "OPENGEO_PLUGIN_REGISTRY_URL";
 
 #[derive(Debug, Error)]
 pub enum RegistryError {
@@ -125,10 +129,12 @@ impl HttpTransport {
         }
     }
 
-    /// Build a transport from `OPENGEO_PLUGIN_REGISTRY_URL`, falling back to
-    /// [`DEFAULT_REGISTRY_URL`].
+    /// Build a transport from `ANSEO_PLUGIN_REGISTRY_URL` (or the deprecated
+    /// `OPENGEO_PLUGIN_REGISTRY_URL`), falling back to [`DEFAULT_REGISTRY_URL`].
     pub fn from_env() -> Self {
-        let base = std::env::var(REGISTRY_URL_ENV).unwrap_or_else(|_| DEFAULT_REGISTRY_URL.into());
+        let base = std::env::var(REGISTRY_URL_ENV)
+            .or_else(|_| std::env::var("OPENGEO_PLUGIN_REGISTRY_URL"))
+            .unwrap_or_else(|_| DEFAULT_REGISTRY_URL.into());
         Self::new(base)
     }
 }

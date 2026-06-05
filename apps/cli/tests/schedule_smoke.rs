@@ -4,12 +4,12 @@ use assert_cmd::Command;
 use predicates::str::contains;
 use tempfile::TempDir;
 
-fn ogeo() -> Command {
-    Command::cargo_bin("ogeo").expect("ogeo binary built")
+fn anseo() -> Command {
+    Command::cargo_bin("anseo").expect("anseo binary built")
 }
 
 fn write_config(dir: &TempDir) -> std::path::PathBuf {
-    let cfg = dir.path().join("opengeo.yaml");
+    let cfg = dir.path().join("anseo.yaml");
     std::fs::write(
         &cfg,
         r#"schema_version: '0.1'
@@ -34,7 +34,7 @@ fn schedule_add_promotes_config_to_v0_2_and_lists() {
     let dir = TempDir::new().unwrap();
     let cfg = write_config(&dir);
 
-    ogeo()
+    anseo()
         .args([
             "schedule",
             "add",
@@ -54,11 +54,11 @@ fn schedule_add_promotes_config_to_v0_2_and_lists() {
         .stderr(contains("projected monthly cost"));
 
     let yaml = std::fs::read_to_string(&cfg).unwrap();
-    let parsed = opengeo_core::Config::from_yaml_str(&yaml).unwrap();
+    let parsed = anseo_core::Config::from_yaml_str(&yaml).unwrap();
     assert_eq!(parsed.schema_version, "0.2");
     assert_eq!(parsed.schedules[0].name, "daily-watch");
 
-    ogeo()
+    anseo()
         .args(["schedule", "list", "--config"])
         .arg(&cfg)
         .assert()
@@ -71,7 +71,7 @@ fn schedule_add_rejects_density_cap_violation() {
     let dir = TempDir::new().unwrap();
     let cfg = write_config(&dir);
 
-    ogeo()
+    anseo()
         .args([
             "schedule",
             "add",
@@ -97,7 +97,7 @@ fn schedule_add_requires_ack_for_expensive_projection() {
     let dir = TempDir::new().unwrap();
     let cfg = write_config(&dir);
 
-    ogeo()
+    anseo()
         .args([
             "schedule",
             "add",
@@ -121,7 +121,7 @@ fn schedule_add_requires_ack_for_expensive_projection() {
         .code(64)
         .stderr(contains("--allow-expensive"));
 
-    ogeo()
+    anseo()
         .args([
             "schedule",
             "add",
@@ -145,7 +145,7 @@ fn schedule_add_requires_ack_for_expensive_projection() {
         .success();
 
     let parsed =
-        opengeo_core::Config::from_yaml_str(&std::fs::read_to_string(&cfg).unwrap()).unwrap();
+        anseo_core::Config::from_yaml_str(&std::fs::read_to_string(&cfg).unwrap()).unwrap();
     assert!(parsed.schedules[0].projection_acknowledged_at.is_some());
 }
 
@@ -153,7 +153,7 @@ fn schedule_add_requires_ack_for_expensive_projection() {
 fn schedule_remove_updates_yaml() {
     let dir = TempDir::new().unwrap();
     let cfg = write_config(&dir);
-    ogeo()
+    anseo()
         .args([
             "schedule",
             "add",
@@ -171,20 +171,20 @@ fn schedule_remove_updates_yaml() {
         .assert()
         .success();
 
-    ogeo()
+    anseo()
         .args(["schedule", "remove", "--name", "daily-watch", "--config"])
         .arg(&cfg)
         .assert()
         .success();
 
     let parsed =
-        opengeo_core::Config::from_yaml_str(&std::fs::read_to_string(&cfg).unwrap()).unwrap();
+        anseo_core::Config::from_yaml_str(&std::fs::read_to_string(&cfg).unwrap()).unwrap();
     assert!(parsed.schedules.is_empty());
 }
 
 #[test]
 fn worker_status_is_explicit_placeholder() {
-    ogeo()
+    anseo()
         .args(["worker", "status"])
         .assert()
         .success()

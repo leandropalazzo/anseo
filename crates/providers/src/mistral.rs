@@ -6,7 +6,7 @@
 
 use async_trait::async_trait;
 
-use opengeo_core::{ProviderName, Secret, DEFAULT_MISTRAL_MODEL};
+use anseo_core::{ProviderName, Secret, DEFAULT_MISTRAL_MODEL};
 
 use crate::{
     map_reqwest_err, HttpClient, Provider, ProviderError, ProviderRequest, ProviderResponse,
@@ -65,7 +65,7 @@ impl Provider for MistralProvider {
             .inner()
             .post(&url)
             .bearer_auth(self.http.api_key().expose())
-            .header("X-OpenGEO-Request-Id", request.request_id.to_string())
+            .header("X-Anseo-Request-Id", request.request_id.to_string())
             .timeout(request.timeout)
             .json(&body)
             .send()
@@ -142,7 +142,7 @@ fn classify_status(status: u16, body: &str) -> ProviderError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opengeo_core::ProviderErrorKind;
+    use anseo_core::ProviderErrorKind;
 
     #[test]
     fn validate_model_accepts_supported() {

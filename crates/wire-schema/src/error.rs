@@ -4,7 +4,7 @@
 //! Per architecture C-3 (single source of truth for HTTP status mapping, CLI
 //! exit codes, and MCP tool errors).
 
-use opengeo_core::{ProviderErrorKind, RequestId};
+use anseo_core::{ProviderErrorKind, RequestId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -32,7 +32,7 @@ pub struct ApiError {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub details: Option<serde_json::Value>,
 
-    /// ULID correlation ID. Echoed in `X-OpenGEO-Request-Id` response header
+    /// ULID correlation ID. Echoed in `X-Anseo-Request-Id` response header
     /// (architecture L632).
     pub request_id: RequestId,
 }

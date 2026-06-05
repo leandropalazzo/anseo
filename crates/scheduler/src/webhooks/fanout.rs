@@ -13,8 +13,8 @@
 //! filter logic ([`subscribes`]) is split out so it's unit-testable
 //! against the JSONB shape without standing up a DB.
 
-use opengeo_storage::repositories::webhooks::WebhookRow;
-use opengeo_storage::Storage;
+use anseo_storage::repositories::webhooks::WebhookRow;
+use anseo_storage::Storage;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -68,9 +68,9 @@ pub async fn enqueue_event(
     event_kind: &str,
     event_id: Uuid,
     payload: &Value,
-) -> Result<Vec<Uuid>, opengeo_storage::Error> {
+) -> Result<Vec<Uuid>, anseo_storage::Error> {
     let project_id_typed =
-        opengeo_core::ProjectId::from_ulid(ulid::Ulid::from_bytes(project_id.into_bytes()));
+        anseo_core::ProjectId::from_ulid(ulid::Ulid::from_bytes(project_id.into_bytes()));
     let webhooks = storage
         .webhooks()
         .list_for_project(project_id_typed)
@@ -110,13 +110,13 @@ pub async fn enqueue_event(
 pub async fn enqueue_lifecycle_event(
     storage: &Storage,
     event: &crate::events::LifecycleEvent,
-) -> Result<Vec<Uuid>, opengeo_storage::Error> {
+) -> Result<Vec<Uuid>, anseo_storage::Error> {
     let kind = event.kind();
     if !is_webhook_eligible(kind) {
         return Ok(Vec::new());
     }
     let payload = serde_json::to_value(event)
-        .map_err(|e| opengeo_storage::Error::Sqlx(sqlx::Error::Decode(Box::new(e))))?;
+        .map_err(|e| anseo_storage::Error::Sqlx(sqlx::Error::Decode(Box::new(e))))?;
     enqueue_event(
         storage,
         event.project_id(),

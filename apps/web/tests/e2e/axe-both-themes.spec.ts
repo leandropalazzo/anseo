@@ -40,7 +40,7 @@ for (const route of ROUTES) {
     }) => {
       await page.addInitScript((t) => {
         try {
-          window.localStorage.setItem("ogeo-theme", t);
+          window.localStorage.setItem("anseo-theme", t);
         } catch {
           /* sandboxed contexts may forbid localStorage; init script also sets attr */
         }
@@ -80,7 +80,7 @@ test("@axe-both-themes theme toggle round-trips and persists", async ({
   await expect(html).toHaveAttribute("data-theme", flipped);
 
   const persisted = await page.evaluate(() =>
-    window.localStorage.getItem("ogeo-theme"),
+    window.localStorage.getItem("anseo-theme"),
   );
   expect(persisted).toBe(flipped);
 

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use anseo_core::ProjectId;
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
-use opengeo_core::ProjectId;
 use serde_json::Value;
 
 use crate::bot_identity::BotRangeVerifier;

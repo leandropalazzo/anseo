@@ -1,0 +1,24 @@
+schema_version: '0.1'
+brand:
+  name: Acme Analytics
+  variants: [acme, ACME]
+competitors:
+  - name: Beta Corp
+    variants: [beta]
+  - name: Gamma Labs
+    variants: [gamma]
+prompts:
+  - name: best-vector-databases
+    text: "What are the best vector databases for RAG?"
+    description: Discovery prompt for category visibility.
+  - name: ai-monitoring-tools
+    text: "What AI visibility monitoring tools do you recommend?"
+    description: Direct category-name discovery.
+  - name: best-rust-observability
+    text: "Recommend a Rust observability library."
+providers:
+  - name: openai
+    model: mock-model
+  - name: anthropic
+    model: mock-model
+concurrency: 4

@@ -22,18 +22,18 @@
 //!     `#[serde(deny_unknown_fields)]` will break but the SDKs do not
 //!     (verified against `crates/sdks/*`).
 //!
-//! `X-OpenGEO-Project` is accepted-but-ignored at this layer (Phase 2
+//! `X-Anseo-Project` is accepted-but-ignored at this layer (Phase 2
 //! single-project posture); the auth middleware resolves the project
 //! from the API key.
 
 use std::collections::BTreeMap;
 
+use anseo_analytics::{citation_summary, citation_trend};
+use anseo_core::ProjectId;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use opengeo_analytics::{citation_summary, citation_trend};
-use opengeo_core::ProjectId;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
@@ -256,7 +256,7 @@ async fn summary(
 }
 
 async fn fetch_filtered_rows(
-    storage: &opengeo_storage::Storage,
+    storage: &anseo_storage::Storage,
     project_id: ProjectId,
     days: i32,
     provider: Option<&str>,
@@ -342,7 +342,7 @@ async fn fetch_filtered_rows(
 /// so MCP `get_citations` can consume the same shape regardless of which
 /// branch produced the `domains` array.
 async fn enrich_sample_ids(
-    storage: &opengeo_storage::Storage,
+    storage: &anseo_storage::Storage,
     project_id: ProjectId,
     days: i32,
     mut entries: Vec<DomainEntry>,
@@ -403,7 +403,7 @@ async fn enrich_sample_ids(
 }
 
 async fn fetch_provider_breakdown(
-    storage: &opengeo_storage::Storage,
+    storage: &anseo_storage::Storage,
     project_id: ProjectId,
     days: i32,
     prompt: Option<&str>,
@@ -440,7 +440,7 @@ async fn fetch_provider_breakdown(
 }
 
 async fn compute_growth_rate(
-    storage: &opengeo_storage::Storage,
+    storage: &anseo_storage::Storage,
     project_id: ProjectId,
     days: i32,
     provider: Option<&str>,
@@ -503,7 +503,7 @@ struct ScoreTotals {
 }
 
 async fn fetch_score_totals(
-    storage: &opengeo_storage::Storage,
+    storage: &anseo_storage::Storage,
     project_id: ProjectId,
     days: i32,
     provider: Option<&str>,

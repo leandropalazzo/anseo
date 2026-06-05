@@ -3,7 +3,7 @@
 //! Route: `GET /v1/projects/:project_id/events`.
 //!
 //! Story 10.2 ships the stream itself. The cross-process transport
-//! (`opengeo_scheduler::transport`) bridges worker NOTIFY → API broadcast
+//! (`anseo_scheduler::transport`) bridges worker NOTIFY → API broadcast
 //! channel → SSE subscribers. Auth defers to Story 12.1; until then the
 //! API binary should be bound to localhost (the Compose default).
 //!
@@ -91,9 +91,9 @@ async fn events_stream(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anseo_scheduler::events::{LifecycleEvent, SchedulePayload};
+    use anseo_scheduler::worker::event_channel;
     use chrono::Utc;
-    use opengeo_scheduler::events::{LifecycleEvent, SchedulePayload};
-    use opengeo_scheduler::worker::event_channel;
     use uuid::Uuid;
 
     fn payload_for(project_id: Uuid) -> SchedulePayload {

@@ -16,8 +16,8 @@
 
 use std::path::{Path, PathBuf};
 
-use opengeo_plugin_host::signing::RevocationList;
-use opengeo_plugin_manifest::PluginManifest;
+use anseo_plugin_host::signing::RevocationList;
+use anseo_plugin_manifest::PluginManifest;
 use serde::Deserialize;
 
 use super::plugin_install::PluginError;

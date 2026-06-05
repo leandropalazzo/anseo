@@ -9,9 +9,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use opengeo_core::{Config, ProviderName};
-use opengeo_providers::orchestrator::{Orchestrator, OrchestratorFilter, PromptRunStatus};
-use opengeo_providers::{MockProvider, PluginProvider, ProviderRegistry};
+use anseo_core::{Config, ProviderName};
+use anseo_providers::orchestrator::{Orchestrator, OrchestratorFilter, PromptRunStatus};
+use anseo_providers::{MockProvider, PluginProvider, ProviderRegistry};
 
 const FIRST_PARTY_YAML: &str = r#"
 schema_version: '0.1'

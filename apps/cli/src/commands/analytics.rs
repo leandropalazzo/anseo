@@ -10,9 +10,9 @@
 
 use std::path::PathBuf;
 
+use anseo_core::OpenGeoError;
+use anseo_storage::Storage;
 use clap::Args;
-use opengeo_core::OpenGeoError;
-use opengeo_storage::Storage;
 
 const DEFAULT_DAYS: i32 = 90;
 const DEFAULT_CITATION_LIMIT: i64 = 200;
@@ -37,8 +37,8 @@ pub async fn run_migrate(args: MigrateArgs) -> Result<(), OpenGeoError> {
     let path = args
         .config
         .clone()
-        .unwrap_or_else(|| PathBuf::from("opengeo.yaml"));
-    let cfg = opengeo_core::Config::from_path(&path).map_err(|e| {
+        .unwrap_or_else(|| PathBuf::from("anseo.yaml"));
+    let cfg = anseo_core::Config::from_path(&path).map_err(|e| {
         OpenGeoError::Config(format!(
             "failed to read project config at `{}`: {e}",
             path.display()
@@ -58,8 +58,8 @@ pub async fn run_migrate(args: MigrateArgs) -> Result<(), OpenGeoError> {
 
     #[cfg(feature = "clickhouse")]
     {
-        use opengeo_analytics::metrics_store::clickhouse::ClickHouseMetricsStore;
-        use opengeo_analytics::metrics_store::clickhouse_etl::{
+        use anseo_analytics::metrics_store::clickhouse::ClickHouseMetricsStore;
+        use anseo_analytics::metrics_store::clickhouse_etl::{
             migrate_project_resumable, ResumableConfig,
         };
         // Apply forward-only migrations so the `analytics_migration_state`

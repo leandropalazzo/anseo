@@ -6,7 +6,7 @@
 //! `crates/core/src/error.rs:106`. Higher layers (HTTP handlers, CLI commands)
 //! decide what to surface to the caller; storage refuses to guess.
 
-use opengeo_core::OpenGeoError;
+use anseo_core::OpenGeoError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

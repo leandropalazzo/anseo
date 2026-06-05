@@ -1,11 +1,11 @@
-//! GA criterion mcp-8 — X-OpenGEO-Project header forwarded on every /v1 call.
+//! GA criterion mcp-8 — X-Anseo-Project header forwarded on every /v1 call.
 //!
 //! ApiClient (apps/mcp/src/http_client.rs) pins the header on every
 //! RequestBuilder it produces. These tests verify that without a live
 //! server — `reqwest::RequestBuilder::build()` materialises the headers
 //! into the Request struct for inspection.
 
-use opengeo_mcp::http_client::ApiClient;
+use anseo_mcp::http_client::ApiClient;
 
 #[test]
 fn get_sends_project_header() {
@@ -18,12 +18,12 @@ fn get_sends_project_header() {
     let req = client.get("/v1/visibility").build().expect("build");
     let hdr = req
         .headers()
-        .get("X-OpenGEO-Project")
+        .get("X-Anseo-Project")
         .and_then(|v| v.to_str().ok());
     assert_eq!(
         hdr,
         Some("my-project"),
-        "X-OpenGEO-Project must be forwarded on GET"
+        "X-Anseo-Project must be forwarded on GET"
     );
 }
 
@@ -38,11 +38,11 @@ fn post_sends_project_header() {
     let req = client.post("/v1/prompt-runs").build().expect("build");
     let hdr = req
         .headers()
-        .get("X-OpenGEO-Project")
+        .get("X-Anseo-Project")
         .and_then(|v| v.to_str().ok());
     assert_eq!(
         hdr,
         Some("my-project"),
-        "X-OpenGEO-Project must be forwarded on POST"
+        "X-Anseo-Project must be forwarded on POST"
     );
 }

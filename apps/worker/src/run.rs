@@ -5,21 +5,19 @@
 //! **in-process** by `ogeo serve` (Story 37.1), which boots the HTTP API and
 //! the worker in a single binary and drives the loop as a supervised tokio
 //! task. Hoisting the loop into the library is what lets both the standalone
-//! `opengeo-worker` binary and the folded `ogeo serve` supervisor share one
+//! `anseo-worker` binary and the folded `ogeo serve` supervisor share one
 //! implementation instead of duplicating the dispatch/reaper/webhook/ETL sweep.
 
 use std::future::Future;
 use std::time::Duration;
 
-use opengeo_scheduler::events::{LifecycleEvent, SchedulePayload};
-use opengeo_scheduler::transport::publish;
-use opengeo_scheduler::webhooks::fanout::enqueue_lifecycle_event;
-use opengeo_scheduler::webhooks::poller::{
-    poll_once, DEFAULT_BATCH_LIMIT, DEFAULT_DELIVERY_TIMEOUT,
-};
-use opengeo_scheduler::webhooks::tick::DispatchResult;
-use opengeo_scheduler::worker::reap_orphans;
-use opengeo_storage::Storage;
+use anseo_scheduler::events::{LifecycleEvent, SchedulePayload};
+use anseo_scheduler::transport::publish;
+use anseo_scheduler::webhooks::fanout::enqueue_lifecycle_event;
+use anseo_scheduler::webhooks::poller::{poll_once, DEFAULT_BATCH_LIMIT, DEFAULT_DELIVERY_TIMEOUT};
+use anseo_scheduler::webhooks::tick::DispatchResult;
+use anseo_scheduler::worker::reap_orphans;
+use anseo_storage::Storage;
 use uuid::Uuid;
 
 use crate::etl::{drain_etl_jobs, run_migration};
@@ -33,8 +31,8 @@ pub const POLL_INTERVAL_SECONDS: u64 = 5;
 /// When `None`, schedule dispatch is inert (reaper + webhooks + ETL still run),
 /// matching the binary's "no readable config / registry" degraded mode.
 pub struct DispatchContext {
-    pub config: opengeo_core::Config,
-    pub registry: opengeo_providers::ProviderRegistry,
+    pub config: anseo_core::Config,
+    pub registry: anseo_providers::ProviderRegistry,
     pub worker_id: String,
 }
 
@@ -243,11 +241,11 @@ async fn run_tick(
 /// config is unreadable or the registry can't be built (degraded mode: reaper +
 /// webhooks + ETL still run). Shared so `ogeo serve` reuses the same wiring.
 pub fn load_dispatch_context(config_path: &str) -> Option<DispatchContext> {
-    let config: Option<opengeo_core::Config> = std::fs::read_to_string(config_path)
+    let config: Option<anseo_core::Config> = std::fs::read_to_string(config_path)
         .ok()
-        .and_then(|yaml| opengeo_core::Config::from_yaml_str(&yaml).ok());
+        .and_then(|yaml| anseo_core::Config::from_yaml_str(&yaml).ok());
     let config = config?;
-    let registry = match opengeo_providers::registry::build_real_registry(&config) {
+    let registry = match anseo_providers::registry::build_real_registry(&config) {
         Ok(reg) => reg,
         Err(err) => {
             tracing::warn!(

@@ -1,11 +1,11 @@
-//! `opengeo-worker` library surface.
+//! `anseo-worker` library surface.
 //!
 //! The worker is primarily a binary (`src/main.rs`), but it also exposes a
 //! small library so other crates can reach the **ETL enqueue seam** without
 //! shelling out:
 //!
 //! ```ignore
-//! let job_id = opengeo_worker::etl::enqueue_etl_job(&pool, project_id).await?;
+//! let job_id = anseo_worker::etl::enqueue_etl_job(&pool, project_id).await?;
 //! ```
 //!
 //! Story 31-5's setup handler (`apps/api/src/routes/setup.rs`) calls

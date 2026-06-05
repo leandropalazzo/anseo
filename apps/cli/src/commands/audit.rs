@@ -2,9 +2,9 @@
 
 use std::time::Duration;
 
+use anseo_audit::{crawl_and_audit, evaluate_gate, AuditOptions, FailOn, GateSummary};
+use anseo_core::OpenGeoError;
 use clap::{Args, ValueEnum};
-use opengeo_audit::{crawl_and_audit, evaluate_gate, AuditOptions, FailOn, GateSummary};
-use opengeo_core::OpenGeoError;
 
 #[derive(Debug, Args)]
 pub struct AuditArgs {
@@ -75,7 +75,7 @@ pub async fn run(args: AuditArgs) -> Result<(), OpenGeoError> {
     Ok(())
 }
 
-fn print_report(report: &opengeo_audit::AuditReport) {
+fn print_report(report: &anseo_audit::AuditReport) {
     println!("OpenGEO audit report");
     println!("Target: {}", report.target);
     println!("Overall score: {}/100", report.overall_score);

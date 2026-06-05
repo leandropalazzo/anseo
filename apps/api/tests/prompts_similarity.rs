@@ -8,19 +8,19 @@
 
 use std::sync::Arc;
 
+use anseo_api::{routes::prompts_similarity, AppState};
+use anseo_core::config::{BrandConfig, Config, PromptConfig};
+use anseo_core::{AnomalySensitivity, ProjectId, SCHEMA_VERSION_V0_2};
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
-use opengeo_api::{routes::prompts_similarity, AppState};
-use opengeo_core::config::{BrandConfig, Config, PromptConfig};
-use opengeo_core::{AnomalySensitivity, ProjectId, SCHEMA_VERSION_V0_2};
 use tower::ServiceExt;
 
-fn lazy_storage() -> Arc<opengeo_storage::Storage> {
+fn lazy_storage() -> Arc<anseo_storage::Storage> {
     let pool = sqlx::PgPool::connect_lazy(
         "postgres://opengeo:opengeo@127.0.0.1:1/__prompts_similarity_test__",
     )
     .expect("connect_lazy never IOs synchronously");
-    Arc::new(opengeo_storage::Storage::from_pool(pool))
+    Arc::new(anseo_storage::Storage::from_pool(pool))
 }
 
 fn make_config(prompts: &[(&str, &str)]) -> Config {
@@ -49,7 +49,7 @@ fn make_config(prompts: &[(&str, &str)]) -> Config {
 }
 
 fn build_app(config: Option<Config>) -> axum::Router {
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage: lazy_storage(),
         project_id: ProjectId::new(),

@@ -7,8 +7,8 @@ pub mod transport;
 pub mod webhooks;
 pub mod worker;
 
-use opengeo_core::{Config, ProviderName, ScheduleConfig};
-use opengeo_providers::cost::{project_monthly_cost, CostProjection};
+use anseo_core::{Config, ProviderName, ScheduleConfig};
+use anseo_providers::cost::{project_monthly_cost, CostProjection};
 use thiserror::Error;
 
 pub const DEFAULT_MAX_TICKS_PER_HOUR_PER_SCHEDULE: f64 = 12.0;

@@ -448,7 +448,7 @@ impl Config {
 
     /// Parse a `Config` from a file. The path is threaded through into
     /// [`ConfigError::Parse::path_display`] so error messages start
-    /// with `path/to/opengeo.yaml:LINE:COL`.
+    /// with `path/to/anseo.yaml:LINE:COL`.
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
         let path = path.as_ref();
         let yaml = std::fs::read_to_string(path).map_err(|source| ConfigError::Io {
@@ -456,6 +456,43 @@ impl Config {
             source,
         })?;
         Self::parse_and_validate(&yaml, Some(path))
+    }
+
+    /// Auto-migrate `opengeo.yaml` → `anseo.yaml` when the new name is absent.
+    ///
+    /// If `target` (e.g. `anseo.yaml`) does not exist but `legacy` (e.g.
+    /// `opengeo.yaml`) does, `legacy` is renamed to `target` and a deprecation
+    /// warning is printed to stderr. Returns `target` regardless.
+    ///
+    /// Call this once at startup before [`Config::from_path`].
+    pub fn auto_migrate_config_filename(
+        target: impl AsRef<Path>,
+        legacy: impl AsRef<Path>,
+    ) -> std::path::PathBuf {
+        let target = target.as_ref();
+        let legacy = legacy.as_ref();
+        if !target.exists() && legacy.exists() {
+            match std::fs::rename(legacy, target) {
+                Ok(()) => {
+                    eprintln!(
+                        "warning: `{}` has been renamed to `{}` (Anseo rename). \
+                         Please update any scripts that reference the old filename.",
+                        legacy.display(),
+                        target.display()
+                    );
+                }
+                Err(e) => {
+                    eprintln!(
+                        "warning: found `{}` but could not rename it to `{}`: {}. \
+                         Continuing without migration.",
+                        legacy.display(),
+                        target.display(),
+                        e
+                    );
+                }
+            }
+        }
+        target.to_path_buf()
     }
 
     fn parse_and_validate(yaml: &str, path: Option<&Path>) -> Result<Self, ConfigError> {
@@ -714,7 +751,7 @@ fn is_valid_prompt_slug(s: &str) -> bool {
 }
 
 /// Render the JSON Schema for [`Config`]. Used by the docs build to write
-/// `docs/config/opengeo-yaml-schema.json` (FR-24: "Schema docs generated from
+/// `docs/config/anseo-yaml-schema.json` (FR-24: "Schema docs generated from
 /// a single JSON Schema source").
 pub fn json_schema() -> serde_json::Value {
     let schema = schemars::schema_for!(Config);

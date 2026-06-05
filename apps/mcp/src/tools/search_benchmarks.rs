@@ -20,8 +20,8 @@ pub struct SearchBenchmarks;
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn make_err(kind: opengeo_wire_schema::mcp::McpErrorKind, msg: &str) -> McpToolError {
-    McpToolError::Upstream(opengeo_wire_schema::mcp::McpError {
+fn make_err(kind: anseo_wire_schema::mcp::McpErrorKind, msg: &str) -> McpToolError {
+    McpToolError::Upstream(anseo_wire_schema::mcp::McpError {
         kind,
         message: msg.to_string(),
         details: None,
@@ -30,8 +30,8 @@ fn make_err(kind: opengeo_wire_schema::mcp::McpErrorKind, msg: &str) -> McpToolE
     })
 }
 
-fn window_to_str(w: opengeo_wire_schema::mcp::tools::Window) -> &'static str {
-    use opengeo_wire_schema::mcp::tools::Window;
+fn window_to_str(w: anseo_wire_schema::mcp::tools::Window) -> &'static str {
+    use anseo_wire_schema::mcp::tools::Window;
     match w {
         Window::SevenDays => "7d",
         Window::ThirtyDays => "30d",
@@ -46,7 +46,7 @@ fn window_to_str(w: opengeo_wire_schema::mcp::tools::Window) -> &'static str {
 /// No project, no brand, no API key. Shared with `tests/benchmark_privacy.rs`
 /// so the privacy assertion is made against the exact params the tool sends.
 pub fn build_benchmark_query(
-    input: &opengeo_wire_schema::mcp::tools::SearchBenchmarksInput,
+    input: &anseo_wire_schema::mcp::tools::SearchBenchmarksInput,
 ) -> Vec<(String, String)> {
     let mut q: Vec<(String, String)> = vec![("q".to_string(), input.query.clone())];
     if let Some(ref provider) = input.provider {
@@ -86,8 +86,8 @@ impl Tool for SearchBenchmarks {
         args: serde_json::Value,
         _api: &ApiClient,
     ) -> Result<serde_json::Value, McpToolError> {
-        use opengeo_wire_schema::mcp::tools::{SearchBenchmarksInput, SearchBenchmarksOutput};
-        use opengeo_wire_schema::mcp::McpErrorKind;
+        use anseo_wire_schema::mcp::tools::{SearchBenchmarksInput, SearchBenchmarksOutput};
+        use anseo_wire_schema::mcp::McpErrorKind;
 
         // 1. Parse input. We deliberately ignore `_api` — the benchmark path
         //    must never touch the authenticated client (privacy floor).

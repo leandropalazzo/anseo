@@ -135,7 +135,7 @@ jobs:
         # in the CI job log rather than buried in the full test run.
         # Fails if any registered capability lacks CLI/Web/MCP coverage without
         # an annotated single-surface exception (see crates/wire-schema/src/parity.rs).
-        run: cargo test --locked -p opengeo-wire-schema --test parity_contract
+        run: cargo test --locked -p anseo-wire-schema --test parity_contract
       - name: cargo test --workspace
         run: cargo test --workspace --locked
 

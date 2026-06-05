@@ -43,7 +43,7 @@ for (const shot of SHOTS) {
     const theme = shot.theme ?? "dark";
     await page.addInitScript((t) => {
       try {
-        window.localStorage.setItem("ogeo-theme", t);
+        window.localStorage.setItem("anseo-theme", t);
       } catch {
         /* ignore */
       }

@@ -11,13 +11,13 @@
 //! this crate:
 //!
 //! ```compile_fail
-//! use opengeo_benchmark::BenchmarkPayload;
+//! use anseo_benchmark::BenchmarkPayload;
 //! // The struct has no public fields, so this never compiles.
 //! let _ = BenchmarkPayload { observed_rank: Some(2) };
 //! ```
 //!
 //! ```compile_fail
-//! use opengeo_benchmark::BenchmarkPayload;
+//! use anseo_benchmark::BenchmarkPayload;
 //! // There's no `new` or `From` constructor exposed either.
 //! let _ = BenchmarkPayload::new();
 //! ```
@@ -244,8 +244,8 @@ fn round_to_hour(ts: DateTime<Utc>) -> DateTime<Utc> {
 mod tests {
     use super::*;
     use crate::crypto::ProjectKek;
+    use anseo_core::InMemoryStore;
     use chrono::{Datelike, TimeZone};
-    use opengeo_core::InMemoryStore;
 
     /// A KEK to drive `Redactor` in tests. Provisioned in a throwaway
     /// in-memory store so each test gets a real per-project key.

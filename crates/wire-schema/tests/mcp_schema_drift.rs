@@ -4,13 +4,14 @@
 //!
 //! Failure mode: "wire shape changed without committing the schema regen."
 //!
-//! Regenerating: set `OPENGEO_WIRE_SCHEMA_UPDATE=1` to overwrite the
-//! on-disk snapshots. The CI lint then re-runs and asserts they match.
+//! Regenerating: set `ANSEO_WIRE_SCHEMA_UPDATE=1` (or the deprecated
+//! `OPENGEO_WIRE_SCHEMA_UPDATE=1`) to overwrite the on-disk snapshots.
+//! The CI lint then re-runs and asserts they match.
 
 use std::fs;
 use std::path::PathBuf;
 
-use opengeo_wire_schema::mcp::json_schema::all_schemas;
+use anseo_wire_schema::mcp::json_schema::all_schemas;
 
 fn schemas_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("schemas/mcp")
@@ -19,7 +20,8 @@ fn schemas_dir() -> PathBuf {
 #[test]
 fn mcp_schemas_match_committed_snapshots() {
     let dir = schemas_dir();
-    let update = std::env::var("OPENGEO_WIRE_SCHEMA_UPDATE").is_ok();
+    let update = std::env::var("ANSEO_WIRE_SCHEMA_UPDATE").is_ok()
+        || std::env::var("OPENGEO_WIRE_SCHEMA_UPDATE").is_ok(); // deprecated alias
 
     if update {
         fs::create_dir_all(&dir).expect("create schemas dir");
@@ -38,7 +40,7 @@ fn mcp_schemas_match_committed_snapshots() {
         let on_disk = fs::read_to_string(&path).unwrap_or_else(|e| {
             panic!(
                 "missing committed schema {}: {e}\n\
-                 Run with OPENGEO_WIRE_SCHEMA_UPDATE=1 to seed.",
+                 Run with ANSEO_WIRE_SCHEMA_UPDATE=1 to seed.",
                 path.display()
             )
         });
@@ -51,7 +53,7 @@ fn mcp_schemas_match_committed_snapshots() {
     assert!(
         failures.is_empty(),
         "MCP wire shape drift detected for: {failures:?}\n\
-         Run `OPENGEO_WIRE_SCHEMA_UPDATE=1 cargo test -p opengeo-wire-schema mcp_schemas_match_committed_snapshots` \
+         Run `ANSEO_WIRE_SCHEMA_UPDATE=1 cargo test -p anseo-wire-schema mcp_schemas_match_committed_snapshots` \
          to regen, then commit the updated schemas."
     );
 }

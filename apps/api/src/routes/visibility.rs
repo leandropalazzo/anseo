@@ -1,9 +1,9 @@
+use anseo_analytics::sentiment::sentiment_points;
+use anseo_analytics::{visibility_matrix, visibility_trend, visibility_trend_all};
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use opengeo_analytics::sentiment::sentiment_points;
-use opengeo_analytics::{visibility_matrix, visibility_trend, visibility_trend_all};
 use serde::Deserialize;
 
 use crate::AppState;
@@ -36,7 +36,7 @@ pub struct OverallQuery {
 /// Resolve the project's primary brand entity for mention matching: the DB
 /// brand row wins, falling back to the bootstrap config so a fresh project
 /// still renders. Empty when neither is present.
-async fn primary_brand_entity(state: &AppState, project_id: opengeo_core::ProjectId) -> String {
+async fn primary_brand_entity(state: &AppState, project_id: anseo_core::ProjectId) -> String {
     if let Ok(Some(row)) = state.storage.projects().get_brand(project_id).await {
         return row.name;
     }

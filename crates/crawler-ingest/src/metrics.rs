@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
+use anseo_core::ProjectId;
 use chrono::{DateTime, Datelike, Duration, Utc};
-use opengeo_core::ProjectId;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
@@ -79,7 +79,7 @@ impl MetricsStore {
         Self { pool }
     }
 
-    pub fn from_storage(storage: &opengeo_storage::Storage) -> Self {
+    pub fn from_storage(storage: &anseo_storage::Storage) -> Self {
         Self::new(storage.pool().clone())
     }
 

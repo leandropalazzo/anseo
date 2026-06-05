@@ -18,17 +18,17 @@
 
 use std::sync::Arc;
 
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use chrono::Utc;
-use opengeo_api::{router, AppState};
-use opengeo_core::api_key::{generate as gen_key, API_KEY_HEADER};
-use opengeo_core::{MentionId, ProjectId, PromptRunId};
-use opengeo_storage::models::{MentionRow, ProjectRow, PromptRow, PromptRunRow};
-use opengeo_storage::repositories::{
+use anseo_api::{router, AppState};
+use anseo_core::api_key::{generate as gen_key, API_KEY_HEADER};
+use anseo_core::{MentionId, ProjectId, PromptRunId};
+use anseo_storage::models::{MentionRow, ProjectRow, PromptRow, PromptRunRow};
+use anseo_storage::repositories::{
     api_keys::ApiKeyRepo, mentions::MentionRepo, projects::ProjectRepo, prompt_runs::PromptRunRepo,
     prompts::PromptRepo,
 };
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use chrono::Utc;
 use sqlx::PgPool;
 use tower::ServiceExt;
 
@@ -38,7 +38,7 @@ async fn seed() -> (axum::Router, String, PgPool) {
     let url =
         std::env::var("DATABASE_URL").expect("DATABASE_URL must be exported for analytics_live_db");
     let pool = PgPool::connect(&url).await.expect("connect");
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(pool.clone()));
+    let storage = Arc::new(anseo_storage::Storage::from_pool(pool.clone()));
     let project_id = ProjectId::new();
     let now = Utc::now();
 
@@ -53,7 +53,7 @@ async fn seed() -> (axum::Router, String, PgPool) {
         .await
         .expect("seed project");
 
-    let prompt_id = opengeo_core::PromptId::new();
+    let prompt_id = anseo_core::PromptId::new();
     PromptRepo::new(&pool)
         .insert(&PromptRow {
             id: prompt_id,
@@ -151,7 +151,7 @@ async fn seed() -> (axum::Router, String, PgPool) {
         .await
         .expect("seed api key");
 
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id,
@@ -262,12 +262,12 @@ async fn volatility_returns_payload_shape() {
 #[tokio::test]
 #[ignore = "requires DATABASE_URL"]
 async fn openrouter_runs_split_by_upstream_model() {
-    use opengeo_analytics::{citation_graph_rows, visibility_trend};
+    use anseo_analytics::{citation_graph_rows, visibility_trend};
 
     let url =
         std::env::var("DATABASE_URL").expect("DATABASE_URL must be exported for analytics_live_db");
     let pool = PgPool::connect(&url).await.expect("connect");
-    let storage = opengeo_storage::Storage::from_pool(pool.clone());
+    let storage = anseo_storage::Storage::from_pool(pool.clone());
     let project_id = ProjectId::new();
     let now = Utc::now();
 
@@ -282,7 +282,7 @@ async fn openrouter_runs_split_by_upstream_model() {
         .await
         .expect("seed project");
 
-    let prompt_id = opengeo_core::PromptId::new();
+    let prompt_id = anseo_core::PromptId::new();
     PromptRepo::new(&pool)
         .insert(&PromptRow {
             id: prompt_id,
@@ -426,7 +426,7 @@ async fn openrouter_runs_split_by_upstream_model() {
         )
         .await
         .expect("seed api key");
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage: Arc::new(storage),
         project_id,

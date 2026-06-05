@@ -1,4 +1,4 @@
-//! `opengeo-mcp` — MCP server binary (Story 16.1).
+//! `anseo-mcp` — MCP server binary (Story 16.1).
 //!
 //! Hand-rolled JSON-RPC 2.0 over stdio per OQ-P3-1 (Phase 3 kickoff
 //! decisions). Calls the local OpenGEO `/v1` REST surface over loopback
@@ -9,10 +9,10 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use opengeo_core::telemetry::init_tracing_stderr;
-use opengeo_mcp::dispatch::Dispatcher;
-use opengeo_mcp::http_client::ApiClient;
-use opengeo_mcp::transport;
+use anseo_core::telemetry::init_tracing_stderr;
+use anseo_mcp::dispatch::Dispatcher;
+use anseo_mcp::http_client::ApiClient;
+use anseo_mcp::transport;
 
 // ---------------------------------------------------------------------------
 // CLI parsing (hand-rolled to avoid a clap dep in this lean binary).
@@ -30,7 +30,7 @@ struct CliArgs {
     bind: SocketAddr,
     allow_public: bool,
     /// Story 36.5: per-session project override for the stdio transport.
-    /// When set, overrides `OPENGEO_PROJECT_ID` for this server process.
+    /// When set, overrides `ANSEO_PROJECT_ID` for this server process.
     /// Per-call `tools/call` `project` fields still take precedence over this.
     project_override: Option<String>,
 }
@@ -53,7 +53,7 @@ fn parse_args() -> Result<CliArgs, String> {
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--version" | "-V" => {
-                println!("opengeo-mcp {}", env!("CARGO_PKG_VERSION"));
+                println!("anseo-mcp {}", env!("CARGO_PKG_VERSION"));
                 std::process::exit(0);
             }
             "--transport" => {
@@ -119,19 +119,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // stdio transport owns stdout for the JSON-RPC protocol channel, so logs
     // MUST go to stderr — otherwise log frames corrupt the stream and the MCP
     // client cannot attach. (See transport/stdio.rs.)
-    init_tracing_stderr("opengeo-mcp")?;
+    init_tracing_stderr("anseo-mcp")?;
 
     let api_base =
-        std::env::var("OPENGEO_API_URL").unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
-    let api_key = std::env::var("OPENGEO_API_KEY").unwrap_or_default();
-    // Story 36.5: --project flag overrides OPENGEO_PROJECT_ID for this session.
+        std::env::var("ANSEO_API_URL").unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
+    let api_key = std::env::var("ANSEO_API_KEY").unwrap_or_default();
+    // Story 36.5: --project flag overrides ANSEO_PROJECT_ID for this session.
     let project = cli.project_override.clone().unwrap_or_else(|| {
-        std::env::var("OPENGEO_PROJECT_ID").unwrap_or_else(|_| "default".to_string())
+        std::env::var("ANSEO_PROJECT_ID").unwrap_or_else(|_| "default".to_string())
     });
 
     // GA criterion mcp-9: --allow-public without an API key is refused.
     if cli.allow_public && api_key.is_empty() {
-        eprintln!("Error: --allow-public requires OPENGEO_API_KEY to be set");
+        eprintln!("Error: --allow-public requires ANSEO_API_KEY to be set");
         std::process::exit(1);
     }
 
@@ -139,11 +139,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Transport::Stdio => {
             tracing::info!(
                 event = "service.boot",
-                service = "opengeo-mcp",
+                service = "anseo-mcp",
                 transport = "stdio",
                 api_base = %api_base,
                 project = %project,
-                "opengeo-mcp booting (stdio transport)"
+                "anseo-mcp booting (stdio transport)"
             );
 
             let api = ApiClient::new(api_base, api_key, project)?;
@@ -153,7 +153,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             tracing::info!(
                 event = "service.shutdown",
-                service = "opengeo-mcp",
+                service = "anseo-mcp",
                 "stdio EOF"
             );
         }
@@ -161,13 +161,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Transport::HttpSse => {
             tracing::info!(
                 event = "service.boot",
-                service = "opengeo-mcp",
+                service = "anseo-mcp",
                 transport = "http+sse",
                 bind = %cli.bind,
                 allow_public = cli.allow_public,
                 api_base = %api_base,
                 project = %project,
-                "opengeo-mcp booting (HTTP+SSE transport)"
+                "anseo-mcp booting (HTTP+SSE transport)"
             );
 
             let api = ApiClient::new(api_base, api_key.clone(), project)?;
@@ -177,7 +177,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             tracing::info!(
                 event = "service.shutdown",
-                service = "opengeo-mcp",
+                service = "anseo-mcp",
                 "HTTP+SSE listener closed"
             );
         }

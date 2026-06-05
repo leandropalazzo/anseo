@@ -28,11 +28,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use uuid::Uuid;
 
-use opengeo_recommendations::assembly::{self, ProjectFacts, PromptFacts, PromptRunFacts};
-use opengeo_recommendations::lifecycle::{self, State as LifecycleState};
-use opengeo_recommendations::{Engine, Recommendation};
-use opengeo_scheduler::events::{LifecycleEvent, RecommendationPayload};
-use opengeo_storage::repositories::recommendations::{NewRecommendation, RecommendationRow};
+use anseo_recommendations::assembly::{self, ProjectFacts, PromptFacts, PromptRunFacts};
+use anseo_recommendations::lifecycle::{self, State as LifecycleState};
+use anseo_recommendations::{Engine, Recommendation};
+use anseo_scheduler::events::{LifecycleEvent, RecommendationPayload};
+use anseo_storage::repositories::recommendations::{NewRecommendation, RecommendationRow};
 
 use crate::middleware::auth::AuthenticatedProject;
 use crate::AppState;
@@ -216,7 +216,7 @@ async fn generate_handler(
             .collect(),
         benchmark_opted_in: false,
         prompts: prompt_facts,
-        window: opengeo_recommendations::wire::TimeWindow {
+        window: anseo_recommendations::wire::TimeWindow {
             start: window_start,
             end: now,
         },
@@ -467,7 +467,7 @@ async fn transition_handler(
 
 // ---- helpers ------------------------------------------------------------
 
-fn internal(context: &'static str) -> impl Fn(opengeo_storage::Error) -> ApiError {
+fn internal(context: &'static str) -> impl Fn(anseo_storage::Error) -> ApiError {
     move |e| {
         tracing::error!(error = %e, context, "recommendations route DB error");
         err(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", context)
@@ -588,7 +588,7 @@ async fn emit_recommendation_event(
 
     // Webhook fanout — persists `pending` delivery rows the dispatcher signs.
     if let Err(e) =
-        opengeo_scheduler::webhooks::fanout::enqueue_lifecycle_event(&state.storage, &event).await
+        anseo_scheduler::webhooks::fanout::enqueue_lifecycle_event(&state.storage, &event).await
     {
         tracing::error!(error = %e, "recommendation webhook fanout failed");
     }

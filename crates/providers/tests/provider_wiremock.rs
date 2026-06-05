@@ -7,8 +7,8 @@
 
 use std::time::Duration;
 
-use opengeo_core::{ProviderErrorKind, ProviderName, RequestId, Secret};
-use opengeo_providers::{
+use anseo_core::{ProviderErrorKind, ProviderName, RequestId, Secret};
+use anseo_providers::{
     anthropic::AnthropicProvider, gemini::GeminiProvider, grok::GrokProvider,
     mistral::MistralProvider, openai::OpenAiProvider, openrouter::OpenRouterProvider,
     perplexity::PerplexityProvider, Provider, ProviderRequest,

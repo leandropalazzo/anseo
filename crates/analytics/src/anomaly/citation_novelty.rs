@@ -8,8 +8,8 @@
 //! out single-occurrence noise.
 
 use super::{AnomalyKind, AnomalyVerdict};
+use anseo_core::ProviderName;
 use chrono::{DateTime, Utc};
-use opengeo_core::ProviderName;
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 

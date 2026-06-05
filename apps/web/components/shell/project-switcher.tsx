@@ -14,7 +14,7 @@ interface ProjectView {
 /**
  * Project switcher (Story 36.8) — header dropdown populated from
  * `GET /v1/projects` (via the same-origin `/api/projects` proxy). Selecting a
- * project POSTs to `/api/projects/select`, which sets the `ogeo_project`
+ * project POSTs to `/api/projects/select`, which sets the `anseo_project`
  * cookie; we then `router.refresh()` so every SSR fetch re-runs with the new
  * `X-OpenGEO-Project` header and the dashboard reflects the switch.
  *

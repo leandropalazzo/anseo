@@ -10,12 +10,12 @@
 
 use std::time::Duration;
 
+use anseo_core::{api_key::sha256_hex, ProjectId};
+use anseo_scheduler::webhooks::poller::poll_once;
+use anseo_scheduler::webhooks::signer::{verify, SIGNATURE_HEADER};
+use anseo_scheduler::webhooks::tick::DispatchResult;
+use anseo_storage::Storage;
 use chrono::Utc;
-use opengeo_core::{api_key::sha256_hex, ProjectId};
-use opengeo_scheduler::webhooks::poller::poll_once;
-use opengeo_scheduler::webhooks::signer::{verify, SIGNATURE_HEADER};
-use opengeo_scheduler::webhooks::tick::DispatchResult;
-use opengeo_storage::Storage;
 use serde_json::json;
 use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
@@ -112,7 +112,7 @@ async fn p0_127_signature_round_trip_through_dispatcher_against_live_consumer() 
                 .get(SIGNATURE_HEADER)
                 .and_then(|v| v.to_str().ok())
                 .map(String::from)
-                .expect("X-OpenGEO-Signature header present");
+                .expect("X-Anseo-Signature header present");
             *c = Some((sig, req.body.clone()));
             ResponseTemplate::new(204)
         })
@@ -439,7 +439,7 @@ async fn story_12_1_api_key_insert_lookup_revoke_round_trip() {
         .await
         .expect("project");
 
-    let key = opengeo_core::api_key::generate();
+    let key = anseo_core::api_key::generate();
     let hash = sha256_hex(&key.plaintext);
     storage
         .api_keys()

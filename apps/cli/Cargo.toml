@@ -1,5 +1,5 @@
 [package]
-name = "opengeo-cli"
+name = "anseo-cli"
 version = "0.6.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -7,8 +7,14 @@ license.workspace = true
 publish = false
 
 [[bin]]
-name = "ogeo"
+name = "anseo"
 path = "src/main.rs"
+
+# Back-compat shim: `ogeo` is deprecated in favour of `anseo`.
+# Ships alongside `anseo` for one release so existing scripts don't break.
+[[bin]]
+name = "ogeo"
+path = "src/main_ogeo_shim.rs"
 
 [lib]
 path = "src/lib.rs"
@@ -16,22 +22,22 @@ path = "src/lib.rs"
 [dependencies]
 # Story 37.1: `ogeo serve` boots the HTTP API and the background worker loop in
 # one process by consuming these two as libraries (their public boot/run seams).
-# `opengeo-worker` defaults to its `clickhouse` feature; turn it off here and let
+# `anseo-worker` defaults to its `clickhouse` feature; turn it off here and let
 # the CLI's own `clickhouse` feature re-enable it so the OSS build stays lean.
-opengeo-api = { path = "../api" }
-opengeo-worker = { path = "../worker", default-features = false }
-opengeo-analytics = { path = "../../crates/analytics" }
-opengeo-audit = { path = "../../crates/audit" }
-opengeo-benchmark = { path = "../../crates/benchmark" }
-opengeo-core = { path = "../../crates/core", features = ["sqlx"] }
-opengeo-crawler-ingest = { path = "../../crates/crawler-ingest" }
-opengeo-plugin-manifest = { path = "../../crates/plugin-manifest" }
-opengeo-plugin-host = { path = "../../crates/plugin-host" }
-opengeo-providers = { path = "../../crates/providers" }
-opengeo-recommendations = { path = "../../crates/recommendations" }
-opengeo-scheduler = { path = "../../crates/scheduler" }
-opengeo-storage = { path = "../../crates/storage" }
-opengeo-wire-schema = { path = "../../crates/wire-schema" }
+anseo-api = { path = "../api" }
+anseo-worker = { path = "../worker", default-features = false }
+anseo-analytics = { path = "../../crates/analytics" }
+anseo-audit = { path = "../../crates/audit" }
+anseo-benchmark = { path = "../../crates/benchmark" }
+anseo-core = { path = "../../crates/core", features = ["sqlx"] }
+anseo-crawler-ingest = { path = "../../crates/crawler-ingest" }
+anseo-plugin-manifest = { path = "../../crates/plugin-manifest" }
+anseo-plugin-host = { path = "../../crates/plugin-host" }
+anseo-providers = { path = "../../crates/providers" }
+anseo-recommendations = { path = "../../crates/recommendations" }
+anseo-scheduler = { path = "../../crates/scheduler" }
+anseo-storage = { path = "../../crates/storage" }
+anseo-wire-schema = { path = "../../crates/wire-schema" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -53,7 +59,7 @@ uuid = { workspace = true }
 ulid = { workspace = true }
 
 [features]
-clickhouse = ["opengeo-analytics/clickhouse", "opengeo-worker/clickhouse"]
+clickhouse = ["anseo-analytics/clickhouse", "anseo-worker/clickhouse"]
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

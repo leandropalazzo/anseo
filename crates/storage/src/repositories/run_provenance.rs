@@ -9,8 +9,8 @@
 //! Uses RUNTIME `sqlx::query` / `query_as` (no `query!` macros) so the offline
 //! `.sqlx/` cache stays untouched.
 
+use anseo_core::ids::PromptRunId;
 use chrono::{DateTime, Utc};
-use opengeo_core::ids::PromptRunId;
 use sqlx::PgPool;
 use uuid::Uuid;
 

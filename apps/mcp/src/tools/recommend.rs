@@ -12,7 +12,7 @@
 use super::{parse_schema, Tool};
 use crate::error::McpToolError;
 use crate::http_client::ApiClient;
-use opengeo_wire_schema::mcp::tools::{
+use anseo_wire_schema::mcp::tools::{
     RecommendAckInput, RecommendDismissInput, RecommendListInput, RecommendListOutput,
     RecommendMarkActedInput, RecommendShowInput, RecommendShowOutput, RecommendTransitionOutput,
 };
@@ -34,8 +34,8 @@ const MARK_ACTED_INPUT_SCHEMA: &str =
     include_str!("../../../../crates/wire-schema/schemas/mcp/recommend.mark_acted.input.json");
 
 fn upstream_err(msg: &str) -> McpToolError {
-    McpToolError::Upstream(opengeo_wire_schema::mcp::McpError {
-        kind: opengeo_wire_schema::mcp::McpErrorKind::InternalError,
+    McpToolError::Upstream(anseo_wire_schema::mcp::McpError {
+        kind: anseo_wire_schema::mcp::McpErrorKind::InternalError,
         message: msg.to_string(),
         details: None,
         request_id: Ulid::new().to_string(),

@@ -21,7 +21,7 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
 use crate::AppState;
-use opengeo_storage::repositories::alert_rules::{AlertRuleRecord, AlertRulesRepo};
+use anseo_storage::repositories::alert_rules::{AlertRuleRecord, AlertRulesRepo};
 
 pub fn v1_router() -> Router<AppState> {
     Router::new()
@@ -214,7 +214,7 @@ async fn delete_alert_rule(
 
 #[cfg(test)]
 mod tests {
-    use opengeo_storage::repositories::alert_rules::AlertRulesRepo;
+    use anseo_storage::repositories::alert_rules::AlertRulesRepo;
     use sqlx::PgPool;
     use uuid::Uuid;
 

@@ -1,8 +1,8 @@
 //! Sentiment aggregation for roadmap Epic 30.
 
+use anseo_core::ProjectId;
+use anseo_storage::Storage;
 use chrono::NaiveDate;
-use opengeo_core::ProjectId;
-use opengeo_storage::Storage;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -42,7 +42,7 @@ pub async fn sentiment_points(
     storage: &Storage,
     project_id: ProjectId,
     days: i32,
-) -> Result<Vec<SentimentPoint>, opengeo_storage::Error> {
+) -> Result<Vec<SentimentPoint>, anseo_storage::Error> {
     let days = days.clamp(1, 365);
     let rows = sqlx::query_as::<_, SentimentPointRow>(
         r#"

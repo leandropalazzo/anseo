@@ -3,11 +3,11 @@
 //! `mark_acted` evidence-missing warning (decision L4), and the §6.3 outcome
 //! measurement including the inconclusive (< 10 runs) branch.
 
-use chrono::{DateTime, Duration, Utc};
-use opengeo_recommendations::lifecycle::{
+use anseo_recommendations::lifecycle::{
     can_transition, mark_acted, measure_outcome, outcome_due_at, transition, LifecycleError,
     OutcomeStatus, State, MIN_POST_ACTED_RUNS, OUTCOME_WINDOW_DAYS,
 };
+use chrono::{DateTime, Duration, Utc};
 
 const ALL: [State; 7] = [
     State::Generated,

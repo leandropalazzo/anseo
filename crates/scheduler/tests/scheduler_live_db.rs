@@ -5,15 +5,15 @@
 
 #![cfg(feature = "live_db_tests")]
 
-use chrono::{TimeZone, Utc};
-use opengeo_core::ProjectId;
-use opengeo_scheduler::events::{LifecycleEvent, SchedulePayload};
-use opengeo_scheduler::transport::{listen, publish};
-use opengeo_scheduler::worker::{
+use anseo_core::ProjectId;
+use anseo_scheduler::events::{LifecycleEvent, SchedulePayload};
+use anseo_scheduler::transport::{listen, publish};
+use anseo_scheduler::worker::{
     anchor_next_tick, claim_tick, event_channel, reap_orphans, ClaimOutcome, REAPER_IDLE_SECONDS,
 };
-use opengeo_scheduler::{parse_cadence, ScheduleValidationError};
-use opengeo_storage::Storage;
+use anseo_scheduler::{parse_cadence, ScheduleValidationError};
+use anseo_storage::Storage;
+use chrono::{TimeZone, Utc};
 use sqlx::PgPool;
 use std::time::Duration;
 use uuid::Uuid;

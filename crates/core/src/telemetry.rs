@@ -41,7 +41,7 @@ pub mod events {
 
 /// Initialize the global tracing subscriber with a bunyan-formatted JSON layer.
 ///
-/// Filter precedence: `OPENGEO_LOG` env var > `RUST_LOG` env var > `opengeo=info`.
+/// Filter precedence: `ANSEO_LOG` env var > `OPENGEO_LOG` (deprecated) > `RUST_LOG` env var > `anseo=info`.
 /// Output goes to stdout. Safe to call once per process; subsequent calls return
 /// the underlying `SetGlobalDefaultError`.
 pub fn init_tracing(service_name: &str) -> Result<(), SetGlobalDefaultError> {
@@ -62,9 +62,10 @@ fn init_tracing_with_writer<W>(service_name: &str, writer: W) -> Result<(), SetG
 where
     W: for<'a> tracing_subscriber::fmt::MakeWriter<'a> + Send + Sync + 'static,
 {
-    let env_filter = EnvFilter::try_from_env("OPENGEO_LOG")
+    let env_filter = EnvFilter::try_from_env("ANSEO_LOG")
+        .or_else(|_| EnvFilter::try_from_env("OPENGEO_LOG")) // deprecated alias
         .or_else(|_| EnvFilter::try_from_default_env())
-        .unwrap_or_else(|_| EnvFilter::new("opengeo=info"));
+        .unwrap_or_else(|_| EnvFilter::new("anseo=info"));
 
     let formatting_layer = BunyanFormattingLayer::new(service_name.to_owned(), writer);
     let subscriber = Registry::default()

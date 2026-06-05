@@ -4,8 +4,8 @@
 //! schema changes; reuses the existing `crates/analytics/src/lib.rs`
 //! queries as the underlying SQL.
 
+use anseo_storage::Storage;
 use async_trait::async_trait;
-use opengeo_storage::Storage;
 use std::sync::Arc;
 
 use crate::metrics_store::{
@@ -27,7 +27,7 @@ impl PostgresMetricsStore {
 impl MetricsStore for PostgresMetricsStore {
     async fn visibility_trend(
         &self,
-        project_id: opengeo_core::ProjectId,
+        project_id: anseo_core::ProjectId,
         prompt_slug: &str,
         params: TrendParams,
     ) -> Result<Vec<VisibilityPoint>, MetricsStoreError> {
@@ -41,7 +41,7 @@ impl MetricsStore for PostgresMetricsStore {
 
     async fn citation_summary(
         &self,
-        project_id: opengeo_core::ProjectId,
+        project_id: anseo_core::ProjectId,
         params: SummaryParams,
     ) -> Result<Vec<CitationSummaryRow>, MetricsStoreError> {
         let rows = crate::citation_summary(&self.storage, project_id, params.limit).await?;
@@ -50,7 +50,7 @@ impl MetricsStore for PostgresMetricsStore {
 
     async fn anomaly_samples(
         &self,
-        _project_id: opengeo_core::ProjectId,
+        _project_id: anseo_core::ProjectId,
         _prompt_slug: &str,
         _days: i32,
     ) -> Result<Vec<AnomalyRankSample>, MetricsStoreError> {
@@ -84,7 +84,7 @@ mod tests {
             "postgres://opengeo:opengeo@127.0.0.1:1/__metrics_backend_smoke__",
         )
         .unwrap();
-        let storage = Arc::new(opengeo_storage::Storage::from_pool(lazy_pool));
+        let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
         let store = PostgresMetricsStore::new(storage);
         assert_eq!(store.backend(), "postgres");
     }
@@ -97,10 +97,10 @@ mod tests {
         let lazy_pool =
             sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__anom_smoke__")
                 .unwrap();
-        let storage = Arc::new(opengeo_storage::Storage::from_pool(lazy_pool));
+        let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
         let store = PostgresMetricsStore::new(storage);
         let result = store
-            .anomaly_samples(opengeo_core::ProjectId::new(), "prompt", 14)
+            .anomaly_samples(anseo_core::ProjectId::new(), "prompt", 14)
             .await
             .unwrap();
         assert_eq!(result, Vec::new());

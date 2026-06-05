@@ -1,7 +1,7 @@
 //! Story 31-4 — ClickHouse ETL job consumer for the worker.
 //!
 //! The resumable Postgres→ClickHouse ETL engine
-//! ([`opengeo_analytics::metrics_store::clickhouse_etl::migrate_project_resumable`])
+//! ([`anseo_analytics::metrics_store::clickhouse_etl::migrate_project_resumable`])
 //! lives behind the analytics `clickhouse` Cargo feature (it needs `reqwest`).
 //! The API process can't link that feature, but the worker can — so the worker
 //! owns ETL execution and the API only enqueues.
@@ -42,7 +42,7 @@ pub struct ClaimedEtlJob {
 ///
 /// Signature for 31-5 to call:
 /// ```ignore
-/// let job_id = opengeo_worker::etl::enqueue_etl_job(&pool, project_id).await?;
+/// let job_id = anseo_worker::etl::enqueue_etl_job(&pool, project_id).await?;
 /// ```
 /// where `pool: &sqlx::PgPool` and `project_id: uuid::Uuid` (the project's
 /// canonical UUID — convert a `ProjectId` with
@@ -190,12 +190,12 @@ pub async fn run_migration(
     days: i32,
     citation_limit: i64,
 ) -> Result<(), String> {
-    use opengeo_analytics::metrics_store::clickhouse::ClickHouseMetricsStore;
-    use opengeo_analytics::metrics_store::clickhouse_etl::{
+    use anseo_analytics::metrics_store::clickhouse::ClickHouseMetricsStore;
+    use anseo_analytics::metrics_store::clickhouse_etl::{
         migrate_project_resumable, ResumableConfig,
     };
-    use opengeo_core::ids::ProjectId;
-    use opengeo_storage::Storage;
+    use anseo_core::ids::ProjectId;
+    use anseo_storage::Storage;
 
     let database_url =
         std::env::var("DATABASE_URL").map_err(|_| "DATABASE_URL must be set".to_string())?;

@@ -1,15 +1,15 @@
-//! `ogeo` — OpenGEO command-line interface.
+//! `anseo` — Anseo command-line interface (previously `ogeo`).
 
-use clap::Parser;
-use opengeo_cli::{
+use anseo_cli::{
     commands, AnalyticsSub, ApiKeySub, ApiSub, BenchmarkSub, CheckSub, Cli, Command, DashboardSub,
     McpSub, PluginSub, ProjectSub, PromptSub, RecommendSub, ReportSub, ScheduleSub, WebhookSub,
     WorkerSub,
 };
-use opengeo_core::{telemetry::init_tracing, ExitCode, OpenGeoError};
+use anseo_core::{telemetry::init_tracing, ExitCode, OpenGeoError};
+use clap::Parser;
 
 fn main() {
-    if let Err(e) = init_tracing("opengeo-cli") {
+    if let Err(e) = init_tracing("anseo-cli") {
         eprintln!("failed to initialize tracing: {e}");
         std::process::exit(ExitCode::InternalError.into());
     }

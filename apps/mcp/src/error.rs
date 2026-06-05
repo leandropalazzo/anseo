@@ -2,7 +2,7 @@
 //! for the wire shape. This module wraps that taxonomy with a `thiserror`-style
 //! enum the dispatch layer can map onto JSON-RPC error codes.
 
-use opengeo_wire_schema::mcp::{McpError, McpErrorKind};
+use anseo_wire_schema::mcp::{McpError, McpErrorKind};
 
 /// Internal error type returned by `Tool::call` handlers.
 ///

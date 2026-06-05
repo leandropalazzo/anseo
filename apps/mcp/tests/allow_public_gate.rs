@@ -5,9 +5,9 @@
 
 #[test]
 fn allow_public_without_key_exits_1() {
-    let bin = env!("CARGO_BIN_EXE_opengeo-mcp");
+    let bin = env!("CARGO_BIN_EXE_anseo-mcp");
     let output = std::process::Command::new(bin)
-        .env_remove("OPENGEO_API_KEY")
+        .env_remove("ANSEO_API_KEY")
         .env("RUST_LOG", "error")
         .args(["--allow-public", "--transport", "http+sse"])
         .output()
@@ -15,11 +15,11 @@ fn allow_public_without_key_exits_1() {
     assert_eq!(
         output.status.code(),
         Some(1),
-        "--allow-public without OPENGEO_API_KEY must exit 1"
+        "--allow-public without ANSEO_API_KEY must exit 1"
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("--allow-public requires OPENGEO_API_KEY"),
+        stderr.contains("--allow-public requires ANSEO_API_KEY"),
         "expected error message in stderr; got: {stderr}"
     );
 }

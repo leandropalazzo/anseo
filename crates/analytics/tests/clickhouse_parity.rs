@@ -8,7 +8,7 @@
 //!
 //!     CLICKHOUSE_URL=http://localhost:8123 \
 //!     CLICKHOUSE_USER=opengeo CLICKHOUSE_PASSWORD=... \
-//!     CLICKHOUSE_DATABASE=opengeo_analytics \
+//!     CLICKHOUSE_DATABASE=anseo_analytics \
 //!     DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo \
 //!     cargo test -p opengeo-analytics --features clickhouse \
 //!       --test clickhouse_parity -- --ignored
@@ -17,14 +17,14 @@
 
 use std::sync::Arc;
 
-use chrono::{Duration, TimeZone, Utc};
-use opengeo_analytics::metrics_store::{
+use anseo_analytics::metrics_store::{
     clickhouse::ClickHouseMetricsStore, postgres::PostgresMetricsStore, MetricsStore,
     SummaryParams, TrendParams,
 };
-use opengeo_core::ProjectId;
-use opengeo_storage::models::{ProjectRow, PromptRow};
-use opengeo_storage::repositories::{projects::ProjectRepo, prompts::PromptRepo};
+use anseo_core::ProjectId;
+use anseo_storage::models::{ProjectRow, PromptRow};
+use anseo_storage::repositories::{projects::ProjectRepo, prompts::PromptRepo};
+use chrono::{Duration, TimeZone, Utc};
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -56,7 +56,7 @@ async fn seed_postgres_runs(
         })
         .await
         .expect("seed project");
-    let prompt_id = opengeo_core::PromptId::new();
+    let prompt_id = anseo_core::PromptId::new();
     PromptRepo::new(pool)
         .insert(&PromptRow {
             id: prompt_id,
@@ -73,7 +73,7 @@ async fn seed_postgres_runs(
     // Insert runs.
     let mut run_ids = Vec::with_capacity(runs.len());
     for (started_at, provider) in runs {
-        let id = opengeo_core::PromptRunId::new();
+        let id = anseo_core::PromptRunId::new();
         run_ids.push(id);
         sqlx::query(
             r#"INSERT INTO prompt_runs
@@ -186,7 +186,7 @@ async fn citation_summary_parity_across_backends() {
         .expect("seed ch citation_totals");
 
     let pg_store =
-        PostgresMetricsStore::new(Arc::new(opengeo_storage::Storage::from_pool(pool.clone())));
+        PostgresMetricsStore::new(Arc::new(anseo_storage::Storage::from_pool(pool.clone())));
     let from_pg = pg_store
         .citation_summary(project_id, SummaryParams { limit: 50 })
         .await
@@ -268,7 +268,7 @@ async fn visibility_trend_parity_across_backends() {
         .expect("seed ch visibility_points");
 
     let pg_store =
-        PostgresMetricsStore::new(Arc::new(opengeo_storage::Storage::from_pool(pool.clone())));
+        PostgresMetricsStore::new(Arc::new(anseo_storage::Storage::from_pool(pool.clone())));
     let from_pg = pg_store
         .visibility_trend(project_id, prompt, TrendParams { days: 30 })
         .await
@@ -288,7 +288,7 @@ async fn visibility_trend_parity_across_backends() {
     // sort both before comparing.
     let mut from_pg = from_pg;
     let mut from_ch = from_ch;
-    let sort_key = |p: &opengeo_analytics::VisibilityPoint| (p.bucket_start, p.provider.clone());
+    let sort_key = |p: &anseo_analytics::VisibilityPoint| (p.bucket_start, p.provider.clone());
     from_pg.sort_by_key(sort_key);
     from_ch.sort_by_key(sort_key);
     for (a, b) in from_pg.iter().zip(from_ch.iter()) {
@@ -308,8 +308,7 @@ async fn backend_strings_disambiguate() {
     let pg_pool =
         sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__parity_smoke__")
             .unwrap();
-    let pg_store =
-        PostgresMetricsStore::new(Arc::new(opengeo_storage::Storage::from_pool(pg_pool)));
+    let pg_store = PostgresMetricsStore::new(Arc::new(anseo_storage::Storage::from_pool(pg_pool)));
     let ch_store = ch();
     assert_eq!(pg_store.backend(), "postgres");
     assert_eq!(ch_store.backend(), "clickhouse");

@@ -13,10 +13,10 @@
 //! - AC-5: `single_brand_resolves_only_for_the_sole_project` — legacy path resolves sole project.
 //! - AC-6: `project_id_scoping_prevents_cross_project_leakage` — no cross-project row leakage.
 
+use anseo_core::{prompt_id_for, BrandConfig, ProjectId};
+use anseo_storage::models::PromptRow;
+use anseo_storage::Storage;
 use chrono::Utc;
-use opengeo_core::{prompt_id_for, BrandConfig, ProjectId};
-use opengeo_storage::models::PromptRow;
-use opengeo_storage::Storage;
 use sqlx::PgPool;
 
 fn brand(name: &str) -> BrandConfig {

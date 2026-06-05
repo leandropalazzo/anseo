@@ -1,14 +1,15 @@
-//! Scaffolded files emitted by `ogeo init` (FR-10).
+//! Scaffolded files emitted by `anseo init` (FR-10).
 //!
-//! Three files land in the target directory: `opengeo.yaml`, `.gitignore`,
+//! Three files land in the target directory: `anseo.yaml`, `.gitignore`,
 //! `README.md`. The exact bytes are part of the FR-10 contract — schema-v0.1
 //! conformance of the scaffolded yaml is asserted by an integration test.
 
-pub const OPENGEO_YAML: &str = r#"# OpenGEO project — Phase 1 schema v0.1.
+/// The scaffolded `anseo.yaml` template (formerly `opengeo.yaml`).
+pub const ANSEO_YAML: &str = r#"# Anseo project — Phase 1 schema v0.1.
 #
 # This file is the canonical declaration of what to monitor (FR-23).
 # Commit it to version control. Provider API keys live in your system
-# keychain via `ogeo login`, NEVER in this file.
+# keychain via `anseo login`, NEVER in this file.
 schema_version: '0.1'
 
 brand:
@@ -26,7 +27,7 @@ competitors:
   []
 
 prompts:
-  # Each prompt is sent to every configured Provider on every `ogeo prompt run`.
+  # Each prompt is sent to every configured Provider on every `anseo prompt run`.
   # `name` is a slug (^[a-z][a-z0-9-]*$); `text` is the prompt body.
   - name: example-prompt
     text: |
@@ -35,7 +36,7 @@ prompts:
     description: Example placeholder; safe to delete once you have real prompts.
 
 providers:
-  # Uncomment and authenticate via `ogeo login openai|anthropic` to enable.
+  # Uncomment and authenticate via `anseo login openai|anthropic` to enable.
   #
   #   - name: openai
   #     # model: gpt-4o-2024-08-06       # optional; provider default
@@ -45,33 +46,37 @@ providers:
   #     # model: claude-3-5-sonnet-20241022
   []
 
-# Optional. Parallelism for `ogeo prompt run`. Defaults to 4.
+# Optional. Parallelism for `anseo prompt run`. Defaults to 4.
 # concurrency: 4
 "#;
 
-pub const GITIGNORE: &str = r#"# OpenGEO — entries scaffolded by `ogeo init` (FR-10).
+/// Deprecated alias for [`ANSEO_YAML`]. Use [`ANSEO_YAML`] in new code.
+#[deprecated(since = "0.7.0", note = "use ANSEO_YAML instead")]
+pub const OPENGEO_YAML: &str = ANSEO_YAML;
+
+pub const GITIGNORE: &str = r#"# Anseo — entries scaffolded by `anseo init` (FR-10).
 /data
 .env
 "#;
 
-pub const README: &str = r#"# OpenGEO project
+pub const README: &str = r#"# Anseo project
 
-Scaffolded by `ogeo init`. Five-minute path:
+Scaffolded by `anseo init`. Five-minute path:
 
-1. Edit `opengeo.yaml`:
+1. Edit `anseo.yaml`:
    - Set `brand.name` and `brand.variants` to your brand.
    - Add one or more `prompts` — questions your customers ask AI assistants.
    - Uncomment a provider block (`openai` and/or `anthropic`).
 2. Authenticate at least one provider:
    ```sh
-   ogeo login openai
-   ogeo login anthropic
+   anseo login openai
+   anseo login anthropic
    ```
 3. Run prompts and view results:
    ```sh
-   ogeo prompt run
-   ogeo dashboard open
+   anseo prompt run
+   anseo dashboard open
    ```
 
-See `docs/config/opengeo-yaml-schema.md` for the full schema.
+See `docs/config/anseo-yaml-schema.md` for the full schema.
 "#;

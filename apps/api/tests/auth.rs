@@ -9,11 +9,11 @@
 
 use std::sync::Arc;
 
+use anseo_api::{router, AppState};
+use anseo_core::api_key::API_KEY_HEADER;
+use anseo_core::ProjectId;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use opengeo_api::{router, AppState};
-use opengeo_core::api_key::API_KEY_HEADER;
-use opengeo_core::ProjectId;
 use tower::ServiceExt;
 
 fn build_router() -> axum::Router {
@@ -23,8 +23,8 @@ fn build_router() -> axum::Router {
     let lazy_pool =
         sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__auth_test__")
             .expect("connect_lazy never IOs synchronously");
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(lazy_pool));
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id: ProjectId::new(),
@@ -115,5 +115,5 @@ async fn api_runs_root_path_also_returns_401_when_unauthenticated() {
 async fn x_opengeo_api_key_header_constant_is_what_we_send() {
     // Pin the spec wire name. If a future refactor renames the constant
     // away from `X-OpenGEO-API-Key`, this test fails immediately.
-    assert_eq!(API_KEY_HEADER, "X-OpenGEO-API-Key");
+    assert_eq!(API_KEY_HEADER, "X-Anseo-API-Key");
 }

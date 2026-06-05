@@ -31,20 +31,20 @@
 
 use std::sync::Arc;
 
-use opengeo_api::{router, AppState};
-use opengeo_core::ProjectId;
+use anseo_api::{router, AppState};
+use anseo_core::ProjectId;
 
 #[tokio::test]
 async fn api_router_builds_with_minimal_state() {
     // Construct an AppState without a real database connection. We can do
-    // this because `opengeo_storage::Storage` exposes `from_pool` and we can
+    // this because `anseo_storage::Storage` exposes `from_pool` and we can
     // build an in-memory placeholder pool via `sqlx::PgPool::connect_lazy` —
     // the router itself doesn't dereference the pool until a request lands.
     let lazy_pool =
         sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__router_build_smoke__")
             .expect("connect_lazy never IOs synchronously");
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(lazy_pool));
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id: ProjectId::new(),
@@ -65,17 +65,17 @@ async fn api_router_builds_with_minimal_state() {
 
 #[test]
 fn api_router_includes_test_seed_when_env_set() {
-    // Pin the env-gate contract: setting OPENGEO_TEST_MODE=1 makes
+    // Pin the env-gate contract: setting ANSEO_TEST_MODE=1 makes
     // is_enabled_via_env() flip true. The router() function consumes that
     // signal at build time (verified by the unit test in
     // routes/test_seed.rs). This guards against future refactors that move
     // the env check to e.g. a request middleware (which would defeat the
     // "production never serves /test/seed" contract).
     // SAFETY: tests in this crate run on a single thread by default.
-    unsafe { std::env::set_var("OPENGEO_TEST_MODE", "1") };
-    assert!(opengeo_api::routes::test_seed::is_enabled_via_env());
-    unsafe { std::env::set_var("OPENGEO_TEST_MODE", "0") };
-    assert!(!opengeo_api::routes::test_seed::is_enabled_via_env());
-    unsafe { std::env::remove_var("OPENGEO_TEST_MODE") };
-    assert!(!opengeo_api::routes::test_seed::is_enabled_via_env());
+    unsafe { std::env::set_var("ANSEO_TEST_MODE", "1") };
+    assert!(anseo_api::routes::test_seed::is_enabled_via_env());
+    unsafe { std::env::set_var("ANSEO_TEST_MODE", "0") };
+    assert!(!anseo_api::routes::test_seed::is_enabled_via_env());
+    unsafe { std::env::remove_var("ANSEO_TEST_MODE") };
+    assert!(!anseo_api::routes::test_seed::is_enabled_via_env());
 }

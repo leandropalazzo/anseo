@@ -1,7 +1,7 @@
 {
-  "name": "@opengeo/sdk",
+  "name": "@anseo/sdk",
   "version": "0.0.0",
-  "description": "OpenGEO REST client — auto-generated from the canonical OpenAPI artifact.",
+  "description": "Anseo REST client — auto-generated from the canonical OpenAPI artifact.",
   "license": "MIT",
   "type": "module",
   "exports": {

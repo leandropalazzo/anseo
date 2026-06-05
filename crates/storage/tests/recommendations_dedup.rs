@@ -6,8 +6,8 @@
 //! Runs against an ephemeral schema via `#[sqlx::test]` (storage-crate
 //! convention; requires DATABASE_URL).
 
-use opengeo_recommendations::{Engine, Recommendation};
-use opengeo_storage::repositories::recommendations::{NewRecommendation, RecommendationsRepo};
+use anseo_recommendations::{Engine, Recommendation};
+use anseo_storage::repositories::recommendations::{NewRecommendation, RecommendationsRepo};
 use serde_json::Value as JsonValue;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;

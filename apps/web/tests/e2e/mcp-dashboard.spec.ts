@@ -85,7 +85,7 @@ test("@P0 @A11y mcp page passes WCAG 2.1 AA in light theme", async ({
 
   await page.addInitScript((t) => {
     try {
-      window.localStorage.setItem("ogeo-theme", t);
+      window.localStorage.setItem("anseo-theme", t);
     } catch {
       /* sandboxed contexts may forbid localStorage */
     }
@@ -109,7 +109,7 @@ test("@P0 @A11y mcp page passes WCAG 2.1 AA in dark theme", async ({
 
   await page.addInitScript((t) => {
     try {
-      window.localStorage.setItem("ogeo-theme", t);
+      window.localStorage.setItem("anseo-theme", t);
     } catch {
       /* sandboxed contexts may forbid localStorage */
     }

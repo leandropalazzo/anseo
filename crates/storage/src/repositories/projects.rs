@@ -1,6 +1,6 @@
+use anseo_core::ids::ProjectId;
+use anseo_core::{project_id_for_name, BrandConfig};
 use chrono::Utc;
-use opengeo_core::ids::ProjectId;
-use opengeo_core::{project_id_for_name, BrandConfig};
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 
@@ -248,9 +248,9 @@ impl<'a> ProjectRepo<'a> {
         variants: &[String],
         competitors: &JsonValue,
         site_url: Option<&str>,
-        prompt_id_remap: &[(opengeo_core::PromptId, opengeo_core::PromptId)],
+        prompt_id_remap: &[(anseo_core::PromptId, anseo_core::PromptId)],
     ) -> Result<(), Error> {
-        use opengeo_core::PromptId;
+        use anseo_core::PromptId;
         let mut tx = self.pool.begin().await?;
 
         // Carry over org/tenant/created_at from the existing row.

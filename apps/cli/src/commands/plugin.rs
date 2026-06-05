@@ -11,11 +11,11 @@
 
 use std::path::PathBuf;
 
+use anseo_core::OpenGeoError;
+use anseo_plugin_host::signing::pinned_root_pubkeys;
+use anseo_plugin_manifest::PluginManifest;
+use anseo_storage::Storage;
 use clap::Args;
-use opengeo_core::OpenGeoError;
-use opengeo_plugin_host::signing::pinned_root_pubkeys;
-use opengeo_plugin_manifest::PluginManifest;
-use opengeo_storage::Storage;
 
 use super::plugin_install::{
     install_plugin, list_installed, remove_plugin, upgrade_plugin, InstallOptions,
@@ -67,26 +67,26 @@ pub fn run_validate(args: ValidateArgs) -> Result<(), OpenGeoError> {
 // ---------------------------------------------------------------------------
 
 /// Resolve the registry root: `--registry` flag wins, else
-/// `OPENGEO_PLUGIN_REGISTRY`, else the local cache under the plugin home. The
+/// `ANSEO_PLUGIN_REGISTRY`, else the local cache under the plugin home. The
 /// GitHub-backed transport syncs that cache; this story ships the resolver and
 /// install pipeline over the on-disk tree.
 fn resolve_registry(flag: Option<&std::path::Path>) -> Result<FsRegistry, OpenGeoError> {
     if let Some(p) = flag {
         return Ok(FsRegistry::new(p));
     }
-    if let Ok(p) = std::env::var("OPENGEO_PLUGIN_REGISTRY") {
+    if let Ok(p) = std::env::var("ANSEO_PLUGIN_REGISTRY") {
         return Ok(FsRegistry::new(p));
     }
     Err(OpenGeoError::Config(
-        "no plugin registry configured; pass --registry <dir> or set OPENGEO_PLUGIN_REGISTRY \
+        "no plugin registry configured; pass --registry <dir> or set ANSEO_PLUGIN_REGISTRY \
          (GitHub-backed registry sync lands with the transport layer)"
             .into(),
     ))
 }
 
-/// `~/.config/opengeo` (XDG), overridable via `OPENGEO_PLUGIN_HOME` for tests.
+/// `~/.config/opengeo` (XDG), overridable via `ANSEO_PLUGIN_HOME` for tests.
 fn plugin_home() -> Result<PathBuf, OpenGeoError> {
-    if let Ok(p) = std::env::var("OPENGEO_PLUGIN_HOME") {
+    if let Ok(p) = std::env::var("ANSEO_PLUGIN_HOME") {
         return Ok(PathBuf::from(p));
     }
     let base = std::env::var("XDG_CONFIG_HOME")

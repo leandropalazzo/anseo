@@ -12,13 +12,13 @@
 
 use std::sync::Arc;
 
+use anseo_api::{router, AppState};
+use anseo_core::api_key::{generate as gen_key, API_KEY_HEADER};
+use anseo_core::ProjectId;
+use anseo_storage::models::ProjectRow;
+use anseo_storage::repositories::{api_keys::ApiKeyRepo, projects::ProjectRepo};
 use axum::body::{to_bytes, Body};
 use axum::http::{Method, Request, StatusCode};
-use opengeo_api::{router, AppState};
-use opengeo_core::api_key::{generate as gen_key, API_KEY_HEADER};
-use opengeo_core::ProjectId;
-use opengeo_storage::models::ProjectRow;
-use opengeo_storage::repositories::{api_keys::ApiKeyRepo, projects::ProjectRepo};
 use sqlx::PgPool;
 use tower::ServiceExt;
 
@@ -26,7 +26,7 @@ async fn seed() -> (axum::Router, String) {
     let url =
         std::env::var("DATABASE_URL").expect("DATABASE_URL must be exported for schedules_live_db");
     let pool = PgPool::connect(&url).await.expect("connect");
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(pool.clone()));
+    let storage = Arc::new(anseo_storage::Storage::from_pool(pool.clone()));
     let project_id = ProjectId::new();
     let now = chrono::Utc::now();
     ProjectRepo::new(&pool)
@@ -49,7 +49,7 @@ async fn seed() -> (axum::Router, String) {
         )
         .await
         .expect("seed key");
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id,

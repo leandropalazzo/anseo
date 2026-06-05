@@ -1,7 +1,7 @@
 {
-  "name": "@opengeo/observe",
+  "name": "@anseo/observe",
   "version": "0.1.0",
-  "description": "Thin instrumentation SDK to POST externally-executed LLM runs to the OpenGEO Run-Ingestion API (POST /v1/ingest/run).",
+  "description": "Thin instrumentation SDK to POST externally-executed LLM runs to the Anseo Run-Ingestion API (POST /v1/ingest/run).",
   "license": "MIT",
   "type": "module",
   "main": "./src/index.ts",

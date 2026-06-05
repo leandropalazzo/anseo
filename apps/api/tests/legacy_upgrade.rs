@@ -6,7 +6,7 @@
 //!
 //! - **36.2** — per-request resolution with a legacy *sole-active-project*
 //!   fallback (`apps/api/src/extractors/project.rs`): a request that sends NO
-//!   `X-OpenGEO-Project` header still resolves, as long as exactly one active
+//!   `X-Anseo-Project` header still resolves, as long as exactly one active
 //!   project exists.
 //! - **36.7** — per-project provider-secret keying with a legacy *global*
 //!   read fallback (`crates/core/src/secret_store.rs`): a secret stored under
@@ -28,14 +28,14 @@
 //!   cargo test -p opengeo-api --test legacy_upgrade -- --ignored
 //! ```
 
-use opengeo_api::extractors::resolve_project;
-use opengeo_core::{
+use anseo_api::extractors::resolve_project;
+use anseo_core::{
     get_provider_secret, project_id_for_name, prompt_id_for, set_provider_secret, BrandConfig,
     InMemoryStore, Secret, SecretStore, SecretStoreError,
 };
-use opengeo_storage::models::PromptRow;
-use opengeo_storage::repositories::projects::ProjectRepo;
-use opengeo_storage::Storage;
+use anseo_storage::models::PromptRow;
+use anseo_storage::repositories::projects::ProjectRepo;
+use anseo_storage::Storage;
 use sqlx::PgPool;
 
 /// These tests manipulate the process-global `projects` table (the
@@ -61,7 +61,7 @@ async fn fresh_storage() -> Option<(Storage, PgPool)> {
     Some((storage, pool))
 }
 
-async fn seed_project(pool: &PgPool, name: &str) -> opengeo_core::ProjectId {
+async fn seed_project(pool: &PgPool, name: &str) -> anseo_core::ProjectId {
     ProjectRepo::new(pool)
         .create_project(&BrandConfig {
             name: name.to_string(),
@@ -76,7 +76,7 @@ async fn seed_project(pool: &PgPool, name: &str) -> opengeo_core::ProjectId {
 /// the project-scoped "data" we later assert is reachable through the resolved
 /// sole-active scope (i.e. resolution lands on the project that actually owns
 /// the row, not some empty default).
-async fn seed_prompt(pool: &PgPool, brand: &str, project_id: opengeo_core::ProjectId) -> String {
+async fn seed_prompt(pool: &PgPool, brand: &str, project_id: anseo_core::ProjectId) -> String {
     let prompt_name = "legacy-prompt";
     let row = PromptRow {
         id: prompt_id_for(brand, prompt_name),
@@ -114,7 +114,7 @@ async fn legacy_single_project_resolves_without_header() {
     let prompt_name = seed_prompt(&pool, &brand, project_id).await;
 
     // Multi-project resolution path, NO explicit value and NO
-    // `X-OpenGEO-Project` header — exactly how a pre-upgrade single-project
+    // `X-Anseo-Project` header — exactly how a pre-upgrade single-project
     // client calls the API. The sole-active fallback (36.2) must resolve it.
     let scope = resolve_project(&storage, None, None)
         .await

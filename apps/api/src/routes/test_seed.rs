@@ -3,7 +3,7 @@
 //! FR-17 / FR-18 / FR-19 / UX-DR40 / NFR-9 / NFR-10).
 //!
 //! **Test-mode only.** This route is registered into the router *only* when
-//! the `OPENGEO_TEST_MODE` env var resolves to `1`/`true`. In production the
+//! the `ANSEO_TEST_MODE` env var resolves to `1`/`true`. In production the
 //! route does not exist and the seed types are not serialized anywhere
 //! reachable from `apps/web`.
 //!
@@ -38,19 +38,19 @@
 //! trace: enables P0-010, P0-011, P0-012, P0-015, P0-016, P0-022, P0-024
 //! trace: also unblocks runs-partial-failure.spec.ts AC-6..AC-9
 
+use anseo_core::{Config, ProviderErrorKind, ProviderName, RequestId};
+use anseo_providers::orchestrator::{PromptRunRecord, PromptRunStatus};
+use anseo_providers::persistence::persist_records;
 use axum::http::StatusCode;
 use axum::routing::post;
 use axum::{Json, Router};
 use chrono::Utc;
-use opengeo_core::{Config, ProviderErrorKind, ProviderName, RequestId};
-use opengeo_providers::orchestrator::{PromptRunRecord, PromptRunStatus};
-use opengeo_providers::persistence::persist_records;
 use serde::{Deserialize, Serialize};
 
 use crate::AppState;
 
 /// Build the test-mode router. Callers should only mount this when
-/// `OPENGEO_TEST_MODE=1`.
+/// `ANSEO_TEST_MODE=1`.
 pub fn router() -> Router<AppState> {
     Router::new().route("/test/seed", post(seed))
 }
@@ -109,7 +109,7 @@ async fn seed(
     let project_id = config.project_id();
 
     // Index prompts by name for O(1) lookup.
-    let prompts_by_name: std::collections::HashMap<&str, opengeo_core::PromptId> = config
+    let prompts_by_name: std::collections::HashMap<&str, anseo_core::PromptId> = config
         .prompts
         .iter()
         .filter_map(|p| config.prompt_id(&p.name).map(|id| (p.name.as_str(), id)))
@@ -164,7 +164,7 @@ async fn seed(
         let model = run.model.unwrap_or_else(|| "mock-model".to_string());
 
         records.push(PromptRunRecord {
-            id: opengeo_core::PromptRunId::new(),
+            id: anseo_core::PromptRunId::new(),
             project_id,
             prompt_id,
             prompt_name: run.prompt_name,
@@ -199,12 +199,12 @@ async fn seed(
     }))
 }
 
-/// Resolve the `OPENGEO_TEST_MODE` env var. Returns `true` when the value
+/// Resolve the `ANSEO_TEST_MODE` env var. Returns `true` when the value
 /// is `1` / `true` (case-insensitive); `false` otherwise. Centralized here
 /// so both the router build path and tests share the same parsing.
 pub fn is_enabled_via_env() -> bool {
     matches!(
-        std::env::var("OPENGEO_TEST_MODE")
+        std::env::var("ANSEO_TEST_MODE")
             .ok()
             .as_deref()
             .map(str::trim)
@@ -232,15 +232,15 @@ mod tests {
             ("yes", false),
         ] {
             // SAFETY: see header comment.
-            unsafe { std::env::set_var("OPENGEO_TEST_MODE", val) };
+            unsafe { std::env::set_var("ANSEO_TEST_MODE", val) };
             assert_eq!(
                 is_enabled_via_env(),
                 expected,
-                "OPENGEO_TEST_MODE={val:?} should resolve to {expected}"
+                "ANSEO_TEST_MODE={val:?} should resolve to {expected}"
             );
         }
         // SAFETY: see header comment.
-        unsafe { std::env::remove_var("OPENGEO_TEST_MODE") };
+        unsafe { std::env::remove_var("ANSEO_TEST_MODE") };
         assert!(!is_enabled_via_env());
     }
 

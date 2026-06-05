@@ -12,7 +12,7 @@
 //!
 //!     CLICKHOUSE_URL=http://localhost:8123 \
 //!     CLICKHOUSE_USER=opengeo CLICKHOUSE_PASSWORD=... \
-//!     CLICKHOUSE_DATABASE=opengeo_analytics \
+//!     CLICKHOUSE_DATABASE=anseo_analytics \
 //!     DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo \
 //!     cargo test -p opengeo-analytics --features "clickhouse live_db_tests" \
 //!       --test migrate_resumable -- --ignored
@@ -21,16 +21,14 @@
 
 use std::sync::Arc;
 
+use anseo_analytics::metrics_store::clickhouse::ClickHouseMetricsStore;
+use anseo_analytics::metrics_store::clickhouse_etl::{migrate_project_resumable, ResumableConfig};
+use anseo_analytics::metrics_store::{MetricsStore, SummaryParams, TrendParams};
+use anseo_core::ProjectId;
+use anseo_storage::models::{ProjectRow, PromptRow};
+use anseo_storage::repositories::{projects::ProjectRepo, prompts::PromptRepo};
+use anseo_storage::Storage;
 use chrono::{Duration, TimeZone, Utc};
-use opengeo_analytics::metrics_store::clickhouse::ClickHouseMetricsStore;
-use opengeo_analytics::metrics_store::clickhouse_etl::{
-    migrate_project_resumable, ResumableConfig,
-};
-use opengeo_analytics::metrics_store::{MetricsStore, SummaryParams, TrendParams};
-use opengeo_core::ProjectId;
-use opengeo_storage::models::{ProjectRow, PromptRow};
-use opengeo_storage::repositories::{projects::ProjectRepo, prompts::PromptRepo};
-use opengeo_storage::Storage;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
@@ -107,7 +105,7 @@ async fn seed(pool: &PgPool, project_id: ProjectId) {
         })
         .await
         .expect("seed project");
-    let prompt_id = opengeo_core::PromptId::new();
+    let prompt_id = anseo_core::PromptId::new();
     PromptRepo::new(pool)
         .insert(&PromptRow {
             id: prompt_id,
@@ -131,7 +129,7 @@ async fn seed(pool: &PgPool, project_id: ProjectId) {
         (1, "anthropic"),
         (2, "openai"),
     ] {
-        let id = opengeo_core::PromptRunId::new();
+        let id = anseo_core::PromptRunId::new();
         let started = day0 + Duration::days(offset_days);
         sqlx::query(
             r#"INSERT INTO prompt_runs

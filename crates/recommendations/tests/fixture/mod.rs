@@ -2,11 +2,11 @@
 // the seven deterministic Kinds. Used by `determinism.rs`,
 // `reproducibility_invariant.rs`, and (via include!) the storage dedup test.
 
-use chrono::{DateTime, Utc};
-use opengeo_recommendations::{
+use anseo_recommendations::{
     window, BenchmarkCategory, CitationDriftInput, CompetitorRank, EngineInput, PromptStat,
     ProviderRank, ENGINE_VERSION,
 };
+use chrono::{DateTime, Utc};
 use ulid::Ulid;
 
 pub fn ts() -> DateTime<Utc> {

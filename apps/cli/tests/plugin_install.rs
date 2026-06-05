@@ -7,10 +7,10 @@
 
 use std::path::Path;
 
+use anseo_cli::commands::plugin_install::{install_plugin, list_installed, InstallOptions};
+use anseo_cli::commands::plugin_registry::FsRegistry;
+use anseo_plugin_host::signing::{NamespaceClaim, SignatureStatus};
 use ed25519_dalek::{Signer, SigningKey};
-use opengeo_cli::commands::plugin_install::{install_plugin, list_installed, InstallOptions};
-use opengeo_cli::commands::plugin_registry::FsRegistry;
-use opengeo_plugin_host::signing::{NamespaceClaim, SignatureStatus};
 use rand::RngCore;
 use sqlx::PgPool;
 
@@ -38,7 +38,7 @@ fn gen_key() -> SigningKey {
 }
 
 fn digest(manifest: &[u8], entry: &[u8]) -> [u8; 32] {
-    opengeo_plugin_host::signing::signing_digest(manifest, entry)
+    anseo_plugin_host::signing::signing_digest(manifest, entry)
 }
 
 /// Build a fixture registry tree under `root`. Returns the root public key the

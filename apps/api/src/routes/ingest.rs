@@ -35,7 +35,7 @@ use axum::routing::post;
 use axum::{Extension, Json, Router};
 use serde::{Deserialize, Serialize};
 
-use opengeo_benchmark::{ProjectKek, RawPromptRun, Redactor, SealedContribution, TERMS_VERSION};
+use anseo_benchmark::{ProjectKek, RawPromptRun, Redactor, SealedContribution, TERMS_VERSION};
 
 use crate::extractors::project::ProjectScope;
 use crate::AppState;
@@ -183,7 +183,7 @@ pub fn resolve_citation_domains(req: &IngestRunRequest) -> Vec<String> {
     let mut domains: Vec<String> = if let Some(explicit) = &req.citation_domains {
         explicit.clone()
     } else if let Some(text) = &req.response_text {
-        opengeo_extractors::extract_citations(text)
+        anseo_extractors::extract_citations(text)
             .into_iter()
             .map(|c| c.domain)
             .collect()
@@ -245,7 +245,7 @@ async fn ingest_run(
 
     let observed_at = req.observed_at.unwrap_or_else(chrono::Utc::now);
     let citation_domains = resolve_citation_domains(&req);
-    let run_id = opengeo_core::PromptRunId::new();
+    let run_id = anseo_core::PromptRunId::new();
     let now = chrono::Utc::now();
 
     // 2. Persist the external run as a prompt_run for the resolved project.
@@ -255,7 +255,7 @@ async fn ingest_run(
         "citation_domains": citation_domains,
         "observed_rank": req.observed_rank,
     });
-    let row = opengeo_storage::models::PromptRunRow {
+    let row = anseo_storage::models::PromptRunRow {
         id: run_id,
         prompt_id: prompt.id,
         provider: req.provider.clone(),
@@ -277,7 +277,7 @@ async fn ingest_run(
         .insert(&row)
         .await
         .map_err(|e| {
-            if let opengeo_storage::Error::Sqlx(sqlx::Error::Database(db_err)) = &e {
+            if let anseo_storage::Error::Sqlx(sqlx::Error::Database(db_err)) = &e {
                 if db_err.code().as_deref() == Some("23503") {
                     return err(
                         StatusCode::NOT_FOUND,
@@ -327,7 +327,7 @@ async fn ingest_run(
     let project_id_str = project_id.to_string();
     let kek = if opted_in {
         match tokio::task::spawn_blocking(move || {
-            let store = opengeo_core::default_chain();
+            let store = anseo_core::default_chain();
             ProjectKek::load(&store, &project_id_str)
         })
         .await
@@ -390,9 +390,9 @@ async fn ingest_run(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anseo_benchmark::ProjectKek;
+    use anseo_core::InMemoryStore;
     use chrono::{TimeZone, Utc};
-    use opengeo_benchmark::ProjectKek;
-    use opengeo_core::InMemoryStore;
 
     const PROJECT: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 

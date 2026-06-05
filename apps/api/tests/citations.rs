@@ -7,18 +7,18 @@
 
 use std::sync::Arc;
 
+use anseo_api::{router, AppState};
+use anseo_core::ProjectId;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use opengeo_api::{router, AppState};
-use opengeo_core::ProjectId;
 use tower::ServiceExt;
 
 fn build_router() -> axum::Router {
     let lazy_pool =
         sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__citations_test__")
             .expect("connect_lazy never IOs synchronously");
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(lazy_pool));
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id: ProjectId::new(),
@@ -64,14 +64,14 @@ async fn citations_summary_with_filters_without_header_returns_401() {
 
 #[tokio::test]
 async fn citations_summary_accepts_project_header_silently() {
-    // X-OpenGEO-Project is accepted-but-ignored per Story 0.11. Auth
+    // X-Anseo-Project is accepted-but-ignored per Story 0.11. Auth
     // still short-circuits at 401 since no key is supplied.
     let app = build_router();
     let response = app
         .oneshot(
             Request::builder()
                 .uri("/v1/citations/summary")
-                .header("X-OpenGEO-Project", "OpenGEO")
+                .header("X-Anseo-Project", "OpenGEO")
                 .body(Body::empty())
                 .unwrap(),
         )

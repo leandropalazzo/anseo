@@ -2,12 +2,12 @@
 //! GET /api/runs/:id — detail view (FR-18). Phase 1: the row plus best-effort
 //! mention/citation summary (empty arrays until extraction runs).
 
+use anseo_analytics::{list_runs, RunListParams};
+use anseo_core::PromptRunId;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use opengeo_analytics::{list_runs, RunListParams};
-use opengeo_core::PromptRunId;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 

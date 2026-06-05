@@ -9,16 +9,16 @@
 //! Phase 2 single-host shape per architecture §6: one worker process per
 //! Compose stack; multi-host distribution is Phase 4.
 //!
-//! The poll loop itself lives in [`opengeo_worker::run`] so the same
+//! The poll loop itself lives in [`anseo_worker::run`] so the same
 //! implementation is reused in-process by `ogeo serve` (Story 37.1). This
 //! binary is the standalone entrypoint: it wires telemetry + SIGINT/SIGTERM and
-//! delegates to [`opengeo_worker::run::run_poll_loop`].
+//! delegates to [`anseo_worker::run::run_poll_loop`].
 
+use anseo_core::telemetry::init_tracing;
+use anseo_scheduler::worker::REAPER_IDLE_SECONDS;
+use anseo_storage::Storage;
+use anseo_worker::run::{load_dispatch_context, run_poll_loop, POLL_INTERVAL_SECONDS};
 use anyhow::Context;
-use opengeo_core::telemetry::init_tracing;
-use opengeo_scheduler::worker::REAPER_IDLE_SECONDS;
-use opengeo_storage::Storage;
-use opengeo_worker::run::{load_dispatch_context, run_poll_loop, POLL_INTERVAL_SECONDS};
 use tokio::signal;
 
 #[tokio::main]
@@ -46,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
     // same way `apps/api` does so scheduled ticks drive live providers through
     // the orchestrator. Provider keys + concurrency come from `opengeo.yaml`;
     // brand identity is overlaid per project each tick by the fan-out.
-    let config_path = std::env::var("OGEO_CONFIG").unwrap_or_else(|_| "opengeo.yaml".into());
+    let config_path = std::env::var("ANSEO_CONFIG").unwrap_or_else(|_| "anseo.yaml".into());
     let dispatch = load_dispatch_context(&config_path);
     if dispatch.is_none() {
         tracing::warn!(

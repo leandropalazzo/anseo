@@ -1,7 +1,7 @@
 //! Phase 2 Stories 14.2 / 14.3 / 14.4 — analytics HTTP surface.
 //!
 //! Three GET endpoints that fetch shaped data from Postgres and feed it
-//! through the pure compute functions in `opengeo_analytics`:
+//! through the pure compute functions in `anseo_analytics`:
 //!
 //! - `GET /v1/analytics/citation-graph?days=N` → [`citation_graph::CitationGraph`]
 //! - `GET /v1/analytics/heatmap?brand=E&days=N` → [`heatmap::Heatmap`]
@@ -12,13 +12,13 @@
 //! routes are gated by `require_api_key` via the `/v1` route layer in
 //! `apps/api/src/lib.rs`.
 
+use anseo_analytics::{
+    citation_graph, citation_graph_rows, heatmap, heatmap_rows, volatility, volatility_samples,
+};
 use axum::extract::{Extension, Query, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use opengeo_analytics::{
-    citation_graph, citation_graph_rows, heatmap, heatmap_rows, volatility, volatility_samples,
-};
 use serde::Deserialize;
 
 use crate::middleware::auth::AuthenticatedProject;

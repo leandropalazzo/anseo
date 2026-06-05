@@ -2,7 +2,7 @@
 //! local-OSS intersection `[rec-8]`, determinism allow-list reflection, cost
 //! caps, and per-Kind firing with a stubbed Provider.
 
-use opengeo_recommendations::{
+use anseo_recommendations::{
     Engine, LlmConfig, RecommendationKind, ReproducibilityClass, StubProvider,
     TAG_NON_DETERMINISTIC,
 };
@@ -17,7 +17,7 @@ fn enrich_cfg() -> LlmConfig {
     }
 }
 
-fn llm_kinds(recs: &[opengeo_recommendations::Recommendation]) -> Vec<RecommendationKind> {
+fn llm_kinds(recs: &[anseo_recommendations::Recommendation]) -> Vec<RecommendationKind> {
     recs.iter()
         .map(|r| r.kind)
         .filter(|k| {

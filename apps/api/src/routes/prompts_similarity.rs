@@ -6,7 +6,7 @@
 //! caller-supplied threshold. The extension uses it to decide whether to
 //! surface inline rank data for the matched prompt(s).
 //!
-//! Pure-Rust MinHash lives in `opengeo_core::similarity`; this handler is
+//! Pure-Rust MinHash lives in `anseo_core::similarity`; this handler is
 //! a thin adapter that pulls configured prompts from the project's
 //! `Config`, builds an index, runs the query, and shapes the response.
 //!
@@ -23,14 +23,14 @@
 //! # Auth
 //!
 //! Mounted under `/v1`, so `require_api_key` in `apps/api/src/lib.rs`
-//! gates it. `X-OpenGEO-Project` is accepted and ignored per the Phase 3
+//! gates it. `X-Anseo-Project` is accepted and ignored per the Phase 3
 //! single-project model — documented but not enforced.
 
+use anseo_core::similarity::{sha256_input, MinHashIndex, NUM_HASH_FUNCTIONS};
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use opengeo_core::similarity::{sha256_input, MinHashIndex, NUM_HASH_FUNCTIONS};
 use serde::{Deserialize, Serialize};
 
 use crate::AppState;

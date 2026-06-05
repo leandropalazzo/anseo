@@ -12,13 +12,13 @@
 
 use std::sync::Arc;
 
+use anseo_api::{router, AppState};
+use anseo_core::api_key::{generate as gen_key, API_KEY_HEADER};
+use anseo_core::ProjectId;
+use anseo_storage::repositories::{api_keys::ApiKeyRepo, projects::ProjectRepo};
+use anseo_storage::Storage;
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
-use opengeo_api::{router, AppState};
-use opengeo_core::api_key::{generate as gen_key, API_KEY_HEADER};
-use opengeo_core::ProjectId;
-use opengeo_storage::repositories::{api_keys::ApiKeyRepo, projects::ProjectRepo};
-use opengeo_storage::Storage;
 use sqlx::PgPool;
 use tower::ServiceExt;
 
@@ -27,7 +27,7 @@ fn lazy_router() -> axum::Router {
         sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__projects_api_test__")
             .expect("connect_lazy never IOs synchronously");
     let storage = Arc::new(Storage::from_pool(lazy_pool));
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id: ProjectId::new(),
@@ -97,7 +97,7 @@ async fn live_app() -> Option<(axum::Router, String)> {
     // A home project to own the API key.
     let home = ProjectId::new();
     ProjectRepo::new(&pool)
-        .insert(&opengeo_storage::models::ProjectRow {
+        .insert(&anseo_storage::models::ProjectRow {
             id: home,
             name: format!("home-{home}"),
             organization_id: None,
@@ -119,7 +119,7 @@ async fn live_app() -> Option<(axum::Router, String)> {
         .await
         .expect("archive home");
 
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id: home,
@@ -187,7 +187,7 @@ async fn projects_crud_lifecycle() {
     let pid = created["project_id"].as_str().unwrap().to_string();
     assert_eq!(
         pid,
-        opengeo_core::project_id_for_name(&name).to_string(),
+        anseo_core::project_id_for_name(&name).to_string(),
         "project_id must be derived from the brand name"
     );
 

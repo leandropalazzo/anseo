@@ -1,6 +1,6 @@
 //! Story 40.1 — `POST /v1/ingest/run` HTTP round-trip (live Postgres).
 //!
-//! These exercise the full HTTP path: the `X-OpenGEO-Project` guard resolving
+//! These exercise the full HTTP path: the `X-Anseo-Project` guard resolving
 //! the scope, the prompt-declared check, and the prompt_run persist. The
 //! gate-critical consent/KEK decision logic (opted+KEK → sealed,
 //! opted+no-KEK → flagged, stale terms → rejected) is covered exhaustively by
@@ -16,33 +16,33 @@
 
 use std::sync::Arc;
 
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use opengeo_api::extractors::project::PROJECT_HEADER;
-use opengeo_api::{router, AppState};
-use opengeo_core::api_key::{generate as gen_key, API_KEY_HEADER};
-use opengeo_core::ProjectId;
-use opengeo_storage::models::{ProjectRow, PromptRow};
-use opengeo_storage::repositories::{
+use anseo_api::extractors::project::PROJECT_HEADER;
+use anseo_api::{router, AppState};
+use anseo_core::api_key::{generate as gen_key, API_KEY_HEADER};
+use anseo_core::ProjectId;
+use anseo_storage::models::{ProjectRow, PromptRow};
+use anseo_storage::repositories::{
     api_keys::ApiKeyRepo, projects::ProjectRepo, prompts::PromptRepo,
 };
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
 use tower::ServiceExt;
 
 /// Seed a uniquely-named project + a declared prompt + an api key, and return
 /// the wired router plus the resolution handles. The project NAME is what the
-/// `X-OpenGEO-Project` header resolves against, so it must be unique per run.
+/// `X-Anseo-Project` header resolves against, so it must be unique per run.
 async fn seeded() -> (axum::Router, ProjectId, String, String) {
     let database_url = std::env::var("DATABASE_URL")
         .expect("DATABASE_URL must be exported for the ingest live-DB tests");
     let pool = sqlx::PgPool::connect(&database_url)
         .await
         .expect("connect to test postgres");
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(pool.clone()));
+    let storage = Arc::new(anseo_storage::Storage::from_pool(pool.clone()));
 
     // Derive the project id from its name so the header resolver
     // (`project_id_for_name`) lands on the row we seed.
     let project_name = format!("ingest-fixture-{}", ProjectId::new());
-    let project_id = opengeo_core::project_id_for_name(&project_name);
+    let project_id = anseo_core::project_id_for_name(&project_name);
     let now = chrono::Utc::now();
     ProjectRepo::new(&pool)
         .insert(&ProjectRow {
@@ -57,7 +57,7 @@ async fn seeded() -> (axum::Router, ProjectId, String, String) {
 
     PromptRepo::new(&pool)
         .insert(&PromptRow {
-            id: opengeo_core::PromptId::new(),
+            id: anseo_core::PromptId::new(),
             project_id,
             name: "vector-db".to_string(),
             text: "What is the best vector DB?".to_string(),
@@ -80,7 +80,7 @@ async fn seeded() -> (axum::Router, ProjectId, String, String) {
         .await
         .expect("seed api key");
 
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id,
@@ -134,11 +134,11 @@ async fn ingest_scopes_to_resolved_project_and_persists() {
     assert_eq!(payload["contribution"]["status"], "skipped_not_opted_in");
 
     // The run was persisted as a prompt_run for the project.
-    let run_id: opengeo_core::PromptRunId = payload["run_id"].as_str().unwrap().parse().unwrap();
+    let run_id: anseo_core::PromptRunId = payload["run_id"].as_str().unwrap().parse().unwrap();
     let pool = sqlx::PgPool::connect(&std::env::var("DATABASE_URL").unwrap())
         .await
         .unwrap();
-    let row = opengeo_storage::repositories::prompt_runs::PromptRunRepo::new(&pool)
+    let row = anseo_storage::repositories::prompt_runs::PromptRunRepo::new(&pool)
         .get(run_id)
         .await
         .expect("get run")

@@ -1,12 +1,12 @@
 // Shared fetch-client internals for the OpenGEO API (apps/api). Server
 // components call the per-feature fetchers (re-exported from `@/lib/api`)
-// directly during render; the API runs at OGEO_API_BASE_URL (defaults to the
+// directly during render; the API runs at ANSEO_API_BASE_URL (defaults to the
 // compose service name `api` or http://127.0.0.1:8080 outside compose).
 
 import { getSelectedProject } from "@/lib/projects";
 
 export const API_BASE_URL =
-  process.env.OGEO_API_BASE_URL ?? "http://127.0.0.1:8080";
+  process.env.ANSEO_API_BASE_URL ?? "http://127.0.0.1:8080";
 
 /** Wire header carrying the per-request project (Epic 36; resolved by name). */
 const PROJECT_HEADER = "X-OpenGEO-Project";
@@ -24,7 +24,7 @@ async function baseHeaders(json: boolean): Promise<Record<string, string>> {
   if (json) headers["Content-Type"] = "application/json";
   // Read the operator-provided key from env at request time so a hot dashboard
   // reload picks up rotations without a restart.
-  const apiKey = process.env.OGEO_API_KEY;
+  const apiKey = process.env.ANSEO_API_KEY;
   if (apiKey) headers["X-OpenGEO-API-Key"] = apiKey;
   const project = await getSelectedProject();
   if (project) headers[PROJECT_HEADER] = project;

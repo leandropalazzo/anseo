@@ -6,8 +6,8 @@
 
 use std::path::PathBuf;
 
+use anseo_core::OpenGeoError;
 use clap::{Args, Subcommand};
-use opengeo_core::OpenGeoError;
 
 #[derive(Debug, Subcommand)]
 pub enum DbSub {

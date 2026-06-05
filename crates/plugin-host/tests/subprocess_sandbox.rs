@@ -6,8 +6,8 @@
 //! watchdog runs on any unix host.
 
 #[cfg(target_os = "macos")]
-use opengeo_plugin_host::subprocess::macos_profile;
-use opengeo_plugin_host::subprocess::{
+use anseo_plugin_host::subprocess::macos_profile;
+use anseo_plugin_host::subprocess::{
     build_command, linux, run, AnalyticsSandbox, Platform, RunOutcome, SandboxError,
 };
 use std::time::Duration;

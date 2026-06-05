@@ -5,8 +5,8 @@
 //! decide whether the current operator is on the current
 //! `TERMS_VERSION`.
 
+use anseo_core::ids::ProjectId;
 use chrono::{DateTime, Utc};
-use opengeo_core::ids::ProjectId;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 

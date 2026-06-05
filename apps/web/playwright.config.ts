@@ -35,7 +35,7 @@ export default defineConfig({
         // (1) Lightweight mock API backend. The dashboard pages SSR-fetch the
         // OpenGEO API; Playwright page.route() can't intercept server-side
         // fetches, so we run a canned-JSON backend and point the dev server's
-        // OGEO_API_BASE_URL at it (below) so SSR returns spec-satisfying data.
+        // ANSEO_API_BASE_URL at it (below) so SSR returns spec-satisfying data.
         {
           command: "node tests/e2e/mock-api-server.mjs",
           url: "http://127.0.0.1:8787/healthz",
@@ -51,8 +51,8 @@ export default defineConfig({
           env: {
             // 127.0.0.1 (not localhost): on dual-stack CI runners undici would
             // resolve `localhost` to ::1 first and miss the IPv4 mock backend.
-            OGEO_API_BASE_URL: "http://127.0.0.1:8787",
-            OGEO_API_KEY: "e2e-test-key",
+            ANSEO_API_BASE_URL: "http://127.0.0.1:8787",
+            ANSEO_API_KEY: "e2e-test-key",
           },
         },
       ],

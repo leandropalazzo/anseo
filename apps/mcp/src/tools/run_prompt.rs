@@ -16,9 +16,9 @@ pub struct RunPrompt;
 // Private helpers
 // ---------------------------------------------------------------------------
 
-fn make_error(_kind: &str, message: &str) -> opengeo_wire_schema::mcp::McpError {
-    opengeo_wire_schema::mcp::McpError {
-        kind: opengeo_wire_schema::mcp::McpErrorKind::InternalError,
+fn make_error(_kind: &str, message: &str) -> anseo_wire_schema::mcp::McpError {
+    anseo_wire_schema::mcp::McpError {
+        kind: anseo_wire_schema::mcp::McpErrorKind::InternalError,
         message: message.to_string(),
         details: None,
         request_id: ulid::Ulid::new().to_string(),
@@ -50,10 +50,8 @@ impl Tool for RunPrompt {
         api: &ApiClient,
     ) -> Result<serde_json::Value, McpToolError> {
         // 1. Parse input
-        let input: opengeo_wire_schema::mcp::tools::RunPromptInput = serde_json::from_value(args)
-            .map_err(|e| {
-            McpToolError::Upstream(make_error("invalid_params", &e.to_string()))
-        })?;
+        let input: anseo_wire_schema::mcp::tools::RunPromptInput = serde_json::from_value(args)
+            .map_err(|e| McpToolError::Upstream(make_error("invalid_params", &e.to_string())))?;
 
         // 2. Resolve provider list — default to ["mock"]
         let providers = input
@@ -62,7 +60,7 @@ impl Tool for RunPrompt {
             .unwrap_or_else(|| vec!["mock".to_string()]);
 
         // 3. Fire one POST per provider
-        let mut results: Vec<opengeo_wire_schema::mcp::tools::RunPromptResult> = Vec::new();
+        let mut results: Vec<anseo_wire_schema::mcp::tools::RunPromptResult> = Vec::new();
 
         for provider in &providers {
             let body = serde_json::json!({
@@ -90,11 +88,11 @@ impl Tool for RunPrompt {
                     .unwrap_or("")
                     .to_string();
 
-                results.push(opengeo_wire_schema::mcp::tools::RunPromptResult {
+                results.push(anseo_wire_schema::mcp::tools::RunPromptResult {
                     prompt_run_id: run_id,
                     provider: provider.clone(),
                     model: provider.clone(),
-                    status: opengeo_wire_schema::mcp::tools::RunPromptStatus::Ok,
+                    status: anseo_wire_schema::mcp::tools::RunPromptStatus::Ok,
                     ranking: None,
                     mentions: vec![],
                     citations: vec![],
@@ -109,16 +107,16 @@ impl Tool for RunPrompt {
                 })
                 .unwrap_or_default();
 
-                results.push(opengeo_wire_schema::mcp::tools::RunPromptResult {
+                results.push(anseo_wire_schema::mcp::tools::RunPromptResult {
                     prompt_run_id: String::new(),
                     provider: provider.clone(),
                     model: provider.clone(),
-                    status: opengeo_wire_schema::mcp::tools::RunPromptStatus::Failed,
+                    status: anseo_wire_schema::mcp::tools::RunPromptStatus::Failed,
                     ranking: None,
                     mentions: vec![],
                     citations: vec![],
                     duration_ms: 0,
-                    error: Some(opengeo_wire_schema::mcp::tools::ResultError {
+                    error: Some(anseo_wire_schema::mcp::tools::ResultError {
                         kind: "upstream_error".to_string(),
                         message: format!("HTTP {status_code}: {body_text}"),
                     }),
@@ -127,7 +125,7 @@ impl Tool for RunPrompt {
         }
 
         // 4. Assemble output
-        let output = opengeo_wire_schema::mcp::tools::RunPromptOutput {
+        let output = anseo_wire_schema::mcp::tools::RunPromptOutput {
             prompt_id: input.prompt.clone(),
             results,
             non_deterministic_pipeline: true,

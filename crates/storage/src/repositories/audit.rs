@@ -1,7 +1,7 @@
 //! Site-audit history persistence (Epic 32). Runtime queries (no compile-time
 //! macros) so the offline sqlx cache needs no regen for this table.
 
-use opengeo_core::ids::ProjectId;
+use anseo_core::ids::ProjectId;
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 use uuid::Uuid;

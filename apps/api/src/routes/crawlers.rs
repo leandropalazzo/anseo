@@ -1,14 +1,14 @@
 //! Roadmap Epic 31 — crawler observability API and Grafana datasource shim.
 
+use anseo_crawler_ingest::metrics::{MetricsParams, MetricsStore};
+use anseo_crawler_ingest::{
+    AccessLogAdapter, AccessLogFormat, BotRangeVerifier, IngestSink, PostgresCrawlerSink,
+    PrivacyMode,
+};
 use axum::extract::{Extension, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use opengeo_crawler_ingest::metrics::{MetricsParams, MetricsStore};
-use opengeo_crawler_ingest::{
-    AccessLogAdapter, AccessLogFormat, BotRangeVerifier, IngestSink, PostgresCrawlerSink,
-    PrivacyMode,
-};
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth::AuthenticatedProject;
@@ -45,7 +45,7 @@ async fn metrics_handler(
     Extension(AuthenticatedProject(project_id)): Extension<AuthenticatedProject>,
     State(state): State<AppState>,
     Query(q): Query<MetricsQuery>,
-) -> Result<Json<opengeo_crawler_ingest::CrawlerMetrics>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<anseo_crawler_ingest::CrawlerMetrics>, (StatusCode, Json<serde_json::Value>)> {
     let days = validate_days(q.days)?;
     let store = MetricsStore::from_storage(&state.storage);
     let metrics = store
@@ -71,7 +71,7 @@ async fn ratio_handler(
     State(state): State<AppState>,
     Query(q): Query<MetricsQuery>,
 ) -> Result<
-    Json<opengeo_crawler_ingest::metrics::CrawlReferReport>,
+    Json<anseo_crawler_ingest::metrics::CrawlReferReport>,
     (StatusCode, Json<serde_json::Value>),
 > {
     let days = validate_days(q.days)?;
@@ -189,7 +189,7 @@ async fn ingest_handler(
     // Per-deployment salt; only meaningful in hashed mode. Stable across calls
     // so the same IP hashes identically.
     let salt =
-        std::env::var("OGEO_CRAWLER_PRIVACY_SALT").unwrap_or_else(|_| "opengeo-crawler".into());
+        std::env::var("ANSEO_CRAWLER_PRIVACY_SALT").unwrap_or_else(|_| "opengeo-crawler".into());
     let verifier = BotRangeVerifier::default();
 
     let mut events = Vec::new();

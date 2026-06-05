@@ -8,12 +8,12 @@
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 
+use anseo_benchmark::{ProjectKek, TERMS_VERSION};
+use anseo_core::{OpenGeoError, ProjectId};
+use anseo_storage::repositories::benchmark_consent::BenchmarkConsentRepo;
+use anseo_storage::Storage;
 use chrono::Utc;
 use clap::Args;
-use opengeo_benchmark::{ProjectKek, TERMS_VERSION};
-use opengeo_core::{OpenGeoError, ProjectId};
-use opengeo_storage::repositories::benchmark_consent::BenchmarkConsentRepo;
-use opengeo_storage::Storage;
 
 const TERMS_PATH: &str = "docs/benchmark-terms/v1-2026-05-28.md";
 
@@ -149,7 +149,7 @@ pub async fn run_optout(args: OptoutArgs) -> Result<(), OpenGeoError> {
     // CRYPTO-SHRED: destroy the per-project KEK across every SecretStore leg.
     // Idempotent — a project that never sealed a contribution simply has no
     // KEK to remove, and that is still a successful, complete opt-out.
-    let store = opengeo_core::default_chain();
+    let store = anseo_core::default_chain();
     ProjectKek::destroy(&store, &project_str).map_err(|e| {
         OpenGeoError::Config(format!(
             "opt-out recorded (event id {id}) but crypto-shred of the benchmark key FAILED: {e}. \
@@ -256,8 +256,8 @@ async fn open_storage(
     let database_url = std::env::var("DATABASE_URL").map_err(|_| {
         OpenGeoError::Config("DATABASE_URL must be set to record consent events".into())
     })?;
-    let path = config.unwrap_or(std::path::Path::new("opengeo.yaml"));
-    let cfg = opengeo_core::Config::from_path(path).map_err(|e| {
+    let path = config.unwrap_or(std::path::Path::new("anseo.yaml"));
+    let cfg = anseo_core::Config::from_path(path).map_err(|e| {
         OpenGeoError::Config(format!(
             "failed to read project config at `{}`: {e}",
             path.display()

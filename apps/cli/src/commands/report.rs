@@ -9,10 +9,10 @@
 
 use std::path::PathBuf;
 
+use anseo_analytics::sentiment::SentimentPoint;
+use anseo_core::{Config, OpenGeoError};
+use anseo_storage::Storage;
 use clap::{Args, ValueEnum};
-use opengeo_analytics::sentiment::SentimentPoint;
-use opengeo_core::{Config, OpenGeoError};
-use opengeo_storage::Storage;
 
 #[derive(Debug, Args)]
 pub struct ReportArgs {
@@ -128,7 +128,7 @@ async fn load_sentiment(args: &ReportArgs, days: i32) -> Result<Vec<SentimentPoi
     let path = args
         .config
         .as_deref()
-        .unwrap_or_else(|| "opengeo.yaml".as_ref());
+        .unwrap_or_else(|| "anseo.yaml".as_ref());
     let yaml = match std::fs::read_to_string(path) {
         Ok(yaml) => yaml,
         Err(_) => return Ok(Vec::new()),
@@ -138,7 +138,7 @@ async fn load_sentiment(args: &ReportArgs, days: i32) -> Result<Vec<SentimentPoi
     let storage = Storage::connect(&url)
         .await
         .map_err(|e| OpenGeoError::Internal(anyhow::anyhow!(e)))?;
-    opengeo_analytics::sentiment::sentiment_points(&storage, cfg.project_id(), days)
+    anseo_analytics::sentiment::sentiment_points(&storage, cfg.project_id(), days)
         .await
         .map_err(|e| OpenGeoError::Internal(anyhow::anyhow!(e)))
 }

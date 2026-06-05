@@ -9,19 +9,19 @@
 //!
 //!     CLICKHOUSE_URL=http://localhost:8123 \
 //!     CLICKHOUSE_USER=opengeo CLICKHOUSE_PASSWORD=... \
-//!     CLICKHOUSE_DATABASE=opengeo_analytics \
+//!     CLICKHOUSE_DATABASE=anseo_analytics \
 //!     DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo \
 //!     cargo test -p opengeo-analytics --features clickhouse \
 //!       --test clickhouse_etl_idempotent -- --ignored
 
 #![cfg(feature = "clickhouse")]
 
+use anseo_analytics::metrics_store::clickhouse::ClickHouseMetricsStore;
+use anseo_analytics::metrics_store::clickhouse_etl::migrate_project;
+use anseo_core::ProjectId;
+use anseo_storage::models::{ProjectRow, PromptRow};
+use anseo_storage::repositories::{projects::ProjectRepo, prompts::PromptRepo};
 use chrono::{Duration, TimeZone, Utc};
-use opengeo_analytics::metrics_store::clickhouse::ClickHouseMetricsStore;
-use opengeo_analytics::metrics_store::clickhouse_etl::migrate_project;
-use opengeo_core::ProjectId;
-use opengeo_storage::models::{ProjectRow, PromptRow};
-use opengeo_storage::repositories::{projects::ProjectRepo, prompts::PromptRepo};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -88,7 +88,7 @@ async fn migrate_project_twice_yields_identical_state() {
     let pool = pg().await;
     let ch_store = ch();
     ch_store.ensure_schema().await.expect("ensure schema");
-    let storage = std::sync::Arc::new(opengeo_storage::Storage::from_pool(pool.clone()));
+    let storage = std::sync::Arc::new(anseo_storage::Storage::from_pool(pool.clone()));
     let project_id = ProjectId::new();
     let now = Utc::now();
 
@@ -102,7 +102,7 @@ async fn migrate_project_twice_yields_identical_state() {
         })
         .await
         .expect("seed project");
-    let prompt_id = opengeo_core::PromptId::new();
+    let prompt_id = anseo_core::PromptId::new();
     PromptRepo::new(&pool)
         .insert(&PromptRow {
             id: prompt_id,
@@ -124,7 +124,7 @@ async fn migrate_project_twice_yields_identical_state() {
         (Duration::hours(1), "openai"),
         (Duration::hours(2), "anthropic"),
     ] {
-        let id = opengeo_core::PromptRunId::new();
+        let id = anseo_core::PromptRunId::new();
         sqlx::query(
             r#"INSERT INTO prompt_runs
                (id, prompt_id, provider, provider_model_version, started_at, finished_at,

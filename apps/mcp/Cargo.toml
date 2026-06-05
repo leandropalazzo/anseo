@@ -1,5 +1,5 @@
 [package]
-name = "opengeo-mcp"
+name = "anseo-mcp"
 version = "0.6.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -7,16 +7,16 @@ license.workspace = true
 publish = false
 
 [lib]
-name = "opengeo_mcp"
+name = "anseo_mcp"
 path = "src/lib.rs"
 
 [[bin]]
-name = "opengeo-mcp"
+name = "anseo-mcp"
 path = "src/main.rs"
 
 [dependencies]
-opengeo-core = { path = "../../crates/core" }
-opengeo-wire-schema = { path = "../../crates/wire-schema" }
+anseo-core = { path = "../../crates/core" }
+anseo-wire-schema = { path = "../../crates/wire-schema" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -31,18 +31,18 @@ tower = { version = "0.4" }
 tokio-stream = { version = "0.1" }
 
 [dev-dependencies]
-opengeo-plugin-manifest = { path = "../../crates/plugin-manifest" }
+anseo-plugin-manifest = { path = "../../crates/plugin-manifest" }
 # Story 36.9 — cross-surface project-switch parity acceptance. The MCP server
 # is a thin proxy over the `/v1` API, so the parity test drives the REAL API
 # router (no API source is touched) plus the MCP `ApiClient` against the same
 # live server, asserting the project selector is byte-for-byte equivalent to
 # sending the `X-OpenGEO-Project` header directly (the Web proxy path).
-# `opengeo-cli` is included so the CLI `resolve_project_id` function can be
+# `anseo-cli` is included so the CLI `resolve_project_id` function can be
 # driven in-process as the third surface without spawning a binary.
-opengeo-api = { path = "../api" }
-opengeo-cli = { path = "../cli" }
-opengeo-storage = { path = "../../crates/storage" }
-opengeo-scheduler = { path = "../../crates/scheduler" }
+anseo-api = { path = "../api" }
+anseo-cli = { path = "../cli" }
+anseo-storage = { path = "../../crates/storage" }
+anseo-scheduler = { path = "../../crates/scheduler" }
 chrono = { workspace = true }
 sqlx = { workspace = true }
 tempfile = { workspace = true }

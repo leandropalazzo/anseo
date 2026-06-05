@@ -7,7 +7,7 @@
 // value the switcher shows and the API resolves against the `projects` table.
 
 /** Cookie carrying the selected project's brand name. */
-export const PROJECT_COOKIE = "ogeo_project";
+export const PROJECT_COOKIE = "anseo_project";
 
 /** One year — the selection is sticky until the operator switches. */
 export const PROJECT_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;

@@ -4,12 +4,12 @@
 //! capability lacks CLI/Web/MCP coverage without an annotated exception, and
 //! cross-check the registry against the surfaces wire-schema can cheaply
 //! enumerate from Rust (the MCP tool catalog mirror and the OpenAPI path set
-//! mirror). See `opengeo_wire_schema::parity` for what is and is not machine-
+//! mirror). See `anseo_wire_schema::parity` for what is and is not machine-
 //! asserted, and why.
 
 use std::collections::HashSet;
 
-use opengeo_wire_schema::parity::{
+use anseo_wire_schema::parity::{
     Capability, Surface, SurfaceCoverage, CANONICAL_MCP_TOOLS, KNOWN_V1_PATHS, REGISTRY,
 };
 

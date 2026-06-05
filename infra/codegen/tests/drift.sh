@@ -16,7 +16,7 @@ PY_DIR="$ROOT/packages/python"
 SPEC="$ROOT/crates/wire-schema/openapi.json"
 
 if [ ! -f "$SPEC" ]; then
-  echo "::error::Canonical spec not found at $SPEC — run cargo run -p opengeo-wire-schema --bin gen-openapi > $SPEC first."
+  echo "::error::Canonical spec not found at $SPEC — run cargo run -p anseo-wire-schema --bin gen-openapi > $SPEC first."
   exit 1
 fi
 

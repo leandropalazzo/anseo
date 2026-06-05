@@ -1,5 +1,5 @@
 [package]
-name = "opengeo-storage"
+name = "anseo-storage"
 version = "0.6.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
-opengeo-core = { path = "../core", features = ["sqlx"] }
+anseo-core = { path = "../core", features = ["sqlx"] }
 sqlx = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
@@ -22,4 +22,4 @@ anyhow = { workspace = true }
 [dev-dependencies]
 # Story 19.2 dedup test: feed real engine output through the repo. No normal
 # dependency from storage on recommendations, so this is cycle-free.
-opengeo-recommendations = { path = "../recommendations" }
+anseo-recommendations = { path = "../recommendations" }

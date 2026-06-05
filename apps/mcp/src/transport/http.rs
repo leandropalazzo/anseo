@@ -88,7 +88,7 @@ async fn handle_post(
     // Auth check (mcp-9).
     if state.require_api_key {
         let provided = headers
-            .get("X-OpenGEO-API-Key")
+            .get("X-Anseo-API-Key")
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
         if provided != state.api_key {
@@ -118,9 +118,9 @@ async fn handle_post(
         }
     };
 
-    // Story 36.5 AC-2: extract X-OpenGEO-Project transport hint.
+    // Story 36.5 AC-2: extract X-Anseo-Project transport hint.
     let transport_hint = headers
-        .get("X-OpenGEO-Project")
+        .get("X-Anseo-Project")
         .and_then(|v| v.to_str().ok())
         .filter(|s| !s.is_empty())
         .map(|s| s.to_owned());

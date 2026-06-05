@@ -8,7 +8,7 @@
 use async_trait::async_trait;
 use std::sync::Mutex;
 
-use opengeo_core::ProviderName;
+use anseo_core::ProviderName;
 
 use crate::{Provider, ProviderError, ProviderRequest, ProviderResponse};
 
@@ -100,9 +100,6 @@ mod tests {
             .queue_failure(ProviderError::rate_limited("429"));
         let req = ProviderRequest::new("x", "claude-3-5-sonnet-20241022");
         let err = p.run(req).await.unwrap_err();
-        assert_eq!(
-            err.kind,
-            opengeo_core::ProviderErrorKind::ProviderRateLimited
-        );
+        assert_eq!(err.kind, anseo_core::ProviderErrorKind::ProviderRateLimited);
     }
 }

@@ -138,7 +138,7 @@ ulid_newtype!(
 );
 ulid_newtype!(
     RequestId,
-    "Per-request correlation ID. Threaded through tracing spans and the `X-OpenGEO-Request-Id` response header (architecture L632)."
+    "Per-request correlation ID. Threaded through tracing spans and the `X-Anseo-Request-Id` response header (architecture L632)."
 );
 
 #[cfg(test)]

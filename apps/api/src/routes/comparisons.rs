@@ -15,25 +15,25 @@
 //!                 all providers observed in the window).
 //! - `window`    — `1d` | `7d` | `30d` (default `7d`).
 //!
-//! Response shape (re-exported from `opengeo_wire_schema::mcp::tools`):
+//! Response shape (re-exported from `anseo_wire_schema::mcp::tools`):
 //! `CompareBrandsOutput` — `{ window, brand, competitors, rows, trace_id }`.
 //! Rows are ordered `(prompt_name ASC, provider ASC)`; cells are ordered
 //! `[brand, ...competitors_in_caller_order]` with `ranking: null` (NOT
 //! omitted) when a subject is absent. Determinism contract per §3.3.
 //!
-//! `X-OpenGEO-Project` header is accepted-but-ignored per L2
+//! `X-Anseo-Project` header is accepted-but-ignored per L2
 //! (`AD-Phase3-ProjectScopingUnified`).
 
 use std::collections::BTreeMap;
 
+use anseo_core::ProjectId;
+use anseo_wire_schema::mcp::tools::{
+    CompareBrandsCell, CompareBrandsOutput, CompareBrandsRow, Window,
+};
 use axum::extract::{Extension, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::get;
 use axum::{Json, Router};
-use opengeo_core::ProjectId;
-use opengeo_wire_schema::mcp::tools::{
-    CompareBrandsCell, CompareBrandsOutput, CompareBrandsRow, Window,
-};
 use serde::Deserialize;
 
 use crate::middleware::auth::AuthenticatedProject;
@@ -96,7 +96,7 @@ fn parse_window(raw: Option<&str>) -> Result<(i32, Window), (StatusCode, Json<se
     }
 }
 
-/// Pull the `X-OpenGEO-Request-Id` header if present, else mint a fresh
+/// Pull the `X-Anseo-Request-Id` header if present, else mint a fresh
 /// ULID. Mirrors the trace_id convention used elsewhere in the v1 surface.
 fn resolve_trace_id(headers: &HeaderMap) -> String {
     headers
@@ -240,13 +240,13 @@ struct RawComparisonRow {
 /// Pull one row per (prompt × provider × entity) within the window. Aggregates
 /// rank as MIN (best-rank-wins) and mention occurrences as COUNT.
 async fn fetch_comparison_rows(
-    storage: &opengeo_storage::Storage,
+    storage: &anseo_storage::Storage,
     project_id: ProjectId,
     window_days: i32,
     prompt_filter: Option<&[String]>,
     provider_filter: Option<&[String]>,
     subjects: &[String],
-) -> Result<Vec<RawComparisonRow>, opengeo_storage::Error> {
+) -> Result<Vec<RawComparisonRow>, anseo_storage::Error> {
     let days = window_days.clamp(1, 365);
     let interval = format!("{days} days");
 

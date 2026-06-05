@@ -1,13 +1,13 @@
 //! `ogeo crawlers` — Roadmap Epic 31 crawler observability CLI.
 
+use anseo_core::{Config, OpenGeoError};
+use anseo_crawler_ingest::metrics::{CrawlerMetrics, MetricsParams, MetricsStore};
+use anseo_storage::Storage;
 use clap::{Args, ValueEnum};
-use opengeo_core::{Config, OpenGeoError};
-use opengeo_crawler_ingest::metrics::{CrawlerMetrics, MetricsParams, MetricsStore};
-use opengeo_storage::Storage;
 
 #[derive(Debug, Args)]
 pub struct CrawlerArgs {
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
     #[arg(long, default_value_t = 30)]
     pub days: i64,
@@ -76,7 +76,7 @@ pub async fn run(args: CrawlerArgs) -> Result<(), OpenGeoError> {
     Ok(())
 }
 
-fn print_ratio_table(report: &opengeo_crawler_ingest::metrics::CrawlReferReport) {
+fn print_ratio_table(report: &anseo_crawler_ingest::metrics::CrawlReferReport) {
     println!(
         "Crawl-to-refer ratio: {} to {} ({:?})",
         report.window_start.format("%Y-%m-%d"),
@@ -167,8 +167,8 @@ fn truncate(s: &str, max: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anseo_crawler_ingest::metrics::{BotMetric, PathMetric, TrendBucket};
     use chrono::Utc;
-    use opengeo_crawler_ingest::metrics::{BotMetric, PathMetric, TrendBucket};
 
     #[test]
     fn json_shape_contains_metrics_sections() {
@@ -201,10 +201,10 @@ mod tests {
 
     #[test]
     fn ratio_json_shape_names_degraded_state() {
-        let report = opengeo_crawler_ingest::metrics::CrawlReferReport {
+        let report = anseo_crawler_ingest::metrics::CrawlReferReport {
             window_start: Utc::now(),
             window_end: Utc::now(),
-            state: opengeo_crawler_ingest::metrics::CrawlReferState::CrawlsOnly,
+            state: anseo_crawler_ingest::metrics::CrawlReferState::CrawlsOnly,
             bots: vec![],
         };
         let json = serde_json::to_value(&report).unwrap();

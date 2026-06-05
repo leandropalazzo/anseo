@@ -12,14 +12,14 @@
 //! endpoint returns 503 with a structured error rather than an empty
 //! list — empty would be ambiguous with "no brand configured".
 //!
-//! `X-OpenGEO-Project` is accepted but not consumed; the auth middleware
+//! `X-Anseo-Project` is accepted but not consumed; the auth middleware
 //! has already resolved the project from the API key.
 
+use anseo_core::ProjectId;
 use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use opengeo_core::ProjectId;
 use serde::Serialize;
 use sqlx::Row;
 
@@ -59,7 +59,7 @@ async fn list_brands(
     match state.storage.projects().get_brand(project_id).await {
         Ok(Some(row)) => {
             declared.push((row.name.clone(), true, row.variants.clone()));
-            let comps: Vec<opengeo_core::CompetitorConfig> =
+            let comps: Vec<anseo_core::CompetitorConfig> =
                 serde_json::from_value(row.competitors).unwrap_or_default();
             for comp in comps {
                 declared.push((comp.name, false, comp.variants));
@@ -119,7 +119,7 @@ struct BrandStats {
 }
 
 async fn fetch_brand_stats(
-    storage: &opengeo_storage::Storage,
+    storage: &anseo_storage::Storage,
     project_id: ProjectId,
     canonical_name: &str,
     variants: &[String],
