@@ -123,6 +123,10 @@ jobs:
           if cargo tree -e normal 2>/dev/null | grep -qiE 'opengeo-hallucination'; then
             echo "::error::premium crate reachable in the public OSS graph"; exit 1
           fi
+          # Also ensure no premium/hallucination symbols leak into generated packages
+          if grep -rqiE 'hallucination|premium_disabled|premium_enabled' packages/ 2>/dev/null; then
+            echo "::error::premium symbol leaked into packages/ (generated SDKs or openapi artifact)"; exit 1
+          fi
           echo "leak-guard: OSS graph is premium-free ✓"
       - name: cargo build --workspace
         run: cargo build --workspace --locked

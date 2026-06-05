@@ -349,8 +349,7 @@
             "enum": [
               "accurate",
               "inaccurate",
-              "unverifiable",
-              "premium_disabled"
+              "unverifiable"
             ]
           },
           "rationale": {
@@ -989,73 +988,6 @@
           "datapoints"
         ],
         "type": "object"
-      },
-      "HallucinationSummary": {
-        "type": "object",
-        "required": [
-          "entitlement",
-          "window_days",
-          "ground_truth_facts",
-          "totals",
-          "recent"
-        ],
-        "properties": {
-          "entitlement": {
-            "type": "string",
-            "enum": [
-              "oss_disabled",
-              "premium_enabled"
-            ]
-          },
-          "window_days": {
-            "type": "integer"
-          },
-          "ground_truth_facts": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "totals": {
-            "$ref": "#/components/schemas/HallucinationTotals"
-          },
-          "recent": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ClaimVerdict"
-            }
-          }
-        }
-      },
-      "HallucinationTotals": {
-        "type": "object",
-        "required": [
-          "accurate",
-          "inaccurate",
-          "unverifiable",
-          "premium_disabled",
-          "total"
-        ],
-        "properties": {
-          "accurate": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "inaccurate": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "unverifiable": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "premium_disabled": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "total": {
-            "type": "integer",
-            "minimum": 0
-          }
-        }
       },
       "IngestRunRequest": {
         "type": "object",
@@ -2090,52 +2022,6 @@
           }
         },
         "summary": "Roadmap Epic 31 — Grafana JSON datasource query for crawler trends."
-      }
-    },
-    "/v1/hallucination/summary": {
-      "get": {
-        "operationId": "hallucinationSummary",
-        "summary": "Roadmap Epic 34 — aggregate collected brand claims and their entitlement-gated accuracy verdicts. OSS build returns premium_disabled verdicts (open-core boundary).",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ProjectHeader"
-          },
-          {
-            "in": "query",
-            "name": "days",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 365,
-              "default": 30
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 500,
-              "default": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HallucinationSummary"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          }
-        }
       }
     },
     "/v1/healthz": {

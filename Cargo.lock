@@ -1982,7 +1982,6 @@ dependencies = [
  "opengeo-core",
  "opengeo-crawler-ingest",
  "opengeo-extractors",
- "opengeo-hallucination",
  "opengeo-providers",
  "opengeo-recommendations",
  "opengeo-scheduler",
@@ -2145,18 +2144,6 @@ dependencies = [
  "sqlx",
  "url",
  "uuid",
-]
-
-[[package]]
-name = "opengeo-hallucination"
-version = "0.6.0"
-dependencies = [
- "chrono",
- "opengeo-core",
- "opengeo-storage",
- "serde",
- "serde_json",
- "thiserror 1.0.69",
 ]
 
 [[package]]
