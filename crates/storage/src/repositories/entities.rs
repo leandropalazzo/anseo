@@ -558,7 +558,7 @@ mod tests {
     fn review_queue_threshold_boundary() {
         let score = display_name_similarity("Acme", "Acme Inc");
         assert!(
-            score >= REVIEW_QUEUE_THRESHOLD && score < AUTO_MERGE_THRESHOLD,
+            (REVIEW_QUEUE_THRESHOLD..AUTO_MERGE_THRESHOLD).contains(&score),
             "expected {REVIEW_QUEUE_THRESHOLD} <= score {score} < {AUTO_MERGE_THRESHOLD}"
         );
     }
