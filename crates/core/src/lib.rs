@@ -37,7 +37,7 @@ pub use ids::{
 };
 pub use secret::Secret;
 pub use secret_store::{
-    default_chain, get_provider_secret, provider_secret_key, set_provider_secret, AgeFileStore,
-    ChainedStore, InMemoryStore, KeyringStore, SecretStore, SecretStoreError, AGE_PASSPHRASE_ENV,
-    BENCHMARK_KEK_KEY_PREFIX, KEYRING_SERVICE,
+    default_chain, get_provider_secret, provider_secret_key, remove_provider_secret,
+    set_provider_secret, AgeFileStore, ChainedStore, InMemoryStore, KeyringStore, SecretStore,
+    SecretStoreError, AGE_PASSPHRASE_ENV, BENCHMARK_KEK_KEY_PREFIX, KEYRING_SERVICE,
 };
