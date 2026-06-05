@@ -15,6 +15,9 @@ pub enum Error {
 
     #[error(transparent)]
     Migrate(#[from] sqlx::migrate::MigrateError),
+
+    #[error("entity not found")]
+    NotFound,
 }
 
 impl From<Error> for OpenGeoError {

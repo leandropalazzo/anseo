@@ -138,4 +138,10 @@ impl Storage {
     pub fn run_provenance(&self) -> repositories::run_provenance::RunProvenanceRepo<'_> {
         repositories::run_provenance::RunProvenanceRepo::new(&self.pool)
     }
+
+    /// Epic 43 — Entity registry (domain → display-name + claim state).
+    /// Also exposes dedup-review-queue operations (Story 43.3).
+    pub fn entities(&self) -> repositories::entities::EntityRepo<'_> {
+        repositories::entities::EntityRepo::new(&self.pool)
+    }
 }
