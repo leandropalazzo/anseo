@@ -155,7 +155,7 @@ async fn create_entity(
 
     let merge_suggestion = if !was_inserted && record.display_name != display_name {
         let score = display_name_similarity(&record.display_name, &display_name);
-        let queued_for_review = score >= REVIEW_QUEUE_THRESHOLD && score < AUTO_MERGE_THRESHOLD;
+        let queued_for_review = (REVIEW_QUEUE_THRESHOLD..AUTO_MERGE_THRESHOLD).contains(&score);
 
         if queued_for_review {
             // Enqueue for human review (Story 43.3 AC-2).
