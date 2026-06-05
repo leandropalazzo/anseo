@@ -130,6 +130,12 @@ jobs:
           echo "leak-guard: OSS graph is premium-free ✓"
       - name: cargo build --workspace
         run: cargo build --workspace --locked
+      - name: parity-contract gate (Story 36.10 / RISK-4)
+        # Explicit named step so the three-surface parity enforcement is visible
+        # in the CI job log rather than buried in the full test run.
+        # Fails if any registered capability lacks CLI/Web/MCP coverage without
+        # an annotated single-surface exception (see crates/wire-schema/src/parity.rs).
+        run: cargo test --locked -p opengeo-wire-schema --test parity_contract
       - name: cargo test --workspace
         run: cargo test --workspace --locked
 
