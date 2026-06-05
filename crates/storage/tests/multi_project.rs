@@ -4,6 +4,14 @@
 //! registry operations the rest of Epic 36 builds on: multi-project
 //! coexistence, per-table `project_id` isolation (no cross-project leakage),
 //! the legacy sole-project precedence path, and create/archive.
+//!
+//! Acceptance criteria coverage:
+//! - AC-1: `multiple_projects_coexist` — no single-project rejection with ≥2 rows.
+//! - AC-2: `multiple_projects_coexist` — `list_projects` returns all non-archived.
+//! - AC-3: `multiple_projects_coexist` — `create_project` derives `project_id` from name.
+//! - AC-4: `archive_removes_from_registry_but_preserves_row` — archived excluded from list; data kept.
+//! - AC-5: `single_brand_resolves_only_for_the_sole_project` — legacy path resolves sole project.
+//! - AC-6: `project_id_scoping_prevents_cross_project_leakage` — no cross-project row leakage.
 
 use chrono::Utc;
 use opengeo_core::{prompt_id_for, BrandConfig, ProjectId};
