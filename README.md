@@ -41,7 +41,7 @@ ogeo serve                                         # managed child Postgres; API
 DATABASE_URL=postgres://… ogeo serve --port 8080   # …or bring your own Postgres
 ```
 
-Bind to a non-loopback address (`--bind host:port`) only behind your own auth/network controls — a public bind with no API keys is refused.
+Bind to a non-loopback address (`--bind host:port`) only behind your own auth/network controls — a public bind with no API keys is refused. See [Production deployment](docs/production-deployment.md) for reverse-proxy/TLS guidance.
 
 **Tier 2 — Docker Compose.** The full stack (API + worker + web + Postgres) from `infra/docker`.
 
@@ -51,9 +51,18 @@ docker compose -f infra/docker/compose.yml up -d
 docker compose -f infra/docker/compose.yml ps      # wait for healthy
 ```
 
-Every published port binds to `127.0.0.1` by default; override with `OGEO_BIND_HOST` only behind your own network controls. ClickHouse analytics is connected separately via the dashboard's guided setup.
+Every published port binds to `127.0.0.1` by default; override with `OGEO_BIND_HOST` only behind your own network controls. ClickHouse analytics is connected separately via the dashboard's guided setup. See [Production deployment](docs/production-deployment.md) for Caddy/nginx reverse-proxy configs and the pre-launch checklist.
 
 A single operator runs **multiple projects** (brands) per deployment; the CLI, web dashboard, and MCP server all thread the selected project through every call.
+
+## Exposing Anseo safely (security baseline)
+
+**Do not expose Anseo to a public network without a reverse proxy, TLS, and auth in front of it.** The OSS stack has no built-in authentication for the web dashboard or MCP surfaces; only the `/v1` REST API enforces per-project API keys. `ogeo serve` binds `127.0.0.1` by default; if you override that to a public interface it prints a non-blocking warning reminding you to put a proxy in front.
+
+See **[docs/production-deployment.md](docs/production-deployment.md)** for:
+- Copy-paste Caddy (automatic TLS) and nginx reverse-proxy configs with auth
+- Docker Compose `OGEO_BIND_HOST` guidance
+- The five-item pre-launch production checklist
 
 ## Repo model (inverted open-core, ADR-007)
 
