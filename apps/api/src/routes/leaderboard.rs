@@ -29,14 +29,13 @@ pub fn v1_router() -> Router<AppState> {
 
 /// Returns `true` when the named-brand leaderboard feature flag is active.
 pub fn named_leaderboard_enabled() -> bool {
-    match std::env::var("ANSEO_NAMED_BRAND_LEADERBOARD")
-        .unwrap_or_default()
-        .to_lowercase()
-        .as_str()
-    {
-        "true" | "1" | "yes" => true,
-        _ => false,
-    }
+    matches!(
+        std::env::var("ANSEO_NAMED_BRAND_LEADERBOARD")
+            .unwrap_or_default()
+            .to_lowercase()
+            .as_str(),
+        "true" | "1" | "yes"
+    )
 }
 
 #[derive(Debug, Deserialize)]
@@ -140,8 +139,7 @@ const K_FLOOR: i64 = 5;
 const METHODOLOGY_VERSION: &str = "anseo-v1.0";
 
 /// Chip tooltip (NFR3) — "Domain ownership verified — not a quality endorsement."
-const VERIFIED_CHIP_TOOLTIP: &str =
-    "Domain ownership verified — not a quality endorsement.";
+const VERIFIED_CHIP_TOOLTIP: &str = "Domain ownership verified — not a quality endorsement.";
 
 async fn fetch_named_leaderboard(
     state: &AppState,
@@ -166,9 +164,8 @@ async fn fetch_named_leaderboard(
         format!("category = '{}'", category_filter.replace('\'', "''"))
     };
 
-    let rows = sqlx::query_as::<_, LeaderboardRow>(
-        &format!(
-            r#"
+    let rows = sqlx::query_as::<_, LeaderboardRow>(&format!(
+        r#"
             SELECT
                 domain,
                 brand_name,
@@ -186,8 +183,7 @@ async fn fetch_named_leaderboard(
             ORDER BY visibility_score DESC
             LIMIT 100
             "#
-        ),
-    )
+    ))
     .bind(days)
     .bind(K_FLOOR)
     .fetch_all(state.storage.pool())

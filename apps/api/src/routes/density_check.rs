@@ -281,6 +281,9 @@ mod tests {
         let v = serde_json::to_value(&r).unwrap();
         assert_eq!(v["named_mode_active"], false);
         assert_eq!(v["thresholds"][0]["passed"], false);
-        assert_eq!(v["thresholds"][0]["threshold_name"], "distinct_contributors");
+        assert_eq!(
+            v["thresholds"][0]["threshold_name"],
+            "distinct_contributors"
+        );
     }
 }

@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn blocked_jurisdictions_are_blocked() {
-        let blocked = vec!["CN".to_string(), "IN".to_string(), "BR".to_string()];
+        let blocked = ["CN".to_string(), "IN".to_string(), "BR".to_string()];
         assert!(blocked.contains(&"CN".to_string()));
         assert!(!blocked.contains(&"US".to_string()));
     }
