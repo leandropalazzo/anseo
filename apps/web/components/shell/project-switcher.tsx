@@ -101,6 +101,7 @@ export function ProjectSwitcher({ deployment }: { deployment: "local" | "cloud" 
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-busy={switching}
+        aria-label={switching ? `Switching to ${label}…` : `Active project: ${label}. Click to switch.`}
         disabled={!hasChoices}
         onClick={() => setOpen((v) => !v)}
         data-testid="project-switcher"
