@@ -58,6 +58,13 @@ const KEY_LEN: usize = 32;
 /// SecretStore namespace prefix for per-project KEKs. Deliberately distinct
 /// from provider names (`openai`, `anthropic`, …) so a KEK can never collide
 /// with — or be mistaken for — an API key.
+///
+/// Story 39.1b alignment: this prefix equals [`opengeo_core::BENCHMARK_KEK_KEY_PREFIX`]
+/// (declared in `opengeo-core` to avoid a circular dependency). Both key classes
+/// — benchmark KEKs and per-project provider secrets — use the same
+/// [`SecretStore`] abstraction and the same concrete backends; they differ only
+/// in this namespace (see `opengeo_core::secret_store` module docs for the
+/// full two-key-class table).
 const KEK_NAMESPACE: &str = "benchmark-kek";
 
 /// Build the SecretStore key under which a project's KEK is stored.
