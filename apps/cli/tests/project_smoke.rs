@@ -64,6 +64,18 @@ fn project_list_without_database_url_fails_with_config_error() {
 }
 
 #[test]
+fn project_list_json_flag_is_accepted() {
+    // Parsing must accept `--json`; run still fails at the DATABASE_URL guard.
+    ogeo()
+        .env_remove("DATABASE_URL")
+        .args(["project", "list", "--json"])
+        .assert()
+        .failure()
+        .code(64)
+        .stderr(contains("DATABASE_URL"));
+}
+
+#[test]
 fn project_create_without_database_url_fails_with_config_error() {
     ogeo()
         .env_remove("DATABASE_URL")
