@@ -149,17 +149,17 @@ pub async fn geo_gate_middleware(
 mod tests {
     use super::*;
 
+    // Default + custom checks share one process-global env var, so they must run
+    // sequentially in a single test — otherwise `cargo test`'s parallel threads
+    // race set_var against remove_var (flaky under --workspace).
     #[test]
-    fn default_blocked_list() {
+    fn default_then_custom_blocked_list() {
         std::env::remove_var("ANSEO_HIGH_FRICTION_JURISDICTIONS");
         let list = current_blocked_jurisdictions();
         assert!(list.contains(&"CN".to_string()));
         assert!(list.contains(&"IN".to_string()));
         assert!(list.contains(&"BR".to_string()));
-    }
 
-    #[test]
-    fn custom_blocked_list() {
         std::env::set_var("ANSEO_HIGH_FRICTION_JURISDICTIONS", "DE, FR, JP");
         let list = current_blocked_jurisdictions();
         assert!(list.contains(&"DE".to_string()));
