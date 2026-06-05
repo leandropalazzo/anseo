@@ -21,14 +21,14 @@
 //!
 //! trace: P0-007 (FR-9)
 
-use opengeo_core::ProviderErrorKind;
-use opengeo_providers::{
+use anseo_core::ProviderErrorKind;
+use anseo_providers::{
     mock::MockProvider, Provider, ProviderError, ProviderRequest, ProviderResponse,
 };
 
 // ---- Contract scenarios (parameterized over any `&dyn Provider`) -----------
 
-async fn contract_name_is_stable(provider: &dyn Provider, expected: opengeo_core::ProviderName) {
+async fn contract_name_is_stable(provider: &dyn Provider, expected: anseo_core::ProviderName) {
     assert_eq!(
         provider.name(),
         expected,
@@ -63,7 +63,7 @@ fn contract_validate_unknown_model_errors_pre_flight(provider: &dyn Provider, un
 async fn contract_run_response_carries_provider_identity(
     provider: &dyn Provider,
     request: ProviderRequest,
-    expected_name: opengeo_core::ProviderName,
+    expected_name: anseo_core::ProviderName,
 ) -> ProviderResponse {
     let response = provider
         .run(request)
@@ -95,11 +95,11 @@ async fn contract_run_failure_maps_to_closed_taxonomy(
 
 #[tokio::test]
 async fn mock_provider_satisfies_contract_for_openai_identity() {
-    let provider = MockProvider::new(opengeo_core::ProviderName::Openai)
+    let provider = MockProvider::new(anseo_core::ProviderName::Openai)
         .accept_model("mock-model")
         .queue_response("contract test response");
 
-    contract_name_is_stable(&provider, opengeo_core::ProviderName::Openai).await;
+    contract_name_is_stable(&provider, anseo_core::ProviderName::Openai).await;
     contract_validate_known_model_ok(&provider, "mock-model");
     contract_validate_unknown_model_errors_pre_flight(&provider, "not-a-real-model");
 
@@ -107,7 +107,7 @@ async fn mock_provider_satisfies_contract_for_openai_identity() {
     let response = contract_run_response_carries_provider_identity(
         &provider,
         request,
-        opengeo_core::ProviderName::Openai,
+        anseo_core::ProviderName::Openai,
     )
     .await;
     assert_eq!(response.message_text, "contract test response");
@@ -117,25 +117,25 @@ async fn mock_provider_satisfies_contract_for_openai_identity() {
 async fn mock_provider_satisfies_contract_for_anthropic_identity() {
     // Same contract, different identity — confirms `MockProvider::name()`
     // tracks the constructor argument rather than being hard-coded.
-    let provider = MockProvider::new(opengeo_core::ProviderName::Anthropic)
+    let provider = MockProvider::new(anseo_core::ProviderName::Anthropic)
         .accept_model("mock-model")
         .queue_response("hello from contract");
 
-    contract_name_is_stable(&provider, opengeo_core::ProviderName::Anthropic).await;
+    contract_name_is_stable(&provider, anseo_core::ProviderName::Anthropic).await;
     contract_validate_known_model_ok(&provider, "mock-model");
 
     let request = ProviderRequest::new("anything", "mock-model");
     contract_run_response_carries_provider_identity(
         &provider,
         request,
-        opengeo_core::ProviderName::Anthropic,
+        anseo_core::ProviderName::Anthropic,
     )
     .await;
 }
 
 #[tokio::test]
 async fn mock_provider_maps_rate_limit_failure_to_closed_taxonomy() {
-    let provider = MockProvider::new(opengeo_core::ProviderName::Openai)
+    let provider = MockProvider::new(anseo_core::ProviderName::Openai)
         .accept_model("mock-model")
         .queue_failure(ProviderError::rate_limited("429 from upstream"));
 
@@ -150,7 +150,7 @@ async fn mock_provider_maps_rate_limit_failure_to_closed_taxonomy() {
 
 #[tokio::test]
 async fn mock_provider_maps_timeout_failure_to_closed_taxonomy() {
-    let provider = MockProvider::new(opengeo_core::ProviderName::Openai)
+    let provider = MockProvider::new(anseo_core::ProviderName::Openai)
         .accept_model("mock-model")
         .queue_failure(ProviderError::timeout("provider timeout"));
 
@@ -165,7 +165,7 @@ async fn mock_provider_maps_timeout_failure_to_closed_taxonomy() {
 
 #[tokio::test]
 async fn mock_provider_maps_5xx_failure_to_closed_taxonomy() {
-    let provider = MockProvider::new(opengeo_core::ProviderName::Anthropic)
+    let provider = MockProvider::new(anseo_core::ProviderName::Anthropic)
         .accept_model("mock-model")
         .queue_failure(ProviderError::five_xx("503 service unavailable"));
 
@@ -180,7 +180,7 @@ async fn mock_provider_maps_5xx_failure_to_closed_taxonomy() {
 
 #[tokio::test]
 async fn mock_provider_maps_unauthorized_failure_to_closed_taxonomy() {
-    let provider = MockProvider::new(opengeo_core::ProviderName::Openai)
+    let provider = MockProvider::new(anseo_core::ProviderName::Openai)
         .accept_model("mock-model")
         .queue_failure(ProviderError::unauthorized("401"));
 
@@ -195,7 +195,7 @@ async fn mock_provider_maps_unauthorized_failure_to_closed_taxonomy() {
 
 #[tokio::test]
 async fn mock_provider_maps_invalid_response_failure_to_closed_taxonomy() {
-    let provider = MockProvider::new(opengeo_core::ProviderName::Anthropic)
+    let provider = MockProvider::new(anseo_core::ProviderName::Anthropic)
         .accept_model("mock-model")
         .queue_failure(ProviderError::invalid_response("malformed JSON"));
 
@@ -210,7 +210,7 @@ async fn mock_provider_maps_invalid_response_failure_to_closed_taxonomy() {
 
 #[tokio::test]
 async fn mock_provider_maps_network_failure_to_closed_taxonomy() {
-    let provider = MockProvider::new(opengeo_core::ProviderName::Openai)
+    let provider = MockProvider::new(anseo_core::ProviderName::Openai)
         .accept_model("mock-model")
         .queue_failure(ProviderError::network("connection refused"));
 

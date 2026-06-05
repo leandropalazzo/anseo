@@ -364,7 +364,7 @@ export async function postWebhookTest(url: string): Promise<WebhookTestResult> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(process.env.OGEO_API_KEY ? { "X-OpenGEO-API-Key": process.env.OGEO_API_KEY } : {}),
+        ...(process.env.ANSEO_API_KEY ? { "X-OpenGEO-API-Key": process.env.ANSEO_API_KEY } : {}),
       },
       body: JSON.stringify({ url }),
       cache: "no-store",

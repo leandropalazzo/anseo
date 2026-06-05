@@ -1,5 +1,5 @@
+use anseo_core::ProjectId;
 use async_trait::async_trait;
-use opengeo_core::ProjectId;
 use sqlx::PgPool;
 
 use crate::model::{CrawlerIngestError, NormalizedCrawlerEvent};
@@ -21,7 +21,7 @@ impl PostgresCrawlerSink {
         Self { pool }
     }
 
-    pub fn from_storage(storage: &opengeo_storage::Storage) -> Self {
+    pub fn from_storage(storage: &anseo_storage::Storage) -> Self {
         Self::new(storage.pool().clone())
     }
 }

@@ -4,8 +4,8 @@ use assert_cmd::Command;
 use predicates::str::contains;
 use tempfile::TempDir;
 
-fn ogeo() -> Command {
-    Command::cargo_bin("ogeo").expect("ogeo binary built")
+fn anseo() -> Command {
+    Command::cargo_bin("anseo").expect("anseo binary built")
 }
 
 fn fixture(html: &str) -> (TempDir, std::path::PathBuf) {
@@ -17,7 +17,7 @@ fn fixture(html: &str) -> (TempDir, std::path::PathBuf) {
 
 #[test]
 fn audit_help_is_wired() {
-    ogeo()
+    anseo()
         .args(["audit", "--help"])
         .assert()
         .success()
@@ -46,7 +46,7 @@ fn audit_json_emits_per_page_per_rule_findings() {
         "#,
     );
 
-    let assert = ogeo()
+    let assert = anseo()
         .arg("audit")
         .arg(&path)
         .args(["--format", "json"])
@@ -62,7 +62,7 @@ fn audit_json_emits_per_page_per_rule_findings() {
 #[test]
 fn audit_fail_on_rule_exits_one_with_machine_summary() {
     let (_dir, path) = fixture("<html><body><p>thin page</p></body></html>");
-    ogeo()
+    anseo()
         .arg("audit")
         .arg(&path)
         .args(["--fail-on", "identity.canonical_url"])

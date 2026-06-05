@@ -15,7 +15,7 @@
 use async_trait::async_trait;
 use std::sync::Mutex;
 
-use opengeo_core::ProviderName;
+use anseo_core::ProviderName;
 
 use crate::{Provider, ProviderError, ProviderRequest, ProviderResponse};
 

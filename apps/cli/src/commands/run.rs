@@ -2,7 +2,7 @@
 //!
 //! Loads `opengeo.yaml`, resolves provider secrets via the chained secret
 //! store, builds a [`ProviderRegistry`], and dispatches to
-//! [`opengeo_providers::Orchestrator`]. Returns records via the
+//! [`anseo_providers::Orchestrator`]. Returns records via the
 //! `PromptRunSink` so a callback can persist them (Story 3.1 will plug in
 //! a Postgres-backed sink; for now we write a JSON line per record to stdout
 //! plus a summary line to stderr).
@@ -17,14 +17,14 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use clap::Args;
-use opengeo_core::{Config, OpenGeoError, ProviderName};
-use opengeo_providers::{
+use anseo_core::{Config, OpenGeoError, ProviderName};
+use anseo_providers::{
     persistence::persist_records, registry::build_real_registry as build_real_registry_inner,
     MockProvider, Orchestrator, OrchestratorFilter, PromptRunRecord, PromptRunStatus,
     ProviderRegistry, RunSummary,
 };
-use opengeo_storage::Storage;
+use anseo_storage::Storage;
+use clap::Args;
 
 #[derive(Debug, Args)]
 pub struct RunArgs {
@@ -47,7 +47,8 @@ pub struct RunArgs {
 }
 
 pub async fn run(args: RunArgs) -> Result<(), OpenGeoError> {
-    let config_path = args.config.unwrap_or_else(|| PathBuf::from("opengeo.yaml"));
+    let config_path = args.config.unwrap_or_else(|| PathBuf::from("anseo.yaml"));
+    let config_path = Config::auto_migrate_config_filename(&config_path, "opengeo.yaml");
     let config = Config::from_path(&config_path)?;
     let filter = build_filter(&args.prompt, &args.provider)?;
 
@@ -96,7 +97,7 @@ pub async fn run(args: RunArgs) -> Result<(), OpenGeoError> {
         return Err(OpenGeoError::Provider {
             kind: first
                 .error_kind
-                .unwrap_or(opengeo_core::ProviderErrorKind::NetworkError),
+                .unwrap_or(anseo_core::ProviderErrorKind::NetworkError),
             message: first
                 .error_message
                 .clone()

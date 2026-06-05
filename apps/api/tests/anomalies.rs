@@ -5,7 +5,7 @@
 //! - Unknown enum variants for `window` / `kind` → 400 (axum `Query` rejects
 //!   before the auth gate is reached for some routings; both 400 and 401 are
 //!   acceptable per Phase 2 precedent).
-//! - The `X-OpenGEO-Project` header is accepted without 4xx (Story 0.11 L2:
+//! - The `X-Anseo-Project` header is accepted without 4xx (Story 0.11 L2:
 //!   accepted-but-ignored).
 //!
 //! Live-DB happy paths sit in the orchestrator's `*_live_db.rs` companion
@@ -14,18 +14,18 @@
 
 use std::sync::Arc;
 
+use anseo_api::{router, AppState};
+use anseo_core::ProjectId;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use opengeo_api::{router, AppState};
-use opengeo_core::ProjectId;
 use tower::ServiceExt;
 
 fn build_router() -> axum::Router {
     let lazy_pool =
         sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__anomalies_test__")
             .expect("connect_lazy never IOs synchronously");
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(lazy_pool));
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id: ProjectId::new(),
@@ -108,7 +108,7 @@ async fn anomalies_with_project_header_does_not_400() {
         .oneshot(
             Request::builder()
                 .uri("/v1/anomalies")
-                .header("X-OpenGEO-Project", "default")
+                .header("X-Anseo-Project", "default")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -124,7 +124,7 @@ async fn anomalies_with_project_header_does_not_400() {
 /// at compile time on this side keeps the contract honest.
 #[test]
 fn anomaly_item_wire_strings_pinned() {
-    use opengeo_api::routes::anomalies::{AnomalyItemKind, AnomalySeverity};
+    use anseo_api::routes::anomalies::{AnomalyItemKind, AnomalySeverity};
     assert_eq!(
         serde_json::to_string(&AnomalyItemKind::VisibilityDrop).unwrap(),
         "\"visibility_drop\""

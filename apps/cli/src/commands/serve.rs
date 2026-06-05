@@ -1,13 +1,13 @@
 //! `ogeo serve` — single-binary supervisor (Story 37.1).
 //!
 //! Boots the HTTP API (`opengeo-api`) and runs the background worker fan-out
-//! loop (`opengeo-worker`) IN-PROCESS in one binary, sharing one Postgres pool's
+//! loop (`anseo-worker`) IN-PROCESS in one binary, sharing one Postgres pool's
 //! worth of connections, one shutdown signal, and one process lifetime.
 //!
 //! Supervision model:
 //! - The worker runs as a SUPERVISED tokio task. The worker's own fan-out
 //!   already isolates per-project faults at the join boundary
-//!   (`opengeo_worker::dispatch::run_isolated`); on top of that we run the whole
+//!   (`anseo_worker::dispatch::run_isolated`); on top of that we run the whole
 //!   loop inside its own task so that even a panic in the loop scaffolding does
 //!   NOT abort the API task (tokio tasks are independent — one task's panic does
 //!   not unwind another).
@@ -22,12 +22,12 @@
 
 use std::sync::Arc;
 
+use anseo_api::boot::{build_api, serve_with_shutdown, ApiBootConfig};
+use anseo_api::routes::serve_status::ServeInfo;
+use anseo_core::OpenGeoError;
+use anseo_storage::Storage;
+use anseo_worker::run::{load_dispatch_context, run_poll_loop};
 use clap::Args;
-use opengeo_api::boot::{build_api, serve_with_shutdown, ApiBootConfig};
-use opengeo_api::routes::serve_status::ServeInfo;
-use opengeo_core::OpenGeoError;
-use opengeo_storage::Storage;
-use opengeo_worker::run::{load_dispatch_context, run_poll_loop};
 
 use crate::datastore::{resolve_from_env, Datastore};
 
@@ -107,8 +107,8 @@ fn resolve_bind(bind: &Option<String>, port: u16) -> String {
 /// Resolve the `opengeo.yaml` path from `--projects-dir`.
 fn resolve_config_path(projects_dir: &Option<std::path::PathBuf>) -> String {
     match projects_dir {
-        Some(dir) => dir.join("opengeo.yaml").to_string_lossy().into_owned(),
-        None => "opengeo.yaml".to_string(),
+        Some(dir) => dir.join("anseo.yaml").to_string_lossy().into_owned(),
+        None => "anseo.yaml".to_string(),
     }
 }
 
@@ -323,9 +323,9 @@ mod tests {
 
     #[test]
     fn config_path_uses_projects_dir() {
-        assert_eq!(resolve_config_path(&None), "opengeo.yaml");
+        assert_eq!(resolve_config_path(&None), "anseo.yaml");
         let dir = std::path::PathBuf::from("/srv/proj");
-        assert_eq!(resolve_config_path(&Some(dir)), "/srv/proj/opengeo.yaml");
+        assert_eq!(resolve_config_path(&Some(dir)), "/srv/proj/anseo.yaml");
     }
 
     /// A flipped shutdown signal resolves the subscriber future immediately —

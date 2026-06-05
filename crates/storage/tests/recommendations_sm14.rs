@@ -9,7 +9,7 @@
 //!
 //! Runs against an ephemeral schema via `#[sqlx::test]` (requires DATABASE_URL).
 
-use opengeo_storage::repositories::recommendations::{NewRecommendation, RecommendationsRepo};
+use anseo_storage::repositories::recommendations::{NewRecommendation, RecommendationsRepo};
 use sqlx::PgPool;
 use uuid::Uuid;
 

@@ -296,7 +296,7 @@ impl<'a> RecommendationsRepo<'a> {
     /// another project can never be moved across the tenant boundary. Returns
     /// the updated row, or `Ok(None)` when no row matches (caller maps to 404).
     /// The legality of `from -> to` is enforced by the caller against
-    /// `opengeo_recommendations::lifecycle` before this is called.
+    /// `anseo_recommendations::lifecycle` before this is called.
     pub async fn update_state(
         &self,
         id: Uuid,

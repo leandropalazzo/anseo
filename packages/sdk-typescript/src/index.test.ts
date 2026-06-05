@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 import {
-  OpenGeoObserver,
+  AnseoObserver,
   OpenGeoApiError,
   observeRun,
   type ObserveRunResult,
@@ -23,11 +23,11 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-describe("OpenGeoObserver", () => {
+describe("AnseoObserver", () => {
   it("posts to /v1/ingest/run with auth + project headers and snake_case body", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(OK_BODY));
-    const observer = new OpenGeoObserver({
-      baseUrl: "https://opengeo.internal/",
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal/",
       apiKey: "key-xyz",
       project: "Sunski",
       fetch: fetchMock,
@@ -47,12 +47,12 @@ describe("OpenGeoObserver", () => {
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     // Trailing slash on baseUrl must be normalized, not doubled.
-    expect(url).toBe("https://opengeo.internal/v1/ingest/run");
+    expect(url).toBe("https://anseo.internal/v1/ingest/run");
     expect(init.method).toBe("POST");
 
     const headers = init.headers as Record<string, string>;
-    expect(headers["x-opengeo-api-key"]).toBe("key-xyz");
-    expect(headers["x-opengeo-project"]).toBe("Sunski");
+    expect(headers["x-anseo-api-key"]).toBe("key-xyz");
+    expect(headers["x-anseo-project"]).toBe("Sunski");
     expect(headers["content-type"]).toBe("application/json");
 
     expect(JSON.parse(init.body as string)).toEqual({
@@ -67,8 +67,8 @@ describe("OpenGeoObserver", () => {
 
   it("omits the project header and optional fields when not provided", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(OK_BODY));
-    const observer = new OpenGeoObserver({
-      baseUrl: "https://opengeo.internal",
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal",
       apiKey: "key-xyz",
       fetch: fetchMock,
     });
@@ -81,7 +81,7 @@ describe("OpenGeoObserver", () => {
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
-    expect(headers["x-opengeo-project"]).toBeUndefined();
+    expect(headers["x-anseo-project"]).toBeUndefined();
     expect(JSON.parse(init.body as string)).toEqual({
       prompt_slug: "best-polarized-sunglasses",
       provider: "openai",
@@ -93,8 +93,8 @@ describe("OpenGeoObserver", () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({ ...OK_BODY, contribution: { status: "kek_missing" } }),
     );
-    const observer = new OpenGeoObserver({
-      baseUrl: "https://opengeo.internal",
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal",
       apiKey: "k",
       fetch: fetchMock,
     });
@@ -117,8 +117,8 @@ describe("OpenGeoObserver", () => {
         ),
       ),
     );
-    const observer = new OpenGeoObserver({
-      baseUrl: "https://opengeo.internal",
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal",
       apiKey: "k",
       fetch: fetchMock,
     });
@@ -138,17 +138,17 @@ describe("OpenGeoObserver", () => {
 
   it("requires baseUrl and apiKey", () => {
     expect(
-      () => new OpenGeoObserver({ baseUrl: "", apiKey: "k" }),
+      () => new AnseoObserver({ baseUrl: "", apiKey: "k" }),
     ).toThrow(/baseUrl/);
     expect(
-      () => new OpenGeoObserver({ baseUrl: "https://x", apiKey: "" }),
+      () => new AnseoObserver({ baseUrl: "https://x", apiKey: "" }),
     ).toThrow(/apiKey/);
   });
 
   it("exposes a one-shot observeRun helper", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(OK_BODY));
     const result = await observeRun(
-      { baseUrl: "https://opengeo.internal", apiKey: "k", fetch: fetchMock },
+      { baseUrl: "https://anseo.internal", apiKey: "k", fetch: fetchMock },
       { promptSlug: "p", provider: "openai", model: "m" },
     );
     expect(result.runId).toBe("run_123");

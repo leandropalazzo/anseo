@@ -9,19 +9,19 @@ use assert_cmd::Command;
 use predicates::str::contains;
 use tempfile::TempDir;
 
-fn ogeo() -> Command {
-    Command::cargo_bin("ogeo").expect("ogeo binary built")
+fn anseo() -> Command {
+    Command::cargo_bin("anseo").expect("anseo binary built")
 }
 
 fn init_project(dir: &TempDir) {
-    ogeo()
+    anseo()
         .args(["init", "--dir"])
         .arg(dir.path())
         .assert()
         .success();
     // Replace the example commented-out providers with two enabled ones so
     // `prompt run` has cells to execute.
-    let cfg = dir.path().join("opengeo.yaml");
+    let cfg = dir.path().join("anseo.yaml");
     std::fs::write(
         &cfg,
         r#"schema_version: '0.1'
@@ -47,9 +47,9 @@ providers:
 fn prompt_run_mock_full_matrix_exits_zero() {
     let dir = TempDir::new().unwrap();
     init_project(&dir);
-    let cfg = dir.path().join("opengeo.yaml");
+    let cfg = dir.path().join("anseo.yaml");
 
-    let assert = ogeo()
+    let assert = anseo()
         .args(["prompt", "run", "--use-mock-provider", "--config"])
         .arg(&cfg)
         .assert()
@@ -66,8 +66,8 @@ fn prompt_run_mock_full_matrix_exits_zero() {
 fn prompt_run_filters_prompt_name() {
     let dir = TempDir::new().unwrap();
     init_project(&dir);
-    let cfg = dir.path().join("opengeo.yaml");
-    let assert = ogeo()
+    let cfg = dir.path().join("anseo.yaml");
+    let assert = anseo()
         .args([
             "prompt",
             "run",
@@ -88,8 +88,8 @@ fn prompt_run_filters_prompt_name() {
 fn prompt_run_no_matching_cells_exits_nonzero() {
     let dir = TempDir::new().unwrap();
     init_project(&dir);
-    let cfg = dir.path().join("opengeo.yaml");
-    ogeo()
+    let cfg = dir.path().join("anseo.yaml");
+    anseo()
         .args([
             "prompt",
             "run",
@@ -109,8 +109,8 @@ fn prompt_run_no_matching_cells_exits_nonzero() {
 fn prompt_run_rejects_unsupported_provider_filter() {
     let dir = TempDir::new().unwrap();
     init_project(&dir);
-    let cfg = dir.path().join("opengeo.yaml");
-    ogeo()
+    let cfg = dir.path().join("anseo.yaml");
+    anseo()
         .args(["prompt", "run", "--provider", "not-a-provider", "--config"])
         .arg(&cfg)
         .assert()

@@ -13,12 +13,12 @@
 //!    half of the gate is tested implicitly by the trait bound in the
 //!    [`DummyIngest`] implementation below).
 
-use chrono::{TimeZone, Utc};
-use opengeo_benchmark::{
+use anseo_benchmark::{
     ContributeIngest, CryptoError, ProjectKek, RawPromptRun, Redactor, SealedContribution,
     TERMS_VERSION,
 };
-use opengeo_core::InMemoryStore;
+use anseo_core::InMemoryStore;
+use chrono::{TimeZone, Utc};
 
 const PROJECT: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 
@@ -45,7 +45,7 @@ struct DummyIngest;
 
 #[derive(Debug)]
 enum DummyError {
-    Redactor(opengeo_benchmark::RedactorError),
+    Redactor(anseo_benchmark::RedactorError),
     Crypto(CryptoError),
 }
 

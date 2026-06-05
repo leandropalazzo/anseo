@@ -29,7 +29,7 @@
 
 use std::path::{Path, PathBuf};
 
-use opengeo_core::OpenGeoError;
+use anseo_core::OpenGeoError;
 
 /// Name of the env var that, when present, points at an EXTERNAL Postgres and
 /// short-circuits the managed child entirely.

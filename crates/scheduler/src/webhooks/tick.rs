@@ -9,7 +9,7 @@
 //! - Polling `WebhookDeliveryRepo::list_due` for due rows.
 //! - Looking up the corresponding `webhooks` row to extract `target_url`
 //!   and `secret_ciphertext`, then decrypting the secret (the in-tree
-//!   `opengeo_core::secret_store` keychain backend is the Phase 2 default).
+//!   `anseo_core::secret_store` keychain backend is the Phase 2 default).
 //! - Reconstructing the event payload bytes for `event_id` + `event_kind`
 //!   (currently a caller concern; a future additive migration can add a
 //!   payload column to `webhook_deliveries` to lock immutability across
@@ -23,8 +23,8 @@
 //! threshold trips. The CLI's `ogeo webhook reenable` is the only path
 //! back to active per architecture §5.4.
 
+use anseo_storage::repositories::webhook_deliveries::PendingDelivery;
 use chrono::{Duration as ChronoDuration, Utc};
-use opengeo_storage::repositories::webhook_deliveries::PendingDelivery;
 use reqwest::Client;
 use sqlx::PgPool;
 use std::time::Duration;
@@ -37,7 +37,7 @@ pub enum DispatcherError {
     #[error("database error")]
     Database(#[from] sqlx::Error),
     #[error("storage error")]
-    Storage(#[from] opengeo_storage::Error),
+    Storage(#[from] anseo_storage::Error),
 }
 
 /// Result returned to the caller of [`process_one_due`]. Mirrors the
@@ -65,7 +65,7 @@ pub async fn process_one_due(
     timeout: Duration,
     webhook_id_for_disable_check: uuid::Uuid,
 ) -> Result<DispatchResult, DispatcherError> {
-    let storage = opengeo_storage::Storage::from_pool(pool.clone());
+    let storage = anseo_storage::Storage::from_pool(pool.clone());
     let now = Utc::now();
     let timestamp_unix = now.timestamp();
 
@@ -132,7 +132,7 @@ pub async fn process_one_due(
 }
 
 async fn drop_and_maybe_disable(
-    storage: &opengeo_storage::Storage,
+    storage: &anseo_storage::Storage,
     delivery_id: uuid::Uuid,
     response_status: Option<i32>,
     snippet: &str,

@@ -16,12 +16,12 @@ use chrono::{Duration, Utc};
 use clap::Args;
 use uuid::Uuid;
 
-use opengeo_core::{Config, OpenGeoError};
-use opengeo_recommendations::assembly::{self, ProjectFacts, PromptFacts, PromptRunFacts};
-use opengeo_recommendations::lifecycle::{self, State as LifecycleState};
-use opengeo_recommendations::{Engine, Recommendation};
-use opengeo_storage::repositories::recommendations::{NewRecommendation, RecommendationRow};
-use opengeo_storage::Storage;
+use anseo_core::{Config, OpenGeoError};
+use anseo_recommendations::assembly::{self, ProjectFacts, PromptFacts, PromptRunFacts};
+use anseo_recommendations::lifecycle::{self, State as LifecycleState};
+use anseo_recommendations::{Engine, Recommendation};
+use anseo_storage::repositories::recommendations::{NewRecommendation, RecommendationRow};
+use anseo_storage::Storage;
 use serde::Serialize;
 
 /// Evaluation window for a generation run (architecture §2: 14 days).
@@ -29,7 +29,7 @@ const WINDOW_DAYS: i64 = 14;
 
 #[derive(Debug, Args)]
 pub struct GenerateArgs {
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
     /// Select the project by id (ULID) or brand name, overriding the working-dir
     /// `opengeo.yaml` (ADR-004). Populated from the global `--project` flag.
@@ -39,7 +39,7 @@ pub struct GenerateArgs {
 
 #[derive(Debug, Args)]
 pub struct ListArgs {
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
 }
 
@@ -47,7 +47,7 @@ pub struct ListArgs {
 pub struct ShowArgs {
     #[arg(long)]
     pub id: String,
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
 }
 
@@ -55,7 +55,7 @@ pub struct ShowArgs {
 pub struct AckArgs {
     #[arg(long)]
     pub id: String,
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
 }
 
@@ -63,7 +63,7 @@ pub struct AckArgs {
 pub struct DismissArgs {
     #[arg(long)]
     pub id: String,
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
 }
 
@@ -75,7 +75,7 @@ pub struct MarkActedArgs {
     pub evidence_url: Option<String>,
     #[arg(long)]
     pub note: Option<String>,
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
 }
 
@@ -142,7 +142,7 @@ pub async fn run_generate(args: GenerateArgs) -> Result<(), OpenGeoError> {
             .collect(),
         benchmark_opted_in: false,
         prompts: prompt_facts,
-        window: opengeo_recommendations::wire::TimeWindow {
+        window: anseo_recommendations::wire::TimeWindow {
             start: window_start,
             end: now,
         },
@@ -320,7 +320,7 @@ async fn transition_cli(
 
 // ---- helpers ------------------------------------------------------------
 
-fn internal(e: opengeo_storage::Error) -> OpenGeoError {
+fn internal(e: anseo_storage::Error) -> OpenGeoError {
     OpenGeoError::Internal(anyhow::anyhow!(e))
 }
 

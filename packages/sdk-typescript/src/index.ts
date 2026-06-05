@@ -10,11 +10,11 @@
  * browsers, edge runtimes).
  *
  * ```ts
- * import { OpenGeoObserver } from "@opengeo/observe";
+ * import { AnseoObserver } from "@opengeo/observe";
  *
- * const observer = new OpenGeoObserver({
- *   baseUrl: "https://opengeo.internal",
- *   apiKey: process.env.OPENGEO_API_KEY!,
+ * const observer = new AnseoObserver({
+ *   baseUrl: "https://anseo.internal",
+ *   apiKey: process.env.ANSEO_API_KEY!,
  *   project: "Sunski",
  * });
  *
@@ -27,9 +27,9 @@
  * ```
  */
 
-/** Configuration for an {@link OpenGeoObserver}. */
-export interface OpenGeoObserverConfig {
-  /** Base URL of the OpenGEO API, e.g. `https://opengeo.internal`. */
+/** Configuration for an {@link AnseoObserver}. */
+export interface AnseoObserverConfig {
+  /** Base URL of the OpenGEO API, e.g. `https://anseo.internal`. */
   baseUrl: string;
   /** API key, sent as the `X-OpenGEO-API-Key` header. */
   apiKey: string;
@@ -133,19 +133,19 @@ function toWire(input: ObserveRunInput): Record<string, unknown> {
 }
 
 /** Thin client around `POST /v1/ingest/run`. */
-export class OpenGeoObserver {
+export class AnseoObserver {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly project?: string;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
-  constructor(config: OpenGeoObserverConfig) {
+  constructor(config: AnseoObserverConfig) {
     if (!config.baseUrl) {
-      throw new Error("OpenGeoObserver: `baseUrl` is required");
+      throw new Error("AnseoObserver: `baseUrl` is required");
     }
     if (!config.apiKey) {
-      throw new Error("OpenGeoObserver: `apiKey` is required");
+      throw new Error("AnseoObserver: `apiKey` is required");
     }
     // Normalize trailing slash so URL joining is unambiguous.
     this.baseUrl = config.baseUrl.replace(/\/+$/, "");
@@ -155,7 +155,7 @@ export class OpenGeoObserver {
     const f = config.fetch ?? globalThis.fetch;
     if (typeof f !== "function") {
       throw new Error(
-        "OpenGeoObserver: no `fetch` available — pass `fetch` in the config or run on a platform that provides a global fetch (Node >= 18).",
+        "AnseoObserver: no `fetch` available — pass `fetch` in the config or run on a platform that provides a global fetch (Node >= 18).",
       );
     }
     this.fetchImpl = f;
@@ -169,9 +169,9 @@ export class OpenGeoObserver {
   async observeRun(input: ObserveRunInput): Promise<ObserveRunResult> {
     const headers: Record<string, string> = {
       "content-type": "application/json",
-      "x-opengeo-api-key": this.apiKey,
+      "x-anseo-api-key": this.apiKey,
     };
-    if (this.project) headers["x-opengeo-project"] = this.project;
+    if (this.project) headers["x-anseo-project"] = this.project;
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -211,11 +211,11 @@ export class OpenGeoObserver {
 
 /**
  * One-shot convenience: construct an observer and record a single run.
- * Prefer reusing an {@link OpenGeoObserver} when sending many runs.
+ * Prefer reusing an {@link AnseoObserver} when sending many runs.
  */
 export async function observeRun(
-  config: OpenGeoObserverConfig,
+  config: AnseoObserverConfig,
   input: ObserveRunInput,
 ): Promise<ObserveRunResult> {
-  return new OpenGeoObserver(config).observeRun(input);
+  return new AnseoObserver(config).observeRun(input);
 }

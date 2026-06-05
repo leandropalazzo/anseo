@@ -3,7 +3,7 @@
 
 use std::collections::BTreeSet;
 
-use opengeo_recommendations::{Engine, RecommendationKind, ReproducibilityClass, ENGINE_VERSION};
+use anseo_recommendations::{Engine, RecommendationKind, ReproducibilityClass, ENGINE_VERSION};
 
 mod fixture;
 use fixture::full_fixture;
@@ -63,7 +63,7 @@ fn rec_6_every_recommendation_has_traceability_and_holds_invariant() {
         assert!(!r
             .tags
             .iter()
-            .any(|t| t == opengeo_recommendations::TAG_NON_DETERMINISTIC));
+            .any(|t| t == anseo_recommendations::TAG_NON_DETERMINISTIC));
         assert_eq!(r.engine_version, ENGINE_VERSION);
     }
 }

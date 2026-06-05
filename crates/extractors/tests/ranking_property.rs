@@ -17,7 +17,7 @@
 //!
 //! trace: P0-005 (FR-5 ranking semantics)
 
-use opengeo_extractors::{compute_ranking, extract_mentions, mentions::config_with};
+use anseo_extractors::{compute_ranking, extract_mentions, mentions::config_with};
 use proptest::prelude::*;
 
 /// One of: brand or a competitor. The string is the chosen entity name.
@@ -67,7 +67,7 @@ fn arb_token_sequence() -> impl Strategy<Value = Vec<Token>> {
     })
 }
 
-fn config() -> opengeo_core::Config {
+fn config() -> anseo_core::Config {
     config_with(BRAND, &COMPETITORS)
 }
 

@@ -22,7 +22,7 @@
 //! against a stable contract.
 //!
 //! Auth: routes mount inside the standard `/v1` auth gate (OQ-P3-24
-//! default — same API key as the rest of `/v1`). The `X-OpenGEO-Project`
+//! default — same API key as the rest of `/v1`). The `X-Anseo-Project`
 //! header is accepted-but-ignored (same as every other v1 route, per
 //! decision L2 / Story 0.11).
 
@@ -237,14 +237,14 @@ async fn probe_remote_clickhouse(
     }
 }
 
-/// Load `opengeo.yaml` (path from `OGEO_CONFIG`, default `opengeo.yaml`),
+/// Load `opengeo.yaml` (path from `ANSEO_CONFIG`, default `opengeo.yaml`),
 /// set `analytics.clickhouse`, and write it back. The password is never
 /// written; it is expected at runtime via `CLICKHOUSE_PASSWORD`.
 fn persist_clickhouse_endpoint(endpoint: &str, req: &ConnectRequest) -> Result<(), String> {
-    use opengeo_core::config::{AnalyticsConfig, ClickHouseEndpointConfig};
+    use anseo_core::config::{AnalyticsConfig, ClickHouseEndpointConfig};
 
-    let path = std::env::var("OGEO_CONFIG").unwrap_or_else(|_| "opengeo.yaml".to_string());
-    let mut config = opengeo_core::Config::from_path(&path).map_err(|e| e.to_string())?;
+    let path = std::env::var("ANSEO_CONFIG").unwrap_or_else(|_| "anseo.yaml".to_string());
+    let mut config = anseo_core::Config::from_path(&path).map_err(|e| e.to_string())?;
 
     let ch = ClickHouseEndpointConfig {
         endpoint: endpoint.to_string(),
@@ -611,7 +611,7 @@ async fn get_clickhouse_etl_status(
 // ---------------------------------------------------------------------
 //
 // IMPLEMENTATION NOTE — Story 31-5 hardening: enqueue a real worker job.
-// The resumable engine `opengeo_analytics::metrics_store::clickhouse_etl::
+// The resumable engine `anseo_analytics::metrics_store::clickhouse_etl::
 // migrate_project_resumable` (and the `ClickHouseMetricsStore` it needs)
 // live entirely behind the analytics crate's `clickhouse` Cargo feature,
 // which `opengeo-api` does NOT enable — so the symbol is not even linkable
@@ -623,7 +623,7 @@ async fn get_clickhouse_etl_status(
 // when a checkpoint exists), and records terminal state.
 //
 // We do the INSERT with a direct runtime `sqlx::query` here (rather than
-// calling `opengeo_worker::etl::enqueue_etl_job`) so the API does NOT take a
+// calling `anseo_worker::etl::enqueue_etl_job`) so the API does NOT take a
 // dependency on the worker crate. The columns/semantics mirror that helper:
 // `id`/`requested_at` default in-DB (gen_random_uuid()/now()), so we only bind
 // `project_id`; `status` defaults to 'pending' but we set it explicitly for
@@ -652,7 +652,7 @@ async fn post_clickhouse_resume(
     // matches the row the worker will resolve back to a `ProjectId`.
     let project_uuid = uuid::Uuid::from_bytes(project.id().into_ulid().to_bytes());
 
-    // Inline enqueue — mirrors `opengeo_worker::etl::enqueue_etl_job` but
+    // Inline enqueue — mirrors `anseo_worker::etl::enqueue_etl_job` but
     // without pulling in the worker crate. `id` and `requested_at` use their
     // in-DB defaults; we RETURNING the generated id for the response.
     let result = sqlx::query(
@@ -712,7 +712,7 @@ async fn post_clickhouse_resume(
 //     (RFC 4648 standard base64 — see
 //     `crates/scheduler/src/webhooks/poller.rs::decode_secret`).
 //   * The real HMAC signer
-//     (`opengeo_scheduler::webhooks::signer::{sign, SIGNATURE_HEADER}`).
+//     (`anseo_scheduler::webhooks::signer::{sign, SIGNATURE_HEADER}`).
 //   * `reqwest` for transport — the same client `deliver_one` uses
 //     (`crates/scheduler/src/webhooks/dispatcher.rs`).
 //
@@ -720,7 +720,7 @@ async fn post_clickhouse_resume(
 // would send to that target, and the consumer's signature verification
 // (against the secret it shares with us) succeeds.
 //
-// `signature_valid` reports whether the `X-OpenGEO-Signature` header we
+// `signature_valid` reports whether the `X-Anseo-Signature` header we
 // attached round-trips through the real `verify()` against the body+secret
 // we actually used — i.e. a genuine OpenGEO signature the target's secret
 // will accept. It is `null` when we never got far enough to sign (bad URL,
@@ -818,7 +818,7 @@ async fn post_webhook_test(
     State(state): State<AppState>,
     Json(req): Json<WebhookTestRequest>,
 ) -> (StatusCode, Json<WebhookTestResult>) {
-    use opengeo_scheduler::webhooks::signer::{
+    use anseo_scheduler::webhooks::signer::{
         sign, verify, DEFAULT_REPLAY_WINDOW_SECONDS, SIGNATURE_HEADER,
     };
 
@@ -974,7 +974,7 @@ async fn post_webhook_test(
 //
 // Revokes a stored provider API key from the SAME secret-store chain the
 // CLI `ogeo login` writes to and `setup_probe::probe_api_keys` reads from
-// (`opengeo_core::default_chain()` → keyring → age-file → in-memory).
+// (`anseo_core::default_chain()` → keyring → age-file → in-memory).
 //
 // Story 31-5 hardening: this is now a REAL delete. We call the
 // `SecretStore::remove` method (added in 31-6) on the `default_chain()` store,
@@ -995,7 +995,7 @@ async fn post_api_key_revoke(
     State(_state): State<AppState>,
     Path(provider): Path<String>,
 ) -> (StatusCode, Json<serde_json::Value>) {
-    use opengeo_core::{ProviderName, SecretStore as _};
+    use anseo_core::{ProviderName, SecretStore as _};
 
     // Validate against the known first-party provider wire names. Reject
     // anything else with a 400 rather than deleting an arbitrary string.
@@ -1018,7 +1018,7 @@ async fn post_api_key_revoke(
     // `probe_api_keys`.
     let wire_for_task = wire.clone();
     let join = tokio::task::spawn_blocking(move || {
-        let store = opengeo_core::default_chain();
+        let store = anseo_core::default_chain();
         // Hard delete across every leg of the chain. After this returns Ok,
         // `get` resolves NotFound.
         store.remove(&wire_for_task)
@@ -1059,7 +1059,7 @@ async fn post_api_key_revoke(
 //
 // Stores a provider API key in the SAME secret-store chain the CLI
 // `ogeo login` writes to and `setup_probe::probe_api_keys` reads from
-// (`opengeo_core::default_chain()` → keyring → age-file → in-memory). On a
+// (`anseo_core::default_chain()` → keyring → age-file → in-memory). On a
 // headless container the keyring leg is unavailable, so the write lands in
 // the age-file leg — which is exactly what the live provider registry reads
 // when building real clients. The key value is never echoed back in the
@@ -1075,7 +1075,7 @@ async fn post_api_key_set(
     Path(provider): Path<String>,
     Json(body): Json<ApiKeySetRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
-    use opengeo_core::{ProviderName, Secret, SecretStore as _};
+    use anseo_core::{ProviderName, Secret, SecretStore as _};
 
     let Some(parsed) = ProviderName::parse(&provider) else {
         return (
@@ -1116,7 +1116,7 @@ async fn post_api_key_set(
     // the store write on a blocking thread — mirroring `post_api_key_revoke`.
     let wire_for_task = wire.clone();
     let join = tokio::task::spawn_blocking(move || {
-        let store = opengeo_core::default_chain();
+        let store = anseo_core::default_chain();
         store.set(&wire_for_task, Secret::new(key))
     })
     .await;
@@ -1183,7 +1183,7 @@ mod tests {
 
     use std::sync::Arc;
 
-    use opengeo_core::ProjectId;
+    use anseo_core::ProjectId;
 
     /// Serializes tests that mutate the process-global `XDG_CONFIG_HOME` /
     /// `AGE_PASSPHRASE_ENV` env vars to steer the secret-store chain. Without
@@ -1194,8 +1194,8 @@ mod tests {
     /// Minimal `AppState` over a test pool — enough for the ETL-status
     /// handler, which only touches `storage.pool()` and `project_id`.
     fn state_for(pool: sqlx::PgPool, project_id: ProjectId) -> AppState {
-        let storage = Arc::new(opengeo_storage::Storage::from_pool(pool));
-        let (events, _rx) = opengeo_scheduler::worker::event_channel();
+        let storage = Arc::new(anseo_storage::Storage::from_pool(pool));
+        let (events, _rx) = anseo_scheduler::worker::event_channel();
         AppState {
             storage,
             project_id,
@@ -1306,7 +1306,7 @@ mod tests {
     }
 
     /// Spins up a one-shot TCP server that returns 200 and captures the raw
-    /// request bytes so the test can assert the `X-OpenGEO-Signature` header
+    /// request bytes so the test can assert the `X-Anseo-Signature` header
     /// (produced by the real signer, using the REGISTERED webhook's decrypted
     /// secret) round-trips through `verify()`.
     #[sqlx::test(migrations = "../../crates/storage/migrations")]
@@ -1322,7 +1322,7 @@ mod tests {
         let project_id = ProjectId::new();
         seed_project(&pool, project_id).await;
         let secret_ciphertext = base64_encode(b"super-secret-webhook-key");
-        let storage = opengeo_storage::Storage::from_pool(pool.clone());
+        let storage = anseo_storage::Storage::from_pool(pool.clone());
         storage
             .webhooks()
             .insert(
@@ -1369,7 +1369,7 @@ mod tests {
         let raw = server.await.unwrap();
         let lower = raw.to_lowercase();
         assert!(
-            lower.contains("x-opengeo-signature: v1=t="),
+            lower.contains("x-anseo-signature: v1=t="),
             "missing signed header in request:\n{raw}"
         );
     }
@@ -1424,8 +1424,8 @@ mod tests {
 
     #[sqlx::test(migrations = "../../crates/storage/migrations")]
     async fn api_key_revoke_truly_removes_key(pool: sqlx::PgPool) {
-        use opengeo_core::secret_store::{AgeFileStore, SecretStoreError};
-        use opengeo_core::{Secret, SecretStore as _};
+        use anseo_core::secret_store::{AgeFileStore, SecretStoreError};
+        use anseo_core::{Secret, SecretStore as _};
 
         let _env_guard = SECRET_ENV_LOCK.lock().await;
 
@@ -1440,7 +1440,7 @@ mod tests {
         let tmp = std::env::temp_dir().join(format!("ogeo-revoke-test-{}", Ulid::new()));
         std::fs::create_dir_all(&tmp).unwrap();
         std::env::set_var("XDG_CONFIG_HOME", &tmp);
-        std::env::set_var(opengeo_core::AGE_PASSPHRASE_ENV, "test-revoke-pass");
+        std::env::set_var(anseo_core::AGE_PASSPHRASE_ENV, "test-revoke-pass");
 
         // Path `default_chain()` resolves its age-file leg to under our temp
         // XDG_CONFIG_HOME — seed + assert against that exact leg.
@@ -1481,7 +1481,7 @@ mod tests {
         }
 
         std::env::remove_var("XDG_CONFIG_HOME");
-        std::env::remove_var(opengeo_core::AGE_PASSPHRASE_ENV);
+        std::env::remove_var(anseo_core::AGE_PASSPHRASE_ENV);
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
@@ -1521,7 +1521,7 @@ mod tests {
 
     #[sqlx::test(migrations = "../../crates/storage/migrations")]
     async fn api_key_set_stores_key_in_chain(pool: sqlx::PgPool) {
-        use opengeo_core::SecretStore as _;
+        use anseo_core::SecretStore as _;
 
         let _env_guard = SECRET_ENV_LOCK.lock().await;
 
@@ -1530,7 +1530,7 @@ mod tests {
         let tmp = std::env::temp_dir().join(format!("ogeo-set-test-{}", Ulid::new()));
         std::fs::create_dir_all(&tmp).unwrap();
         std::env::set_var("XDG_CONFIG_HOME", &tmp);
-        std::env::set_var(opengeo_core::AGE_PASSPHRASE_ENV, "test-set-pass");
+        std::env::set_var(anseo_core::AGE_PASSPHRASE_ENV, "test-set-pass");
 
         let state = state_for(pool, ProjectId::new());
         let (code, Json(body)) = post_api_key_set(
@@ -1553,7 +1553,7 @@ mod tests {
 
         // The stored key must be resolvable through the same chain the live
         // provider registry reads.
-        let got = opengeo_core::default_chain().get("openai");
+        let got = anseo_core::default_chain().get("openai");
         assert_eq!(
             got.unwrap().expose(),
             "sk-fixture-stored",
@@ -1561,9 +1561,9 @@ mod tests {
         );
 
         // Clean up so a real keyring (dev box) isn't left polluted.
-        let _ = opengeo_core::default_chain().remove("openai");
+        let _ = anseo_core::default_chain().remove("openai");
         std::env::remove_var("XDG_CONFIG_HOME");
-        std::env::remove_var(opengeo_core::AGE_PASSPHRASE_ENV);
+        std::env::remove_var(anseo_core::AGE_PASSPHRASE_ENV);
         let _ = std::fs::remove_dir_all(&tmp);
     }
 

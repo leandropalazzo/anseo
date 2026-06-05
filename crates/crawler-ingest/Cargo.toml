@@ -1,5 +1,5 @@
 [package]
-name = "opengeo-crawler-ingest"
+name = "anseo-crawler-ingest"
 version = "0.6.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -7,8 +7,8 @@ license.workspace = true
 publish = false
 
 [dependencies]
-opengeo-core = { path = "../core", features = ["sqlx"] }
-opengeo-storage = { path = "../storage" }
+anseo-core = { path = "../core", features = ["sqlx"] }
+anseo-storage = { path = "../storage" }
 anyhow = { workspace = true }
 async-trait = "0.1"
 chrono = { workspace = true }

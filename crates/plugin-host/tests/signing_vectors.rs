@@ -3,11 +3,11 @@
 //! rotated key WITH a valid rotation claim, rotated key WITHOUT a claim, and an
 //! untrusted (non-root-signed) namespace claim.
 
-use ed25519_dalek::{Signer, SigningKey};
-use opengeo_plugin_host::signing::{
+use anseo_plugin_host::signing::{
     signing_digest, verify_signed_plugin, NamespaceClaim, RevocationList, SignatureStatus,
     SignedPlugin, SigningError,
 };
+use ed25519_dalek::{Signer, SigningKey};
 use rand::RngCore;
 
 fn gen_key() -> SigningKey {

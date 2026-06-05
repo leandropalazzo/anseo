@@ -12,12 +12,12 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use anseo_core::{Config, ProjectId};
+use anseo_providers::ProviderRegistry;
+use anseo_scheduler::events::LifecycleEvent;
+use anseo_storage::Storage;
 use axum::http::Method;
 use axum::Router;
-use opengeo_core::{Config, ProjectId};
-use opengeo_providers::ProviderRegistry;
-use opengeo_scheduler::events::LifecycleEvent;
-use opengeo_storage::Storage;
 use tokio::sync::{broadcast, RwLock};
 use tower_http::cors::{Any, CorsLayer};
 use ulid::Ulid;
@@ -45,7 +45,7 @@ pub struct AppState {
     /// surface; the write path returns a clear 503 if missing.
     pub config: Option<Arc<Config>>,
     /// Live `ProviderRegistry` constructed from configured secrets via
-    /// `opengeo_providers::registry::build_real_registry`. Providers
+    /// `anseo_providers::registry::build_real_registry`. Providers
     /// without a secret are absent here; the orchestrator synthesises a
     /// `failed` record for them on dispatch.
     pub provider_registry: Option<Arc<ProviderRegistry>>,
@@ -141,7 +141,7 @@ pub fn router(state: AppState) -> Router {
         // a valid API key. Only identified-tier paths are blocked; the
         // middleware fast-paths anonymous/aggregate endpoints.
         .route_layer(axum::middleware::from_fn(geo_gate_middleware))
-        // Story 0.11 — X-OpenGEO-Project header substrate. Layered
+        // Story 0.11 — X-Anseo-Project header substrate. Layered
         // INSIDE the auth gate so unauthenticated callers still get a
         // 401 before any project-header consideration. Each layer is
         // applied bottom-up by Axum, so this guard runs AFTER
@@ -157,7 +157,7 @@ pub fn router(state: AppState) -> Router {
 
     // Story 36.3 — operator-scoped project registry. These endpoints manage
     // the *set* of projects, so they are project-agnostic: gated by
-    // `require_api_key` but NOT by the `X-OpenGEO-Project` guard (you can't
+    // `require_api_key` but NOT by the `X-Anseo-Project` guard (you can't
     // select a project before listing/creating one). Nested at `/v1` so they
     // share the prefix without inheriting the per-request resolution layer.
     let v1_operator_surface = routes::projects::v1_router().route_layer(
@@ -173,13 +173,13 @@ pub fn router(state: AppState) -> Router {
         .nest("/v1", v1_operator_surface)
         .nest("/v1", v1_surface);
 
-    // `POST /test/seed` is registered only when OPENGEO_TEST_MODE=1. The
+    // `POST /test/seed` is registered only when ANSEO_TEST_MODE=1. The
     // env-var gate lives at router build time so production binaries never
     // expose the route, regardless of which HTTP layer middleware applies.
     if routes::test_seed::is_enabled_via_env() {
         tracing::warn!(
             event = "service.test_mode_enabled",
-            "OPENGEO_TEST_MODE=1 detected — mounting POST /test/seed. This MUST NOT be set in production."
+            "ANSEO_TEST_MODE=1 detected — mounting POST /test/seed. This MUST NOT be set in production."
         );
         base = base.merge(routes::test_seed::router());
     }
@@ -205,7 +205,7 @@ pub fn parse_project_id(s: &str) -> anyhow::Result<ProjectId> {
 /// Rules:
 /// 1. Bind address must parse as a `SocketAddr` (IP literal + port).
 /// 2. If the address is a loopback IP, accept (no auth gate needed).
-/// 3. If non-loopback AND `OPENGEO_TEST_MODE=1`, refuse — `/test/seed` is
+/// 3. If non-loopback AND `ANSEO_TEST_MODE=1`, refuse — `/test/seed` is
 ///    unauthenticated by design and must never reach the open internet.
 /// 4. If non-loopback AND zero active keys exist for this project, refuse —
 ///    a public bind with no keys is unauthenticated by definition.
@@ -215,22 +215,22 @@ pub fn check_bind_acceptable(
     active_keys_for_project: i64,
 ) -> Result<std::net::SocketAddr, String> {
     let socket = std::net::SocketAddr::from_str(bind_addr)
-        .map_err(|e| format!("invalid OPENGEO_API_BIND `{bind_addr}`: {e}"))?;
+        .map_err(|e| format!("invalid ANSEO_API_BIND `{bind_addr}`: {e}"))?;
     if socket.ip().is_loopback() {
         return Ok(socket);
     }
     if test_mode_enabled {
         return Err(format!(
-            "OPENGEO_API_BIND=`{bind_addr}` is non-loopback AND OPENGEO_TEST_MODE=1 — \
+            "ANSEO_API_BIND=`{bind_addr}` is non-loopback AND ANSEO_TEST_MODE=1 — \
              refusing to start. The /test/seed surface is unauthenticated by design; \
              it must never be reachable on a public interface."
         ));
     }
     if active_keys_for_project == 0 {
         return Err(format!(
-            "OPENGEO_API_BIND=`{bind_addr}` is non-loopback but no active API keys exist \
+            "ANSEO_API_BIND=`{bind_addr}` is non-loopback but no active API keys exist \
              for this project. Generate one with `ogeo api key create --name <slug>` \
-             before binding to a public interface, set OPENGEO_BOOTSTRAP_API_KEY for \
+             before binding to a public interface, set ANSEO_BOOTSTRAP_API_KEY for \
              trusted private-network stacks, or bind to 127.0.0.1 / ::1 for local-only \
              access."
         ));
@@ -239,7 +239,7 @@ pub fn check_bind_acceptable(
 }
 
 /// Derive the persisted `(sha256_hash, display_prefix)` for a bootstrap API
-/// key supplied verbatim via `OPENGEO_BOOTSTRAP_API_KEY`.
+/// key supplied verbatim via `ANSEO_BOOTSTRAP_API_KEY`.
 ///
 /// The boot path (`apps/api/src/main.rs`) seeds this key when a project has
 /// zero active keys, so a trusted private-network deployment — the Docker
@@ -254,10 +254,10 @@ pub fn check_bind_acceptable(
 /// the derivation pure (no DB) mirrors `check_bind_acceptable` so the policy
 /// is unit-testable without a live Postgres.
 pub fn bootstrap_key_material(plaintext: &str) -> Result<(String, String), String> {
-    use opengeo_core::api_key::{looks_like_key, sha256_hex, DISPLAY_PREFIX_LEN, KEY_PREFIX};
+    use anseo_core::api_key::{looks_like_key, sha256_hex, DISPLAY_PREFIX_LEN, KEY_PREFIX};
     if !looks_like_key(plaintext) {
         return Err(
-            "OPENGEO_BOOTSTRAP_API_KEY does not match the required `ogeo_<32 base62>` \
+            "ANSEO_BOOTSTRAP_API_KEY does not match the required `ogeo_<32 base62>` \
              shape; generate a valid value with `ogeo api key create` (or omit the env \
              var to keep the keyless-bind refusal)."
                 .to_string(),

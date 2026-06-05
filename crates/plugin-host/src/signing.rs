@@ -48,7 +48,7 @@ impl NamespaceClaim {
     /// machines (no map ordering, no wall clock).
     pub fn canonical_bytes(&self) -> Vec<u8> {
         let mut s = String::new();
-        s.push_str("opengeo-namespace-claim:v1\n");
+        s.push_str("anseo-namespace-claim:v1\n");
         s.push_str(&format!("namespace={}\n", self.namespace));
         s.push_str(&format!("keyid={}\n", self.keyid));
         s.push_str(&format!("pubkey={}\n", hex::encode(self.author_pubkey)));
@@ -211,10 +211,11 @@ pub fn verify_signed_plugin(
 }
 
 /// The compile-pinned first-party root public keys (§5.4.2). Set
-/// `OPENGEO_ROOT_PUBKEY` at build time to a comma-separated list of 64-char hex
+/// `ANSEO_ROOT_PUBKEY` at build time to a comma-separated list of 64-char hex
 /// Ed25519 public keys (multiple supported for rotation). Empty when unset.
+/// The deprecated name `OPENGEO_ROOT_PUBKEY` is also checked for back-compat.
 pub fn pinned_root_pubkeys() -> Vec<[u8; 32]> {
-    match option_env!("OPENGEO_ROOT_PUBKEY") {
+    match option_env!("ANSEO_ROOT_PUBKEY").or(option_env!("OPENGEO_ROOT_PUBKEY")) {
         None => Vec::new(),
         Some(raw) => raw
             .split(',')

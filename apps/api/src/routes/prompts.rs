@@ -14,15 +14,15 @@
 //! still render the row. Determinism contract: items are ordered by
 //! prompt name ascending.
 //!
-//! `X-OpenGEO-Project` is accepted but not consumed at this layer.
+//! `X-Anseo-Project` is accepted but not consumed at this layer.
 
+use anseo_core::{prompt_id_for, ProjectId, PromptId, ProviderName};
+use anseo_providers::ProviderRequest;
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Duration, Utc};
-use opengeo_core::{prompt_id_for, ProjectId, PromptId, ProviderName};
-use opengeo_providers::ProviderRequest;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
@@ -189,7 +189,7 @@ async fn create_prompt(
     }
 
     prompts
-        .insert(&opengeo_storage::models::PromptRow {
+        .insert(&anseo_storage::models::PromptRow {
             id,
             project_id,
             name: name.clone(),
@@ -410,7 +410,7 @@ async fn kpi_trend_handler(
     State(state): State<AppState>,
     Query(q): Query<KpiTrendQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let points = opengeo_analytics::kpi_trend(&state.storage, project_id, q.hours.unwrap_or(168))
+    let points = anseo_analytics::kpi_trend(&state.storage, project_id, q.hours.unwrap_or(168))
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "kpi trend fetch failed");
@@ -424,7 +424,7 @@ async fn kpi_trend_handler(
 }
 
 async fn fetch_summary(
-    storage: &opengeo_storage::Storage,
+    storage: &anseo_storage::Storage,
     project_id: ProjectId,
     since: DateTime<Utc>,
 ) -> Result<Vec<PromptRunSummaryItem>, sqlx::Error> {
@@ -659,7 +659,7 @@ async fn suggest_prompts(
     let (variants, competitors) = match state.storage.projects().get_brand(project_id).await {
         Ok(Some(row)) => {
             let comps: Vec<String> =
-                serde_json::from_value::<Vec<opengeo_core::CompetitorConfig>>(row.competitors)
+                serde_json::from_value::<Vec<anseo_core::CompetitorConfig>>(row.competitors)
                     .unwrap_or_default()
                     .into_iter()
                     .map(|c| c.name)

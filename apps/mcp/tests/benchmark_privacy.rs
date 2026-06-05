@@ -6,9 +6,9 @@
 //! Also asserts the unreachable-service failure maps to `UpstreamUnreachable`
 //! (FR-51 acceptance (d)).
 
-use opengeo_mcp::benchmark_client::{benchmark_user_agent, BenchmarkClient};
-use opengeo_mcp::tools::search_benchmarks::build_benchmark_query;
-use opengeo_wire_schema::mcp::tools::{SearchBenchmarksInput, Window};
+use anseo_mcp::benchmark_client::{benchmark_user_agent, BenchmarkClient};
+use anseo_mcp::tools::search_benchmarks::build_benchmark_query;
+use anseo_wire_schema::mcp::tools::{SearchBenchmarksInput, Window};
 
 fn sample_input() -> SearchBenchmarksInput {
     SearchBenchmarksInput {
@@ -65,7 +65,7 @@ fn privacy_floor_request_carries_no_local_identifiers() {
 #[test]
 fn user_agent_is_brand_free() {
     let ua = benchmark_user_agent();
-    assert!(ua.starts_with("opengeo-mcp/"));
+    assert!(ua.starts_with("anseo-mcp/"));
     assert!(ua.ends_with(" benchmark-search"));
 
     let client = BenchmarkClient::with_base_url("https://benchmark.opengeo.dev".into()).unwrap();
@@ -87,13 +87,13 @@ fn user_agent_is_brand_free() {
 /// (d) Unreachable benchmark service → `UpstreamUnreachable` (not internal).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn unreachable_benchmark_service_maps_to_upstream_unreachable() {
-    use opengeo_mcp::error::McpToolError;
-    use opengeo_mcp::http_client::ApiClient;
-    use opengeo_mcp::tools::{search_benchmarks::SearchBenchmarks, Tool};
-    use opengeo_wire_schema::mcp::McpErrorKind;
+    use anseo_mcp::error::McpToolError;
+    use anseo_mcp::http_client::ApiClient;
+    use anseo_mcp::tools::{search_benchmarks::SearchBenchmarks, Tool};
+    use anseo_wire_schema::mcp::McpErrorKind;
 
     // Point the benchmark client at a closed port → connection refused.
-    std::env::set_var("OPENGEO_BENCHMARK_URL", "http://127.0.0.1:9");
+    std::env::set_var("ANSEO_BENCHMARK_URL", "http://127.0.0.1:9");
 
     // The authed ApiClient is required by the signature but must be ignored.
     let api = ApiClient::new(
@@ -117,5 +117,5 @@ async fn unreachable_benchmark_service_maps_to_upstream_unreachable() {
         other => panic!("expected Upstream(UpstreamUnreachable), got {other:?}"),
     }
 
-    std::env::remove_var("OPENGEO_BENCHMARK_URL");
+    std::env::remove_var("ANSEO_BENCHMARK_URL");
 }

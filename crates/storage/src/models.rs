@@ -2,7 +2,7 @@
 //! manifests verbatim (Story 1.3 AC-3).
 //!
 //! `id` and FK columns use the ULID newtypes from
-//! [`opengeo_core::ids`] directly — the `sqlx` feature on `opengeo-core` brings
+//! [`anseo_core::ids`] directly — the `sqlx` feature on `anseo-core` brings
 //! the `sqlx::Type`/`Encode`/`Decode` impls (AC-9), so `sqlx::query_as!`
 //! decodes them without any call-site UUID conversion.
 //!
@@ -12,10 +12,10 @@
 //! typed `ProviderErrorKind` round-trip) are a Story 2.x concern; storage
 //! must not pre-empt them.
 
-use chrono::{DateTime, Utc};
-use opengeo_core::ids::{
+use anseo_core::ids::{
     CitationId, ClaimId, GroundTruthFactId, MentionId, ProjectId, PromptId, PromptRunId,
 };
+use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
 use uuid::Uuid;
 
@@ -38,7 +38,7 @@ pub struct BrandRow {
     /// Brand-name variants/aliases.
     pub variants: Vec<String>,
     /// Competitor set as a JSONB array of `{ name, variants }` objects,
-    /// mirroring `opengeo_core::CompetitorConfig`.
+    /// mirroring `anseo_core::CompetitorConfig`.
     pub competitors: JsonValue,
     /// Optional URL of the brand's owned website.
     pub site_url: Option<String>,

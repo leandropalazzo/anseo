@@ -6,11 +6,11 @@
 //! stay empty and every downstream analytic (brand rank, visibility by
 //! provider, share of voice) reads as "no data".
 
+use anseo_core::ids::{CitationId, ClaimId, MentionId, PromptRunId};
+use anseo_core::Config;
+use anseo_storage::models::{CitationRow, ExtractedClaimRow, MentionRow};
+use anseo_storage::Storage;
 use chrono::{DateTime, Utc};
-use opengeo_core::ids::{CitationId, ClaimId, MentionId, PromptRunId};
-use opengeo_core::Config;
-use opengeo_storage::models::{CitationRow, ExtractedClaimRow, MentionRow};
-use opengeo_storage::Storage;
 
 use crate::{
     extract_citations, extract_citations_from_annotations, extract_claims, extract_mentions,
@@ -33,7 +33,7 @@ pub async fn extract_and_persist(
     message_text: &str,
     raw_response: &serde_json::Value,
     now: DateTime<Utc>,
-) -> Result<(usize, usize, usize), opengeo_storage::Error> {
+) -> Result<(usize, usize, usize), anseo_storage::Error> {
     let mentions = extract_mentions(message_text, config);
     let citations = merge_citations(
         extract_citations(message_text),

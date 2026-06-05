@@ -12,7 +12,7 @@
 #   $8 = audit max-pages (mode=audit)
 #   $9 = mode (visibility|audit)
 #
-# Reads OPENGEO_API_KEY from env (consumers wire it via `env:` in the
+# Reads ANSEO_API_KEY from env (consumers wire it via `env:` in the
 # workflow step). Writes a $GITHUB_STEP_SUMMARY entry per FR-44 so the
 # PR view shows the result inline.
 #
@@ -30,7 +30,7 @@ PROMPT="${1:-}"
 BRAND="${2:-}"
 EXPECT_RANK_LTE="${3:-}"
 PROVIDER="${4:-}"
-API_BASE="${5:-https://api.opengeo.dev}"
+API_BASE="${5:-https://api.anseo.ai}"
 AUDIT_URL="${6:-}"
 AUDIT_FAIL_ON="${7:-high}"
 AUDIT_MAX_PAGES="${8:-25}"
@@ -49,10 +49,10 @@ if [ "$MODE" = "audit" ]; then
 
   RC=0
   ERR_FILE="$(mktemp)"
-  RESULT_JSON=$(ogeo "$@" 2>"$ERR_FILE") || RC=$?
+  RESULT_JSON=$(anseo "$@" 2>"$ERR_FILE") || RC=$?
   ERROR_TEXT=$(cat "$ERR_FILE")
   rm -f "$ERR_FILE"
-  printf 'ogeo invoked with: %s\nogeo replied: %s\n%s\n' "$*" "$RESULT_JSON" "$ERROR_TEXT" >&2
+  printf 'anseo invoked with: %s\nanseo replied: %s\n%s\n' "$*" "$RESULT_JSON" "$ERROR_TEXT" >&2
 
   AUDIT_SCORE=$(echo "$RESULT_JSON" | jq -r '.overall_score // 0' 2>/dev/null || echo 0)
   AUDIT_FAILED_FINDINGS=$(echo "$RESULT_JSON" | jq -r '.gate.failed_findings | length // 0' 2>/dev/null || echo 0)
@@ -64,7 +64,7 @@ if [ "$MODE" = "audit" ]; then
 
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     {
-      echo "## OpenGEO site audit"
+      echo "## Anseo site audit"
       echo ""
       echo "| Field | Value |"
       echo "| ----- | ----- |"
@@ -90,8 +90,8 @@ if [ "$MODE" != "visibility" ]; then
   exit 64
 fi
 
-if [ -z "${OPENGEO_API_KEY:-}" ]; then
-  echo "::error::OPENGEO_API_KEY env var is required. Set it via the workflow's env: block."
+if [ -z "${ANSEO_API_KEY:-}" ]; then
+  echo "::error::ANSEO_API_KEY env var is required. Set it via the workflow's env: block."
   exit 64
 fi
 if [ -z "$PROMPT" ] || [ -z "$BRAND" ] || [ -z "$EXPECT_RANK_LTE" ]; then
@@ -114,15 +114,15 @@ fi
 
 # Run the CLI; capture stdout (JSON) for parsing + propagate stderr.
 RC=0
-RESULT_JSON=$(ogeo "$@" 2>&1) || RC=$?
+RESULT_JSON=$(anseo "$@" 2>&1) || RC=$?
 
 # Echo the raw CLI output to stderr so CI logs (and the bats harness)
 # can see exactly what the action invoked + what it received. Tests pin
 # the `--provider <name>` arg against this trace.
-printf 'ogeo invoked with: %s\nogeo replied: %s\n' "$*" "$RESULT_JSON" >&2
+printf 'anseo invoked with: %s\nanseo replied: %s\n' "$*" "$RESULT_JSON" >&2
 
 if [ "$RC" -eq 2 ]; then
-  echo "::error::OpenGEO provider error — see CLI output above."
+  echo "::error::Anseo provider error — see CLI output above."
   exit 2
 fi
 
@@ -138,7 +138,7 @@ MATCHED_RUNS=$(echo "$RESULT_JSON" | jq -r '.matched_runs // 0')
 # Inline-render the result in the PR step summary (FR-44).
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
-    echo "## OpenGEO visibility check"
+    echo "## Anseo visibility check"
     echo ""
     echo "| Field | Value |"
     echo "| ----- | ----- |"

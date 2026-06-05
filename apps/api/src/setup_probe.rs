@@ -34,7 +34,7 @@ const DEFAULT_PROBE_TIMEOUT: Duration = Duration::from_secs(1);
 const DOCKER_PROBE_TIMEOUT: Duration = Duration::from_millis(500);
 /// The age-file secret backend decrypts via scrypt with an auto-tuned work
 /// factor targeting ~1s, so a cold read (cache miss at boot) can exceed the
-/// default 1s budget. opengeo_core caches the decrypted map by mtime, so only
+/// default 1s budget. anseo_core caches the decrypted map by mtime, so only
 /// the first read after boot pays this; give it headroom so it doesn't falsely
 /// report every provider as `configured: false`.
 const API_KEYS_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -349,15 +349,15 @@ pub async fn probe_webhook_target(state: &AppState) -> WebhookSection {
 }
 
 /// API key inventory. Reads provider names from the configured secret
-/// store chain (`opengeo_core::default_chain`). List-only: we report
+/// store chain (`anseo_core::default_chain`). List-only: we report
 /// "configured: true/false" per provider; we do NOT return the key
 /// value. Bounded by the default timeout because the keyring backend
 /// can block on macOS keychain prompts.
 pub async fn probe_api_keys() -> Vec<ApiKeyEntry> {
-    let providers = opengeo_core::ProviderName::all_wire_names();
+    let providers = anseo_core::ProviderName::all_wire_names();
     let fut = tokio::task::spawn_blocking(move || {
-        use opengeo_core::SecretStore as _;
-        let store = opengeo_core::default_chain();
+        use anseo_core::SecretStore as _;
+        let store = anseo_core::default_chain();
         let mut out = Vec::with_capacity(providers.len());
         for &name in providers {
             // We only check presence — `get` returns NotFound when the

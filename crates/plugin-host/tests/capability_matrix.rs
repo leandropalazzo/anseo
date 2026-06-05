@@ -2,10 +2,10 @@
 //! the closed §6.1 capability catalog, plus the §6.4 breaking-upgrade refusal.
 //! Every refusal is a structured [`CapabilityViolation`], not a panic.
 
-use opengeo_plugin_host::capability::{
+use anseo_plugin_host::capability::{
     new_capabilities, upgrade_plan, CapabilitySet, CapabilityViolation, HostAction, UpgradeRefused,
 };
-use opengeo_plugin_manifest::Capability;
+use anseo_plugin_manifest::Capability;
 
 fn set(caps: Vec<Capability>) -> CapabilitySet {
     CapabilitySet::new(caps)

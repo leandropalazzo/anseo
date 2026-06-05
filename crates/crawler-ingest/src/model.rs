@@ -1,8 +1,8 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
+use anseo_core::ProjectId;
 use chrono::{DateTime, Utc};
-use opengeo_core::ProjectId;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -24,9 +24,9 @@ pub enum CrawlerIngestError {
     ClickHouseStatus { status: u16, body: String },
 }
 
-impl From<CrawlerIngestError> for opengeo_core::OpenGeoError {
+impl From<CrawlerIngestError> for anseo_core::OpenGeoError {
     fn from(err: CrawlerIngestError) -> Self {
-        opengeo_core::OpenGeoError::Internal(anyhow::anyhow!(err))
+        anseo_core::OpenGeoError::Internal(anyhow::anyhow!(err))
     }
 }
 

@@ -5,7 +5,7 @@
 use super::{parse_schema, Tool};
 use crate::error::McpToolError;
 use crate::http_client::ApiClient;
-use opengeo_wire_schema::mcp::tools::{AuditFindingRecord, AuditInput, AuditOutput};
+use anseo_wire_schema::mcp::tools::{AuditFindingRecord, AuditInput, AuditOutput};
 use ulid::Ulid;
 
 const INPUT_SCHEMA: &str =
@@ -14,8 +14,8 @@ const INPUT_SCHEMA: &str =
 pub struct Audit;
 
 fn make_upstream_err(msg: &str) -> McpToolError {
-    McpToolError::Upstream(opengeo_wire_schema::mcp::McpError {
-        kind: opengeo_wire_schema::mcp::McpErrorKind::InternalError,
+    McpToolError::Upstream(anseo_wire_schema::mcp::McpError {
+        kind: anseo_wire_schema::mcp::McpErrorKind::InternalError,
         message: msg.to_string(),
         details: None,
         request_id: Ulid::new().to_string(),

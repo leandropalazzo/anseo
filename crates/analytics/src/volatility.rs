@@ -207,7 +207,7 @@ mod tests {
         // Pin the cross-module consistency: anomaly + volatility should
         // use the same 14-sample default so dashboards built on either
         // metric share the same context window.
-        use opengeo_core::AnomalySensitivity;
+        use anseo_core::AnomalySensitivity;
         let anomaly_default = AnomalySensitivity::default();
         assert_eq!(DEFAULT_WINDOW_SAMPLES, anomaly_default.window_samples);
     }

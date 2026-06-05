@@ -15,7 +15,7 @@ function subscribe(cb: () => void): () => void {
   // event in this tab. We mirror the new value onto data-theme so the
   // MutationObserver above picks it up and triggers the React re-render.
   const onStorage = (event: StorageEvent) => {
-    if (event.key !== "ogeo-theme") return;
+    if (event.key !== "anseo-theme") return;
     const next = event.newValue === "dark" ? "dark" : "light";
     if (document.documentElement.getAttribute("data-theme") !== next) {
       document.documentElement.setAttribute("data-theme", next);
@@ -57,7 +57,7 @@ export function ThemeToggle() {
       onClick={() => {
         document.documentElement.setAttribute("data-theme", next);
         try {
-          localStorage.setItem("ogeo-theme", next);
+          localStorage.setItem("anseo-theme", next);
         } catch {
           /* localStorage may be unavailable; theme still applies for this session */
         }

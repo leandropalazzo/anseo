@@ -10,10 +10,10 @@
 //! Secrets are stored as `secret_ciphertext` (TEXT) so the column shape
 //! survives a future at-rest-encryption change. The caller is responsible
 //! for encrypting before write and decrypting after read; the in-tree
-//! `opengeo_core::secret_store` keychain backend is the Phase 2 default.
+//! `anseo_core::secret_store` keychain backend is the Phase 2 default.
 
+use anseo_core::ids::ProjectId;
 use chrono::{DateTime, Utc};
-use opengeo_core::ids::ProjectId;
 use serde_json::Value as JsonValue;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;

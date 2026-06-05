@@ -16,8 +16,8 @@ use crate::tools::{self, Tool};
 ///
 /// Precedence (highest first):
 ///   1. `tools/call` params `project` field (all transports)
-///   2. `X-OpenGEO-Project` HTTP header (HTTP/SSE transport)
-///   3. The `ApiClient`'s boot-time `OPENGEO_PROJECT_ID` (env fallback)
+///   2. `X-Anseo-Project` HTTP header (HTTP/SSE transport)
+///   3. The `ApiClient`'s boot-time `ANSEO_PROJECT_ID` (env fallback)
 ///
 /// Only the first non-empty selector is used; the others are ignored.
 #[derive(Debug, Clone, Default)]
@@ -107,7 +107,7 @@ impl Dispatcher {
         // architecture-phase3-mcp-server.md §2.3
         json!({
             "protocolVersion": "2024-11-05",
-            "serverInfo": { "name": "opengeo-mcp", "version": self.server_version },
+            "serverInfo": { "name": "anseo-mcp", "version": self.server_version },
             "capabilities": {
                 "tools":      { "listChanged": false },
                 "resources":  null,

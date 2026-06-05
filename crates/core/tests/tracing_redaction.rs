@@ -1,6 +1,6 @@
 //! Tracing redaction integration (P0-021, R-002).
 //!
-//! Asserts the contract between `opengeo_core::Secret` and the `tracing`
+//! Asserts the contract between `anseo_core::Secret` and the `tracing`
 //! stack: when a `Secret`-wrapped value is logged via the `?` / `%` field
 //! formatters, the structured log output must contain `[REDACTED]` and must
 //! NOT contain the raw secret material.
@@ -17,7 +17,7 @@
 //! trace: P0-020 (R-002 Debug redaction — integration)
 //! trace: P0-021 (R-002 tracing field redaction — integration)
 
-use opengeo_core::Secret;
+use anseo_core::Secret;
 use tracing::info;
 use tracing_test::traced_test;
 

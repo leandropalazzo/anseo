@@ -109,7 +109,7 @@ pub struct RunPromptOutput {
     /// Always `true` for `run_prompt` — provider calls are non-deterministic.
     /// Surfaced so agent loops can decide whether to cache.
     pub non_deterministic_pipeline: bool,
-    /// Correlation ID echoed from `X-OpenGEO-Request-Id`.
+    /// Correlation ID echoed from `X-Anseo-Request-Id`.
     pub trace_id: String,
 }
 

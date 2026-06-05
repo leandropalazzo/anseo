@@ -1,11 +1,11 @@
-//! P0-121 (test-design Epic 12) — `OPENGEO_API_BIND` non-loopback refusal.
+//! P0-121 (test-design Epic 12) — `ANSEO_API_BIND` non-loopback refusal.
 //!
-//! Exercises `opengeo_api::check_bind_acceptable` directly. The boot path
+//! Exercises `anseo_api::check_bind_acceptable` directly. The boot path
 //! in `apps/api/src/main.rs` is a thin wrapper around this function plus
 //! env-var reads and a DB count, so unit coverage here pins the entire
 //! policy without needing a live Postgres.
 
-use opengeo_api::{bootstrap_key_material, check_bind_acceptable};
+use anseo_api::{bootstrap_key_material, check_bind_acceptable};
 
 #[test]
 fn loopback_v4_with_zero_keys_no_test_mode_accepts() {
@@ -34,11 +34,11 @@ fn non_loopback_with_active_key_no_test_mode_accepts() {
 
 #[test]
 fn non_loopback_with_active_key_but_test_mode_refuses() {
-    // Decision 2: OPENGEO_TEST_MODE=1 makes /test/seed reachable
+    // Decision 2: ANSEO_TEST_MODE=1 makes /test/seed reachable
     // unauthenticated. A public bind with TEST_MODE on must refuse
     // regardless of key count.
     let err = check_bind_acceptable("0.0.0.0:8080", true, 5).unwrap_err();
-    assert!(err.contains("OPENGEO_TEST_MODE=1"));
+    assert!(err.contains("ANSEO_TEST_MODE=1"));
     assert!(err.contains("/test/seed"));
 }
 
@@ -53,7 +53,7 @@ fn loopback_with_test_mode_still_accepts() {
 #[test]
 fn malformed_bind_addr_returns_descriptive_error() {
     let err = check_bind_acceptable("localhost:8080", false, 1).unwrap_err();
-    assert!(err.contains("invalid OPENGEO_API_BIND"));
+    assert!(err.contains("invalid ANSEO_API_BIND"));
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn ipv6_link_local_is_non_loopback() {
 
 #[test]
 fn bootstrap_key_material_derives_hash_and_prefix_for_valid_key() {
-    use opengeo_core::api_key::{sha256_hex, DISPLAY_PREFIX_LEN, KEY_PREFIX};
+    use anseo_core::api_key::{sha256_hex, DISPLAY_PREFIX_LEN, KEY_PREFIX};
     let plaintext = format!("{KEY_PREFIX}{}", "A".repeat(32));
     let (hash, prefix) = bootstrap_key_material(&plaintext).unwrap();
     // Hash must match the same sha256_hex the auth middleware computes from

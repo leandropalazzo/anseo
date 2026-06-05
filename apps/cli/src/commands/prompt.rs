@@ -17,10 +17,10 @@
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
+use anseo_core::{Config, OpenGeoError, PromptConfig};
 use clap::{Args, ValueEnum};
-use opengeo_core::{Config, OpenGeoError, PromptConfig};
 
-const DEFAULT_CONFIG_PATH: &str = "opengeo.yaml";
+const DEFAULT_CONFIG_PATH: &str = "anseo.yaml";
 
 #[derive(Debug, Args)]
 pub struct AddArgs {
@@ -60,7 +60,8 @@ pub enum ListFormat {
 }
 
 fn resolve_config_path(arg: Option<PathBuf>) -> PathBuf {
-    arg.unwrap_or_else(|| PathBuf::from(DEFAULT_CONFIG_PATH))
+    let path = arg.unwrap_or_else(|| PathBuf::from(DEFAULT_CONFIG_PATH));
+    Config::auto_migrate_config_filename(&path, "opengeo.yaml")
 }
 
 pub fn run_add(args: AddArgs) -> Result<(), OpenGeoError> {

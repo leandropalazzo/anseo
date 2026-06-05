@@ -16,10 +16,10 @@
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
+use anseo_core::OpenGeoError;
 use clap::Args;
-use opengeo_core::OpenGeoError;
 
-use crate::scaffold::{GITIGNORE, OPENGEO_YAML, README};
+use crate::scaffold::{ANSEO_YAML, GITIGNORE, README};
 
 #[derive(Debug, Args)]
 pub struct InitArgs {
@@ -40,7 +40,7 @@ pub struct InitArgs {
 /// Each scaffolded file as a `(path, contents)` pair.
 fn scaffold_files() -> [(&'static str, &'static str); 3] {
     [
-        ("opengeo.yaml", OPENGEO_YAML),
+        ("anseo.yaml", ANSEO_YAML),
         (".gitignore", GITIGNORE),
         ("README.md", README),
     ]
@@ -102,8 +102,8 @@ pub fn run(args: InitArgs) -> Result<(), OpenGeoError> {
         write_file(&path, contents)?;
     }
 
-    eprintln!("Scaffolded OpenGEO project at {}.", dir.display());
-    eprintln!("Next: edit opengeo.yaml, then run `ogeo login openai` (or anthropic).");
+    eprintln!("Scaffolded Anseo project at {}.", dir.display());
+    eprintln!("Next: edit anseo.yaml, then run `anseo login openai` (or anthropic).");
     Ok(())
 }
 

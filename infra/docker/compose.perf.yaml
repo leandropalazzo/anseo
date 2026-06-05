@@ -36,7 +36,7 @@
 #
 # All host ports bind to 127.0.0.1 to keep the perf stack localhost-only.
 
-name: opengeo-perf
+name: anseo-perf
 
 services:
   postgres:
@@ -102,13 +102,13 @@ services:
       retries: 30
       start_period: 3s
 
-  opengeo-api:
+  anseo-api:
     # Reuse the existing apps/api/Dockerfile — no new Rust dep per the
     # Story 0.2 hard constraint.
     build:
       context: ../..
       dockerfile: apps/api/Dockerfile
-    image: ${OPENGEO_API_IMAGE:-opengeo/api:dev}
+    image: ${ANSEO_API_IMAGE:-anseo/api:dev}
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://opengeo:opengeo@postgres:5432/opengeo
@@ -132,10 +132,10 @@ services:
       retries: 30
       start_period: 10s
 
-  opengeo-worker:
+  anseo-worker:
     # apps/worker has no Dockerfile yet (Phase 1 placeholder uses
     # busybox). For the perf ladder we run the worker out-of-process on
-    # the host via `cargo run -p opengeo-worker` driven by
+    # the host via `cargo run -p anseo-worker` driven by
     # scripts/perf-live-burst.sh, pointed at this Postgres on
     # 127.0.0.1:25432. The service is declared here so the topology in
     # the YAML matches the operational model — but is overridden to a

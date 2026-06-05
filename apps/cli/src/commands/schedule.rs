@@ -2,13 +2,13 @@
 
 use std::path::{Path, PathBuf};
 
+use anseo_core::{Config, OpenGeoError, ProviderName, ScheduleConfig, SCHEMA_VERSION_V0_2};
+use anseo_providers::cost::DEFAULT_PROJECT_MONTHLY_CAP_USD;
+use anseo_scheduler::project_schedule_cost;
 use chrono::Utc;
 use clap::{Args, ValueEnum};
-use opengeo_core::{Config, OpenGeoError, ProviderName, ScheduleConfig, SCHEMA_VERSION_V0_2};
-use opengeo_providers::cost::DEFAULT_PROJECT_MONTHLY_CAP_USD;
-use opengeo_scheduler::project_schedule_cost;
 
-const DEFAULT_CONFIG_PATH: &str = "opengeo.yaml";
+const DEFAULT_CONFIG_PATH: &str = "anseo.yaml";
 
 #[derive(Debug, Args)]
 pub struct AddArgs {
@@ -29,7 +29,7 @@ pub struct AddArgs {
     pub providers: Vec<String>,
 
     /// Debounce window in minutes.
-    #[arg(long, default_value_t = opengeo_core::DEFAULT_SCHEDULE_DEBOUNCE_MINUTES)]
+    #[arg(long, default_value_t = anseo_core::DEFAULT_SCHEDULE_DEBOUNCE_MINUTES)]
     pub debounce_minutes: u32,
 
     /// Allow projected monthly schedule cost above the project cap.

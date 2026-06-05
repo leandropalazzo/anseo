@@ -6,10 +6,10 @@
 
 #![cfg(feature = "live_db_tests")]
 
-use opengeo_analytics::metrics_store::postgres::PostgresMetricsStore;
-use opengeo_analytics::metrics_store::{MetricsStore, SummaryParams, TrendParams};
-use opengeo_core::ProjectId;
-use opengeo_storage::Storage;
+use anseo_analytics::metrics_store::postgres::PostgresMetricsStore;
+use anseo_analytics::metrics_store::{MetricsStore, SummaryParams, TrendParams};
+use anseo_core::ProjectId;
+use anseo_storage::Storage;
 use std::sync::Arc;
 
 async fn fresh_storage() -> Arc<Storage> {

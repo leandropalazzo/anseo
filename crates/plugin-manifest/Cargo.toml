@@ -1,5 +1,5 @@
 [package]
-name = "opengeo-plugin-manifest"
+name = "anseo-plugin-manifest"
 version = "0.6.0"
 edition.workspace = true
 rust-version.workspace = true

@@ -1,9 +1,9 @@
 //! DB-authoritative brand config + identity re-key on rename.
 
+use anseo_core::{project_id_for_name, prompt_id_for, ProjectId, PromptId};
+use anseo_storage::models::{ProjectRow, PromptRow};
+use anseo_storage::Storage;
 use chrono::Utc;
-use opengeo_core::{project_id_for_name, prompt_id_for, ProjectId, PromptId};
-use opengeo_storage::models::{ProjectRow, PromptRow};
-use opengeo_storage::Storage;
 use serde_json::json;
 use sqlx::PgPool;
 

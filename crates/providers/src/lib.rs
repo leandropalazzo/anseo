@@ -6,7 +6,7 @@
 //!   API they're hitting.
 //! - Phase 1 adapters: [`OpenAiProvider`], [`AnthropicProvider`]. Both use
 //!   `reqwest` with a per-call timeout and map every failure mode into the
-//!   closed [`opengeo_core::ProviderErrorKind`] taxonomy.
+//!   closed [`anseo_core::ProviderErrorKind`] taxonomy.
 //! - A pre-flight model allowlist used by `Provider::validate_model` so the
 //!   CLI rejects unsupported model names *before* making any API call.
 //! - A [`MockProvider`] for tests/CI — canned responses, configurable
@@ -32,7 +32,7 @@ pub mod registry;
 use async_trait::async_trait;
 use std::time::Duration;
 
-use opengeo_core::{ProviderErrorKind, ProviderName, RequestId, Secret};
+use anseo_core::{ProviderErrorKind, ProviderName, RequestId, Secret};
 
 /// What the orchestrator sends to a provider for a single Prompt Run.
 #[derive(Debug, Clone)]
@@ -45,7 +45,7 @@ pub struct ProviderRequest {
     /// as opaque JSON so the schema remains stable across provider quirks.
     pub request_parameters: serde_json::Value,
     pub timeout: Duration,
-    /// Correlation ID. Threaded into HTTP headers as `X-OpenGEO-Request-Id`.
+    /// Correlation ID. Threaded into HTTP headers as `X-Anseo-Request-Id`.
     pub request_id: RequestId,
 }
 

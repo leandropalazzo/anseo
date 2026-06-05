@@ -15,8 +15,8 @@
 //! `AnomalyVerdict` shape; FR-26a's Phase 2 budget is z-score only.
 
 use super::{AnomalyKind, AnomalyVerdict};
+use anseo_core::ProviderName;
 use chrono::{DateTime, Utc};
-use opengeo_core::ProviderName;
 use serde_json::json;
 
 #[derive(Debug, Clone, PartialEq)]

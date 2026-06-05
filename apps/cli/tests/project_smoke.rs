@@ -15,13 +15,13 @@ use assert_cmd::Command;
 use predicates::str::contains;
 use tempfile::TempDir;
 
-fn ogeo() -> Command {
-    Command::cargo_bin("ogeo").expect("ogeo binary built")
+fn anseo() -> Command {
+    Command::cargo_bin("anseo").expect("anseo binary built")
 }
 
 fn scaffold() -> TempDir {
     let dir = TempDir::new().unwrap();
-    ogeo()
+    anseo()
         .args(["init", "--dir"])
         .arg(dir.path())
         .assert()
@@ -31,7 +31,7 @@ fn scaffold() -> TempDir {
 
 #[test]
 fn project_help_lists_all_three_verbs() {
-    let assert = ogeo().args(["project", "--help"]).assert().success();
+    let assert = anseo().args(["project", "--help"]).assert().success();
     let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     for verb in ["list", "create", "use"] {
         assert!(
@@ -44,7 +44,7 @@ fn project_help_lists_all_three_verbs() {
 #[test]
 fn project_flag_is_global_and_documented() {
     // The `--project` flag must be visible on the top-level help (global flag).
-    let assert = ogeo().args(["--help"]).assert().success();
+    let assert = anseo().args(["--help"]).assert().success();
     let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     assert!(
         stdout.contains("--project"),
@@ -54,7 +54,7 @@ fn project_flag_is_global_and_documented() {
 
 #[test]
 fn project_list_without_database_url_fails_with_config_error() {
-    ogeo()
+    anseo()
         .env_remove("DATABASE_URL")
         .args(["project", "list"])
         .assert()
@@ -66,7 +66,7 @@ fn project_list_without_database_url_fails_with_config_error() {
 #[test]
 fn project_list_json_flag_is_accepted() {
     // Parsing must accept `--json`; run still fails at the DATABASE_URL guard.
-    ogeo()
+    anseo()
         .env_remove("DATABASE_URL")
         .args(["project", "list", "--json"])
         .assert()
@@ -77,7 +77,7 @@ fn project_list_json_flag_is_accepted() {
 
 #[test]
 fn project_create_without_database_url_fails_with_config_error() {
-    ogeo()
+    anseo()
         .env_remove("DATABASE_URL")
         .args(["project", "create", "Sunski"])
         .assert()
@@ -90,7 +90,7 @@ fn project_create_without_database_url_fails_with_config_error() {
 fn project_create_accepts_variant_and_site_url_flags() {
     // Parsing must accept the optional flags; the run still fails at the
     // DATABASE_URL guard, proving the flags are wired without needing a DB.
-    ogeo()
+    anseo()
         .env_remove("DATABASE_URL")
         .args([
             "project",
@@ -109,7 +109,7 @@ fn project_create_accepts_variant_and_site_url_flags() {
 
 #[test]
 fn project_use_without_database_url_fails_with_config_error() {
-    ogeo()
+    anseo()
         .env_remove("DATABASE_URL")
         .args(["project", "use", "Sunski"])
         .assert()
@@ -124,8 +124,8 @@ fn global_project_flag_overrides_on_a_resolving_verb() {
     // DB the run still fails at the DATABASE_URL guard, proving the override is
     // parsed and threaded before any resolution work.
     let dir = scaffold();
-    let config_path = dir.path().join("opengeo.yaml");
-    ogeo()
+    let config_path = dir.path().join("anseo.yaml");
+    anseo()
         .env_remove("DATABASE_URL")
         .args(["crawlers", "--project", "Acme", "--config"])
         .arg(&config_path)
@@ -138,7 +138,7 @@ fn global_project_flag_overrides_on_a_resolving_verb() {
 #[test]
 fn global_project_flag_position_independent() {
     // A global flag must parse whether it precedes or follows the subcommand.
-    ogeo()
+    anseo()
         .env_remove("DATABASE_URL")
         .args(["--project", "Acme", "project", "list"])
         .assert()

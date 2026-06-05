@@ -7,7 +7,7 @@
 //!    Credential Manager).
 //! 2. [`AgeFileStore`] — age-passphrase-encrypted file. Fallback for headless
 //!    environments (CI runners, ssh-only servers) where no Secret Service
-//!    daemon is reachable. Passphrase read from `OPENGEO_KEYRING_PASSPHRASE`.
+//!    daemon is reachable. Passphrase read from `ANSEO_KEYRING_PASSPHRASE`.
 //! 3. [`InMemoryStore`] — process-local map. Used by integration tests and as
 //!    a last-ditch fallback inside `ChainedStore` so a test or one-shot CI
 //!    command can run without touching disk.
@@ -23,7 +23,7 @@
 //! | Key class       | Storage key shape              | Owner                             |
 //! |-----------------|--------------------------------|-----------------------------------|
 //! | Provider secret | `<project_id>:<provider>`      | [`provider_secret_key`] (this module) |
-//! | Benchmark KEK   | `benchmark-kek:<project_id>`  | `opengeo_benchmark::kek_secret_key` |
+//! | Benchmark KEK   | `benchmark-kek:<project_id>`  | `anseo_benchmark::kek_secret_key` |
 //!
 //! The namespaces are structurally disjoint: a `ProjectId` is a 26-character
 //! Crockford base32 ULID; the literal `"benchmark-kek"` is 13 characters and
@@ -32,7 +32,7 @@
 //! `project_id` string appears in both.
 //!
 //! The constant [`BENCHMARK_KEK_KEY_PREFIX`] is declared here (rather than in
-//! `opengeo-benchmark`) so the provider-key call site can document and enforce
+//! `anseo-benchmark`) so the provider-key call site can document and enforce
 //! the non-collision invariant without creating a circular dependency.
 //!
 //! ## Durability semantics
@@ -60,11 +60,16 @@ use crate::Secret;
 
 /// Service identifier used by the `keyring` backend. Stable across versions
 /// so a user's stored keys survive upgrades.
-pub const KEYRING_SERVICE: &str = "opengeo";
+pub const KEYRING_SERVICE: &str = "anseo";
 
 /// Environment variable that supplies the age passphrase for
 /// [`AgeFileStore`].
-pub const AGE_PASSPHRASE_ENV: &str = "OPENGEO_KEYRING_PASSPHRASE";
+pub const AGE_PASSPHRASE_ENV: &str = "ANSEO_KEYRING_PASSPHRASE";
+
+/// Deprecated alias for [`AGE_PASSPHRASE_ENV`]. Accepted for one release;
+/// will be removed in the next major version.
+#[deprecated(since = "0.7.0", note = "use ANSEO_KEYRING_PASSPHRASE instead")]
+pub const AGE_PASSPHRASE_ENV_LEGACY: &str = "OPENGEO_KEYRING_PASSPHRASE";
 
 /// Errors returned by any [`SecretStore`] backend.
 ///
@@ -383,7 +388,7 @@ fn map_keyring(err: keyring::Error) -> SecretStoreError {
 
 /// Age-passphrase-encrypted file backend. Stores a `{provider: secret}`
 /// map serialized as JSON, then armored-age-encrypted with the passphrase in
-/// `OPENGEO_KEYRING_PASSPHRASE`. The on-disk format is intentionally simple
+/// `ANSEO_KEYRING_PASSPHRASE`. The on-disk format is intentionally simple
 /// so a user can `age -d` the file with their passphrase to recover keys.
 ///
 /// Default path: `<config-dir>/opengeo/secrets.age`, where `<config-dir>` is
@@ -405,8 +410,10 @@ impl AgeFileStore {
     }
 
     fn read_passphrase() -> Result<secrecy::SecretString, SecretStoreError> {
-        let raw =
-            std::env::var(AGE_PASSPHRASE_ENV).map_err(|_| SecretStoreError::MissingPassphrase)?;
+        // Check new ANSEO_* name first, then fall back to deprecated OPENGEO_* alias.
+        let raw = std::env::var(AGE_PASSPHRASE_ENV)
+            .or_else(|_| std::env::var("OPENGEO_KEYRING_PASSPHRASE"))
+            .map_err(|_| SecretStoreError::MissingPassphrase)?;
         Ok(secrecy::SecretString::new(raw))
     }
 
@@ -800,13 +807,19 @@ impl SecretStore for ChainedStore {
 /// backend can *block* trying to reach a non-existent D-Bus daemon, stalling
 /// every `get`/`set` until an upstream timeout fires. Setting this makes the
 /// chain go straight to the age-file (durable) and in-memory legs.
-pub const DISABLE_KEYRING_ENV: &str = "OPENGEO_DISABLE_KEYRING";
+pub const DISABLE_KEYRING_ENV: &str = "ANSEO_DISABLE_KEYRING";
+
+/// Deprecated alias for [`DISABLE_KEYRING_ENV`]. Accepted for one release;
+/// will be removed in the next major version.
+#[deprecated(since = "0.7.0", note = "use ANSEO_DISABLE_KEYRING instead")]
+pub const DISABLE_KEYRING_ENV_LEGACY: &str = "OPENGEO_DISABLE_KEYRING";
 
 fn keyring_disabled() -> bool {
-    matches!(
-        std::env::var(DISABLE_KEYRING_ENV).ok().as_deref(),
-        Some("1") | Some("true") | Some("yes")
-    )
+    // Check new ANSEO_* name first, then fall back to deprecated OPENGEO_* alias.
+    let val = std::env::var(DISABLE_KEYRING_ENV)
+        .ok()
+        .or_else(|| std::env::var("OPENGEO_DISABLE_KEYRING").ok());
+    matches!(val.as_deref(), Some("1") | Some("true") | Some("yes"))
 }
 
 /// Default backend chain for the CLI: keyring → age-file (when default path

@@ -6,7 +6,7 @@
 //! distinct from [`crate::http_client::ApiClient`]:
 //!
 //! - It carries **no API key** (no `Authorization` header).
-//! - It carries **no project/brand identifier** (no `X-OpenGEO-Project`,
+//! - It carries **no project/brand identifier** (no `X-Anseo-Project`,
 //!   no `Project-Id`).
 //! - Its `User-Agent` is a fixed `opengeo-mcp/<version> benchmark-search`
 //!   string that contains no brand name.
@@ -22,12 +22,12 @@ use std::time::Duration;
 use reqwest::header::USER_AGENT;
 
 /// Default public benchmark service base URL (overridable via
-/// `OPENGEO_BENCHMARK_URL` for self-hosted / test deployments).
+/// `ANSEO_BENCHMARK_URL` for self-hosted / test deployments).
 const DEFAULT_BENCHMARK_URL: &str = "https://benchmark.opengeo.dev";
 
 /// Fixed User-Agent for benchmark requests. No brand name (privacy floor).
 pub fn benchmark_user_agent() -> String {
-    format!("opengeo-mcp/{} benchmark-search", env!("CARGO_PKG_VERSION"))
+    format!("anseo-mcp/{} benchmark-search", env!("CARGO_PKG_VERSION"))
 }
 
 /// Headerless client to the public benchmark service.
@@ -38,11 +38,11 @@ pub struct BenchmarkClient {
 }
 
 impl BenchmarkClient {
-    /// Build from environment. Reads `OPENGEO_BENCHMARK_URL` (default
+    /// Build from environment. Reads `ANSEO_BENCHMARK_URL` (default
     /// [`DEFAULT_BENCHMARK_URL`]). Never reads any API key or project value —
     /// that is the point.
     pub fn from_env() -> anyhow::Result<Self> {
-        let base_url = std::env::var("OPENGEO_BENCHMARK_URL")
+        let base_url = std::env::var("ANSEO_BENCHMARK_URL")
             .unwrap_or_else(|_| DEFAULT_BENCHMARK_URL.to_string());
         Self::with_base_url(base_url)
     }

@@ -21,15 +21,15 @@
 
 use std::sync::Arc;
 
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use opengeo_api::{router, AppState};
-use opengeo_core::api_key::{generate as gen_key, API_KEY_HEADER};
-use opengeo_core::ProjectId;
-use opengeo_storage::models::{ProjectRow, PromptRow};
-use opengeo_storage::repositories::{
+use anseo_api::{router, AppState};
+use anseo_core::api_key::{generate as gen_key, API_KEY_HEADER};
+use anseo_core::ProjectId;
+use anseo_storage::models::{ProjectRow, PromptRow};
+use anseo_storage::repositories::{
     api_keys::ApiKeyRepo, projects::ProjectRepo, prompts::PromptRepo,
 };
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
 use tower::ServiceExt;
 
 async fn seeded_router_and_project() -> (axum::Router, ProjectId, String) {
@@ -38,7 +38,7 @@ async fn seeded_router_and_project() -> (axum::Router, ProjectId, String) {
     let pool = sqlx::PgPool::connect(&database_url)
         .await
         .expect("connect to test postgres");
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(pool.clone()));
+    let storage = Arc::new(anseo_storage::Storage::from_pool(pool.clone()));
 
     let project_id = ProjectId::new();
     let now = chrono::Utc::now();
@@ -53,7 +53,7 @@ async fn seeded_router_and_project() -> (axum::Router, ProjectId, String) {
         .await
         .expect("seed project");
 
-    let prompt_id = opengeo_core::PromptId::new();
+    let prompt_id = anseo_core::PromptId::new();
     PromptRepo::new(&pool)
         .insert(&PromptRow {
             id: prompt_id,
@@ -79,7 +79,7 @@ async fn seeded_router_and_project() -> (axum::Router, ProjectId, String) {
         .await
         .expect("seed api key");
 
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id,
@@ -130,11 +130,11 @@ async fn mock_provider_persists_and_returns_run_id() {
     assert_eq!(payload["provider"], "mock");
 
     let run_id_str = payload["run_id"].as_str().unwrap();
-    let run_id: opengeo_core::PromptRunId = run_id_str.parse().unwrap();
+    let run_id: anseo_core::PromptRunId = run_id_str.parse().unwrap();
     let pool = sqlx::PgPool::connect(&std::env::var("DATABASE_URL").unwrap())
         .await
         .unwrap();
-    let row = opengeo_storage::repositories::prompt_runs::PromptRunRepo::new(&pool)
+    let row = anseo_storage::repositories::prompt_runs::PromptRunRepo::new(&pool)
         .get(run_id)
         .await
         .expect("get run")
@@ -207,7 +207,7 @@ async fn seeded_router_with_config_no_keys() -> (axum::Router, ProjectId, String
     let pool = sqlx::PgPool::connect(&database_url)
         .await
         .expect("connect to test postgres");
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(pool.clone()));
+    let storage = Arc::new(anseo_storage::Storage::from_pool(pool.clone()));
 
     // Build a Config whose brand_name derives a deterministic project_id
     // that matches what we seed in Postgres; we use the Config-derived
@@ -223,7 +223,7 @@ providers:
   - name: openai
     model: gpt-4o-mini
 "#;
-    let cfg = opengeo_core::Config::from_yaml_str(yaml).expect("parse fixture YAML");
+    let cfg = anseo_core::Config::from_yaml_str(yaml).expect("parse fixture YAML");
     let project_id = cfg.project_id();
     let prompt_id = cfg.prompt_id("fixture-prompt").expect("declared");
     let now = chrono::Utc::now();
@@ -273,8 +273,8 @@ providers:
     // We can't reach into the keychain here, so we explicitly skip
     // building a registry and seed an empty one — that exercises the
     // same `unregistered_record` code path as the "no key" case.
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
-    let empty_registry: opengeo_providers::ProviderRegistry = std::collections::HashMap::new();
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
+    let empty_registry: anseo_providers::ProviderRegistry = std::collections::HashMap::new();
     let state = AppState {
         storage,
         project_id,
@@ -319,11 +319,11 @@ async fn live_provider_without_key_persists_failed_row_and_returns_202() {
     assert_eq!(payload["project_id"], project_id.to_string());
     assert_eq!(payload["provider"], "openai");
 
-    let run_id: opengeo_core::PromptRunId = payload["run_id"].as_str().unwrap().parse().unwrap();
+    let run_id: anseo_core::PromptRunId = payload["run_id"].as_str().unwrap().parse().unwrap();
     let pool = sqlx::PgPool::connect(&std::env::var("DATABASE_URL").unwrap())
         .await
         .unwrap();
-    let row = opengeo_storage::repositories::prompt_runs::PromptRunRepo::new(&pool)
+    let row = anseo_storage::repositories::prompt_runs::PromptRunRepo::new(&pool)
         .get(run_id)
         .await
         .expect("get run")
@@ -350,7 +350,7 @@ async fn live_provider_with_key_round_trips() {
     }
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL");
     let pool = sqlx::PgPool::connect(&database_url).await.unwrap();
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(pool.clone()));
+    let storage = Arc::new(anseo_storage::Storage::from_pool(pool.clone()));
 
     let yaml = r#"
 schema_version: '0.1'
@@ -363,7 +363,7 @@ providers:
   - name: openai
     model: gpt-4o-mini
 "#;
-    let cfg = opengeo_core::Config::from_yaml_str(yaml).unwrap();
+    let cfg = anseo_core::Config::from_yaml_str(yaml).unwrap();
     let project_id = cfg.project_id();
     let prompt_id = cfg.prompt_id("fixture-prompt").unwrap();
     let now = chrono::Utc::now();
@@ -403,8 +403,8 @@ providers:
         .expect("seed key");
 
     let registry =
-        opengeo_providers::registry::build_real_registry(&cfg).expect("build real registry");
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+        anseo_providers::registry::build_real_registry(&cfg).expect("build real registry");
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id,

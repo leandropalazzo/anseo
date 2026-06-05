@@ -1,17 +1,17 @@
 //! Roadmap Epic 32 — site-audit REST surface.
 //!
 //! `POST /v1/audit` runs the in-tree citation-readiness engine
-//! (`opengeo_audit`) against a URL/sitemap and returns the scored report.
+//! (`anseo_audit`) against a URL/sitemap and returns the scored report.
 //! This is the parity backend for the `/audit` dashboard (Story 32-5) and the
 //! MCP `audit` tool (Story 32-4) — same operation, three surfaces.
 
 use std::time::Duration;
 
+use anseo_audit::{crawl_and_audit, evaluate_gate, AuditOptions, AuditReport, FailOn};
 use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use opengeo_audit::{crawl_and_audit, evaluate_gate, AuditOptions, AuditReport, FailOn};
 use serde::{Deserialize, Serialize};
 
 use crate::middleware::auth::AuthenticatedProject;

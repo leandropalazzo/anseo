@@ -20,10 +20,10 @@
 //! whose `providers` are the schedule's configured providers (those present in
 //! the registry). The base config still supplies brand identity + concurrency.
 
+use anseo_core::{Config, ProjectId, PromptConfig, ProviderConfig, ProviderName};
+use anseo_providers::{Orchestrator, OrchestratorFilter, PromptRunStatus, ProviderRegistry};
+use anseo_storage::Storage;
 use chrono::{DateTime, Utc};
-use opengeo_core::{Config, ProjectId, PromptConfig, ProviderConfig, ProviderName};
-use opengeo_providers::{Orchestrator, OrchestratorFilter, PromptRunStatus, ProviderRegistry};
-use opengeo_storage::Storage;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
@@ -333,7 +333,7 @@ async fn run_tick(
     // pins a specific upstream model. Multiple pinned entries collapse into a
     // single OpenRouter `ProviderConfig` with a `models` list, which the
     // orchestrator fans out into one run per model.
-    let timeout = opengeo_core::config::DEFAULT_PROVIDER_TIMEOUT_SECONDS;
+    let timeout = anseo_core::config::DEFAULT_PROVIDER_TIMEOUT_SECONDS;
     let mut providers: Vec<ProviderConfig> = Vec::new();
     let mut openrouter_models: Vec<String> = Vec::new();
     let mut openrouter_auto = false;
@@ -427,7 +427,7 @@ async fn run_tick(
         // surfaces (brand rank, visibility, share of voice) have data. The
         // base config carries the DB brand overlay (brand name + competitors).
         if let Some(text) = message_text.as_deref() {
-            if let Err(e) = opengeo_extractors::extract_and_persist(
+            if let Err(e) = anseo_extractors::extract_and_persist(
                 storage,
                 base_config,
                 run_id,

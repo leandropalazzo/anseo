@@ -3,16 +3,16 @@
 //! The product's core differentiator is that selecting a project behaves
 //! IDENTICALLY across every surface. All three surfaces converge on one seam:
 //! the API resolves each request against the `projects` table using the
-//! `X-OpenGEO-Project` header (ADR-004 precedence).
+//! `X-Anseo-Project` header (ADR-004 precedence).
 //!
-//! - **Web** forwards the operator's selected project as `X-OpenGEO-Project`
+//! - **Web** forwards the operator's selected project as `X-Anseo-Project`
 //!   through its proxy — i.e. a raw HTTP call with that header.
 //! - **MCP** pins the selected project into its loopback [`ApiClient`], which
 //!   stamps the SAME header on every `/v1` call (see `apps/mcp/src/http_client.rs`).
 //! - **CLI** resolves the project via the ADR-004 precedence chain
-//!   ([`opengeo_cli::commands::project::resolve_project_id`]) directly against
+//!   ([`anseo_cli::commands::project::resolve_project_id`]) directly against
 //!   the `projects` table — no HTTP hop. The marker file or `--project` flag
-//!   acts as the ambient tier (equivalent to the `X-OpenGEO-Project` header on
+//!   acts as the ambient tier (equivalent to the `X-Anseo-Project` header on
 //!   the other surfaces).
 //!
 //! This test stands up the REAL `opengeo-api` router on an ephemeral port
@@ -20,7 +20,7 @@
 //! project-scoped read (`GET /v1/setup/brand`, which echoes the resolved
 //! project's `project_id` + `name`) over ALL THREE surfaces:
 //!
-//!   1. raw HTTP with `X-OpenGEO-Project` (the Web-proxy shape);
+//!   1. raw HTTP with `X-Anseo-Project` (the Web-proxy shape);
 //!   2. the MCP [`ApiClient`] with the same project pinned; and
 //!   3. the CLI `resolve_project_id` resolver driven in-process (the CLI shape).
 //!
@@ -43,20 +43,20 @@
 
 use std::sync::Arc;
 
-use opengeo_api::{router, AppState};
-use opengeo_cli::commands::project as cli_project;
-use opengeo_core::api_key::generate as gen_key;
-use opengeo_core::{BrandConfig, ProjectId};
-use opengeo_mcp::http_client::ApiClient;
-use opengeo_storage::repositories::{api_keys::ApiKeyRepo, projects::ProjectRepo};
-use opengeo_storage::Storage;
+use anseo_api::{router, AppState};
+use anseo_cli::commands::project as cli_project;
+use anseo_core::api_key::generate as gen_key;
+use anseo_core::{BrandConfig, ProjectId};
+use anseo_mcp::http_client::ApiClient;
+use anseo_storage::repositories::{api_keys::ApiKeyRepo, projects::ProjectRepo};
+use anseo_storage::Storage;
 use sqlx::PgPool;
 use tempfile::TempDir;
 
-const PROJECT_HEADER: &str = "X-OpenGEO-Project";
-const API_KEY_HEADER: &str = "X-OpenGEO-API-Key";
+const PROJECT_HEADER: &str = "X-Anseo-Project";
+const API_KEY_HEADER: &str = "X-Anseo-API-Key";
 
-/// The scoped probe: resolves via `X-OpenGEO-Project` and returns the resolved
+/// The scoped probe: resolves via `X-Anseo-Project` and returns the resolved
 /// project's own `project_id` + `name`, so two projects yield distinct,
 /// deterministic bodies with no analytics seeding required.
 const SCOPED_PATH: &str = "/v1/setup/brand";
@@ -117,7 +117,7 @@ async fn boot() -> Option<Harness> {
         .await
         .expect("seed key");
 
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage: storage_arc,
         project_id: id_a,
@@ -154,7 +154,7 @@ async fn boot() -> Option<Harness> {
 
 // ── Surface helpers ─────────────────────────────────────────────────────────
 
-/// Surface 1 — raw HTTP with `X-OpenGEO-Project` (the Web-proxy shape).
+/// Surface 1 — raw HTTP with `X-Anseo-Project` (the Web-proxy shape).
 async fn via_header(h: &Harness, project: &str) -> serde_json::Value {
     let client = reqwest::Client::new();
     let resp = client
@@ -173,7 +173,7 @@ async fn via_header(h: &Harness, project: &str) -> serde_json::Value {
 }
 
 /// Surface 2 — the MCP loopback `ApiClient` with `project` pinned (the MCP
-/// project selector). It stamps `X-OpenGEO-Project` internally.
+/// project selector). It stamps `X-Anseo-Project` internally.
 async fn via_mcp(h: &Harness, project: &str) -> serde_json::Value {
     let api = ApiClient::new(h.base_url.clone(), h.key.clone(), project.to_string())
         .expect("ApiClient construction");

@@ -10,7 +10,7 @@
 //!
 //! Each (Prompt, Provider) future runs independently. A panic, error, or
 //! cancellation in one cell never aborts a sibling. Errors are caught and
-//! mapped onto [`opengeo_core::ProviderErrorKind`] so callers can summarise.
+//! mapped onto [`anseo_core::ProviderErrorKind`] so callers can summarise.
 //!
 //! # Concurrency
 //!
@@ -26,7 +26,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use tokio::sync::Semaphore;
 
-use opengeo_core::{
+use anseo_core::{
     Config, ProjectId, PromptId, PromptRunId, ProviderErrorKind, ProviderName, RequestId,
 };
 
@@ -426,7 +426,7 @@ fn panic_record(err: tokio::task::JoinError) -> PromptRunRecord {
 mod tests {
     use super::*;
     use crate::MockProvider;
-    use opengeo_core::Config;
+    use anseo_core::Config;
 
     const YAML: &str = r#"
 schema_version: '0.1'

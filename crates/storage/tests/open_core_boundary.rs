@@ -4,7 +4,7 @@ fn storage_crate_has_no_premium_hallucination_dependency() {
         .expect("read storage Cargo.toml");
 
     assert!(
-        !manifest.contains("opengeo-hallucination"),
+        !manifest.contains("anseo-hallucination"),
         "OSS storage must not depend on the premium hallucination evaluator"
     );
 }

@@ -66,7 +66,7 @@ fn parse_schema(raw: &str) -> serde_json::Value {
 }
 
 /// Story 36.5: map a 404 from the upstream API into an `UnknownProject` error
-/// when the request carried an explicit project selector via `X-OpenGEO-Project`.
+/// when the request carried an explicit project selector via `X-Anseo-Project`.
 ///
 /// Call this helper after receiving a non-2xx response from the API — it checks
 /// whether the status is 404 and returns `UnknownProject` so the dispatcher
@@ -88,7 +88,7 @@ pub(crate) fn map_project_not_found(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opengeo_wire_schema::mcp::tools::{TrendDelta, TrendRecord};
+    use anseo_wire_schema::mcp::tools::{TrendDelta, TrendRecord};
 
     /// Story 17.6 / AD-Phase3-PluginsCannotRegisterMcpTools: the MCP tool set
     /// is the closed FR-46..FR-51 list. The registry is a fixed function with
@@ -122,7 +122,7 @@ mod tests {
     /// through `list_trends` verbatim — built-ins stay unprefixed.
     #[test]
     fn trend_record_carries_plugin_namespaced_kind_verbatim() {
-        let kind = opengeo_plugin_manifest::trend_kind::namespaced_trend_kind(
+        let kind = anseo_plugin_manifest::trend_kind::namespaced_trend_kind(
             "test.analytics",
             "churn_spike",
         );

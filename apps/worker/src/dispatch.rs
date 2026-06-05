@@ -26,13 +26,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use anseo_core::Config;
+use anseo_providers::ProviderRegistry;
+use anseo_scheduler::dispatch::dispatch_due_schedules_scoped;
+use anseo_scheduler::events::LifecycleEvent;
+use anseo_scheduler::worker::WorkerError;
+use anseo_storage::Storage;
 use chrono::{DateTime, Utc};
-use opengeo_core::Config;
-use opengeo_providers::ProviderRegistry;
-use opengeo_scheduler::dispatch::dispatch_due_schedules_scoped;
-use opengeo_scheduler::events::LifecycleEvent;
-use opengeo_scheduler::worker::WorkerError;
-use opengeo_storage::Storage;
 use tokio::sync::Semaphore;
 use uuid::Uuid;
 
@@ -74,7 +74,7 @@ pub struct FanOutReport {
 async fn project_config(
     storage: &Storage,
     base_config: &Config,
-    project_id: opengeo_core::ProjectId,
+    project_id: anseo_core::ProjectId,
 ) -> Result<Config, WorkerError> {
     let mut cfg = base_config.clone();
     if let Some(brand) = storage.projects().get_brand(project_id).await? {
@@ -296,8 +296,8 @@ async fn last_run_ages(storage: &Storage, now: DateTime<Utc>) -> HashMap<String,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opengeo_core::{ProjectId, ProviderName};
-    use opengeo_providers::MockProvider;
+    use anseo_core::{ProjectId, ProviderName};
+    use anseo_providers::MockProvider;
     use sqlx::PgPool;
     use std::collections::HashSet;
     use std::sync::atomic::{AtomicUsize, Ordering};

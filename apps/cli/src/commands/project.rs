@@ -30,9 +30,9 @@
 
 use clap::Args;
 
-use opengeo_core::{project_id_for_name, BrandConfig, Config, OpenGeoError, ProjectId};
-use opengeo_storage::models::ProjectRow;
-use opengeo_storage::Storage;
+use anseo_core::{project_id_for_name, BrandConfig, Config, OpenGeoError, ProjectId};
+use anseo_storage::models::ProjectRow;
+use anseo_storage::Storage;
 
 /// Marker directory written by `ogeo project use`, relative to the working dir.
 const MARKER_DIR: &str = ".opengeo";
@@ -212,7 +212,7 @@ pub async fn resolve_project_id(
     }
 
     // 2b. working-dir `opengeo.yaml` brand.
-    let yaml_path = working_dir.join("opengeo.yaml");
+    let yaml_path = working_dir.join("anseo.yaml");
     if yaml_path.exists() {
         let yaml = std::fs::read_to_string(&yaml_path).map_err(|e| {
             OpenGeoError::Config(format!("could not read {}: {e}", yaml_path.display()))
@@ -346,7 +346,7 @@ async fn connect_storage() -> Result<Storage, OpenGeoError> {
     Ok(storage)
 }
 
-fn internal(e: opengeo_storage::Error) -> OpenGeoError {
+fn internal(e: anseo_storage::Error) -> OpenGeoError {
     OpenGeoError::Internal(anyhow::anyhow!(e))
 }
 

@@ -16,13 +16,13 @@
 //! (Story 43.4 AC-4). Returns full entity profile with rank history,
 //! contributor count, role, and owner-managed blurb.
 
+use anseo_storage::repositories::entities::{
+    display_name_similarity, EntityRecord, AUTO_MERGE_THRESHOLD, REVIEW_QUEUE_THRESHOLD,
+};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use opengeo_storage::repositories::entities::{
-    display_name_similarity, EntityRecord, AUTO_MERGE_THRESHOLD, REVIEW_QUEUE_THRESHOLD,
-};
 use serde::{Deserialize, Serialize};
 use sqlx::Row as _;
 
@@ -71,7 +71,7 @@ async fn get_entity(
     Path(raw_domain): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<EntityView>, (StatusCode, Json<serde_json::Value>)> {
-    let domain = opengeo_storage::repositories::entities::EntityRepo::normalize_domain(&raw_domain);
+    let domain = anseo_storage::repositories::entities::EntityRepo::normalize_domain(&raw_domain);
     match state.storage.entities().get(&domain).await {
         Ok(Some(record)) => Ok(Json(EntityView::from(record))),
         Ok(None) => Err((
@@ -129,8 +129,7 @@ async fn create_entity(
     State(state): State<AppState>,
     Json(body): Json<CreateEntityRequest>,
 ) -> Result<(StatusCode, Json<CreateEntityResponse>), (StatusCode, Json<serde_json::Value>)> {
-    let domain =
-        opengeo_storage::repositories::entities::EntityRepo::normalize_domain(&body.domain);
+    let domain = anseo_storage::repositories::entities::EntityRepo::normalize_domain(&body.domain);
     let display_name = body.display_name.trim().to_string();
     let role = body.role.trim().to_string();
 
@@ -249,7 +248,7 @@ async fn get_leaderboard(
         let raw_domain: String = row.get("domain");
         let citation_count: i64 = row.get("citation_count");
         let normalized =
-            opengeo_storage::repositories::entities::EntityRepo::normalize_domain(&raw_domain);
+            anseo_storage::repositories::entities::EntityRepo::normalize_domain(&raw_domain);
         let (display_name, claim_status) =
             repo.resolve_display(&normalized).await.map_err(|e| {
                 (
@@ -322,7 +321,7 @@ async fn get_brand_profile(
     Path(raw_domain): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<BrandProfileResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let domain = opengeo_storage::repositories::entities::EntityRepo::normalize_domain(&raw_domain);
+    let domain = anseo_storage::repositories::entities::EntityRepo::normalize_domain(&raw_domain);
 
     // Fetch entity record (may not exist for unclaimed domains).
     let entity = state.storage.entities().get(&domain).await.map_err(|e| {

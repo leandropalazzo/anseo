@@ -21,12 +21,12 @@
 //! - (offline) project_header_guard returns 401 when the API key is absent,
 //!   never leaking project resolution before auth (AC #2 ordering invariant).
 
+use anseo_api::extractors::{resolve_project, ResolveError, PROJECT_HEADER};
+use anseo_core::{project_id_for_name, BrandConfig};
+use anseo_storage::repositories::projects::ProjectRepo;
+use anseo_storage::Storage;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use opengeo_api::extractors::{resolve_project, ResolveError, PROJECT_HEADER};
-use opengeo_core::{project_id_for_name, BrandConfig};
-use opengeo_storage::repositories::projects::ProjectRepo;
-use opengeo_storage::Storage;
 use sqlx::PgPool;
 use tower::ServiceExt;
 
@@ -37,7 +37,7 @@ static DB_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 #[test]
 fn header_name_matches_spec() {
-    assert_eq!(PROJECT_HEADER, "X-OpenGEO-Project");
+    assert_eq!(PROJECT_HEADER, "X-Anseo-Project");
 }
 
 async fn fresh_storage() -> Option<(Storage, PgPool)> {
@@ -54,7 +54,7 @@ async fn fresh_storage() -> Option<(Storage, PgPool)> {
     Some((storage, pool))
 }
 
-async fn seed_project(pool: &PgPool, name: &str) -> opengeo_core::ProjectId {
+async fn seed_project(pool: &PgPool, name: &str) -> anseo_core::ProjectId {
     ProjectRepo::new(pool)
         .create_project(&BrandConfig {
             name: name.to_string(),
@@ -165,14 +165,14 @@ async fn fallback_is_ambiguous_with_two_projects() {
 // ---------------------------------------------------------------------------
 
 fn lazy_app() -> axum::Router {
-    use opengeo_api::{router, AppState};
-    use opengeo_core::ProjectId;
+    use anseo_api::{router, AppState};
+    use anseo_core::ProjectId;
     use std::sync::Arc;
     let lazy_pool =
         sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__ph_test__")
             .expect("connect_lazy is sync");
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(lazy_pool));
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id: ProjectId::new(),
@@ -217,7 +217,7 @@ async fn http_no_api_key_returns_401_before_project_check() {
 /// documented in `apps/api/src/lib.rs` (auth is the outer `route_layer`).
 #[tokio::test]
 async fn http_auth_fires_before_project_resolution() {
-    use opengeo_core::api_key::{generate, API_KEY_HEADER};
+    use anseo_core::api_key::{generate, API_KEY_HEADER};
     let key = generate();
     let app = lazy_app();
     let res = app

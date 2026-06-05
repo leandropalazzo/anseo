@@ -69,7 +69,7 @@ pub enum MetricsStoreError {
     #[error("database error")]
     Database(#[from] sqlx::Error),
     #[error("storage error")]
-    Storage(#[from] opengeo_storage::Error),
+    Storage(#[from] anseo_storage::Error),
 }
 
 /// Backend-agnostic read interface the dashboard + analytics modules
@@ -86,7 +86,7 @@ pub trait MetricsStore: Send + Sync {
     /// `visibility_trend` time-series for one prompt slug over a window.
     async fn visibility_trend(
         &self,
-        project_id: opengeo_core::ProjectId,
+        project_id: anseo_core::ProjectId,
         prompt_slug: &str,
         params: TrendParams,
     ) -> Result<Vec<VisibilityPoint>, MetricsStoreError>;
@@ -94,14 +94,14 @@ pub trait MetricsStore: Send + Sync {
     /// `citation_summary` top-N domain aggregate.
     async fn citation_summary(
         &self,
-        project_id: opengeo_core::ProjectId,
+        project_id: anseo_core::ProjectId,
         params: SummaryParams,
     ) -> Result<Vec<CitationSummaryRow>, MetricsStoreError>;
 
     /// Sample stream for the anomaly + volatility detectors.
     async fn anomaly_samples(
         &self,
-        project_id: opengeo_core::ProjectId,
+        project_id: anseo_core::ProjectId,
         prompt_slug: &str,
         days: i32,
     ) -> Result<Vec<AnomalyRankSample>, MetricsStoreError>;

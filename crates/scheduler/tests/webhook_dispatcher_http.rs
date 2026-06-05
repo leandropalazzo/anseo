@@ -11,8 +11,8 @@
 
 use std::time::Duration;
 
-use opengeo_scheduler::webhooks::dispatcher::{deliver_one, DeliveryOutcome};
-use opengeo_scheduler::webhooks::signer::{verify, SIGNATURE_HEADER};
+use anseo_scheduler::webhooks::dispatcher::{deliver_one, DeliveryOutcome};
+use anseo_scheduler::webhooks::signer::{verify, SIGNATURE_HEADER};
 use wiremock::matchers::{header_exists, method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
@@ -221,7 +221,7 @@ async fn signature_verifies_on_consumer_side_round_trip() {
     let sig = cap
         .signature
         .as_deref()
-        .expect("dispatcher must send X-OpenGEO-Signature");
+        .expect("dispatcher must send X-Anseo-Signature");
     let received_body = cap.body.as_ref().expect("dispatcher must send body");
     assert_eq!(received_body, body);
 

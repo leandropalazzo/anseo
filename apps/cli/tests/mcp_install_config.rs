@@ -1,6 +1,6 @@
 //! Integration tests for `ogeo mcp install-config`.
 
-use opengeo_cli::commands::mcp::{run_install_config, InstallConfigArgs};
+use anseo_cli::commands::mcp::{run_install_config, InstallConfigArgs};
 use tempfile::tempdir;
 
 #[test]
@@ -21,18 +21,15 @@ fn install_config_claude_desktop() {
     // Top-level key "mcpServers" exists
     assert!(value.get("mcpServers").is_some(), "missing mcpServers key");
 
-    // "mcpServers.opengeo.command" == "opengeo-mcp"
-    let command = &value["mcpServers"]["opengeo"]["command"];
-    assert_eq!(
-        command, "opengeo-mcp",
-        "unexpected command value: {command}"
-    );
+    // "mcpServers.anseo.command" == "anseo-mcp"
+    let command = &value["mcpServers"]["anseo"]["command"];
+    assert_eq!(command, "anseo-mcp", "unexpected command value: {command}");
 
-    // "mcpServers.opengeo.env.OPENGEO_API_KEY" == "testkey123"
-    let api_key = &value["mcpServers"]["opengeo"]["env"]["OPENGEO_API_KEY"];
+    // "mcpServers.anseo.env.ANSEO_API_KEY" == "testkey123"
+    let api_key = &value["mcpServers"]["anseo"]["env"]["ANSEO_API_KEY"];
     assert_eq!(
         api_key, "testkey123",
-        "unexpected OPENGEO_API_KEY value: {api_key}"
+        "unexpected ANSEO_API_KEY value: {api_key}"
     );
 }
 
@@ -51,7 +48,7 @@ fn install_config_placeholder_when_no_api_key() {
     let raw = std::fs::read_to_string(&config_path).expect("config file written");
     let value: serde_json::Value = serde_json::from_str(&raw).expect("valid JSON");
 
-    let api_key = &value["mcpServers"]["opengeo"]["env"]["OPENGEO_API_KEY"];
+    let api_key = &value["mcpServers"]["anseo"]["env"]["ANSEO_API_KEY"];
     assert_eq!(
         api_key, "YOUR_API_KEY_HERE",
         "expected placeholder when no key provided, got: {api_key}"

@@ -20,14 +20,14 @@
 
 use std::sync::Arc;
 
+use anseo_api::{router, AppState};
+use anseo_core::api_key::{generate as gen_key, API_KEY_HEADER};
+use anseo_core::ProjectId;
+use anseo_storage::models::ProjectRow;
+use anseo_storage::repositories::recommendations::{NewRecommendation, RecommendationsRepo};
+use anseo_storage::repositories::{api_keys::ApiKeyRepo, projects::ProjectRepo};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use opengeo_api::{router, AppState};
-use opengeo_core::api_key::{generate as gen_key, API_KEY_HEADER};
-use opengeo_core::ProjectId;
-use opengeo_storage::models::ProjectRow;
-use opengeo_storage::repositories::recommendations::{NewRecommendation, RecommendationsRepo};
-use opengeo_storage::repositories::{api_keys::ApiKeyRepo, projects::ProjectRepo};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -70,8 +70,8 @@ async fn seed_api_key(pool: &sqlx::PgPool, project_id: ProjectId) -> String {
 }
 
 fn state_for(pool: &sqlx::PgPool, project_id: ProjectId) -> AppState {
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(pool.clone()));
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let storage = Arc::new(anseo_storage::Storage::from_pool(pool.clone()));
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     AppState {
         storage,
         project_id,
@@ -165,7 +165,7 @@ providers:
   - name: openai
     model: gpt-4o-mini
 "#;
-    let cfg = opengeo_core::Config::from_yaml_str(yaml).expect("parse fixture YAML");
+    let cfg = anseo_core::Config::from_yaml_str(yaml).expect("parse fixture YAML");
     let project_id = cfg.project_id();
     ProjectRepo::new(&pool)
         .insert(&ProjectRow {
@@ -179,8 +179,8 @@ providers:
         .expect("seed project");
     let api_key = seed_api_key(&pool, project_id).await;
 
-    let storage = Arc::new(opengeo_storage::Storage::from_pool(pool.clone()));
-    let (events, _rx) = opengeo_scheduler::worker::event_channel();
+    let storage = Arc::new(anseo_storage::Storage::from_pool(pool.clone()));
+    let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
         storage,
         project_id,

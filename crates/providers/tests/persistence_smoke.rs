@@ -7,12 +7,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use opengeo_core::{Config, ProviderErrorKind, ProviderName};
-use opengeo_providers::{
+use anseo_core::{Config, ProviderErrorKind, ProviderName};
+use anseo_providers::{
     persistence::persist_records, MockProvider, Orchestrator, OrchestratorFilter, ProviderError,
     ProviderRegistry,
 };
-use opengeo_storage::Storage;
+use anseo_storage::Storage;
 use sqlx::PgPool;
 
 const YAML: &str = r#"

@@ -1,16 +1,16 @@
 //! Story 39.1b — keystore substrate alignment: one mechanism, two key classes.
 //!
 //! Both the benchmark KEK (Story 39.1, `crates/benchmark/src/crypto.rs`) and
-//! the per-project provider secrets (Story 36.7, `opengeo_core::secret_store`)
-//! ride the **same** [`opengeo_core::SecretStore`] abstraction and therefore
+//! the per-project provider secrets (Story 36.7, `anseo_core::secret_store`)
+//! ride the **same** [`anseo_core::SecretStore`] abstraction and therefore
 //! the same concrete backends (OS keyring, age-encrypted file, in-memory).
 //!
 //! The two key classes differ only in their *namespace*:
 //!
 //! | Class          | Storage key shape                | Constant                              |
 //! |----------------|----------------------------------|---------------------------------------|
-//! | Provider secret | `<project_id>:<provider>`       | `opengeo_core::provider_secret_key`   |
-//! | Benchmark KEK  | `benchmark-kek:<project_id>`    | `opengeo_benchmark::kek_secret_key`   |
+//! | Provider secret | `<project_id>:<provider>`       | `anseo_core::provider_secret_key`   |
+//! | Benchmark KEK  | `benchmark-kek:<project_id>`    | `anseo_benchmark::kek_secret_key`   |
 //!
 //! Because a `ProjectId` is a ULID, and the literal `"benchmark-kek"` is not a
 //! valid ULID, the two namespaces are structurally disjoint — no provider secret
@@ -19,8 +19,8 @@
 //! These tests exercise the FULL API surface of both key classes against a
 //! single shared [`InMemoryStore`] to prove they coexist without interference.
 
-use opengeo_benchmark::{kek_secret_key, ProjectKek};
-use opengeo_core::{
+use anseo_benchmark::{kek_secret_key, ProjectKek};
+use anseo_core::{
     get_provider_secret, provider_secret_key, set_provider_secret, InMemoryStore, Secret,
     SecretStore, SecretStoreError, BENCHMARK_KEK_KEY_PREFIX,
 };
@@ -120,7 +120,7 @@ fn destroying_one_kek_does_not_affect_sibling_provider_secrets() {
     // Project A's KEK is gone; provider secret is untouched (different key).
     assert!(matches!(
         ProjectKek::load(&store, PROJECT_A),
-        Err(opengeo_benchmark::CryptoError::KekMissing { .. })
+        Err(anseo_benchmark::CryptoError::KekMissing { .. })
     ));
     assert_eq!(
         get_provider_secret(&store, PROJECT_A, "openai")
@@ -159,7 +159,7 @@ fn ephemeral_store_blocks_kek_creation_but_not_provider_set() {
     // KEK creation must refuse on an ephemeral-only store.
     let err = ProjectKek::load_or_create(&ephemeral, PROJECT_A).unwrap_err();
     assert!(
-        matches!(err, opengeo_benchmark::CryptoError::EphemeralKek { .. }),
+        matches!(err, anseo_benchmark::CryptoError::EphemeralKek { .. }),
         "expected EphemeralKek, got {err:?}"
     );
 
@@ -228,7 +228,7 @@ fn two_projects_provider_keys_do_not_collide() {
 
 #[test]
 fn both_key_classes_work_in_chained_store() {
-    use opengeo_core::ChainedStore;
+    use anseo_core::ChainedStore;
 
     let chain = ChainedStore::new(vec![
         Box::new(InMemoryStore::durable_for_tests()),

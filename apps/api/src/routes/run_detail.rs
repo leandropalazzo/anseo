@@ -25,11 +25,11 @@
 //! (AppState, `internal` error mapping). An unknown run id returns `404`
 //! (consistent with `runs::detail`); a known run with no rows returns `[]`.
 
+use anseo_core::PromptRunId;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
-use opengeo_core::PromptRunId;
 use serde::Serialize;
 use std::str::FromStr;
 
@@ -111,7 +111,7 @@ fn parse_run_id(id: &str) -> Result<PromptRunId, StatusCode> {
 async fn require_run(
     state: &AppState,
     run_id: PromptRunId,
-) -> Result<opengeo_storage::models::PromptRunRow, StatusCode> {
+) -> Result<anseo_storage::models::PromptRunRow, StatusCode> {
     state
         .storage
         .prompt_runs()
@@ -226,18 +226,18 @@ fn internal<E: std::fmt::Display>(e: E) -> StatusCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anseo_core::api_key::{generate as gen_key, API_KEY_HEADER};
+    use anseo_core::{ProjectId, PromptId};
+    use anseo_storage::models::{CitationRow, MentionRow, ProjectRow, PromptRow, PromptRunRow};
     use axum::body::Body;
     use axum::http::Request;
-    use opengeo_core::api_key::{generate as gen_key, API_KEY_HEADER};
-    use opengeo_core::{ProjectId, PromptId};
-    use opengeo_storage::models::{CitationRow, MentionRow, ProjectRow, PromptRow, PromptRunRow};
     use std::sync::Arc;
     use tower::ServiceExt;
 
     /// Seeds project + prompt + run (+ optional mention/citation) and returns
     /// an authenticated router, the api key, and the seeded run id.
     async fn seed(pool: sqlx::PgPool) -> (axum::Router, String, PromptRunId) {
-        let storage = Arc::new(opengeo_storage::Storage::from_pool(pool.clone()));
+        let storage = Arc::new(anseo_storage::Storage::from_pool(pool.clone()));
         let now = chrono::Utc::now();
 
         let project_id = ProjectId::new();
@@ -294,7 +294,7 @@ mod tests {
         storage
             .mentions()
             .insert(&MentionRow {
-                id: opengeo_core::MentionId::new(),
+                id: anseo_core::MentionId::new(),
                 prompt_run_id: run_id,
                 entity: "Pinecone".into(),
                 char_offset: 0,
@@ -313,7 +313,7 @@ mod tests {
         storage
             .citations()
             .insert(&CitationRow {
-                id: opengeo_core::CitationId::new(),
+                id: anseo_core::CitationId::new(),
                 prompt_run_id: run_id,
                 url: Some("https://pinecone.io/docs".into()),
                 domain: "pinecone.io".into(),
@@ -338,7 +338,7 @@ mod tests {
             .await
             .expect("seed api key");
 
-        let (events, _rx) = opengeo_scheduler::worker::event_channel();
+        let (events, _rx) = anseo_scheduler::worker::event_channel();
         let state = AppState {
             storage,
             project_id,
@@ -425,7 +425,7 @@ mod tests {
 
         // Seed provenance rows out of insertion order via explicit `at`
         // timestamps so we can prove the endpoint orders by `at`.
-        let storage = Arc::new(opengeo_storage::Storage::from_pool(pool));
+        let storage = Arc::new(anseo_storage::Storage::from_pool(pool));
         let base = chrono::Utc::now();
         let rid_uuid = uuid::Uuid::from_bytes(run_id.into_ulid().to_bytes());
         // Insert "ranking" last-in-time first, then earlier steps, to confirm

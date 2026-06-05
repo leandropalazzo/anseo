@@ -21,7 +21,7 @@
 
 use std::time::{Duration, Instant};
 
-use opengeo_scheduler::notifications::slack::build_payload;
+use anseo_scheduler::notifications::slack::build_payload;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 

@@ -1,14 +1,14 @@
+use anseo_core::ids::{ProjectId, PromptId, PromptRunId};
+use anseo_storage::models::{ProjectRow, PromptRow, PromptRunRow};
+use anseo_storage::Storage;
 use chrono::{TimeZone, Utc};
-use opengeo_core::ids::{ProjectId, PromptId, PromptRunId};
-use opengeo_storage::models::{ProjectRow, PromptRow, PromptRunRow};
-use opengeo_storage::Storage;
 use serde_json::json;
 use sqlx::PgPool;
 
 #[sqlx::test(migrations = "../../crates/storage/migrations")]
 async fn persisted_brand_response_extracts_and_stores_claims(pool: PgPool) {
     let storage = Storage::from_pool(pool);
-    let config = opengeo_extractors::mentions::config_with("Acme", &["Beta Corp"]);
+    let config = anseo_extractors::mentions::config_with("Acme", &["Beta Corp"]);
     let now = Utc.with_ymd_and_hms(2026, 6, 2, 11, 30, 0).unwrap();
 
     let project_id = storage
@@ -57,7 +57,7 @@ async fn persisted_brand_response_extracts_and_stores_claims(pool: PgPool) {
         .await
         .unwrap();
 
-    let (_mentions, _citations, claims) = opengeo_extractors::extract_and_persist(
+    let (_mentions, _citations, claims) = anseo_extractors::extract_and_persist(
         &storage,
         &config,
         run_id,

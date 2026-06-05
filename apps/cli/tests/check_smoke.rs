@@ -19,12 +19,12 @@ use assert_cmd::Command;
 use predicates::str::contains;
 use tempfile::TempDir;
 
-fn ogeo() -> Command {
-    Command::cargo_bin("ogeo").expect("ogeo binary built")
+fn anseo() -> Command {
+    Command::cargo_bin("anseo").expect("anseo binary built")
 }
 
 fn init_project(dir: &TempDir) {
-    ogeo()
+    anseo()
         .args(["init", "--dir"])
         .arg(dir.path())
         .assert()
@@ -33,7 +33,7 @@ fn init_project(dir: &TempDir) {
 
 #[test]
 fn check_visibility_help_lists_subcommand() {
-    ogeo()
+    anseo()
         .args(["check", "--help"])
         .assert()
         .success()
@@ -42,7 +42,7 @@ fn check_visibility_help_lists_subcommand() {
 
 #[test]
 fn check_visibility_help_lists_required_flags() {
-    let assert = ogeo()
+    let assert = anseo()
         .args(["check", "visibility", "--help"])
         .assert()
         .success();
@@ -64,7 +64,7 @@ fn check_visibility_help_lists_required_flags() {
 #[test]
 fn check_visibility_missing_required_args_fails() {
     // Only --prompt provided; --brand and --expect-rank-lte are missing.
-    ogeo()
+    anseo()
         .args(["check", "visibility", "--prompt", "demo"])
         .assert()
         .failure();
@@ -77,9 +77,9 @@ fn check_visibility_stub_exits_code_2_with_clear_message() {
     // this to the full exit-code matrix (0 / 1 / 2 / 64).
     let dir = TempDir::new().unwrap();
     init_project(&dir);
-    let cfg = dir.path().join("opengeo.yaml");
+    let cfg = dir.path().join("anseo.yaml");
 
-    ogeo()
+    anseo()
         .args([
             "check",
             "visibility",
@@ -104,9 +104,9 @@ fn check_visibility_no_run_flag_still_exits_in_phase_1_stub() {
     // In the Phase 1 stub it has no effect on the outcome — still exits 2.
     let dir = TempDir::new().unwrap();
     init_project(&dir);
-    let cfg = dir.path().join("opengeo.yaml");
+    let cfg = dir.path().join("anseo.yaml");
 
-    ogeo()
+    anseo()
         .args([
             "check",
             "visibility",

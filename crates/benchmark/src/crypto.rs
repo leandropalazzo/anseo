@@ -44,9 +44,9 @@
 //! - **Runtime**: [`ProjectKek::load`] returns [`CryptoError::KekMissing`]
 //!   when the SecretStore has no entry for the project.
 
+use anseo_core::{Secret, SecretStore, SecretStoreError};
 use chacha20poly1305::aead::{Aead, AeadCore, KeyInit, OsRng, Payload};
 use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
-use opengeo_core::{Secret, SecretStore, SecretStoreError};
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, Zeroizing};
 
@@ -59,11 +59,11 @@ const KEY_LEN: usize = 32;
 /// from provider names (`openai`, `anthropic`, …) so a KEK can never collide
 /// with — or be mistaken for — an API key.
 ///
-/// Story 39.1b alignment: this prefix equals [`opengeo_core::BENCHMARK_KEK_KEY_PREFIX`]
-/// (declared in `opengeo-core` to avoid a circular dependency). Both key classes
+/// Story 39.1b alignment: this prefix equals [`anseo_core::BENCHMARK_KEK_KEY_PREFIX`]
+/// (declared in `anseo-core` to avoid a circular dependency). Both key classes
 /// — benchmark KEKs and per-project provider secrets — use the same
 /// [`SecretStore`] abstraction and the same concrete backends; they differ only
-/// in this namespace (see `opengeo_core::secret_store` module docs for the
+/// in this namespace (see `anseo_core::secret_store` module docs for the
 /// full two-key-class table).
 const KEK_NAMESPACE: &str = "benchmark-kek";
 
@@ -184,7 +184,7 @@ impl ProjectKek {
                     Ok(()) => Ok(kek),
                     Err(SecretStoreError::NoDurableBackend) => Err(CryptoError::EphemeralKek {
                         project_id: project_id.to_string(),
-                        passphrase_env: opengeo_core::AGE_PASSPHRASE_ENV,
+                        passphrase_env: anseo_core::AGE_PASSPHRASE_ENV,
                     }),
                     Err(e) => Err(CryptoError::SecretStore(e)),
                 }
@@ -417,8 +417,8 @@ pub struct SealedContribution {
 mod tests {
     use super::*;
     use crate::{RawPromptRun, Redactor, TERMS_VERSION};
+    use anseo_core::InMemoryStore;
     use chrono::{TimeZone, Utc};
-    use opengeo_core::InMemoryStore;
 
     const PROJECT: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 
@@ -572,7 +572,7 @@ mod tests {
 
         // Same project, but a durable leg ahead of the ephemeral one: now it
         // succeeds (proving the guard keys on durability, not on store type).
-        let chain = opengeo_core::ChainedStore::new(vec![
+        let chain = anseo_core::ChainedStore::new(vec![
             Box::new(InMemoryStore::durable_for_tests()),
             Box::new(InMemoryStore::new()),
         ]);

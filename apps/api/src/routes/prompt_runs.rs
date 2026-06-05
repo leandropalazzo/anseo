@@ -119,7 +119,7 @@ async fn create_prompt_run(
     // API requires the operator to have already declared the prompt via
     // `ogeo prompt add` or YAML — undeclared names get a 404 with a
     // pointer rather than auto-creating a row.
-    let prompt = opengeo_storage::repositories::prompts::PromptRepo::new(state.storage.pool())
+    let prompt = anseo_storage::repositories::prompts::PromptRepo::new(state.storage.pool())
         .find_by_name(project_id, &request.prompt_name)
         .await
         .map_err(|e| {
@@ -151,14 +151,14 @@ async fn create_prompt_run(
     // the CLI orchestrator path — wiring the orchestrator's API-mode
     // entry point lands in a follow-up.
     if request.provider == "mock" {
-        let run_id = opengeo_core::PromptRunId::new();
+        let run_id = anseo_core::PromptRunId::new();
         let now = chrono::Utc::now();
         let mock_response = serde_json::json!({
             "kind": "mock",
             "prompt_name": request.prompt_name,
             "note": "Deterministic mock response from POST /v1/prompt-runs",
         });
-        let row = opengeo_storage::models::PromptRunRow {
+        let row = anseo_storage::models::PromptRunRow {
             id: run_id,
             prompt_id: prompt.id,
             provider: "mock".to_string(),
@@ -176,14 +176,14 @@ async fn create_prompt_run(
             tenant_id: None,
             created_at: now,
         };
-        opengeo_storage::repositories::prompt_runs::PromptRunRepo::new(state.storage.pool())
+        anseo_storage::repositories::prompt_runs::PromptRunRepo::new(state.storage.pool())
             .insert(&row)
             .await
             .map_err(|e| {
                 // FK violation (`23503`) means the prompt was deleted
                 // between find_by_name and insert; report that as 404
                 // rather than a generic 500.
-                if let opengeo_storage::Error::Sqlx(sqlx::Error::Database(db_err)) = &e {
+                if let anseo_storage::Error::Sqlx(sqlx::Error::Database(db_err)) = &e {
                     if db_err.code().as_deref() == Some("23503") {
                         tracing::warn!(error = %e, "prompt deleted between lookup and insert");
                         return (
@@ -229,7 +229,7 @@ async fn create_prompt_run(
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({
                 "error": "orchestrator_unconfigured",
-                "message": "API server booted without a readable `opengeo.yaml` (set OGEO_CONFIG or place opengeo.yaml in CWD); live providers cannot be dispatched.",
+                "message": "API server booted without a readable `opengeo.yaml` (set ANSEO_CONFIG or place opengeo.yaml in CWD); live providers cannot be dispatched.",
             })),
         ));
     };
@@ -243,7 +243,7 @@ async fn create_prompt_run(
         ));
     };
 
-    let Some(provider_name) = opengeo_core::ProviderName::parse(&request.provider) else {
+    let Some(provider_name) = anseo_core::ProviderName::parse(&request.provider) else {
         return Err((
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
@@ -253,12 +253,11 @@ async fn create_prompt_run(
         ));
     };
 
-    let filter = opengeo_providers::OrchestratorFilter {
+    let filter = anseo_providers::OrchestratorFilter {
         prompt_names: Some(vec![request.prompt_name.clone()]),
         providers: Some(vec![provider_name]),
     };
-    let orchestrator =
-        opengeo_providers::Orchestrator::new((**config).clone(), (**registry).clone());
+    let orchestrator = anseo_providers::Orchestrator::new((**config).clone(), (**registry).clone());
     let records = orchestrator.run_all(filter).await;
 
     // The filter narrows to exactly the (prompt_name, provider) cell;
@@ -287,7 +286,7 @@ async fn create_prompt_run(
     let run_id = record.id;
     let message_text = record.message_text.clone();
     let raw_response_for_extraction = record.raw_response.clone();
-    let row = opengeo_storage::models::PromptRunRow {
+    let row = anseo_storage::models::PromptRunRow {
         id: record.id,
         prompt_id: prompt.id,
         provider: record.provider.as_wire_str().to_string(),
@@ -315,7 +314,7 @@ async fn create_prompt_run(
         tenant_id: None,
         created_at: now,
     };
-    opengeo_storage::repositories::prompt_runs::PromptRunRepo::new(state.storage.pool())
+    anseo_storage::repositories::prompt_runs::PromptRunRepo::new(state.storage.pool())
         .insert(&row)
         .await
         .map_err(|e| {
@@ -334,7 +333,7 @@ async fn create_prompt_run(
     // DB brand overlay (brand name + competitors). Best-effort: extraction
     // failure is logged but does not fail the already-persisted run.
     if let Some(text) = message_text.as_deref() {
-        if let Err(e) = opengeo_extractors::extract_and_persist(
+        if let Err(e) = anseo_extractors::extract_and_persist(
             &state.storage,
             config,
             run_id,

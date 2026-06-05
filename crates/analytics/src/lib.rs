@@ -11,13 +11,13 @@ pub mod metrics_store;
 pub mod sentiment;
 pub mod volatility;
 
+use anseo_core::{ProjectId, PromptRunId};
+use anseo_storage::Storage;
 use chrono::{DateTime, Utc};
-use opengeo_core::{ProjectId, PromptRunId};
-use opengeo_storage::Storage;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
-pub use opengeo_storage::Error;
+pub use anseo_storage::Error;
 
 /// Paginated input for `list_runs`.
 #[derive(Debug, Clone, Copy)]

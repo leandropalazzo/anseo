@@ -31,12 +31,12 @@ cleanup() {
 trap cleanup EXIT
 
 write_stub() {
-  cat > "$STUB_BIN/ogeo" <<EOF
+  cat > "/anseo" <<EOF
 #!/bin/sh
 echo '$1'
 exit ${2:-0}
 EOF
-  chmod +x "$STUB_BIN/ogeo"
+  chmod +x "/anseo"
 }
 
 assert_contains() {
@@ -63,16 +63,16 @@ run_case() {
   fi
 }
 
-# Case: missing OPENGEO_API_KEY exits 64
+# Case: missing ANSEO_API_KEY exits 64
 case_missing_key() {
-  unset OPENGEO_API_KEY
+  unset ANSEO_API_KEY
   OUTPUT="$("$ENTRYPOINT" "vec" "Acme" "3" "" "https://api.opengeo.dev" 2>&1)" && RC=0 || RC=$?
-  [ "$RC" -eq 64 ] && assert_contains "$OUTPUT" "OPENGEO_API_KEY"
+  [ "$RC" -eq 64 ] && assert_contains "$OUTPUT" "ANSEO_API_KEY"
 }
 
 # Case: within threshold exits 0 and writes outputs
 case_within_threshold() {
-  export OPENGEO_API_KEY="ogeo_test"
+  export ANSEO_API_KEY="anseo_test"
   write_stub '{"observed_rank": 2, "matched_runs": 4}' 0
   OUTPUT="$("$ENTRYPOINT" "vec" "Acme" "3" "" "https://api.opengeo.dev" 2>&1)" && RC=0 || RC=$?
   [ "$RC" -eq 0 ] && assert_contains "$(cat "$GITHUB_OUTPUT")" "observed-rank=2"
@@ -80,7 +80,7 @@ case_within_threshold() {
 
 # Case: above threshold exits 1
 case_above_threshold() {
-  export OPENGEO_API_KEY="ogeo_test"
+  export ANSEO_API_KEY="anseo_test"
   write_stub '{"observed_rank": 7, "matched_runs": 4}' 1
   "$ENTRYPOINT" "vec" "Acme" "3" "" "https://api.opengeo.dev" >/dev/null 2>&1 && RC=0 || RC=$?
   [ "$RC" -eq 1 ]
@@ -88,7 +88,7 @@ case_above_threshold() {
 
 # Case: step summary contains the expected table heading
 case_summary_table() {
-  export OPENGEO_API_KEY="ogeo_test"
+  export ANSEO_API_KEY="anseo_test"
   write_stub '{"observed_rank": 2, "matched_runs": 4}' 0
   "$ENTRYPOINT" "vec" "Acme" "3" "" "https://api.opengeo.dev" >/dev/null 2>&1
   assert_contains "$(cat "$GITHUB_STEP_SUMMARY")" "OpenGEO visibility check"
@@ -97,13 +97,13 @@ case_summary_table() {
 # Case: brand with a space round-trips intact (the bug the bats stub
 # couldn't easily catch without the set-- fix).
 case_brand_with_space() {
-  export OPENGEO_API_KEY="ogeo_test"
-  cat > "$STUB_BIN/ogeo" <<'EOF'
+  export ANSEO_API_KEY="anseo_test"
+  cat > "/anseo" <<'EOF'
 #!/bin/sh
 echo "{\"observed_rank\": 1, \"matched_runs\": 1, \"saw_brand\": \"$4\"}"
 exit 0
 EOF
-  chmod +x "$STUB_BIN/ogeo"
+  chmod +x "/anseo"
   "$ENTRYPOINT" "vec" "Acme Corp" "3" "" "https://api.opengeo.dev" >/dev/null 2>&1
   # If `set --` is wrong, the brand would be word-split and $4 would be
   # something like "--expect-rank-lte" instead of "Acme Corp".
@@ -111,7 +111,7 @@ EOF
   assert_contains "$SUMMARY" "Acme Corp"
 }
 
-run_case "missing OPENGEO_API_KEY → exit 64" case_missing_key
+run_case "missing ANSEO_API_KEY → exit 64" case_missing_key
 run_case "within threshold → exit 0 + output" case_within_threshold
 run_case "above threshold → exit 1" case_above_threshold
 run_case "step summary rendered" case_summary_table

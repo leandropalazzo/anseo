@@ -17,8 +17,8 @@ pub struct CompareBrands;
 // ---------------------------------------------------------------------------
 
 fn make_upstream_err(msg: &str) -> McpToolError {
-    McpToolError::Upstream(opengeo_wire_schema::mcp::McpError {
-        kind: opengeo_wire_schema::mcp::McpErrorKind::InternalError,
+    McpToolError::Upstream(anseo_wire_schema::mcp::McpError {
+        kind: anseo_wire_schema::mcp::McpErrorKind::InternalError,
         message: msg.to_string(),
         details: None,
         request_id: ulid::Ulid::new().to_string(),
@@ -27,8 +27,8 @@ fn make_upstream_err(msg: &str) -> McpToolError {
 }
 
 /// Convert a `Window` variant to the query-param string the REST API expects.
-fn window_to_str(w: opengeo_wire_schema::mcp::tools::Window) -> &'static str {
-    use opengeo_wire_schema::mcp::tools::Window;
+fn window_to_str(w: anseo_wire_schema::mcp::tools::Window) -> &'static str {
+    use anseo_wire_schema::mcp::tools::Window;
     match w {
         Window::SevenDays => "7d",
         Window::ThirtyDays => "30d",
@@ -59,7 +59,7 @@ impl Tool for CompareBrands {
         args: serde_json::Value,
         api: &ApiClient,
     ) -> Result<serde_json::Value, McpToolError> {
-        use opengeo_wire_schema::mcp::tools::{CompareBrandsInput, CompareBrandsOutput, Window};
+        use anseo_wire_schema::mcp::tools::{CompareBrandsInput, CompareBrandsOutput, Window};
 
         // 1. Parse input
         let input: CompareBrandsInput =

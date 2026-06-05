@@ -11,9 +11,9 @@
 //! - `reenable --name <slug>` — flip `disabled` back to false. The
 //!   auto-disable path runs in the dispatcher; this is the only way back.
 
+use anseo_core::{Config, OpenGeoError};
+use anseo_storage::Storage;
 use clap::Args;
-use opengeo_core::{Config, OpenGeoError};
-use opengeo_storage::Storage;
 
 #[derive(Debug, Args)]
 pub struct AddArgs {
@@ -29,13 +29,13 @@ pub struct AddArgs {
     /// `schedule.missed`, `visibility.anomaly`, `citation.anomaly`).
     #[arg(long)]
     pub event_kinds: String,
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
 }
 
 #[derive(Debug, Args)]
 pub struct ListArgs {
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
     /// Hide disabled rows (default shows them for audit visibility).
     #[arg(long)]
@@ -46,7 +46,7 @@ pub struct ListArgs {
 pub struct RotateSecretArgs {
     #[arg(long)]
     pub name: String,
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
 }
 
@@ -54,7 +54,7 @@ pub struct RotateSecretArgs {
 pub struct ReenableArgs {
     #[arg(long)]
     pub name: String,
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
 }
 
@@ -94,7 +94,7 @@ pub async fn run_add(args: AddArgs) -> Result<(), OpenGeoError> {
     println!("    Secret     : {secret_b64}");
     println!();
     println!("The secret will not be shown again. Share it with the consumer that");
-    println!("verifies the X-OpenGEO-Signature header (architecture §5.2). Rotate");
+    println!("verifies the X-Anseo-Signature header (architecture §5.2). Rotate");
     println!("with `ogeo webhook rotate-secret --name {}`.", args.name);
     Ok(())
 }
@@ -193,7 +193,7 @@ pub async fn run_reenable(args: ReenableArgs) -> Result<(), OpenGeoError> {
     Ok(())
 }
 
-fn project_id_from_config(path: &std::path::Path) -> Result<opengeo_core::ProjectId, OpenGeoError> {
+fn project_id_from_config(path: &std::path::Path) -> Result<anseo_core::ProjectId, OpenGeoError> {
     let yaml = std::fs::read_to_string(path)
         .map_err(|e| OpenGeoError::Config(format!("could not read {}: {e}", path.display())))?;
     let cfg = Config::from_yaml_str(&yaml)

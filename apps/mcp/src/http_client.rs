@@ -4,7 +4,7 @@
 //! MCP server never bypasses the API to the storage layer. Every call hits
 //! `/v1` over loopback HTTP and forwards both `X-OpenGEO-API-Key: <key>`
 //! (the header the API's `require_api_key` middleware reads) and
-//! `X-OpenGEO-Project: <project>` (L2 of the Phase 3 kickoff decisions).
+//! `X-Anseo-Project: <project>` (L2 of the Phase 3 kickoff decisions).
 //!
 //! Story 16.1 ships the client wrapper. The tool stubs do NOT call it; the
 //! handlers in 16.2-16.5 do. We construct it at boot so config errors surface
@@ -47,8 +47,8 @@ impl ApiClient {
         let url = format!("{}{}", self.base_url, path);
         self.inner
             .get(url)
-            .header("X-OpenGEO-API-Key", &self.api_key)
-            .header("X-OpenGEO-Project", &self.project)
+            .header("X-Anseo-API-Key", &self.api_key)
+            .header("X-Anseo-Project", &self.project)
     }
 
     /// Issue a `POST` against `<base_url><path>`. Always carries the auth +
@@ -58,8 +58,8 @@ impl ApiClient {
         let url = format!("{}{}", self.base_url, path);
         self.inner
             .post(url)
-            .header("X-OpenGEO-API-Key", &self.api_key)
-            .header("X-OpenGEO-Project", &self.project)
+            .header("X-Anseo-API-Key", &self.api_key)
+            .header("X-Anseo-Project", &self.project)
     }
 
     /// Issue a `PATCH` against `<base_url><path>`. Always carries the auth +
@@ -69,8 +69,8 @@ impl ApiClient {
         let url = format!("{}{}", self.base_url, path);
         self.inner
             .patch(url)
-            .header("X-OpenGEO-API-Key", &self.api_key)
-            .header("X-OpenGEO-Project", &self.project)
+            .header("X-Anseo-API-Key", &self.api_key)
+            .header("X-Anseo-Project", &self.project)
     }
 
     #[allow(dead_code)]
@@ -81,7 +81,7 @@ impl ApiClient {
     /// Return the project this client was constructed with.
     ///
     /// Used by tool handlers to produce an `UnknownProject` error when the
-    /// upstream API returns 404 in response to the `X-OpenGEO-Project` header.
+    /// upstream API returns 404 in response to the `X-Anseo-Project` header.
     pub fn current_project(&self) -> &str {
         &self.project
     }

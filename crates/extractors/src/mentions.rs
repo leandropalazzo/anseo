@@ -12,7 +12,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use opengeo_core::{BrandConfig, CompetitorConfig, Config};
+use anseo_core::{BrandConfig, CompetitorConfig, Config};
 
 use crate::sentiment::{classify_sentiment, Sentiment};
 

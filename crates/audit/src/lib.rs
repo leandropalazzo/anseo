@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 use std::time::Duration;
 
-use opengeo_recommendations::kind::RecommendationKind;
+use anseo_recommendations::kind::RecommendationKind;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use url::Url;
@@ -251,7 +251,7 @@ impl Crawler {
     pub fn new(options: AuditOptions) -> Self {
         let client = reqwest::Client::builder()
             .timeout(options.timeout)
-            .user_agent("opengeo-audit/0.6")
+            .user_agent("anseo-audit/0.6")
             .build()
             .expect("reqwest client builder");
         Self { options, client }

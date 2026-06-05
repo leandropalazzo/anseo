@@ -1,6 +1,6 @@
 //! Provider model cost metadata used by Phase 2 schedule projections.
 
-use opengeo_core::ProviderName;
+use anseo_core::ProviderName;
 
 /// Conservative blended token estimate per prompt run used for pre-run schedule
 /// projection. Real usage accounting still comes from persisted provider rows.

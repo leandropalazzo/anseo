@@ -10,10 +10,10 @@
 
 use std::sync::Arc;
 
+use anseo_scheduler::transport::listen;
+use anseo_scheduler::worker::event_channel;
+use anseo_storage::Storage;
 use axum::Router;
-use opengeo_scheduler::transport::listen;
-use opengeo_scheduler::worker::event_channel;
-use opengeo_storage::Storage;
 
 use crate::routes::serve_status::ServeInfo;
 use crate::{bootstrap_key_material, check_bind_acceptable, parse_project_id, router, AppState};
@@ -25,7 +25,7 @@ pub struct BootedApi {
     pub app: Router,
     /// Kept so the caller (and the NOTIFY bridge) share the same broadcast
     /// channel the router's SSE subscribers read from.
-    pub events: tokio::sync::broadcast::Sender<opengeo_scheduler::events::LifecycleEvent>,
+    pub events: tokio::sync::broadcast::Sender<anseo_scheduler::events::LifecycleEvent>,
 }
 
 /// Options for [`build_api`]. Mirrors the env-var reads the binary used to do
@@ -44,7 +44,7 @@ pub struct ApiBootConfig {
 /// bootstrap key/prompts, run the bind guard, and return a [`BootedApi`].
 ///
 /// Reads the same optional env vars the binary historically honored
-/// (`OGEO_PROJECT_ID`, `OPENGEO_TEST_MODE`, `OPENGEO_BOOTSTRAP_API_KEY`) so
+/// (`ANSEO_PROJECT_ID`, `ANSEO_TEST_MODE`, `ANSEO_BOOTSTRAP_API_KEY`) so
 /// behavior is unchanged for the standalone binary.
 pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::error::Error>> {
     let ApiBootConfig {
@@ -54,11 +54,11 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
         serve_info,
     } = opts;
 
-    let loaded_config: Option<opengeo_core::Config> = std::fs::read_to_string(&config_path)
+    let loaded_config: Option<anseo_core::Config> = std::fs::read_to_string(&config_path)
         .ok()
-        .and_then(|yaml| opengeo_core::Config::from_yaml_str(&yaml).ok());
+        .and_then(|yaml| anseo_core::Config::from_yaml_str(&yaml).ok());
 
-    let mut project_id = match std::env::var("OGEO_PROJECT_ID") {
+    let mut project_id = match std::env::var("ANSEO_PROJECT_ID") {
         Ok(s) => parse_project_id(&s)?,
         Err(_) => loaded_config
             .as_ref()
@@ -67,7 +67,7 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
     };
 
     let provider_registry = match loaded_config.as_ref() {
-        Some(cfg) => match opengeo_providers::registry::build_real_registry(cfg) {
+        Some(cfg) => match anseo_providers::registry::build_real_registry(cfg) {
             Ok(reg) => Some(Arc::new(reg)),
             Err(err) => {
                 tracing::warn!(
@@ -93,7 +93,7 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
     // DB-authoritative brand config: once a project row exists, its
     // name/variants/competitors win over the bootstrap `opengeo.yaml`.
     if let Some(brand) = storage.projects().get_single_brand().await? {
-        project_id = opengeo_core::project_id_for_name(&brand.name);
+        project_id = anseo_core::project_id_for_name(&brand.name);
         configured_project = brand.name.clone();
         if let Some(cfg) = loaded_config.as_mut() {
             cfg.brand.name = brand.name.clone();
@@ -112,13 +112,13 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
     let loaded_config = loaded_config.map(Arc::new);
 
     // Story 12.1 NFR — boot-time bind acceptability check.
-    let test_mode_enabled = std::env::var("OPENGEO_TEST_MODE").as_deref() == Ok("1");
+    let test_mode_enabled = std::env::var("ANSEO_TEST_MODE").as_deref() == Ok("1");
     let mut active_keys = storage
         .api_keys()
         .count_active_for_project(project_id)
         .await?;
     if active_keys == 0 {
-        if let Ok(plaintext) = std::env::var("OPENGEO_BOOTSTRAP_API_KEY") {
+        if let Ok(plaintext) = std::env::var("ANSEO_BOOTSTRAP_API_KEY") {
             let plaintext = plaintext.trim();
             if !plaintext.is_empty() {
                 let (hash, prefix) =
@@ -126,7 +126,7 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
                 if storage.projects().get(project_id).await?.is_none() {
                     storage
                         .projects()
-                        .insert(&opengeo_storage::models::ProjectRow {
+                        .insert(&anseo_storage::models::ProjectRow {
                             id: project_id,
                             name: (*configured_project).clone(),
                             organization_id: None,
@@ -147,7 +147,7 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
                 tracing::info!(
                     event = "service.bootstrap_key_seeded",
                     project = %project_id,
-                    "seeded bootstrap API key from OPENGEO_BOOTSTRAP_API_KEY (project had no active keys)"
+                    "seeded bootstrap API key from ANSEO_BOOTSTRAP_API_KEY (project had no active keys)"
                 );
                 active_keys = 1;
             }
@@ -164,10 +164,10 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
                 .is_empty()
         {
             for p in &cfg.prompts {
-                let id = opengeo_core::prompt_id_for(configured_project.as_str(), &p.name);
+                let id = anseo_core::prompt_id_for(configured_project.as_str(), &p.name);
                 storage
                     .prompts()
-                    .insert(&opengeo_storage::models::PromptRow {
+                    .insert(&anseo_storage::models::PromptRow {
                         id,
                         project_id,
                         name: p.name.clone(),
@@ -237,7 +237,7 @@ pub async fn serve_with_shutdown(
 /// worker in one process.
 pub fn spawn_notify_bridge(
     database_url: String,
-    events_tx: tokio::sync::broadcast::Sender<opengeo_scheduler::events::LifecycleEvent>,
+    events_tx: tokio::sync::broadcast::Sender<anseo_scheduler::events::LifecycleEvent>,
 ) {
     tokio::spawn(async move {
         loop {

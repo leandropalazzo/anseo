@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use opengeo_core::Config;
+use anseo_core::Config;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Claim {

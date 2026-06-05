@@ -13,7 +13,7 @@
 //! annotations on every handler so the spec is generated from the
 //! source-of-truth Rust types rather than hand-maintained.
 //!
-//! Usage: `cargo run -p opengeo-wire-schema --bin gen-openapi`
+//! Usage: `cargo run -p anseo-wire-schema --bin gen-openapi`
 
 #![recursion_limit = "512"]
 
@@ -31,11 +31,11 @@ fn build_spec() -> serde_json::Value {
         "info": {
             "title": "OpenGEO Public REST API",
             "version": "0.3.1",
-            "description": "Phase 2 v1 surface — read endpoints, prompt run submission, and the SSE event stream. Auth: X-OpenGEO-API-Key header carrying an `ogeo_<32 chars>` key. Story 0.11 (Phase 3 substrate) adds the optional X-OpenGEO-Project header — Phase 2 accepts it for forward compatibility; Phase 4 will require it. Story 15.1 adds three `/v1/setup/*` endpoints (deployment UX substrate)."
+            "description": "Phase 2 v1 surface — read endpoints, prompt run submission, and the SSE event stream. Auth: X-Anseo-API-Key header carrying an `ogeo_<32 chars>` key. Story 0.11 (Phase 3 substrate) adds the optional X-Anseo-Project header — Phase 2 accepts it for forward compatibility; Phase 4 will require it. Story 15.1 adds three `/v1/setup/*` endpoints (deployment UX substrate)."
         },
         "servers": [
             {
-                "url": "https://api.opengeo.dev",
+                "url": "https://api.anseo.ai",
                 "description": "Hosted production"
             },
             {
@@ -49,7 +49,7 @@ fn build_spec() -> serde_json::Value {
         "components": {
             "parameters": {
                 "ProjectHeader": {
-                    "name": "X-OpenGEO-Project",
+                    "name": "X-Anseo-Project",
                     "in": "header",
                     "required": false,
                     "schema": { "type": "string" },
@@ -60,12 +60,12 @@ fn build_spec() -> serde_json::Value {
                 "ApiKeyAuth": {
                     "type": "apiKey",
                     "in": "header",
-                    "name": "X-OpenGEO-API-Key"
+                    "name": "X-Anseo-API-Key"
                 }
             },
             "responses": {
                 "Unauthorized": {
-                    "description": "Missing, malformed, or revoked X-OpenGEO-API-Key. The body shape is intentionally opaque so an unauthenticated caller cannot distinguish 'wrong key' from 'auth backend down'.",
+                    "description": "Missing, malformed, or revoked X-Anseo-API-Key. The body shape is intentionally opaque so an unauthenticated caller cannot distinguish 'wrong key' from 'auth backend down'.",
                     "content": {
                         "application/json": {
                             "schema": { "$ref": "#/components/schemas/Error" }
@@ -104,7 +104,7 @@ fn build_spec() -> serde_json::Value {
                     "type": "object",
                     "required": ["prompt_name", "provider"],
                     "properties": {
-                        "prompt_name": { "type": "string", "description": "Slug-safe prompt identifier declared in opengeo.yaml." },
+                        "prompt_name": { "type": "string", "description": "Slug-safe prompt identifier declared in anseo.yaml." },
                         "provider": {
                             "type": "string",
                             "enum": ["openai", "anthropic", "gemini", "perplexity", "grok", "mistral", "openrouter", "mock"]
@@ -513,7 +513,7 @@ fn build_spec() -> serde_json::Value {
                         },
                         "401": { "$ref": "#/components/responses/Unauthorized" },
                         "503": {
-                            "description": "No opengeo.yaml loaded; cannot assemble recommendation inputs.",
+                            "description": "No anseo.yaml loaded; cannot assemble recommendation inputs.",
                             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
                         }
                     }
@@ -651,11 +651,11 @@ mod tests {
     }
 
     #[test]
-    fn spec_declares_x_opengeo_api_key_security_scheme() {
+    fn spec_declares_x_anseo_api_key_security_scheme() {
         let spec = build_spec();
         assert_eq!(
             spec["components"]["securitySchemes"]["ApiKeyAuth"]["name"],
-            "X-OpenGEO-API-Key"
+            "X-Anseo-API-Key"
         );
     }
 

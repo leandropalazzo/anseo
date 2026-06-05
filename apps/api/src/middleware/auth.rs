@@ -12,16 +12,16 @@
 //!      forget update — operators see "last used" within one request of
 //!      reality without paying the latency cost on the response path.
 //!
-//! Pure-logic verification lives in `opengeo_core::api_key`; this module
+//! Pure-logic verification lives in `anseo_core::api_key`; this module
 //! wires it to axum.
 
+use anseo_core::api_key::{extract_api_key, looks_like_key, sha256_hex, API_KEY_HEADER};
+use anseo_core::ProjectId;
 use axum::body::Body;
 use axum::extract::{Request, State};
 use axum::http::{HeaderName, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
-use opengeo_core::api_key::{extract_api_key, looks_like_key, sha256_hex, API_KEY_HEADER};
-use opengeo_core::ProjectId;
 
 use crate::AppState;
 
@@ -37,11 +37,15 @@ pub async fn require_api_key(
     mut request: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // Build the header name once. HeaderName::from_static caches statically.
-    let header_name: HeaderName = HeaderName::from_static("x-opengeo-api-key");
+    // Read the canonical `X-Anseo-API-Key` header, falling back to the
+    // deprecated `X-OpenGEO-API-Key` for back-compat with pre-rename clients.
+    // HeaderName::from_static caches statically and requires lowercase.
+    let anseo_header: HeaderName = HeaderName::from_static("x-anseo-api-key");
+    let legacy_header: HeaderName = HeaderName::from_static("x-opengeo-api-key");
     let header_value = request
         .headers()
-        .get(&header_name)
+        .get(&anseo_header)
+        .or_else(|| request.headers().get(&legacy_header))
         .and_then(|v| v.to_str().ok());
 
     let Some(token) = extract_api_key(header_value) else {
@@ -103,7 +107,7 @@ pub async fn require_api_key(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opengeo_core::api_key::{extract_api_key, generate, looks_like_key, sha256_hex};
+    use anseo_core::api_key::{extract_api_key, generate, looks_like_key, sha256_hex};
 
     #[test]
     fn header_extraction_chain_handles_missing_header() {
@@ -135,6 +139,6 @@ mod tests {
 
     #[test]
     fn header_name_constant_matches_spec() {
-        assert_eq!(API_KEY_HEADER, "X-OpenGEO-API-Key");
+        assert_eq!(API_KEY_HEADER, "X-Anseo-API-Key");
     }
 }

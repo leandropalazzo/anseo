@@ -3,12 +3,12 @@
 //! No real network. The adapters point at a wiremock server and we assert:
 //! - 200 with the canonical response shape parses into a `ProviderResponse`
 //! - 401 / 429 / 503 / non-JSON / timeout map to the closed taxonomy
-//! - `x-api-key` / Bearer headers and `X-OpenGEO-Request-Id` propagate
+//! - `x-api-key` / Bearer headers and `X-Anseo-Request-Id` propagate
 
 use std::time::Duration;
 
-use opengeo_core::{ProviderErrorKind, Secret};
-use opengeo_providers::{AnthropicProvider, OpenAiProvider, Provider, ProviderRequest};
+use anseo_core::{ProviderErrorKind, Secret};
+use anseo_providers::{AnthropicProvider, OpenAiProvider, Provider, ProviderRequest};
 use wiremock::matchers::{header, header_exists, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -23,7 +23,7 @@ async fn openai_success_round_trip() {
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
         .and(header("Authorization", "Bearer sk-fixture"))
-        .and(header_exists("X-OpenGEO-Request-Id"))
+        .and(header_exists("X-Anseo-Request-Id"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "id": "chatcmpl-test",
             "model": "gpt-4o-2024-08-06",

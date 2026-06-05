@@ -5,10 +5,10 @@ import { ShellGate } from "@/app/_components/shell-gate";
 
 import "./globals.css";
 
-// Read `ogeo-theme` from localStorage; fall back to `dark` (Signal default).
+// Read `anseo-theme` from localStorage; fall back to `dark` (Signal default).
 // Separate try/catches so a localStorage throw (Safari Private mode, quota)
 // doesn't short-circuit the dark fallback.
-const THEME_INIT_SCRIPT = `(function(){var s;try{s=localStorage.getItem('ogeo-theme');}catch(_){}var t=(s==='light'||s==='dark')?s:'dark';document.documentElement.setAttribute('data-theme',t);})();`;
+const THEME_INIT_SCRIPT = `(function(){var s;try{s=localStorage.getItem('anseo-theme');}catch(_){}var t=(s==='light'||s==='dark')?s:'dark';document.documentElement.setAttribute('data-theme',t);})();`;
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",

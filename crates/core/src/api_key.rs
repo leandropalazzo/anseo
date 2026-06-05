@@ -17,11 +17,19 @@
 use sha2::{Digest, Sha256};
 
 /// Stable prefix every issued key carries. Used by the auth middleware to
-/// reject non-OpenGEO authorization values without a DB lookup.
+/// reject non-Anseo authorization values without a DB lookup.
+/// NOTE: The `ogeo_` prefix is intentionally preserved for backward compatibility
+/// with already-issued keys. New keys will continue to use `ogeo_` until a
+/// future migration changes the prefix.
 pub const KEY_PREFIX: &str = "ogeo_";
 
 /// Canonical HTTP header carrying the Phase 2 REST API key (A-13).
-pub const API_KEY_HEADER: &str = "X-OpenGEO-API-Key";
+pub const API_KEY_HEADER: &str = "X-Anseo-API-Key";
+
+/// Deprecated pre-rename header name. The old header is accepted by the auth
+/// middleware for one release for back-compat with pre-rename clients.
+#[deprecated(since = "0.7.0", note = "use X-Anseo-API-Key instead")]
+pub const API_KEY_HEADER_LEGACY: &str = "X-OpenGEO-API-Key";
 
 /// Length of the random portion (after `ogeo_`). 32 base62 chars give
 /// log2(62) * 32 ≈ 190 bits of entropy — well above the 128-bit floor for
@@ -331,7 +339,7 @@ mod tests {
 
     #[test]
     fn api_key_header_constant_matches_spec() {
-        assert_eq!(API_KEY_HEADER, "X-OpenGEO-API-Key");
+        assert_eq!(API_KEY_HEADER, "X-Anseo-API-Key");
     }
 
     #[test]

@@ -1,8 +1,8 @@
-//! `X-OpenGEO-Project` per-request project resolution (Epic 36, ADR-004).
+//! `X-Anseo-Project` per-request project resolution (Epic 36, ADR-004).
 //!
 //! Story 36.2 activates **real per-request resolution** over the `projects`
 //! table and removes the boot-time single-project pin. Every `/v1/*` request
-//! is resolved to a concrete [`opengeo_core::ProjectId`] before any handler
+//! is resolved to a concrete [`anseo_core::ProjectId`] before any handler
 //! runs; handlers read that resolved scope from request extensions (via the
 //! typed [`ProjectScope`] extractor) so two requests for different projects
 //! never read each other's data.
@@ -10,11 +10,11 @@
 //! Precedence (ADR-004), highest first:
 //!
 //! 1. **Explicit value** — an explicitly-supplied project identifier. At the
-//!    HTTP layer the explicit value *is* the `X-OpenGEO-Project` header, so
+//!    HTTP layer the explicit value *is* the `X-Anseo-Project` header, so
 //!    tiers (1) and (2) coincide here. The shared [`resolve_project`] resolver
 //!    keeps the tier distinct so the CLI/MCP surfaces (later Epic 36 stories)
 //!    can pass an explicit flag that out-ranks an ambient header.
-//! 2. **`X-OpenGEO-Project` header** — resolved by brand name against the
+//! 2. **`X-Anseo-Project` header** — resolved by brand name against the
 //!    `projects` table (case-insensitive after trim, matching the
 //!    `project_id_for_name` canonicalisation). The reserved sentinel
 //!    `"default"` resolves to the legacy sole-active project.
@@ -33,14 +33,14 @@
 //! resolved [`ProjectScope`] into request extensions; the typed extractor is a
 //! noop lookup of that extension.
 
+use anseo_core::{project_id_for_name, ProjectId as CoreProjectId};
+use anseo_storage::Storage;
 use axum::body::Body;
 use axum::extract::{FromRequestParts, Request, State};
 use axum::http::{request::Parts, HeaderName, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use opengeo_core::{project_id_for_name, ProjectId as CoreProjectId};
-use opengeo_storage::Storage;
 use serde_json::json;
 
 use crate::AppState;
@@ -48,7 +48,7 @@ use crate::AppState;
 /// Canonical header name. The static value is the form clients see on the wire;
 /// `HeaderName::from_static` requires lowercase, so the matching helpers below
 /// normalise to lowercase before lookup.
-pub const PROJECT_HEADER: &str = "X-OpenGEO-Project";
+pub const PROJECT_HEADER: &str = "X-Anseo-Project";
 
 /// Reserved sentinel resolving to "the one active project". A single-project
 /// deployment can hard-code `"default"` and keep working; it resolves through
@@ -94,7 +94,7 @@ pub enum ResolveError {
 /// Shared, reusable project resolver implementing the ADR-004 precedence chain.
 ///
 /// `explicit` is a project identifier supplied out-of-band (a CLI/MCP flag);
-/// `header` is the `X-OpenGEO-Project` value. Both are resolved by **brand
+/// `header` is the `X-Anseo-Project` value. Both are resolved by **brand
 /// name** against the `projects` table. When neither is supplied (or the
 /// header is the `"default"` sentinel), the legacy sole-active-project fallback
 /// applies. Returns the resolved [`ProjectScope`] or [`ResolveError::NotFound`].
@@ -157,7 +157,13 @@ pub async fn resolve_project(
     }
 }
 
+/// Canonical project header (`X-Anseo-Project`, lowercased for `from_static`).
 fn project_header_name() -> HeaderName {
+    HeaderName::from_static("x-anseo-project")
+}
+
+/// Deprecated pre-rename project header, still accepted for back-compat.
+fn legacy_project_header_name() -> HeaderName {
     HeaderName::from_static("x-opengeo-project")
 }
 
@@ -187,9 +193,11 @@ pub async fn project_header_guard(
     next: Next,
 ) -> Result<Response, Response> {
     let header_name = project_header_name();
+    let legacy_header = legacy_project_header_name();
     let header_value = request
         .headers()
         .get(&header_name)
+        .or_else(|| request.headers().get(&legacy_header))
         .and_then(|v| v.to_str().ok())
         .map(str::to_owned);
 

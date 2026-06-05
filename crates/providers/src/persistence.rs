@@ -18,15 +18,15 @@
 //! Mentions and Citations are persisted by Stories 3.2 / 3.3 once the
 //! extractor crate populates them.
 
+use anseo_core::Config;
+use anseo_storage::models::{ProjectRow, PromptRow, PromptRunRow};
+use anseo_storage::Storage;
 use chrono::Utc;
-use opengeo_core::Config;
-use opengeo_storage::models::{ProjectRow, PromptRow, PromptRunRow};
-use opengeo_storage::Storage;
 
 use crate::orchestrator::{PromptRunRecord, PromptRunStatus};
 
 pub struct PersistedRun {
-    pub run_id: opengeo_core::PromptRunId,
+    pub run_id: anseo_core::PromptRunId,
     pub status: PromptRunStatus,
 }
 
@@ -36,7 +36,7 @@ pub async fn persist_records(
     storage: &Storage,
     config: &Config,
     records: &[PromptRunRecord],
-) -> Result<Vec<PersistedRun>, opengeo_storage::Error> {
+) -> Result<Vec<PersistedRun>, anseo_storage::Error> {
     // 1. Project upsert.
     let project_id = config.project_id();
     upsert_project(
@@ -112,8 +112,8 @@ pub async fn persist_records(
 /// - `response_persisted` — `ok`; the `prompt_runs` row was just inserted.
 /// - `mention_extraction` / `citation_extraction` / `ranking` — recorded as
 ///   `skipped`. Mention/citation extraction (Story 3.2) is not yet invoked in
-///   this write path (`opengeo-providers` does not depend on
-///   `opengeo-extractors`), so there is no real count to attach. The rows are
+///   this write path (`anseo-providers` does not depend on
+///   `anseo-extractors`), so there is no real count to attach. The rows are
 ///   emitted so the provenance trail enumerates every lifecycle stage; once
 ///   extraction lands here they flip to `ok` with a `count` in `detail`.
 ///
@@ -122,10 +122,10 @@ pub async fn persist_records(
 /// does not invent rows for stages that didn't run.
 async fn record_provenance(
     storage: &Storage,
-    run_id: opengeo_core::PromptRunId,
+    run_id: anseo_core::PromptRunId,
     record: &PromptRunRecord,
-) -> Result<(), opengeo_storage::Error> {
-    use opengeo_storage::repositories::run_provenance::StepStatus;
+) -> Result<(), anseo_storage::Error> {
+    use anseo_storage::repositories::run_provenance::StepStatus;
     let prov = storage.run_provenance();
 
     // provider_call — ok on success, error on a provider failure.
@@ -175,8 +175,8 @@ async fn record_provenance(
     Ok(())
 }
 
-async fn upsert_project(storage: &Storage, row: &ProjectRow) -> Result<(), opengeo_storage::Error> {
-    use opengeo_core::ProjectId;
+async fn upsert_project(storage: &Storage, row: &ProjectRow) -> Result<(), anseo_storage::Error> {
+    use anseo_core::ProjectId;
     sqlx::query!(
         r#"
         INSERT INTO projects (id, name, organization_id, tenant_id, created_at)
@@ -194,8 +194,8 @@ async fn upsert_project(storage: &Storage, row: &ProjectRow) -> Result<(), openg
     Ok(())
 }
 
-async fn upsert_prompt(storage: &Storage, row: &PromptRow) -> Result<(), opengeo_storage::Error> {
-    use opengeo_core::{ProjectId, PromptId};
+async fn upsert_prompt(storage: &Storage, row: &PromptRow) -> Result<(), anseo_storage::Error> {
+    use anseo_core::{ProjectId, PromptId};
     sqlx::query!(
         r#"
         INSERT INTO prompts (id, project_id, name, text, organization_id, tenant_id, created_at)

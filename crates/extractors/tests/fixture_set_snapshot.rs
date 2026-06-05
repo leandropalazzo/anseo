@@ -22,8 +22,8 @@
 //! trace: P0-004 (FR-4 citation extraction)
 //! trace: P2-003 (FR-3 multibyte UTF-8 offsets — covered by fixture 06)
 
+use anseo_extractors::{extract_citations, extract_mentions, mentions::config_with};
 use insta::assert_yaml_snapshot;
-use opengeo_extractors::{extract_citations, extract_mentions, mentions::config_with};
 
 fn read_fixture(name: &str) -> String {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -34,7 +34,7 @@ fn read_fixture(name: &str) -> String {
         .unwrap_or_else(|e| panic!("failed to read fixture {}: {e}", path.display()))
 }
 
-fn canonical_config() -> opengeo_core::Config {
+fn canonical_config() -> anseo_core::Config {
     // Shared across every fixture so the snapshots describe extractor
     // behavior, not config differences.
     config_with("Pinecone", &["Qdrant", "Weaviate", "Chroma"])

@@ -22,7 +22,7 @@
 //!    constants. A future tweak that bumps v0.1 → v0.3 (skipping v0.2)
 //!    would lose v0.2 backward compatibility silently.
 
-use opengeo_core::{
+use anseo_core::{
     ExitCode, ProviderErrorKind, DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL,
     SCHEMA_VERSION_V0_1, SCHEMA_VERSION_V0_2,
 };

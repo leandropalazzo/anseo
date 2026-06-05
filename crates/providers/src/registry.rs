@@ -23,7 +23,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use opengeo_core::{
+use anseo_core::{
     default_chain, get_provider_secret, Config, ProviderName, Secret, SecretStoreError,
 };
 

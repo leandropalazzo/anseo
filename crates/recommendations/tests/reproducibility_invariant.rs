@@ -3,11 +3,11 @@
 //! ∈ tags`. Exercised as a truth table over all 3 classes × {tag, no tag},
 //! plus a check that every engine-produced Recommendation satisfies it.
 
-use chrono::{DateTime, Utc};
-use opengeo_recommendations::{
+use anseo_recommendations::{
     window, ConfidenceBand, Engine, Recommendation, RecommendationKind, Reproducibility,
     ReproducibilityClass, Severity, Traceability, TAG_DETERMINISTIC_LANE, TAG_NON_DETERMINISTIC,
 };
+use chrono::{DateTime, Utc};
 use ulid::Ulid;
 
 mod fixture;
@@ -25,7 +25,7 @@ fn rec_with(class: ReproducibilityClass, tags: Vec<String>) -> Recommendation {
         kind: RecommendationKind::DocsNotCitedForPrompt,
         severity: Severity::Medium,
         confidence_band: ConfidenceBand::Medium,
-        state: opengeo_recommendations::LifecycleState::New,
+        state: anseo_recommendations::LifecycleState::New,
         summary: "x".into(),
         payload: serde_json::json!({}),
         traceability: Traceability {

@@ -2,8 +2,8 @@
 
 use std::path::PathBuf;
 
+use anseo_core::OpenGeoError;
 use clap::Args;
-use opengeo_core::OpenGeoError;
 
 #[derive(Debug, Args)]
 pub struct StatusArgs {

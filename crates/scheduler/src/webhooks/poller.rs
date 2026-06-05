@@ -17,9 +17,9 @@
 //! Designed to be called by `apps/worker/src/main` on a tick interval.
 //! Production wiring lives there; this module is the composable unit.
 
-use opengeo_storage::repositories::webhook_deliveries::PendingDelivery;
-use opengeo_storage::repositories::webhooks::WebhookRow;
-use opengeo_storage::Storage;
+use anseo_storage::repositories::webhook_deliveries::PendingDelivery;
+use anseo_storage::repositories::webhooks::WebhookRow;
+use anseo_storage::Storage;
 use reqwest::Client;
 use std::time::Duration;
 use tokio::task::JoinSet;
@@ -119,9 +119,7 @@ async fn spawn_one(
     delivery_timeout: Duration,
 ) -> Result<DispatchResult, DispatcherError> {
     let body = serde_json::to_vec(&delivery.payload_jsonb).map_err(|e| {
-        DispatcherError::Storage(opengeo_storage::Error::Sqlx(sqlx::Error::Decode(Box::new(
-            e,
-        ))))
+        DispatcherError::Storage(anseo_storage::Error::Sqlx(sqlx::Error::Decode(Box::new(e))))
     })?;
     let secret = decode_secret(&webhook.secret_ciphertext);
     let webhook_id_for_disable = webhook.id;

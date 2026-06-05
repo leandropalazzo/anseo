@@ -10,9 +10,9 @@
 //! 14.1 follow-up; this minimal ETL exists so a fresh ClickHouse
 //! deployment can be primed in one shot.
 
+use anseo_core::ProjectId;
+use anseo_storage::Storage;
 use chrono::{Duration, Utc};
-use opengeo_core::ProjectId;
-use opengeo_storage::Storage;
 
 use crate::metrics_store::clickhouse::{
     ClickHouseError, ClickHouseMetricsStore, VisibilityPointRow,
@@ -22,7 +22,7 @@ use crate::{citation_summary, visibility_trend};
 #[derive(Debug, thiserror::Error)]
 pub enum EtlError {
     #[error("Postgres read failed: {0}")]
-    Postgres(#[from] opengeo_storage::Error),
+    Postgres(#[from] anseo_storage::Error),
     #[error("ClickHouse write failed: {0}")]
     ClickHouse(#[from] ClickHouseError),
     #[error("checkpoint query failed: {0}")]

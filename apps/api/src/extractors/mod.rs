@@ -1,7 +1,7 @@
 //! Axum extractors shared across `/v1/*` route handlers.
 //!
 //! Epic 36 (ADR-004): `project` provides per-request project resolution over
-//! the `projects` table. The `X-OpenGEO-Project` header (or an explicit
+//! the `projects` table. The `X-Anseo-Project` header (or an explicit
 //! CLI/MCP flag) resolves to a concrete `ProjectId`; the resolved scope is
 //! stamped into request extensions for every `/v1/*` handler.
 

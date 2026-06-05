@@ -2,7 +2,7 @@
 //!
 //! Single-operator multi-project: these endpoints manage the *set* of projects
 //! a deployment hosts. They are **project-agnostic** — unlike the rest of
-//! `/v1/*`, they are NOT gated by the `X-OpenGEO-Project` header (you can't
+//! `/v1/*`, they are NOT gated by the `X-Anseo-Project` header (you can't
 //! select a project before you've listed/created one). They remain behind the
 //! `require_api_key` auth gate. There is no org/tenant scoping (single
 //! operator).
@@ -16,12 +16,12 @@
 
 use std::str::FromStr;
 
+use anseo_core::{BrandConfig, ProjectId};
+use anseo_storage::models::ProjectRow;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use opengeo_core::{BrandConfig, ProjectId};
-use opengeo_storage::models::ProjectRow;
 use serde::{Deserialize, Serialize};
 
 use crate::AppState;
@@ -130,7 +130,7 @@ async fn create_project(
         variants: req.variants,
         site_url: req.site_url,
     };
-    let id = opengeo_core::project_id_for_name(&brand.name);
+    let id = anseo_core::project_id_for_name(&brand.name);
 
     // Creating an existing project is a conflict — the id is derived from the
     // name, so two creates with the same name collide deterministically.
@@ -236,8 +236,8 @@ async fn archive_project(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opengeo_core::ProjectId;
-    use opengeo_storage::models::ProjectRow;
+    use anseo_core::ProjectId;
+    use anseo_storage::models::ProjectRow;
 
     #[test]
     fn project_view_from_row_maps_fields() {

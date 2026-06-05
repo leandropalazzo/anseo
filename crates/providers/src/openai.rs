@@ -2,12 +2,12 @@
 //!
 //! Hits `POST /v1/chat/completions` with `Bearer` auth. Maps the response into
 //! [`ProviderResponse`]; maps every failure mode into
-//! [`opengeo_core::ProviderErrorKind`].
+//! [`anseo_core::ProviderErrorKind`].
 
 use async_trait::async_trait;
 use std::time::Duration;
 
-use opengeo_core::{ProviderName, Secret};
+use anseo_core::{ProviderName, Secret};
 
 use crate::{
     map_reqwest_err, HttpClient, Provider, ProviderError, ProviderRequest, ProviderResponse,
@@ -68,7 +68,7 @@ impl Provider for OpenAiProvider {
             .inner()
             .post(&url)
             .bearer_auth(self.http.api_key().expose())
-            .header("X-OpenGEO-Request-Id", request.request_id.to_string())
+            .header("X-Anseo-Request-Id", request.request_id.to_string())
             .timeout(request.timeout)
             .json(&body)
             .send()
@@ -160,7 +160,7 @@ const _DEFAULT_TIMEOUT_SANITY: Duration = Duration::from_secs(60);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opengeo_core::ProviderErrorKind;
+    use anseo_core::ProviderErrorKind;
 
     #[test]
     fn validate_model_accepts_supported() {

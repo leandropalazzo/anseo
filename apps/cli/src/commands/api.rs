@@ -8,9 +8,9 @@
 //!                              prefix only — the plaintext is unrecoverable).
 //! - `revoke --name <slug>`   — soft-revoke by name; idempotent.
 
+use anseo_core::{api_key, Config, OpenGeoError};
+use anseo_storage::Storage;
 use clap::Args;
-use opengeo_core::{api_key, Config, OpenGeoError};
-use opengeo_storage::Storage;
 
 #[derive(Debug, Args)]
 pub struct CreateArgs {
@@ -19,13 +19,13 @@ pub struct CreateArgs {
     #[arg(long)]
     pub name: String,
     /// Path to `opengeo.yaml`. Defaults to `./opengeo.yaml`.
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
 }
 
 #[derive(Debug, Args)]
 pub struct ListArgs {
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
     /// Hide revoked rows (default shows them for audit visibility).
     #[arg(long)]
@@ -38,7 +38,7 @@ pub struct RevokeArgs {
     pub name: String,
     #[arg(long)]
     pub reason: Option<String>,
-    #[arg(long, default_value = "opengeo.yaml")]
+    #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
 }
 
@@ -62,7 +62,7 @@ pub async fn run_create(args: CreateArgs) -> Result<(), OpenGeoError> {
     println!("    {}", key.plaintext);
     println!();
     println!("This value will not be shown again. Store it somewhere safe — usually");
-    println!("export OPENGEO_API_KEY=… in your shell profile, or pass it as a Bearer");
+    println!("export ANSEO_API_KEY=… in your shell profile, or pass it as a Bearer");
     println!("header to the OpenGEO REST API.");
     Ok(())
 }
@@ -129,7 +129,7 @@ pub async fn run_revoke(args: RevokeArgs) -> Result<(), OpenGeoError> {
     Ok(())
 }
 
-fn project_id_from_config(path: &std::path::Path) -> Result<opengeo_core::ProjectId, OpenGeoError> {
+fn project_id_from_config(path: &std::path::Path) -> Result<anseo_core::ProjectId, OpenGeoError> {
     let yaml = std::fs::read_to_string(path)
         .map_err(|e| OpenGeoError::Config(format!("could not read {}: {e}", path.display())))?;
     let cfg = Config::from_yaml_str(&yaml)

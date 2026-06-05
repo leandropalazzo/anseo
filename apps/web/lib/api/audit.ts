@@ -70,7 +70,7 @@ export async function fetchAuditRuns(limit = 20): Promise<{ items: AuditRunItem[
 /** Run an audit. POST (not getJson) because it triggers a live crawl. */
 export async function runAudit(req: AuditRequest): Promise<AuditReport> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const apiKey = process.env.OGEO_API_KEY;
+  const apiKey = process.env.ANSEO_API_KEY;
   if (apiKey) headers["X-OpenGEO-API-Key"] = apiKey;
   const r = await fetch(`${API_BASE_URL}/v1/audit`, {
     method: "POST",

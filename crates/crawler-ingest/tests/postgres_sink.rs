@@ -1,9 +1,9 @@
-use chrono::{Duration, Utc};
-use opengeo_core::ProjectId;
-use opengeo_crawler_ingest::{
+use anseo_core::ProjectId;
+use anseo_crawler_ingest::{
     BotRangeVerifier, CidrRange, IngestSink, MetricsParams, MetricsStore, PostgresCrawlerSink,
     PrivacyMode, RawCrawlerHit,
 };
+use chrono::{Duration, Utc};
 use sqlx::PgPool;
 
 #[cfg_attr(

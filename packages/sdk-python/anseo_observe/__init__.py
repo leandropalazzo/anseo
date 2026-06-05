@@ -11,11 +11,11 @@ Example
 -------
 ::
 
-    from opengeo_observe import OpenGeoObserver
+    from anseo_observe import AnseoObserver
 
-    observer = OpenGeoObserver(
-        base_url="https://opengeo.internal",
-        api_key=os.environ["OPENGEO_API_KEY"],
+    observer = AnseoObserver(
+        base_url="https://anseo.internal",
+        api_key=os.environ["ANSEO_API_KEY"],
         project="Sunski",
     )
 
@@ -31,12 +31,12 @@ Example
 from .client import (
     ObserveRunResult,
     OpenGeoApiError,
-    OpenGeoObserver,
+    AnseoObserver,
     observe_run,
 )
 
 __all__ = [
-    "OpenGeoObserver",
+    "AnseoObserver",
     "ObserveRunResult",
     "OpenGeoApiError",
     "observe_run",

@@ -4,7 +4,7 @@
 //! hallucination evaluation can read these rows, but storage deliberately has
 //! no dependency on the commercial evaluator.
 
-use opengeo_core::ids::{ClaimId, GroundTruthFactId, ProjectId, PromptRunId};
+use anseo_core::ids::{ClaimId, GroundTruthFactId, ProjectId, PromptRunId};
 use sqlx::PgPool;
 
 use crate::error::Error;

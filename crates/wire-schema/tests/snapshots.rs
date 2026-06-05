@@ -1,6 +1,6 @@
+use anseo_core::{ProviderErrorKind, RequestId};
+use anseo_wire_schema::{ApiError, ErrorEnvelope};
 use insta::assert_json_snapshot;
-use opengeo_core::{ProviderErrorKind, RequestId};
-use opengeo_wire_schema::{ApiError, ErrorEnvelope};
 use ulid::Ulid;
 
 fn fixed_request_id() -> RequestId {

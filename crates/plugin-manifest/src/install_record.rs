@@ -28,7 +28,7 @@ use serde_json::json;
 /// for every install recorded by the substrate build. Searchable on purpose.
 pub const UNSIGNED_SUBSTRATE_TRUST_ROOT: &str = "unsigned-substrate";
 
-/// Owned mirror of `opengeo_storage::repositories::plugin_installs::NewPluginInstall`
+/// Owned mirror of `anseo_storage::repositories::plugin_installs::NewPluginInstall`
 /// so this crate does not link `crates/storage`. The CLI / install-runtime
 /// story that wires this up converts field-for-field at call time.
 ///

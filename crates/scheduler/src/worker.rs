@@ -36,7 +36,7 @@ pub enum WorkerError {
     #[error("database error")]
     Database(#[from] sqlx::Error),
     #[error("storage error")]
-    Storage(#[from] opengeo_storage::Error),
+    Storage(#[from] anseo_storage::Error),
     #[error("invalid schedule cadence")]
     InvalidCadence(#[from] ScheduleValidationError),
     #[error("a tick for this instant is already claimed")]

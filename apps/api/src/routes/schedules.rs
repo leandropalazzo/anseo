@@ -15,14 +15,14 @@
 //! helper the CLI uses (`crates/scheduler/src/lib.rs`), so YAML-side and
 //! API-side rejections agree.
 
+use anseo_core::{ProjectId, ProviderName, ScheduleConfig};
+use anseo_providers::cost::DEFAULT_PROJECT_MONTHLY_CAP_USD;
+use anseo_scheduler::{project_schedule_cost, ScheduleValidationError};
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
-use opengeo_core::{ProjectId, ProviderName, ScheduleConfig};
-use opengeo_providers::cost::DEFAULT_PROJECT_MONTHLY_CAP_USD;
-use opengeo_scheduler::{project_schedule_cost, ScheduleValidationError};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -79,7 +79,7 @@ pub struct CreateScheduleRequest {
 }
 
 fn default_debounce() -> u32 {
-    opengeo_core::DEFAULT_SCHEDULE_DEBOUNCE_MINUTES
+    anseo_core::DEFAULT_SCHEDULE_DEBOUNCE_MINUTES
 }
 
 #[derive(Debug, Deserialize)]
@@ -398,7 +398,7 @@ async fn run_schedule_now(
     };
 
     let project_uuid = Uuid::from_bytes(project_id.into_ulid().to_bytes());
-    let outcome = opengeo_scheduler::dispatch::run_schedule_now(
+    let outcome = anseo_scheduler::dispatch::run_schedule_now(
         state.storage.pool(),
         &state.storage,
         config,
@@ -410,7 +410,7 @@ async fn run_schedule_now(
     )
     .await
     .map_err(|e| match e {
-        opengeo_scheduler::worker::WorkerError::TickAlreadyClaimed => err(
+        anseo_scheduler::worker::WorkerError::TickAlreadyClaimed => err(
             StatusCode::CONFLICT,
             "tick_already_claimed",
             "a run for this schedule is already in flight; try again in a moment",

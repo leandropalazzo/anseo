@@ -1,5 +1,5 @@
 [package]
-name = "opengeo-api"
+name = "anseo-api"
 version = "0.6.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -7,24 +7,24 @@ license.workspace = true
 publish = false
 
 [[bin]]
-name = "opengeo-api"
+name = "anseo-api"
 path = "src/main.rs"
 
 [lib]
 path = "src/lib.rs"
 
 [dependencies]
-opengeo-core = { path = "../../crates/core", features = ["sqlx"] }
-opengeo-storage = { path = "../../crates/storage" }
-opengeo-analytics = { path = "../../crates/analytics" }
-opengeo-crawler-ingest = { path = "../../crates/crawler-ingest" }
-opengeo-audit = { path = "../../crates/audit" }
-opengeo-providers = { path = "../../crates/providers" }
-opengeo-extractors = { path = "../../crates/extractors" }
-opengeo-benchmark = { path = "../../crates/benchmark" }
-opengeo-scheduler = { path = "../../crates/scheduler" }
-opengeo-recommendations = { path = "../../crates/recommendations" }
-opengeo-wire-schema = { path = "../../crates/wire-schema" }
+anseo-core = { path = "../../crates/core", features = ["sqlx"] }
+anseo-storage = { path = "../../crates/storage" }
+anseo-analytics = { path = "../../crates/analytics" }
+anseo-crawler-ingest = { path = "../../crates/crawler-ingest" }
+anseo-audit = { path = "../../crates/audit" }
+anseo-providers = { path = "../../crates/providers" }
+anseo-extractors = { path = "../../crates/extractors" }
+anseo-benchmark = { path = "../../crates/benchmark" }
+anseo-scheduler = { path = "../../crates/scheduler" }
+anseo-recommendations = { path = "../../crates/recommendations" }
+anseo-wire-schema = { path = "../../crates/wire-schema" }
 tokio = { workspace = true }
 tokio-stream = { version = "0.1", features = ["sync"] }
 futures = "0.3"

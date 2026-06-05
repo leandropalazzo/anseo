@@ -7,8 +7,8 @@
 
 use std::{net::TcpStream, path::PathBuf, time::Duration};
 
+use anseo_core::OpenGeoError;
 use clap::Args;
-use opengeo_core::OpenGeoError;
 
 // ---------------------------------------------------------------------------
 // serve
@@ -31,7 +31,9 @@ pub struct ServeArgs {
 
 pub fn run_serve(args: ServeArgs) -> Result<(), OpenGeoError> {
     // Resolve the opengeo-mcp binary path.
-    let bin = std::env::var("OPENGEO_MCP_BIN").unwrap_or_else(|_| "opengeo-mcp".to_string());
+    let bin = std::env::var("ANSEO_MCP_BIN")
+        .or_else(|_| std::env::var("OPENGEO_MCP_BIN")) // deprecated alias
+        .unwrap_or_else(|_| "anseo-mcp".to_string());
 
     let mut argv: Vec<String> = Vec::new();
     argv.push("--transport".into());
@@ -52,14 +54,14 @@ pub fn run_serve(args: ServeArgs) -> Result<(), OpenGeoError> {
         .map_err(|e| {
             OpenGeoError::Config(format!(
                 "failed to launch {bin}: {e}. \
-                 Ensure `opengeo-mcp` is on your PATH or set OPENGEO_MCP_BIN."
+                 Ensure `anseo-mcp` is on your PATH or set ANSEO_MCP_BIN."
             ))
         })?;
 
     if status.success() {
         Ok(())
     } else {
-        Err(OpenGeoError::Config("opengeo-mcp exited non-zero".into()))
+        Err(OpenGeoError::Config("anseo-mcp exited non-zero".into()))
     }
 }
 
@@ -127,7 +129,7 @@ pub struct InstallConfigArgs {
     pub config_path: Option<PathBuf>,
 
     /// API key to embed in the config snippet.
-    #[arg(long, env = "OPENGEO_API_KEY")]
+    #[arg(long, env = "ANSEO_API_KEY")]
     pub api_key: Option<String>,
 }
 
@@ -190,12 +192,12 @@ pub fn run_install_config(args: InstallConfigArgs) -> Result<(), OpenGeoError> {
 
     let snippet = serde_json::json!({
         "mcpServers": {
-            "opengeo": {
-                "command": "opengeo-mcp",
+            "anseo": {
+                "command": "anseo-mcp",
                 "env": {
-                    "OPENGEO_API_KEY": api_key,
-                    "OPENGEO_API_URL": "http://127.0.0.1:8080",
-                    "OPENGEO_PROJECT_ID": "default"
+                    "ANSEO_API_KEY": api_key,
+                    "ANSEO_API_URL": "http://127.0.0.1:8080",
+                    "ANSEO_PROJECT_ID": "default"
                 }
             }
         }

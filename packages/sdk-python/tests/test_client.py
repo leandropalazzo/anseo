@@ -1,4 +1,4 @@
-"""Unit tests for opengeo_observe — the HTTP transport is mocked."""
+"""Unit tests for anseo_observe — the HTTP transport is mocked."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from opengeo_observe import ObserveRunResult, OpenGeoApiError, OpenGeoObserver, observe_run
+from anseo_observe import ObserveRunResult, OpenGeoApiError, AnseoObserver, observe_run
 
 OK_BODY = {
     "run_id": "run_123",
@@ -41,8 +41,8 @@ class RecordingTransport:
 
 def test_posts_to_ingest_run_with_headers_and_snake_case_body():
     transport = RecordingTransport()
-    observer = OpenGeoObserver(
-        base_url="https://opengeo.internal/",  # trailing slash must normalize
+    observer = AnseoObserver(
+        base_url="https://anseo.internal/",  # trailing slash must normalize
         api_key="key-xyz",
         project="Sunski",
         transport=transport,
@@ -63,7 +63,7 @@ def test_posts_to_ingest_run_with_headers_and_snake_case_body():
 
     assert len(transport.calls) == 1
     call = transport.calls[0]
-    assert call["url"] == "https://opengeo.internal/v1/ingest/run"
+    assert call["url"] == "https://anseo.internal/v1/ingest/run"
     assert call["method"] == "POST"
     assert call["headers"]["x-opengeo-api-key"] == "key-xyz"
     assert call["headers"]["x-opengeo-project"] == "Sunski"
@@ -80,8 +80,8 @@ def test_posts_to_ingest_run_with_headers_and_snake_case_body():
 
 def test_omits_project_header_and_optional_fields_when_unset():
     transport = RecordingTransport()
-    observer = OpenGeoObserver(
-        base_url="https://opengeo.internal",
+    observer = AnseoObserver(
+        base_url="https://anseo.internal",
         api_key="key-xyz",
         transport=transport,
     )
@@ -103,7 +103,7 @@ def test_omits_project_header_and_optional_fields_when_unset():
 
 def test_surfaces_kek_missing_status():
     body = {**OK_BODY, "contribution": {"status": "kek_missing"}}
-    observer = OpenGeoObserver(
+    observer = AnseoObserver(
         base_url="https://x",
         api_key="k",
         transport=RecordingTransport(body=body),
@@ -117,7 +117,7 @@ def test_raises_on_non_2xx_with_status_and_code():
         status=404,
         body={"error": "prompt_not_found", "message": "prompt `p` is not declared"},
     )
-    observer = OpenGeoObserver(base_url="https://x", api_key="k", transport=transport)
+    observer = AnseoObserver(base_url="https://x", api_key="k", transport=transport)
 
     with pytest.raises(OpenGeoApiError) as excinfo:
         observer.observe_run(prompt_slug="p", provider="openai", model="m")
@@ -129,15 +129,15 @@ def test_raises_on_non_2xx_with_status_and_code():
 
 def test_requires_base_url_and_api_key():
     with pytest.raises(ValueError):
-        OpenGeoObserver(base_url="", api_key="k")
+        AnseoObserver(base_url="", api_key="k")
     with pytest.raises(ValueError):
-        OpenGeoObserver(base_url="https://x", api_key="")
+        AnseoObserver(base_url="https://x", api_key="")
 
 
 def test_one_shot_observe_run_helper():
     transport = RecordingTransport()
     result = observe_run(
-        base_url="https://opengeo.internal",
+        base_url="https://anseo.internal",
         api_key="k",
         prompt_slug="p",
         provider="openai",

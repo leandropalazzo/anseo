@@ -6,7 +6,7 @@
 
 use std::time::Duration;
 
-use opengeo_scheduler::notifications::slack::{
+use anseo_scheduler::notifications::slack::{
     build_payload, validate_url, SlackConfigError, SLACK_PAYLOAD_CAP_BYTES,
 };
 use wiremock::matchers::{header, method, path};

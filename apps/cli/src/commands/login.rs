@@ -3,20 +3,20 @@
 //! Behavior:
 //! - Accepts the API key on stdin via `rpassword::read_password()` so the
 //!   key does NOT echo to the terminal (AC: "without echoing them").
-//! - Stores it in the [`opengeo_core::SecretStore`] chain (keyring → age-file).
+//! - Stores it in the [`anseo_core::SecretStore`] chain (keyring → age-file).
 //! - In a non-TTY context, accepts the key from stdin without prompting —
 //!   `echo $KEY | ogeo login openai` works in scripted / CI flows.
-//! - Errors NEVER contain the captured secret. We use [`opengeo_core::Secret`]
+//! - Errors NEVER contain the captured secret. We use [`anseo_core::Secret`]
 //!   inside this function and only expose to the backend write path.
 
 use std::io::Read;
 use std::path::PathBuf;
 
-use clap::Args;
-use opengeo_core::{
+use anseo_core::{
     default_chain, set_provider_secret, Config, OpenGeoError, ProviderName, Secret, SecretStore,
     SecretStoreError,
 };
+use clap::Args;
 
 #[derive(Debug, Args)]
 pub struct LoginArgs {
@@ -102,7 +102,7 @@ fn resolve_project_id(args: &LoginArgs) -> Result<Option<String>, OpenGeoError> 
         }
         // Default path: best-effort. Missing/invalid `opengeo.yaml` falls back
         // to global keying rather than failing the login.
-        None => match Config::from_path(PathBuf::from("opengeo.yaml")) {
+        None => match Config::from_path(PathBuf::from("anseo.yaml")) {
             Ok(config) => Ok(Some(config.project_id().to_string())),
             Err(_) => Ok(None),
         },

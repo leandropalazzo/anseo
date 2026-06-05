@@ -16,12 +16,12 @@
 //!
 //! Auth + project header: same `/v1` gate as the rest of setup.
 
+use anseo_core::{project_id_for_name, prompt_id_for, CompetitorConfig, ProviderName};
+use anseo_providers::ProviderRequest;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use opengeo_core::{project_id_for_name, prompt_id_for, CompetitorConfig, ProviderName};
-use opengeo_providers::ProviderRequest;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -154,7 +154,7 @@ async fn put_brand(
     })?;
     if existing.is_none() {
         projects
-            .insert(&opengeo_storage::models::ProjectRow {
+            .insert(&anseo_storage::models::ProjectRow {
                 id: current_id,
                 name: name.clone(),
                 organization_id: None,
@@ -207,7 +207,7 @@ async fn put_brand(
                     e.to_string(),
                 )
             })?;
-        let remap: Vec<(opengeo_core::PromptId, opengeo_core::PromptId)> = prompts
+        let remap: Vec<(anseo_core::PromptId, anseo_core::PromptId)> = prompts
             .iter()
             .map(|p| (p.id, prompt_id_for(&name, &p.name)))
             .collect();

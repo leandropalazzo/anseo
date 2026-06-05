@@ -1,4 +1,4 @@
-//! `opengeo-plugin-manifest` — Story 17.1 SUBSTRATE ONLY.
+//! `anseo-plugin-manifest` — Story 17.1 SUBSTRATE ONLY.
 //!
 //! This crate ships **only** the static surface of the Phase 3 Plugin SDK:
 //!

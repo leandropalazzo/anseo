@@ -23,7 +23,7 @@
       }
     },
     "trace_id": {
-      "description": "Correlation ID echoed from `X-OpenGEO-Request-Id`.",
+      "description": "Correlation ID echoed from `X-Anseo-Request-Id`.",
       "type": "string"
     }
   },

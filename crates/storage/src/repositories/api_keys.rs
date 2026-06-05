@@ -6,8 +6,8 @@
 //! DATABASE_URL can regenerate the cache and convert to `query!` if the
 //! project decides to enforce compile-time SQL across Phase 2 storage.
 
+use anseo_core::ids::ProjectId;
 use chrono::{DateTime, Utc};
-use opengeo_core::ids::ProjectId;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 

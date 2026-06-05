@@ -19,8 +19,8 @@
 //!
 //! This module is the source-of-truth for the bytes a webhook consumer
 //! receives. Architecture §5.2 wraps these payloads in the
-//! `X-OpenGEO-Signature: v1=t=…,s=…` HMAC envelope; verification logic
-//! lives in `opengeo_scheduler::webhooks::signer`.
+//! `X-Anseo-Signature: v1=t=…,s=…` HMAC envelope; verification logic
+//! lives in `anseo_scheduler::webhooks::signer`.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -77,7 +77,7 @@ pub struct ScheduleMissedData {
 }
 
 /// Shared envelope for both `visibility.anomaly` and `citation.anomaly`.
-/// Matches `opengeo_scheduler::events::AnomalyPayload` byte-for-byte so
+/// Matches `anseo_scheduler::events::AnomalyPayload` byte-for-byte so
 /// the SSE → webhook fanout is one serde call, not two shapes.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AnomalyData {

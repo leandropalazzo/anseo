@@ -36,7 +36,7 @@ pub const SCHEMA_DDL: &str = include_str!("./clickhouse_schema.sql");
 /// One pre-aggregated visibility row staged for insertion:
 /// `(project_id, prompt_name, provider, bucket_start, avg_rank, presence_rate)`.
 pub type VisibilityPointRow<'a> = (
-    opengeo_core::ProjectId,
+    anseo_core::ProjectId,
     &'a str,
     &'a str,
     DateTime<Utc>,
@@ -58,10 +58,10 @@ impl From<ClickHouseError> for MetricsStoreError {
     fn from(err: ClickHouseError) -> Self {
         // The trait error currently covers Database (sqlx) + Storage
         // variants. Surface ClickHouse failures through the Storage
-        // arm (it carries an opaque opengeo_storage::Error which boxes
+        // arm (it carries an opaque anseo_storage::Error which boxes
         // anyhow); this avoids a non-additive trait-shape change that
         // would break the 14.5 freeze.
-        MetricsStoreError::Storage(opengeo_storage::Error::Sqlx(sqlx::Error::Configuration(
+        MetricsStoreError::Storage(anseo_storage::Error::Sqlx(sqlx::Error::Configuration(
             Box::new(err),
         )))
     }
@@ -120,7 +120,7 @@ impl ClickHouseMetricsStore {
 
     /// Convert a `ProjectId` (ULID under the hood) into the hyphenated
     /// UUID string ClickHouse's `UUID` column type accepts.
-    fn pid_uuid(project_id: opengeo_core::ProjectId) -> String {
+    fn pid_uuid(project_id: anseo_core::ProjectId) -> String {
         let bytes: [u8; 16] = project_id.into_ulid().to_bytes();
         uuid::Uuid::from_bytes(bytes).to_string()
     }
@@ -212,7 +212,7 @@ impl ClickHouseMetricsStore {
     /// Test-only seed helper for citation totals.
     pub async fn seed_citation_totals(
         &self,
-        rows: &[(opengeo_core::ProjectId, &str, i64, Option<&str>)],
+        rows: &[(anseo_core::ProjectId, &str, i64, Option<&str>)],
     ) -> Result<(), ClickHouseError> {
         if rows.is_empty() {
             return Ok(());
@@ -259,7 +259,7 @@ struct CitationSummaryRaw {
 impl MetricsStore for ClickHouseMetricsStore {
     async fn visibility_trend(
         &self,
-        project_id: opengeo_core::ProjectId,
+        project_id: anseo_core::ProjectId,
         prompt_slug: &str,
         params: TrendParams,
     ) -> Result<Vec<VisibilityPoint>, MetricsStoreError> {
@@ -304,7 +304,7 @@ impl MetricsStore for ClickHouseMetricsStore {
 
     async fn citation_summary(
         &self,
-        project_id: opengeo_core::ProjectId,
+        project_id: anseo_core::ProjectId,
         params: SummaryParams,
     ) -> Result<Vec<CitationSummaryRow>, MetricsStoreError> {
         let limit = params.limit.clamp(1, 500);
@@ -337,7 +337,7 @@ impl MetricsStore for ClickHouseMetricsStore {
 
     async fn anomaly_samples(
         &self,
-        _project_id: opengeo_core::ProjectId,
+        _project_id: anseo_core::ProjectId,
         _prompt_slug: &str,
         _days: i32,
     ) -> Result<Vec<AnomalyRankSample>, MetricsStoreError> {

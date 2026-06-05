@@ -6,10 +6,10 @@
 
 use std::sync::Arc;
 
-use opengeo_mcp::dispatch::Dispatcher;
-use opengeo_mcp::http_client::ApiClient;
-use opengeo_mcp::protocol::{Id, Request};
-use opengeo_mcp::transport::http as http_transport;
+use anseo_mcp::dispatch::Dispatcher;
+use anseo_mcp::http_client::ApiClient;
+use anseo_mcp::protocol::{Id, Request};
+use anseo_mcp::transport::http as http_transport;
 
 /// Build a no-op `ApiClient` pointing at a dummy loopback URL.  The client is
 /// never actually used during `tools/list` — it is constructed only to satisfy
@@ -48,7 +48,7 @@ async fn transport_parity() {
     };
 
     let direct_tools: Vec<serde_json::Value> = {
-        use opengeo_mcp::dispatch::Outbound;
+        use anseo_mcp::dispatch::Outbound;
         match dispatcher_direct.dispatch(req_direct) {
             Outbound::Success(resp) => resp
                 .result

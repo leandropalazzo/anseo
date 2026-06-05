@@ -1,5 +1,5 @@
 [package]
-name = "opengeo-worker"
+name = "anseo-worker"
 version = "0.6.0"
 edition.workspace = true
 rust-version.workspace = true
@@ -7,25 +7,25 @@ license.workspace = true
 publish = false
 
 # Story 31-4: the worker exposes a lib target so the API (story 31-5) can call
-# `opengeo_worker::etl::enqueue_etl_job`, and the bin drives the poll loop.
+# `anseo_worker::etl::enqueue_etl_job`, and the bin drives the poll loop.
 [lib]
-name = "opengeo_worker"
+name = "anseo_worker"
 path = "src/lib.rs"
 
 [[bin]]
-name = "opengeo-worker"
+name = "anseo-worker"
 path = "src/main.rs"
 
 [dependencies]
-opengeo-core = { path = "../../crates/core" }
-opengeo-storage = { path = "../../crates/storage" }
-opengeo-scheduler = { path = "../../crates/scheduler" }
+anseo-core = { path = "../../crates/core" }
+anseo-storage = { path = "../../crates/storage" }
+anseo-scheduler = { path = "../../crates/scheduler" }
 # Schedule dispatch drives the live provider matrix through the orchestrator.
-opengeo-providers = { path = "../../crates/providers" }
+anseo-providers = { path = "../../crates/providers" }
 # Story 31-4: link the resumable Postgres→ClickHouse ETL engine. The analytics
 # `clickhouse` feature (which pulls in reqwest) is propagated through this
 # crate's own `clickhouse` feature below.
-opengeo-analytics = { path = "../../crates/analytics" }
+anseo-analytics = { path = "../../crates/analytics" }
 sqlx = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
@@ -39,9 +39,9 @@ anyhow = { workspace = true }
 chrono = { workspace = true }
 
 [features]
-# Default-on so `cargo build -p opengeo-worker` exercises the live ETL path
+# Default-on so `cargo build -p anseo-worker` exercises the live ETL path
 # (the engine + ClickHouseMetricsStore link). Build with
 # `--no-default-features` to get the queue-only flavor where `run_migration`
 # reports a clear "rebuild with clickhouse" error instead of linking reqwest.
 default = ["clickhouse"]
-clickhouse = ["opengeo-analytics/clickhouse"]
+clickhouse = ["anseo-analytics/clickhouse"]

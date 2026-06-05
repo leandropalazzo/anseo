@@ -1,6 +1,6 @@
 //! Story 17.4 — capability enforcement (architecture-phase3-plugin-sdk §6).
 //!
-//! The closed [`Capability`](opengeo_plugin_manifest::Capability) catalog is
+//! The closed [`Capability`](anseo_plugin_manifest::Capability) catalog is
 //! declared at install time; this module is the **call-time** half of §6.2: a
 //! pure function from a declared [`CapabilitySet`] + an attempted [`HostAction`]
 //! to allow / structurally-refuse. A refusal is a typed
@@ -10,7 +10,7 @@
 //! §6.4 capability-set changes between versions are a **breaking upgrade**:
 //! [`upgrade_plan`] refuses any new capability without `--accept-new-capabilities`.
 
-use opengeo_plugin_manifest::Capability;
+use anseo_plugin_manifest::Capability;
 use thiserror::Error;
 
 /// A plugin's declared capabilities, as parsed from `plugin.toml [capabilities]`.

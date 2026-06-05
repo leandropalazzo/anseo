@@ -6,12 +6,12 @@
 //! on `docker compose up` (Story 1.4) being the path that brings the web
 //! container online.
 
+use anseo_core::OpenGeoError;
 use clap::Args;
-use opengeo_core::OpenGeoError;
 
 #[derive(Debug, Args)]
 pub struct OpenArgs {
-    /// Dashboard URL. Defaults to the OGEO_DASHBOARD_URL env var or
+    /// Dashboard URL. Defaults to the ANSEO_DASHBOARD_URL env var or
     /// `http://127.0.0.1:5173` (the compose default).
     #[arg(long, value_name = "URL")]
     pub url: Option<String>,
@@ -37,7 +37,7 @@ fn resolve_url(arg: Option<String>) -> String {
     if let Some(u) = arg {
         return u;
     }
-    if let Ok(u) = std::env::var("OGEO_DASHBOARD_URL") {
+    if let Ok(u) = std::env::var("ANSEO_DASHBOARD_URL") {
         if !u.is_empty() {
             return u;
         }
