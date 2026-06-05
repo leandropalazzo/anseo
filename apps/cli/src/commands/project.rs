@@ -42,7 +42,11 @@ const MARKER_FILE: &str = "selected-project";
 // ---- args ---------------------------------------------------------------
 
 #[derive(Debug, Args)]
-pub struct ListArgs {}
+pub struct ListArgs {
+    /// Output as JSON (machine-readable).
+    #[arg(long)]
+    pub json: bool,
+}
 
 #[derive(Debug, Args)]
 pub struct CreateArgs {
@@ -66,15 +70,44 @@ pub struct UseArgs {
 
 // ---- list ---------------------------------------------------------------
 
-pub async fn run_list(_args: ListArgs) -> Result<(), OpenGeoError> {
+pub async fn run_list(args: ListArgs) -> Result<(), OpenGeoError> {
     let storage = connect_storage().await?;
     let projects = storage.projects().list_projects().await.map_err(internal)?;
     if projects.is_empty() {
-        println!("No projects yet. Create one with `ogeo project create <brand>`.");
+        if args.json {
+            println!("[]");
+        } else {
+            println!("No projects yet. Create one with `ogeo project create <brand>`.");
+        }
         return Ok(());
     }
-    for p in &projects {
-        println!("{}  {}", p.id, p.name);
+
+    // Detect the currently-selected project for this working dir (marker tier).
+    let cwd = std::env::current_dir()
+        .map_err(|e| OpenGeoError::Config(format!("could not read current directory: {e}")))?;
+    let selected = read_selection(&cwd).unwrap_or(None);
+
+    if args.json {
+        // Minimal JSON output: [{id, name, selected}]
+        print!("[");
+        for (i, p) in projects.iter().enumerate() {
+            if i > 0 {
+                print!(",");
+            }
+            let is_sel = selected.map_or(false, |s| s == p.id);
+            print!(
+                r#"{{"id":"{}","name":{},"selected":{}}}"#,
+                p.id,
+                serde_json::to_string(&p.name).expect("name is valid JSON"),
+                is_sel
+            );
+        }
+        println!("]");
+    } else {
+        for p in &projects {
+            let marker = selected.map_or(false, |s| s == p.id);
+            println!("{}{}  {}", if marker { "* " } else { "  " }, p.id, p.name);
+        }
     }
     Ok(())
 }
