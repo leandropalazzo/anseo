@@ -51,6 +51,48 @@ pub struct ServeArgs {
     pub port: u16,
 }
 
+/// Returns `true` when the host part of `addr` is a loopback address
+/// (IPv4 `127.x.x.x` family or IPv6 `::1`).
+fn is_loopback_bind(addr: &str) -> bool {
+    // Strip the port: take everything before the last `:`.
+    let host = match addr.rfind(':') {
+        Some(pos) => &addr[..pos],
+        None => addr,
+    };
+    // Strip surrounding brackets for bare IPv6 literals like `[::1]:port`.
+    let host = host.trim_matches(|c| c == '[' || c == ']');
+    // Parse as a std IP first; fall back to string prefix checks for the
+    // unusual case where the host was specified as a bare hostname.
+    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
+        return ip.is_loopback();
+    }
+    // Conservative: unknown hostnames are treated as non-loopback.
+    host == "localhost"
+}
+
+/// Emit a startup warning when the operator binds to a non-loopback interface.
+///
+/// The OSS stack has no built-in authentication for the web or MCP surfaces.
+/// Exposing those surfaces directly on a public interface without a reverse
+/// proxy, TLS, and auth in front is a misconfiguration.  This is non-blocking
+/// (a warning, not an error) to allow operators who know what they are doing
+/// (e.g. behind a VPN or in a firewalled private network) to continue.
+fn warn_if_public_bind(addr: &str) {
+    if !is_loopback_bind(addr) {
+        println!();
+        println!("⚠️  WARNING: binding to {addr} exposes Anseo on a non-loopback interface.");
+        println!("   Anseo OSS has no built-in auth for the web or MCP surfaces.");
+        println!("   Ensure a reverse proxy (Caddy, nginx) with TLS and auth is in front.");
+        println!("   See docs/production-deployment.md for copy-paste Caddy/nginx configs.");
+        println!();
+        tracing::warn!(
+            event = "serve.public_bind",
+            bind = addr,
+            "non-loopback bind detected — ensure a reverse proxy + TLS + auth are in front"
+        );
+    }
+}
+
 /// Resolve the effective bind address from the flags.
 fn resolve_bind(bind: &Option<String>, port: u16) -> String {
     match bind {
@@ -83,6 +125,10 @@ pub async fn run(args: ServeArgs) -> Result<(), OpenGeoError> {
     let _datastore = datastore;
     let bind_addr = resolve_bind(&args.bind, args.port);
     let config_path = resolve_config_path(&args.projects_dir);
+
+    // Security baseline (Story 37.16 / RISK-5): warn early when the operator
+    // binds to a non-loopback address without an obvious proxy in front.
+    warn_if_public_bind(&bind_addr);
 
     // Shared graceful-shutdown signal: one source, two consumers (API + worker).
     let (shutdown_tx, _) = tokio::sync::watch::channel(false);
@@ -214,6 +260,44 @@ async fn wait_for_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── is_loopback_bind ──────────────────────────────────────────────────────
+
+    #[test]
+    fn loopback_ipv4_is_detected() {
+        assert!(is_loopback_bind("127.0.0.1:8080"));
+        assert!(is_loopback_bind("127.0.0.1:0"));
+    }
+
+    #[test]
+    fn loopback_ipv4_family_is_detected() {
+        // The full 127/8 block is loopback per RFC 5735.
+        assert!(is_loopback_bind("127.1.2.3:8080"));
+    }
+
+    #[test]
+    fn loopback_ipv6_is_detected() {
+        assert!(is_loopback_bind("[::1]:8080"));
+    }
+
+    #[test]
+    fn localhost_hostname_is_loopback() {
+        assert!(is_loopback_bind("localhost:8080"));
+    }
+
+    #[test]
+    fn public_ipv4_is_not_loopback() {
+        assert!(!is_loopback_bind("0.0.0.0:8080"));
+        assert!(!is_loopback_bind("192.168.1.1:8080"));
+        assert!(!is_loopback_bind("10.0.0.1:8080"));
+    }
+
+    #[test]
+    fn public_ipv6_is_not_loopback() {
+        assert!(!is_loopback_bind("[::]:8080"));
+    }
+
+    // ── resolve_bind ─────────────────────────────────────────────────────────
 
     #[test]
     fn resolve_bind_defaults_to_loopback() {
