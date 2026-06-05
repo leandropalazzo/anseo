@@ -13,12 +13,12 @@
 //!    half of the gate is tested implicitly by the trait bound in the
 //!    [`DummyIngest`] implementation below).
 
+use chrono::{TimeZone, Utc};
 use opengeo_benchmark::{
     ContributeIngest, CryptoError, ProjectKek, RawPromptRun, Redactor, SealedContribution,
     TERMS_VERSION,
 };
 use opengeo_core::InMemoryStore;
-use chrono::{TimeZone, Utc};
 
 const PROJECT: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 
@@ -96,7 +96,10 @@ fn contribute_ingest_requires_kek_type_gate() {
     let kek = ProjectKek::load_or_create(&store, PROJECT).unwrap();
     let ingest = DummyIngest;
     let result = ingest.contribute(&kek, raw_run(), TERMS_VERSION);
-    assert!(result.is_ok(), "expected Ok sealed contribution, got {result:?}");
+    assert!(
+        result.is_ok(),
+        "expected Ok sealed contribution, got {result:?}"
+    );
 }
 
 #[test]
