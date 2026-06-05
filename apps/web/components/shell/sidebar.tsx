@@ -27,6 +27,9 @@ interface NavGroup {
 /**
  * Source of truth for the in-app navigation. The Command Palette
  * reuses this same list so ⌘K nav targets always match the sidebar.
+ *
+ * IA (46.4): Monitor = core signal surfaces; Analyse = deep-dive analytics;
+ * Operate = configuration and tooling.
  */
 export const NAV_GROUPS: ReadonlyArray<NavGroup> = [
   {
@@ -38,11 +41,18 @@ export const NAV_GROUPS: ReadonlyArray<NavGroup> = [
       { href: "/visibility", label: "Visibility", icon: "Trend", shortcut: "G V" },
       { href: "/citations", label: "Citations", icon: "Network", shortcut: "G C" },
       { href: "/competitors", label: "Competitors", icon: "Chart", shortcut: "G K" },
-      { href: "/sentiment", label: "Sentiment", icon: "Activity", shortcut: "G T" },
-      { href: "/audit", label: "Audit", icon: "Network", shortcut: "G U" },
-      { href: "/hallucination", label: "Accuracy", icon: "Sparkle", shortcut: "G Y" },
       { href: "/recommendations", label: "Recommendations", icon: "Sparkle", shortcut: "G D" },
       { href: "/alerts", label: "Alerts", icon: "Bell", shortcut: "G A" },
+    ],
+  },
+  {
+    id: "analyse",
+    label: "Analyse",
+    items: [
+      { href: "/sentiment", label: "Sentiment", icon: "Activity", shortcut: "G T" },
+      { href: "/hallucination", label: "Accuracy", icon: "Sparkle", shortcut: "G Y" },
+      { href: "/audit", label: "Audit", icon: "Network", shortcut: "G U" },
+      { href: "/crawlers", label: "Crawlers", icon: "Bot", shortcut: "G W" },
     ],
   },
   {
@@ -51,7 +61,6 @@ export const NAV_GROUPS: ReadonlyArray<NavGroup> = [
     items: [
       { href: "/prompts", label: "Prompts", icon: "Yaml", shortcut: "G P" },
       { href: "/schedules", label: "Schedules", icon: "Calendar", shortcut: "G H" },
-      { href: "/crawlers", label: "Crawlers", icon: "Bot", shortcut: "G W" },
       { href: "/mcp", label: "MCP", icon: "Bot", shortcut: "G M" },
       { href: "/marketplace", label: "Marketplace", icon: "Layers", shortcut: "G B" },
       { href: "/settings", label: "Settings", icon: "Settings", shortcut: "G S" },
