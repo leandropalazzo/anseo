@@ -125,6 +125,7 @@ dependencies = [
  "anseo-analytics",
  "anseo-audit",
  "anseo-benchmark",
+ "anseo-comms",
  "anseo-core",
  "anseo-crawler-ingest",
  "anseo-extractors",
@@ -228,6 +229,26 @@ dependencies = [
  "tracing-bunyan-formatter",
  "tracing-subscriber",
  "ulid",
+ "uuid",
+]
+
+[[package]]
+name = "anseo-comms"
+version = "0.6.0"
+dependencies = [
+ "anseo-core",
+ "async-trait",
+ "chrono",
+ "hex",
+ "hmac",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "subtle",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -418,6 +439,7 @@ dependencies = [
 name = "anseo-storage"
 version = "0.6.0"
 dependencies = [
+ "anseo-comms",
  "anseo-core",
  "anseo-recommendations",
  "anyhow",

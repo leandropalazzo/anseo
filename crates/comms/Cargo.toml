@@ -1,0 +1,41 @@
+[package]
+name = "anseo-comms"
+version = "0.6.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+# Epic 43 / Story 43.7 — Communications subsystem.
+#
+# Net-new transactional + marketing email subsystem. Completely separate from
+# the operator-alert SMTP in crates/scheduler. Enforces the legal
+# transactional/marketing split (CAN-SPAM / ePrivacy / GDPR Art.21(2)):
+#
+#   * transport — pluggable Transport trait; SMTP first, in-memory mock for
+#     tests. NEVER sends real mail in tests.
+#   * template  — transactional vs marketing template assembly with a
+#     content-policy guard that REFUSES promotional content in transactional
+#     mail.
+#   * token     — HMAC-derived opaque preference-center tokens (no-login).
+#   * dispatch  — the send orchestrator: suppression + EU-consent gate +
+#     audit-log + idempotency for magic links.
+
+[dependencies]
+anseo-core = { path = "../core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+sqlx = { workspace = true }
+sha2 = { workspace = true }
+hmac = { workspace = true }
+hex = { workspace = true }
+subtle = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+async-trait = "0.1"
+tokio = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

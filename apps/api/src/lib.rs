@@ -171,7 +171,11 @@ pub fn router(state: AppState) -> Router {
     let mut base = Router::new()
         .merge(phase_1_at_root_gated)
         .nest("/v1", v1_operator_surface)
-        .nest("/v1", v1_surface);
+        .nest("/v1", v1_surface)
+        // Story 43.7 — public, unauthenticated comms preference center +
+        // one-click unsubscribe. No API key: authority is the opaque token in
+        // the URL (resolves to one recipient). NOT under the /v1 auth gate.
+        .merge(routes::comms::public_router());
 
     // `POST /test/seed` is registered only when ANSEO_TEST_MODE=1. The
     // env-var gate lives at router build time so production binaries never

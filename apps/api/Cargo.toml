@@ -24,6 +24,7 @@ anseo-extractors = { path = "../../crates/extractors" }
 anseo-benchmark = { path = "../../crates/benchmark" }
 anseo-scheduler = { path = "../../crates/scheduler" }
 anseo-recommendations = { path = "../../crates/recommendations" }
+anseo-comms = { path = "../../crates/comms" }
 anseo-wire-schema = { path = "../../crates/wire-schema" }
 tokio = { workspace = true }
 tokio-stream = { version = "0.1", features = ["sync"] }

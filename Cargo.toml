@@ -18,6 +18,7 @@ members = [
     "crates/benchmark",
     "crates/recommendations",
     "crates/audit",
+    "crates/comms",
 ]
 
 [workspace.package]
