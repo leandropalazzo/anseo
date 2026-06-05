@@ -180,6 +180,22 @@ pub fn set_provider_secret(
     store.set(&provider_secret_key(project_id, provider), secret)
 }
 
+/// Remove a provider secret from the project-scoped namespace.
+///
+/// Removes only the project-scoped key (`"<project_id>:<provider>"`). The
+/// legacy global key (bare `"<provider>"`, if any) is left untouched — it is
+/// managed separately and is considered a deployment-wide bootstrap credential
+/// rather than a per-project secret.
+///
+/// Idempotent: removing a provider that was never set returns `Ok(())`.
+pub fn remove_provider_secret(
+    store: &dyn SecretStore,
+    project_id: &str,
+    provider: &str,
+) -> Result<(), SecretStoreError> {
+    store.remove(&provider_secret_key(project_id, provider))
+}
+
 /// Common interface every secret backend implements.
 pub trait SecretStore: Send + Sync {
     fn get(&self, provider: &str) -> Result<Secret, SecretStoreError>;
@@ -1263,5 +1279,59 @@ mod tests {
 
         // And the two keys are genuinely different strings.
         assert_ne!(provider_secret_key(project_id, "openai"), kek_key);
+    }
+
+    #[test]
+    fn remove_provider_secret_scoped_only() {
+        // remove_provider_secret must delete the scoped key but leave any
+        // legacy global key (bare provider name) untouched.
+        let store = InMemoryStore::new();
+        // Set both scoped and legacy keys.
+        set_provider_secret(&store, "proj-a", "openai", Secret::new("sk-scoped")).unwrap();
+        store.set("openai", Secret::new("sk-legacy")).unwrap();
+
+        // Removing the scoped key…
+        remove_provider_secret(&store, "proj-a", "openai").unwrap();
+        // …means the scoped read now falls back to legacy.
+        assert_eq!(
+            get_provider_secret(&store, "proj-a", "openai")
+                .unwrap()
+                .expose(),
+            "sk-legacy"
+        );
+    }
+
+    #[test]
+    fn remove_provider_secret_absent_is_ok() {
+        // Removing a provider secret that was never set is idempotent.
+        let store = InMemoryStore::new();
+        remove_provider_secret(&store, "proj-a", "openai").unwrap();
+        assert!(matches!(
+            get_provider_secret(&store, "proj-a", "openai"),
+            Err(SecretStoreError::NotFound { .. })
+        ));
+    }
+
+    #[test]
+    fn remove_provider_secret_cross_project_isolation() {
+        // Removing one project's key must not affect another project's key.
+        let store = InMemoryStore::new();
+        set_provider_secret(&store, "proj-a", "openai", Secret::new("sk-a")).unwrap();
+        set_provider_secret(&store, "proj-b", "openai", Secret::new("sk-b")).unwrap();
+
+        remove_provider_secret(&store, "proj-a", "openai").unwrap();
+
+        // proj-a's key is gone.
+        assert!(matches!(
+            get_provider_secret(&store, "proj-a", "openai"),
+            Err(SecretStoreError::NotFound { .. })
+        ));
+        // proj-b's key is unaffected.
+        assert_eq!(
+            get_provider_secret(&store, "proj-b", "openai")
+                .unwrap()
+                .expose(),
+            "sk-b"
+        );
     }
 }
