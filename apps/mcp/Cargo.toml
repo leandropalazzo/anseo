@@ -37,9 +37,13 @@ opengeo-plugin-manifest = { path = "../../crates/plugin-manifest" }
 # router (no API source is touched) plus the MCP `ApiClient` against the same
 # live server, asserting the project selector is byte-for-byte equivalent to
 # sending the `X-OpenGEO-Project` header directly (the Web proxy path).
+# `opengeo-cli` is included so the CLI `resolve_project_id` function can be
+# driven in-process as the third surface without spawning a binary.
 opengeo-api = { path = "../api" }
+opengeo-cli = { path = "../cli" }
 opengeo-storage = { path = "../../crates/storage" }
 opengeo-scheduler = { path = "../../crates/scheduler" }
 chrono = { workspace = true }
 sqlx = { workspace = true }
+tempfile = { workspace = true }
 uuid = { workspace = true }
