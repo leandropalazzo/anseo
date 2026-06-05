@@ -80,7 +80,7 @@ export default function OnboardingPage() {
             get started
           </div>
           <h1 className="m-0 mt-[6px] text-[30px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
-            Initialize OpenGEO
+            Initialize Anseo
           </h1>
           <p className="mt-[6px] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
             Five steps. Mirrors the CLI:{" "}

@@ -157,7 +157,7 @@ export function ToolBrowser({ tools }: { tools: McpToolInfo[] }) {
 
         <Card eyebrow="setup" title="Connect over MCP">
           <p className="m-0 text-[length:var(--font-size-sm)] leading-[1.55] text-[color:var(--text-muted)]">
-            These tools are served by the OpenGEO MCP server, not the web UI.
+            These tools are served by the Anseo MCP server, not the web UI.
             Start the server, then register it with an MCP client such as
             Claude Desktop. Calls then appear in the activity log below.
           </p>
