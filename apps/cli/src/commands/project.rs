@@ -94,7 +94,7 @@ pub async fn run_list(args: ListArgs) -> Result<(), OpenGeoError> {
             if i > 0 {
                 print!(",");
             }
-            let is_sel = selected.map_or(false, |s| s == p.id);
+            let is_sel = selected == Some(p.id);
             print!(
                 r#"{{"id":"{}","name":{},"selected":{}}}"#,
                 p.id,
@@ -105,7 +105,7 @@ pub async fn run_list(args: ListArgs) -> Result<(), OpenGeoError> {
         println!("]");
     } else {
         for p in &projects {
-            let marker = selected.map_or(false, |s| s == p.id);
+            let marker = selected == Some(p.id);
             println!("{}{}  {}", if marker { "* " } else { "  " }, p.id, p.name);
         }
     }
