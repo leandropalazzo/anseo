@@ -120,6 +120,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::providers::v1_router())
         .merge(routes::recommendations::v1_router())
         .merge(routes::mcp::v1_router())
+        .merge(routes::entities::v1_router())
         .merge(routes::events::router_under_v1_relative());
 
     // Premium surface — only compiled into the `pro` build. The default OSS

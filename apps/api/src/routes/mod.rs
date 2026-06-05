@@ -7,6 +7,7 @@ pub mod brands;
 pub mod citations;
 pub mod comparisons;
 pub mod crawlers;
+pub mod entities;
 pub mod events;
 pub mod health;
 pub mod ingest;
