@@ -44,19 +44,24 @@ test("@P1 navigation works from overview to runs", async ({ page }) => {
   await expect(page.getByTestId("runs-page")).toBeVisible();
 });
 
-test("@P1 sidebar groups monitor and operate surfaces", async ({ page }) => {
+// 46.4: IA now has three groups — Monitor (core), Analyse (deep-dive), Operate (config).
+test("@P1 sidebar groups monitor, analyse, and operate surfaces", async ({ page }) => {
   await page.goto("/");
 
   const monitor = page.getByTestId("nav-group-monitor");
+  const analyse = page.getByTestId("nav-group-analyse");
   const operate = page.getByTestId("nav-group-operate");
 
   await expect(monitor).toContainText(
-    "MonitorOverviewG ORunsG RVisibilityG VCitationsG CCompetitorsG KSentimentG TAuditG UAccuracyG YRecommendationsG DAlertsG A",
+    "MonitorOverviewG ORunsG RVisibilityG VCitationsG CCompetitorsG KRecommendationsG DAlertsG A",
+  );
+  await expect(analyse).toContainText(
+    "AnalyseSentimentG TAccuracyG YAuditG UCrawlersG W",
   );
   await expect(operate).toContainText(
-    "OperatePromptsG PSchedulesG HCrawlersG WMCPG MMarketplaceG BSettingsG S",
+    "OperatePromptsG PSchedulesG HMCPG MMarketplaceG BSettingsG S",
   );
-  // Sentiment is now a live surface (was a disabled "Soon" placeholder).
+  // Sentiment is a live surface (was a disabled "Soon" placeholder).
   await expect(page.getByTestId("nav-item-sentiment")).not.toHaveAttribute(
     "aria-disabled",
     "true",
