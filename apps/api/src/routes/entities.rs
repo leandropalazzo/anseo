@@ -155,7 +155,7 @@ async fn create_entity(
 
     let merge_suggestion = if !was_inserted && record.display_name != display_name {
         let score = display_name_similarity(&record.display_name, &display_name);
-        let queued_for_review = score >= REVIEW_QUEUE_THRESHOLD && score < AUTO_MERGE_THRESHOLD;
+        let queued_for_review = (REVIEW_QUEUE_THRESHOLD..AUTO_MERGE_THRESHOLD).contains(&score);
 
         if queued_for_review {
             // Enqueue for human review (Story 43.3 AC-2).
@@ -248,13 +248,15 @@ async fn get_leaderboard(
     for (i, row) in rows.iter().enumerate() {
         let raw_domain: String = row.get("domain");
         let citation_count: i64 = row.get("citation_count");
-        let normalized = opengeo_storage::repositories::entities::EntityRepo::normalize_domain(&raw_domain);
-        let (display_name, claim_status) = repo.resolve_display(&normalized).await.map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": "storage_error", "message": e.to_string() })),
-            )
-        })?;
+        let normalized =
+            opengeo_storage::repositories::entities::EntityRepo::normalize_domain(&raw_domain);
+        let (display_name, claim_status) =
+            repo.resolve_display(&normalized).await.map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({ "error": "storage_error", "message": e.to_string() })),
+                )
+            })?;
 
         // Fetch role + verified_at from entity registry if present.
         let (role, verified_at) = match repo.get(&normalized).await {
@@ -320,21 +322,15 @@ async fn get_brand_profile(
     Path(raw_domain): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<BrandProfileResponse>, (StatusCode, Json<serde_json::Value>)> {
-    let domain =
-        opengeo_storage::repositories::entities::EntityRepo::normalize_domain(&raw_domain);
+    let domain = opengeo_storage::repositories::entities::EntityRepo::normalize_domain(&raw_domain);
 
     // Fetch entity record (may not exist for unclaimed domains).
-    let entity = state
-        .storage
-        .entities()
-        .get(&domain)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": "storage_error", "message": e.to_string() })),
-            )
-        })?;
+    let entity = state.storage.entities().get(&domain).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": "storage_error", "message": e.to_string() })),
+        )
+    })?;
 
     // Citation stats from the citations table.
     let stats_row = sqlx::query(
@@ -359,11 +355,19 @@ async fn get_brand_profile(
 
     let total_citations: i64 = stats_row
         .as_ref()
-        .and_then(|r| r.try_get::<Option<i64>, _>("total_citations").ok().flatten())
+        .and_then(|r| {
+            r.try_get::<Option<i64>, _>("total_citations")
+                .ok()
+                .flatten()
+        })
         .unwrap_or(0);
     let contributor_count: i64 = stats_row
         .as_ref()
-        .and_then(|r| r.try_get::<Option<i64>, _>("contributor_count").ok().flatten())
+        .and_then(|r| {
+            r.try_get::<Option<i64>, _>("contributor_count")
+                .ok()
+                .flatten()
+        })
         .unwrap_or(0);
 
     // Compute rank by counting domains with more citations.
@@ -397,17 +401,16 @@ async fn get_brand_profile(
         None
     };
 
-    let (display_name, claim_status, role, verification_method, verified_at) =
-        match entity {
-            Some(e) => (
-                e.display_name,
-                e.claim_status,
-                Some(e.role),
-                e.verification_method,
-                e.verified_at,
-            ),
-            None => (domain.clone(), "unclaimed".to_owned(), None, None, None),
-        };
+    let (display_name, claim_status, role, verification_method, verified_at) = match entity {
+        Some(e) => (
+            e.display_name,
+            e.claim_status,
+            Some(e.role),
+            e.verification_method,
+            e.verified_at,
+        ),
+        None => (domain.clone(), "unclaimed".to_owned(), None, None, None),
+    };
 
     Ok(Json(BrandProfileResponse {
         domain,
