@@ -1,11 +1,11 @@
-# OpenGEO — BMad Product Lifecycle Document
+# Anseo — BMad Product Lifecycle Document
 
 **Version:** 0.2
 **Category:** OSS AI Search Observability Platform
 
 ## 1. Product Overview
 
-**Product Name:** OpenGEO (working title)
+**Product Name:** Anseo
 
 **Category:**
 - AI Search Observability
@@ -18,7 +18,7 @@
 
 Build the leading open-source infrastructure platform for monitoring, analyzing, and improving visibility inside AI-powered search and recommendation systems.
 
-OpenGEO enables organizations to understand:
+Anseo enables organizations to understand:
 
 - how they appear in LLM outputs
 - which sources influence recommendations
@@ -49,7 +49,7 @@ Organizations will require:
 
 for AI-generated recommendations.
 
-OpenGEO aims to become **the open infrastructure standard for AI visibility observability**.
+Anseo aims to become **the open infrastructure standard for AI visibility observability**.
 
 ## 5. Strategic Positioning
 
@@ -70,7 +70,7 @@ Core Engine
 
 ## 7. Product Philosophy
 
-**Infrastructure First.** OpenGEO should feel like:
+**Infrastructure First.** Anseo should feel like:
 
 - Terraform
 - Grafana
@@ -184,7 +184,7 @@ Frontend Stack:
 
 **Purpose:** AI-native integrations.
 
-**Strategic Goal:** Allow AI agents to query OpenGEO programmatically.
+**Strategic Goal:** Allow AI agents to query Anseo programmatically.
 
 Example MCP Tools:
 - `run_prompt`
@@ -194,7 +194,7 @@ Example MCP Tools:
 - `list_trends`
 - `search_benchmarks`
 
-Example Workflow — user asks Claude Desktop: "Why did our AI visibility drop this week?" Claude uses OpenGEO MCP to:
+Example Workflow — user asks Claude Desktop: "Why did our AI visibility drop this week?" Claude uses Anseo MCP to:
 - pull rankings
 - analyze citation changes
 - compare competitors
@@ -528,7 +528,7 @@ Contributors improve product
 
 ## 22. Final Strategic Goal
 
-OpenGEO becomes:
+Anseo becomes:
 
 - the observability layer for AI search
 - the largest open GEO dataset

@@ -1,6 +1,6 @@
 # @opengeo/sdk
 
-TypeScript client for the OpenGEO REST API. Auto-generated from
+TypeScript client for the Anseo REST API. Auto-generated from
 `crates/wire-schema/openapi.json` by orval; do not edit
 `src/client.ts` or anything under `src/schemas/` by hand.
 
@@ -35,7 +35,7 @@ The runtime mutator (`@opengeo/sdk/runtime`) wires:
 
 - **Base URL** — set once via `configure({ baseUrl })`.
 - **Auth** — the configured `apiKey` is sent in the `X-OpenGEO-API-Key`
-  header on every request (architecture §5.1). The OpenGEO API does
+  header on every request (architecture §5.1). The Anseo API does
   not accept `Authorization: Bearer`.
 - **JSON content negotiation** — sets `Accept` and `Content-Type`
   defaults; skips the `Content-Type` default when sending FormData,

@@ -1,4 +1,4 @@
-# OpenGEO SDK codegen (Story 12.3)
+# Anseo SDK codegen (Story 12.3)
 
 Substrate for the Phase 2 TypeScript + Python SDK generation pipeline.
 Both SDKs are produced from the canonical

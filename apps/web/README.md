@@ -1,6 +1,6 @@
-# OpenGEO Web
+# Anseo Web
 
-This is the Phase 1 dashboard scaffold for OpenGEO. It is a Next.js TypeScript app with Tailwind CSS, App Router, ESLint, Vitest, React Testing Library, Playwright, and axe integration.
+This is the Phase 1 dashboard scaffold for Anseo. It is a Next.js TypeScript app with Tailwind CSS, App Router, ESLint, Vitest, React Testing Library, Playwright, and axe integration.
 
 ## shadcn/ui
 

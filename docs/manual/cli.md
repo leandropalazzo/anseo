@@ -1,4 +1,4 @@
-# OpenGEO CLI Manual (`ogeo`)
+# Anseo CLI Manual (`ogeo`)
 
 The `ogeo` binary is the primary control plane: bootstrap a project, run prompts, schedule monitoring, gate CI, manage API/webhooks/plugins, and run audits. Source: `apps/cli/src` (clap-derived; `--help`/`--version` on every command).
 
@@ -156,7 +156,7 @@ Migrate Postgres analytics into ClickHouse pre-aggregated tables (idempotent).
 | `ogeo mcp status` | Probe a running server | `--url` |
 | `ogeo mcp install-config [client]` | Write an MCP config snippet | `client` = `claude-desktop`(default)\|`cursor`\|`zed` · `--config-path` · `--api-key` (or `OPENGEO_API_KEY`) |
 
-- **Use case:** expose OpenGEO to AI assistants. `install-config` writes the editor/desktop snippet for you. See the [MCP manual](./mcp.md).
+- **Use case:** expose Anseo to AI assistants. `install-config` writes the editor/desktop snippet for you. See the [MCP manual](./mcp.md).
 
 ---
 

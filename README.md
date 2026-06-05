@@ -1,6 +1,6 @@
-# OpenGEO
+# Anseo
 
-OpenGEO is the self-hostable observability stack for AI search visibility — track how your brand ranks in LLM responses, against your competitors, over time. Fully open source (MIT); runs entirely in your own deployment.
+Anseo is the self-hostable observability stack for AI search visibility — track how your brand ranks in LLM responses, against your competitors, over time. Fully open source (MIT); runs entirely in your own deployment.
 
 ```bash
 ogeo init                                  # scaffold opengeo.yaml
@@ -67,7 +67,7 @@ apps/
   worker/   background worker (scheduled runs, alert/webhook delivery)
   cli/      `ogeo` CLI binary
   mcp/      MCP server binary
-  web/      Next.js dashboard (the canonical OpenGEO dashboard)
+  web/      Next.js dashboard (the canonical Anseo dashboard)
 crates/
   core/             shared core contracts (Secret, error/exit-code taxonomy, secret store)
   providers/        provider adapters (OpenAI, Anthropic, Gemini, Perplexity, Grok, Mistral, OpenRouter)
@@ -144,7 +144,7 @@ CLI commands return structured exit codes (stable within a major version): `0` s
 
 ## Privacy posture
 
-Localhost-first. Provider keys stay local, raw responses stay in your deployment, and OpenGEO sends no telemetry to OpenGEO-controlled services except via explicit opt-in (e.g. the public benchmark).
+Localhost-first. Provider keys stay local, raw responses stay in your deployment, and Anseo sends no telemetry to Anseo-controlled services except via explicit opt-in (e.g. the public benchmark).
 
 ## License
 

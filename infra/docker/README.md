@@ -1,6 +1,6 @@
 # Docker Infrastructure
 
-Phase 1 target: local Docker Compose for the OpenGEO stack.
+Phase 1 target: local Docker Compose for the Anseo stack.
 
 ## Services
 

@@ -1,6 +1,6 @@
 # opengeo (Python)
 
-Python client for the OpenGEO REST API. Auto-generated from
+Python client for the Anseo REST API. Auto-generated from
 `crates/wire-schema/openapi.json` by
 `openapi-python-client@0.24.0` (everything under `opengeo/api/`,
 `opengeo/models/`, `opengeo/client.py`, `opengeo/types.py`, and

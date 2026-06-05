@@ -1,6 +1,6 @@
-# OpenGEO Manuals
+# Anseo Manuals
 
-OpenGEO is open-source AI-search-visibility **observability infrastructure** — "Prometheus + Grafana for AI search." It ships **three coordinated surfaces over one engine**, and a core promise: **CLI ⇄ Web ⇄ MCP parity** — the same data and operations, reachable however you work.
+Anseo is open-source AI-search-visibility **observability infrastructure** — "Prometheus + Grafana for AI search." It ships **three coordinated surfaces over one engine**, and a core promise: **CLI ⇄ Web ⇄ MCP parity** — the same data and operations, reachable however you work.
 
 | Manual | Surface | For | Read |
 |---|---|---|---|
