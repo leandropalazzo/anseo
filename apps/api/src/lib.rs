@@ -25,6 +25,7 @@ use ulid::Ulid;
 use crate::routes::setup::InstallState;
 
 use crate::middleware::auth::require_api_key;
+use crate::middleware::geo_gate::geo_gate_middleware;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -120,11 +121,18 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::providers::v1_router())
         .merge(routes::recommendations::v1_router())
         .merge(routes::mcp::v1_router())
+        .merge(routes::leaderboard::v1_router())
+        .merge(routes::density_check::v1_router())
         .merge(routes::events::router_under_v1_relative());
 
     // Premium surface — only compiled into the `pro` build. The default OSS
     // build never references the entitlement-gated hallucination evaluator.
     let v1_surface = v1_routes
+        // Story 44.4 — Geo-gating for identified-tier (class-c) endpoints.
+        // Applied BEFORE auth so jurisdiction rejections are visible without
+        // a valid API key. Only identified-tier paths are blocked; the
+        // middleware fast-paths anonymous/aggregate endpoints.
+        .route_layer(axum::middleware::from_fn(geo_gate_middleware))
         // Story 0.11 — X-OpenGEO-Project header substrate. Layered
         // INSIDE the auth gate so unauthenticated callers still get a
         // 401 before any project-header consideration. Each layer is
