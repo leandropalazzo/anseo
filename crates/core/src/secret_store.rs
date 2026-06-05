@@ -15,6 +15,36 @@
 //! [`ChainedStore`] composes these: try keyring → fall back to age-file →
 //! ultimately to in-memory.
 //!
+//! # One mechanism, two key classes (Stories 36.7 + 39.1b)
+//!
+//! The [`SecretStore`] abstraction is shared by **two distinct key classes**,
+//! each with its own namespace:
+//!
+//! | Key class       | Storage key shape              | Owner                             |
+//! |-----------------|--------------------------------|-----------------------------------|
+//! | Provider secret | `<project_id>:<provider>`      | [`provider_secret_key`] (this module) |
+//! | Benchmark KEK   | `benchmark-kek:<project_id>`  | `opengeo_benchmark::kek_secret_key` |
+//!
+//! The namespaces are structurally disjoint: a `ProjectId` is a 26-character
+//! Crockford base32 ULID; the literal `"benchmark-kek"` is 13 characters and
+//! contains a hyphen, which is not valid in a ULID. Therefore a provider key
+//! can **never** alias a KEK key, and vice versa — even when the same
+//! `project_id` string appears in both.
+//!
+//! The constant [`BENCHMARK_KEK_KEY_PREFIX`] is declared here (rather than in
+//! `opengeo-benchmark`) so the provider-key call site can document and enforce
+//! the non-collision invariant without creating a circular dependency.
+//!
+//! ## Durability semantics
+//!
+//! - **Benchmark KEKs** are written with [`SecretStore::set_durable`], which
+//!   refuses to store key material in an ephemeral (in-memory) leg. A KEK lost
+//!   on restart would render every contribution it sealed permanently
+//!   undecryptable, so the durable-or-fail guard is mandatory.
+//! - **Provider secrets** are written with [`SecretStore::set`]. Durability is
+//!   the operator's responsibility; the API does not gate on it because a lost
+//!   provider key can simply be re-entered, unlike a lost KEK.
+//!
 //! # NFR-6 redaction posture
 //!
 //! Every backend stores secrets via [`Secret`]. The `expose()` call is the
