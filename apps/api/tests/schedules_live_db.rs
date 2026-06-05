@@ -60,7 +60,7 @@ async fn seed() -> (axum::Router, String) {
         setup_install_state: std::sync::Arc::new(tokio::sync::RwLock::new(
             std::collections::HashMap::new(),
         )),
-                serve_info: None,
+        serve_info: None,
     };
     (router(state), key.plaintext)
 }
