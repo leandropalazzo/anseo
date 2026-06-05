@@ -104,6 +104,10 @@ pub async fn fan_out_dispatch(
     let projects = storage.projects().list_projects().await?;
 
     if projects.is_empty() {
+        tracing::debug!(
+            event = "worker.fanout.no_projects",
+            "no active projects found; schedule dispatch skipped this tick"
+        );
         return Ok(FanOutReport::default());
     }
 
