@@ -90,6 +90,7 @@ async fn seeded_router_and_project() -> (axum::Router, ProjectId, String) {
         setup_install_state: std::sync::Arc::new(tokio::sync::RwLock::new(
             std::collections::HashMap::new(),
         )),
+                serve_info: None,
     };
     (router(state), project_id, key.plaintext)
 }
@@ -284,6 +285,7 @@ providers:
         setup_install_state: std::sync::Arc::new(tokio::sync::RwLock::new(
             std::collections::HashMap::new(),
         )),
+                serve_info: None,
     };
     (router(state), project_id, key.plaintext)
 }
@@ -413,6 +415,7 @@ providers:
         setup_install_state: std::sync::Arc::new(tokio::sync::RwLock::new(
             std::collections::HashMap::new(),
         )),
+                serve_info: None,
     };
     let app = router(state);
 

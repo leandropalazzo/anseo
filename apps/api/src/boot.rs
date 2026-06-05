@@ -15,6 +15,7 @@ use opengeo_scheduler::transport::listen;
 use opengeo_scheduler::worker::event_channel;
 use opengeo_storage::Storage;
 
+use crate::routes::serve_status::ServeInfo;
 use crate::{bootstrap_key_material, check_bind_acceptable, parse_project_id, router, AppState};
 
 /// A fully-assembled, ready-to-bind API: the validated socket address and the
@@ -33,6 +34,10 @@ pub struct ApiBootConfig {
     pub database_url: String,
     pub bind_addr: String,
     pub config_path: String,
+    /// Story 37.1 — when `ogeo serve` boots the API in-process it injects
+    /// supervisor metadata so `GET /v1/serve/status` can report the active
+    /// tier and component liveness. `None` for standalone `opengeo-api` binary.
+    pub serve_info: Option<std::sync::Arc<ServeInfo>>,
 }
 
 /// Connect storage, apply migrations, resolve the project + brand overlay, seed
@@ -46,6 +51,7 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
         database_url,
         bind_addr,
         config_path,
+        serve_info,
     } = opts;
 
     let loaded_config: Option<opengeo_core::Config> = std::fs::read_to_string(&config_path)
@@ -196,6 +202,7 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
         provider_registry,
         configured_project,
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        serve_info,
     };
     let app = router(state);
 

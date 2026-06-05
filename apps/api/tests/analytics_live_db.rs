@@ -162,6 +162,7 @@ async fn seed() -> (axum::Router, String, PgPool) {
         setup_install_state: std::sync::Arc::new(tokio::sync::RwLock::new(
             std::collections::HashMap::new(),
         )),
+                serve_info: None,
     };
     (router(state), key.plaintext, pool)
 }
@@ -436,6 +437,7 @@ async fn openrouter_runs_split_by_upstream_model() {
         setup_install_state: std::sync::Arc::new(tokio::sync::RwLock::new(
             std::collections::HashMap::new(),
         )),
+                serve_info: None,
     };
     let app = router(state);
     let (status, body) = get_json(

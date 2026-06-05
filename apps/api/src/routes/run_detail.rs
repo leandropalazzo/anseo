@@ -349,6 +349,7 @@ mod tests {
             setup_install_state: Arc::new(tokio::sync::RwLock::new(
                 std::collections::HashMap::new(),
             )),
+            serve_info: None,
         };
         (crate::router(state), key.plaintext, run_id)
     }

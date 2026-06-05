@@ -26,6 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         database_url,
         bind_addr,
         config_path,
+        serve_info: None,
     })
     .await?;
 

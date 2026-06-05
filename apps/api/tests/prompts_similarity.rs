@@ -58,6 +58,7 @@ fn build_app(config: Option<Config>) -> axum::Router {
         provider_registry: None,
         configured_project: Arc::new("default".to_string()),
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+        serve_info: None,
     };
     prompts_similarity::v1_router().with_state(state)
 }

@@ -20,8 +20,11 @@
 //! supervised for the process lifetime (see [`crate::datastore`]). The handle is
 //! held in this function's scope so the child is stopped on shutdown.
 
+use std::sync::Arc;
+
 use clap::Args;
 use opengeo_api::boot::{build_api, serve_with_shutdown, ApiBootConfig};
+use opengeo_api::routes::serve_status::ServeInfo;
 use opengeo_core::OpenGeoError;
 use opengeo_storage::Storage;
 use opengeo_worker::run::{load_dispatch_context, run_poll_loop};
@@ -133,12 +136,17 @@ pub async fn run(args: ServeArgs) -> Result<(), OpenGeoError> {
     // Shared graceful-shutdown signal: one source, two consumers (API + worker).
     let (shutdown_tx, _) = tokio::sync::watch::channel(false);
 
+    // Supervisor metadata: stamped at boot, injected into the API state so
+    // `GET /v1/serve/status` can report the active tier and component liveness.
+    let serve_info = Arc::new(ServeInfo::new());
+
     // Boot the API: connect storage, migrate, seed, run the bind guard, build
     // the router. This also spawns the NOTIFY→broadcast bridge.
     let booted = build_api(ApiBootConfig {
         database_url: database_url.clone(),
         bind_addr,
         config_path: config_path.clone(),
+        serve_info: Some(serve_info),
     })
     .await
     .map_err(|e| OpenGeoError::Config(format!("failed to boot API: {e}")))?;
