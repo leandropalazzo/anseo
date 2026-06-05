@@ -62,6 +62,10 @@ impl Tool for ListTrends {
         .map_err(|e| make_upstream_err(&e.to_string()))?;
 
         if !resp.status().is_success() {
+            // Story 36.5: 404 from a project-scoped call → UnknownProject.
+            if let Some(e) = super::map_project_not_found(resp.status(), api) {
+                return Err(e);
+            }
             return Err(make_upstream_err(&format!(
                 "upstream /v1/anomalies returned {}",
                 resp.status()

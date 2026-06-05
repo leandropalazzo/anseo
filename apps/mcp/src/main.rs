@@ -29,6 +29,10 @@ struct CliArgs {
     transport: Transport,
     bind: SocketAddr,
     allow_public: bool,
+    /// Story 36.5: per-session project override for the stdio transport.
+    /// When set, overrides `OPENGEO_PROJECT_ID` for this server process.
+    /// Per-call `tools/call` `project` fields still take precedence over this.
+    project_override: Option<String>,
 }
 
 impl Default for CliArgs {
@@ -37,6 +41,7 @@ impl Default for CliArgs {
             transport: Transport::Stdio,
             bind: "127.0.0.1:7071".parse().expect("hard-coded default addr"),
             allow_public: false,
+            project_override: None,
         }
     }
 }
@@ -76,6 +81,16 @@ fn parse_args() -> Result<CliArgs, String> {
             "--allow-public" => {
                 cli.allow_public = true;
             }
+            // Story 36.5: session-level project selector for stdio transport.
+            "--project" => {
+                let val = args
+                    .next()
+                    .ok_or_else(|| "--project requires a value".to_string())?;
+                if val.is_empty() {
+                    return Err("--project value must not be empty".to_string());
+                }
+                cli.project_override = Some(val);
+            }
             other => {
                 return Err(format!("unknown argument '{other}'"));
             }
@@ -109,7 +124,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let api_base =
         std::env::var("OPENGEO_API_URL").unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
     let api_key = std::env::var("OPENGEO_API_KEY").unwrap_or_default();
-    let project = std::env::var("OPENGEO_PROJECT_ID").unwrap_or_else(|_| "default".to_string());
+    // Story 36.5: --project flag overrides OPENGEO_PROJECT_ID for this session.
+    let project = cli.project_override.clone().unwrap_or_else(|| {
+        std::env::var("OPENGEO_PROJECT_ID").unwrap_or_else(|_| "default".to_string())
+    });
 
     // GA criterion mcp-9: --allow-public without an API key is refused.
     if cli.allow_public && api_key.is_empty() {

@@ -77,4 +77,25 @@ impl ApiClient {
     pub fn project(&self) -> &str {
         &self.project
     }
+
+    /// Return the project this client was constructed with.
+    ///
+    /// Used by tool handlers to produce an `UnknownProject` error when the
+    /// upstream API returns 404 in response to the `X-OpenGEO-Project` header.
+    pub fn current_project(&self) -> &str {
+        &self.project
+    }
+
+    /// Return a clone of this client with `project` replaced.
+    ///
+    /// Used by the MCP dispatcher to honour per-call project selectors (Story
+    /// 36.5) without rebuilding the underlying `reqwest::Client`.
+    pub fn with_project(&self, project: impl Into<String>) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            base_url: self.base_url.clone(),
+            api_key: self.api_key.clone(),
+            project: project.into(),
+        }
+    }
 }
