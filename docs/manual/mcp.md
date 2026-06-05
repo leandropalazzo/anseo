@@ -1,6 +1,6 @@
-# OpenGEO MCP Manual (`opengeo-mcp`)
+# Anseo MCP Manual (`opengeo-mcp`)
 
-The MCP server exposes OpenGEO to AI agents/assistants (Claude Desktop, Cursor, Zed, Cline, …) over the [Model Context Protocol](https://modelcontextprotocol.io). It is the agent-native surface — same data and operations as the CLI/web, callable by an LLM.
+The MCP server exposes Anseo to AI agents/assistants (Claude Desktop, Cursor, Zed, Cline, …) over the [Model Context Protocol](https://modelcontextprotocol.io). It is the agent-native surface — same data and operations as the CLI/web, callable by an LLM.
 
 - **Binary/crate:** `opengeo-mcp` (`apps/mcp`). Launch via `ogeo mcp serve` or directly.
 - **Protocol:** hand-rolled JSON-RPC 2.0, MCP `protocolVersion 2024-11-05`, `serverInfo.name = "opengeo-mcp"`.
@@ -26,7 +26,7 @@ ogeo mcp serve --transport http+sse --bind 127.0.0.1:7071 --require-api-key
 | `OPENGEO_API_URL` | `http://127.0.0.1:8080` | local `/v1` base |
 | `OPENGEO_API_KEY` | — | forwarded as `Authorization: Bearer`; required for public HTTP |
 | `OPENGEO_PROJECT_ID` | `default` | forwarded as `X-OpenGEO-Project` (actual project scoping) |
-| `OPENGEO_BENCHMARK_URL` | `https://benchmark.opengeo.dev` | used only by `search_benchmarks` |
+| `OPENGEO_BENCHMARK_URL` | `https://benchmark.anseo.ai` | used only by `search_benchmarks` |
 
 **Auth & scoping:** every loopback call forwards `Authorization: Bearer` + `X-OpenGEO-Project`. Each tool also takes a `project` argument (the LLM-facing contract), but the server-level project header is what actually scopes data. `search_benchmarks` deliberately sends **no** key/project header (privacy floor).
 

@@ -1,8 +1,8 @@
 # observe (Go)
 
-Thin instrumentation SDK to send **externally-executed** LLM runs to OpenGEO's
+Thin instrumentation SDK to send **externally-executed** LLM runs to Anseo's
 Run-Ingestion API (`POST /v1/ingest/run`). The OpenTelemetry pattern, minus the
-ceremony: you already ran a prompt against a provider outside OpenGEO — this
+ceremony: you already ran a prompt against a provider outside Anseo — this
 posts that run so it flows through the same extraction → redaction →
 benchmark-contribution path as a native run.
 

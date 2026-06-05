@@ -1,4 +1,4 @@
-# OpenGEO Web Manual (Dashboard)
+# Anseo Web Manual (Dashboard)
 
 The dashboard (Next.js 16 App Router, `apps/web/app`) is the human surface — **read** analytics + **control** operations + **trust/evidence** views. It mirrors the CLI/MCP over the same `/v1` API.
 
@@ -107,13 +107,13 @@ Infra status cards: Postgres, Worker, ClickHouse (+docker), ETL progress (state/
 
 ### `/setup/clickhouse/connect` — Connect Remote ClickHouse (S/C)
 `ConnectForm` (provider preset + connection details; probes before saving).
-- **Use case:** point OpenGEO at managed ClickHouse when local Docker isn't available.
+- **Use case:** point Anseo at managed ClickHouse when local Docker isn't available.
 
 ---
 
 ## Dev / onboarding
 
-### `/onboarding` — Initialize OpenGEO (C, first-run)
+### `/onboarding` — Initialize Anseo (C, first-run)
 Five-step wizard mirroring `ogeo init`: Initialize project → Connect providers → Configure brand → First prompt run → Schedule & alerts. Gated by an onboarded flag (bounces to `/` if already onboarded).
 - **Use case:** guided first-run setup.
 

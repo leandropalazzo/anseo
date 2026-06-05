@@ -1,4 +1,4 @@
-# OpenGEO Open-Core Boundary
+# Anseo Open-Core Boundary
 
 **Canonical definition per ADR-007 (2026-06-03). Both `docs/CONTRIBUTING.md` and `README.md` reference this file — edit here, not there.**
 
@@ -6,7 +6,7 @@
 
 ## MIT OSS Core (`opengeo` — public)
 
-Everything needed to run a fully capable single-operator, multi-project OpenGEO deployment is MIT-licensed and lives in the public `opengeo` repo:
+Everything needed to run a fully capable single-operator, multi-project Anseo deployment is MIT-licensed and lives in the public `opengeo` repo:
 
 - Data collection, prompt execution, and provider adapters
 - Mention and citation extraction

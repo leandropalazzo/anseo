@@ -1,6 +1,6 @@
-# OpenGEO check-visibility GitHub Action
+# Anseo check-visibility GitHub Action
 
-Run an OpenGEO visibility check inside CI; fail the build if a Brand's ranking is worse than the expected threshold.
+Run an Anseo visibility check inside CI; fail the build if a Brand's ranking is worse than the expected threshold.
 
 ## Usage
 
@@ -23,7 +23,7 @@ Run an OpenGEO visibility check inside CI; fail the build if a Brand's ranking i
 | `brand`           | yes      | —                             | Brand name to check, as declared in `opengeo.yaml`.                                 |
 | `expect-rank-lte` | yes      | —                             | Maximum acceptable ranking (1 = top). Build fails if the observed rank is higher.   |
 | `provider`        | no       | empty (all declared)          | Restrict to one Provider: `openai`, `anthropic`, `gemini`, `perplexity`, `grok`, `mistral`, `openrouter`. |
-| `api-base`        | no       | `https://api.opengeo.dev`     | Override for self-hosted deployments.                                               |
+| `api-base`        | no       | `https://api.anseo.ai`     | Override for self-hosted deployments.                                               |
 
 ## Outputs
 
@@ -45,4 +45,4 @@ The action writes a Markdown summary table to `$GITHUB_STEP_SUMMARY` (FR-44), so
 
 ## Pinning
 
-The action is versioned independently of the OpenGEO CLI; pin to a tag (`@v1`) and let semver protect you. The CLI version baked into the container is documented in the release notes for each action tag.
+The action is versioned independently of the Anseo CLI; pin to a tag (`@v1`) and let semver protect you. The CLI version baked into the container is documented in the release notes for each action tag.
