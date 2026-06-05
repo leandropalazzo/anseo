@@ -156,6 +156,11 @@ impl<'a> ProjectRepo<'a> {
     /// `None` when zero or more-than-one projects exist, leaving the boot path
     /// to fall back to the YAML. Archived projects are excluded so a sole
     /// *active* project still resolves after siblings are archived.
+    ///
+    /// **Story 36.11 (RISK-6)** — this is the storage-layer half of the
+    /// v0.2.0 upgrade guarantee. A single-project deployment upgraded to the
+    /// multi-project binary calls this on every header-less request; it yields
+    /// the sole project so no manual steps or configuration changes are needed.
     pub async fn get_single_brand(&self) -> Result<Option<BrandRow>, Error> {
         let rows = sqlx::query_as!(
             BrandRow,
