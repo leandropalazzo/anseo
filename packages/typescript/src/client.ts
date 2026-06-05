@@ -29,8 +29,6 @@ import type {
   GenerateRecommendationsAccepted,
   GrafanaCrawlerQuery,
   GrafanaCrawlerSeries,
-  HallucinationSummary,
-  HallucinationSummaryParams,
   ListAuditRunsParams,
   ListRecommendationsParams,
   ListRunsParams,
@@ -297,40 +295,6 @@ export const grafanaCrawlerQuery = async (grafanaCrawlerQuery: GrafanaCrawlerQue
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(
       grafanaCrawlerQuery,)
-  }
-);}
-
-
-
-/**
- * @summary Roadmap Epic 34 — aggregate collected brand claims and their entitlement-gated accuracy verdicts. OSS build returns premium_disabled verdicts (open-core boundary).
- */
-export type hallucinationSummaryResponse = {
-  data: HallucinationSummary;
-  status: number;
-}
-
-export const getHallucinationSummaryUrl = (params?: HallucinationSummaryParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  return normalizedParams.size ? `/v1/hallucination/summary?${normalizedParams.toString()}` : `/v1/hallucination/summary`
-}
-
-export const hallucinationSummary = async (params?: HallucinationSummaryParams, options?: RequestInit): Promise<hallucinationSummaryResponse> => {
-  
-  return fetchClient<Promise<hallucinationSummaryResponse>>(getHallucinationSummaryUrl(params),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
   }
 );}
 
