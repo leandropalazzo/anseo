@@ -155,8 +155,7 @@ impl Dispatcher {
         // Story 36.5: `project` in `tools/call` params overrides the transport
         // hint, which in turn overrides the boot-time env default.
         let call_project = params.get("project").and_then(|v| v.as_str());
-        let effective_project: Option<&str> =
-            call_project.or_else(|| selector.transport_hint.as_deref());
+        let effective_project: Option<&str> = call_project.or(selector.transport_hint.as_deref());
 
         let args = params
             .get("arguments")
