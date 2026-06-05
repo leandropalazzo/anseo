@@ -252,7 +252,9 @@ fn both_key_classes_work_in_chained_store() {
     assert!(ProjectKek::load(&chain, PROJECT_A).is_ok());
 
     // Removing the provider secret does not disturb the KEK.
-    chain.remove(&provider_secret_key(PROJECT_A, "anthropic")).unwrap();
+    chain
+        .remove(&provider_secret_key(PROJECT_A, "anthropic"))
+        .unwrap();
     assert!(matches!(
         get_provider_secret(&chain, PROJECT_A, "anthropic"),
         Err(SecretStoreError::NotFound { .. })
