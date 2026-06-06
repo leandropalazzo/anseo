@@ -1,0 +1,23 @@
+# Anseo plugin registry — root index (Story 41.1).
+#
+# This is the canonical seed for `github.com/anseo/plugin-registry`. The live
+# registry is served over GitHub's raw CDN at:
+#
+#   https://raw.githubusercontent.com/anseo/plugin-registry/main/index.toml
+#
+# `anseo plugin search` fetches this file, caches it for 1h, and substring-
+# matches the `[[plugin]]` rows below. It is intentionally EMPTY at seed time —
+# first-party plugins are populated by Story 41.5. An empty index is a valid
+# zero-state: `anseo plugin search <q>` exits 0 with a "no plugins match"
+# message.
+#
+# Each published version adds one row:
+#
+#   [[plugin]]
+#   id = "namespace.name"
+#   version = "1.2.3"
+#   description = "One-line summary shown in search."
+#   sha256 = "<lowercase hex sha-256 of plugins/<id>/<version>/entrypoint.wasm>"
+#   yanked = false   # optional; yanked rows are hidden from search/resolve
+
+schema_version = "1"

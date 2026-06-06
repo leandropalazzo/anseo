@@ -1,0 +1,12 @@
+# Anseo plugin registry — revocation list (Story 41.1).
+#
+# Served at:
+#   https://raw.githubusercontent.com/anseo/plugin-registry/main/keys/revoked.toml
+#
+# The client treats an absent file as an empty list. Entries are 2-tuples.
+#
+#   revoked_keys    = [["<keyid>", "<reason>"], ...]
+#   revoked_plugins = [["<namespace.name>", "<version>"], ...]
+
+revoked_keys = []
+revoked_plugins = []

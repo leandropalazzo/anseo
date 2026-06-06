@@ -10,8 +10,13 @@
 //! check their manifests today.
 
 use std::path::PathBuf;
+use std::time::{Duration, SystemTime};
 
 use anseo_core::OpenGeoError;
+use anseo_plugin_host::registry::{
+    HttpTransport, InMemoryTransport, RegistryClient, RegistryError, RegistryTransport,
+    DEFAULT_REGISTRY_URL, REGISTRY_URL_ENV,
+};
 use anseo_plugin_host::signing::pinned_root_pubkeys;
 use anseo_plugin_manifest::PluginManifest;
 use anseo_storage::Storage;
@@ -112,27 +117,165 @@ fn parse_spec(spec: &str) -> (String, String) {
     }
 }
 
+/// How long a fetched `index.toml` stays fresh before `search` re-fetches it.
+/// Raw GitHub content is CDN-served; a 1-hour TTL keeps discovery snappy
+/// without hammering the CDN (Story 41.1 Notes). Bust it with `--refresh`.
+const INDEX_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
+
 #[derive(Debug, Args)]
 pub struct SearchArgs {
     /// Substring matched against plugin id + description.
     pub query: String,
+    /// Search a **local** registry directory instead of the live GitHub
+    /// registry (offline / development use).
     #[arg(long, value_name = "DIR")]
     pub registry: Option<PathBuf>,
+    /// Bypass the 1-hour `index.toml` cache and re-fetch from the registry.
+    #[arg(long)]
+    pub refresh: bool,
 }
 
 pub fn run_search(args: SearchArgs) -> Result<(), OpenGeoError> {
-    let registry = resolve_registry(args.registry.as_deref())?;
-    let hits = registry
-        .search(&args.query)
-        .map_err(|e| OpenGeoError::Config(e.to_string()))?;
-    if hits.is_empty() {
-        println!("no plugins match `{}`", args.query);
+    // Offline / dev path: an explicit local registry dir wins.
+    if let Some(dir) = args.registry.as_deref() {
+        let registry = FsRegistry::new(dir);
+        let hits = registry
+            .search(&args.query)
+            .map_err(|e| OpenGeoError::Config(e.to_string()))?;
+        print_search_results(
+            &args.query,
+            hits.into_iter().map(|e| (e.id, e.version, e.description)),
+        );
         return Ok(());
     }
-    for e in hits {
-        println!("{}@{}  —  {}", e.id, e.version, e.description);
-    }
+
+    // Default path: query the live GitHub flat-file registry (Story 41.1).
+    let client = live_registry_client(args.refresh)?;
+    let hits = match client.search_lenient(&args.query) {
+        Ok(hits) => hits,
+        Err(RegistryError::Transport { .. } | RegistryError::NotFound { .. }) => {
+            return Err(OpenGeoError::Config(
+                "registry unreachable — try again later".into(),
+            ));
+        }
+        Err(e) => return Err(OpenGeoError::Config(e.to_string())),
+    };
+    print_search_results(
+        &args.query,
+        hits.into_iter().map(|e| (e.id, e.version, e.description)),
+    );
     Ok(())
+}
+
+fn print_search_results(query: &str, hits: impl Iterator<Item = (String, String, String)>) {
+    let mut any = false;
+    for (id, version, description) in hits {
+        any = true;
+        println!("{id}@{version}  —  {description}");
+    }
+    if !any {
+        println!("no plugins match `{query}`");
+        println!(
+            "the Anseo plugin registry is community-seeded and may be empty; \
+             results are cached for up to 1h — pass --refresh to re-check."
+        );
+    }
+}
+
+/// Build a registry client over a 1-hour-cached snapshot of the live registry
+/// `index.toml`. On a cache hit we serve the cached bytes through an
+/// [`InMemoryTransport`]; on a miss (or `refresh`) we fetch the live index and
+/// persist it. A network failure with no usable cache surfaces as a transport
+/// error so the caller can render the "registry unreachable" message.
+fn live_registry_client(refresh: bool) -> Result<RegistryClient<InMemoryTransport>, OpenGeoError> {
+    let base_url = resolved_registry_base_url();
+    let cache_path = index_cache_path(&base_url)?;
+    let fresh_cache = !refresh
+        && cache_path
+            .metadata()
+            .and_then(|m| m.modified())
+            .map(|modified| {
+                SystemTime::now()
+                    .duration_since(modified)
+                    .map(|age| age < INDEX_CACHE_TTL)
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false);
+
+    let index_bytes: Vec<u8> = if fresh_cache {
+        std::fs::read(&cache_path).map_err(|e| {
+            OpenGeoError::Config(format!("read registry cache {}: {e}", cache_path.display()))
+        })?
+    } else {
+        let transport = HttpTransport::from_env();
+        match transport.fetch("index.toml") {
+            Ok(bytes) => {
+                // Best-effort cache write; failure to cache is non-fatal.
+                if let Some(parent) = cache_path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                let _ = std::fs::write(&cache_path, &bytes);
+                bytes
+            }
+            // Network/transport failure: fall back to a stale cache if present.
+            Err(RegistryError::Transport { .. } | RegistryError::NotFound { .. }) => {
+                match std::fs::read(&cache_path) {
+                    Ok(stale) => {
+                        eprintln!(
+                            "warning: registry unreachable — showing cached results \
+                             (pass --refresh to retry)"
+                        );
+                        stale
+                    }
+                    Err(_) => {
+                        return Err(OpenGeoError::Config(
+                            "registry unreachable — try again later".into(),
+                        ))
+                    }
+                }
+            }
+            Err(e) => return Err(OpenGeoError::Config(e.to_string())),
+        }
+    };
+
+    let mem = InMemoryTransport::new();
+    mem.insert("index.toml", index_bytes);
+    Ok(RegistryClient::new(mem))
+}
+
+/// Resolve the registry base URL exactly as [`HttpTransport::from_env`] does:
+/// `ANSEO_PLUGIN_REGISTRY_URL`, then the deprecated `OPENGEO_PLUGIN_REGISTRY_URL`,
+/// then [`DEFAULT_REGISTRY_URL`]. The trailing slash is trimmed so that
+/// `https://r/` and `https://r` resolve to the same cache key.
+fn resolved_registry_base_url() -> String {
+    std::env::var(REGISTRY_URL_ENV)
+        .or_else(|_| std::env::var("OPENGEO_PLUGIN_REGISTRY_URL"))
+        .unwrap_or_else(|_| DEFAULT_REGISTRY_URL.into())
+        .trim_end_matches('/')
+        .to_string()
+}
+
+/// `<plugin_home>/cache/index-<hash(base_url)>.toml`.
+///
+/// The cache filename is keyed by a stable hash of the resolved registry base
+/// URL so that switching `ANSEO_PLUGIN_REGISTRY_URL` (e.g. to a fork or an
+/// internal registry) never serves the previous registry's stale index. The
+/// default registry keeps a stable key; each override gets its own. A non-crypto
+/// hash is sufficient — this is only a filesystem cache key, not a security
+/// boundary.
+fn index_cache_path(base_url: &str) -> Result<PathBuf, OpenGeoError> {
+    let key = index_cache_key(base_url);
+    Ok(plugin_home()?
+        .join("cache")
+        .join(format!("index-{key}.toml")))
+}
+
+/// Stable 16-hex-char key derived from the registry base URL.
+fn index_cache_key(base_url: &str) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    base_url.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
 }
 
 #[derive(Debug, Args)]
@@ -255,4 +398,44 @@ pub async fn run_upgrade(args: UpgradeArgs) -> Result<(), OpenGeoError> {
     .map_err(|e| OpenGeoError::Config(e.to_string()))?;
     println!("upgraded {}@{}", outcome.id, outcome.version);
     Ok(())
+}
+
+#[cfg(test)]
+mod cache_key_tests {
+    use super::{index_cache_key, resolved_registry_base_url, DEFAULT_REGISTRY_URL};
+
+    #[test]
+    fn same_url_is_stable() {
+        let url = "https://example.test/registry";
+        assert_eq!(index_cache_key(url), index_cache_key(url));
+    }
+
+    #[test]
+    fn different_urls_map_to_different_keys() {
+        let default = index_cache_key(DEFAULT_REGISTRY_URL);
+        let fork = index_cache_key("https://raw.githubusercontent.com/acme/plugin-registry/main");
+        let internal = index_cache_key("https://registry.internal.example/plugins");
+        assert_ne!(default, fork, "fork must not reuse the default cache key");
+        assert_ne!(default, internal);
+        assert_ne!(fork, internal);
+    }
+
+    #[test]
+    fn key_is_filename_safe_16_hex() {
+        let key = index_cache_key("https://example.test/x?y=z&a=b/../weird");
+        assert_eq!(key.len(), 16);
+        assert!(key.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn trailing_slash_does_not_change_resolved_url() {
+        // env access is process-global; serialize via a single test that sets and
+        // clears the override so it doesn't leak into other tests.
+        std::env::set_var(super::REGISTRY_URL_ENV, "https://example.test/reg/");
+        assert_eq!(resolved_registry_base_url(), "https://example.test/reg");
+        std::env::set_var(super::REGISTRY_URL_ENV, "https://example.test/reg");
+        assert_eq!(resolved_registry_base_url(), "https://example.test/reg");
+        std::env::remove_var(super::REGISTRY_URL_ENV);
+        assert_eq!(resolved_registry_base_url(), DEFAULT_REGISTRY_URL);
+    }
 }
