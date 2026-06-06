@@ -271,6 +271,47 @@ fn search_matches_id_and_description() {
 }
 
 #[test]
+fn malformed_index_search_is_hard_error_but_lenient_is_empty() {
+    // A valid fixture, then clobber index.toml with non-TOML garbage.
+    let fx = build_fixture(Tamper::default());
+    std::fs::write(
+        fx.dir.path().join("index.toml"),
+        b"this is not = valid toml [[[",
+    )
+    .unwrap();
+    let c = client(&fx);
+
+    // Strict search surfaces the parse error...
+    let err = c.search("anything").unwrap_err();
+    assert!(matches!(err, RegistryError::Parse { .. }), "got {err:?}");
+
+    // ...but the lenient path used by `anseo plugin search` degrades to empty
+    // (Story 41.1 AC6 / Notes) rather than crashing.
+    let hits = c.search_lenient("anything").unwrap();
+    assert!(hits.is_empty());
+}
+
+#[test]
+fn empty_index_search_returns_zero_results() {
+    // Zero-state: a registry whose index lists no plugins (the seed state).
+    let mem = InMemoryTransport::new();
+    mem.insert("index.toml", b"schema_version = \"1\"\n".to_vec());
+    let c = RegistryClient::new(mem);
+    assert!(c.search("anything").unwrap().is_empty());
+    assert!(c.search_lenient("anything").unwrap().is_empty());
+}
+
+#[test]
+fn missing_index_search_is_transport_not_found() {
+    // No index.toml at all → NotFound (the CLI maps this to the AC4
+    // "registry unreachable" message; search_lenient still propagates it).
+    let mem = InMemoryTransport::new();
+    let c = RegistryClient::new(mem);
+    let err = c.search_lenient("anything").unwrap_err();
+    assert!(matches!(err, RegistryError::NotFound { .. }), "got {err:?}");
+}
+
+#[test]
 fn revocation_list_absent_is_empty() {
     let fx = build_fixture(Tamper::default());
     let revs = client(&fx).revocations().unwrap();

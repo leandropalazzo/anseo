@@ -3,7 +3,7 @@
 //! This operationalizes the Phase-3 GitHub flat-file registry
 //! (architecture-phase3 `AD-Phase3-PluginRegistry`, plugin-sdk §3.1). The
 //! registry is a directory tree served either over GitHub's CDN
-//! (`raw.githubusercontent.com/opengeo/plugin-registry/...`) or from a local
+//! (`raw.githubusercontent.com/anseo/plugin-registry/...`) or from a local
 //! path. The on-disk shape mirrors the resolver in
 //! `apps/cli/src/commands/plugin_registry.rs`:
 //!
@@ -20,7 +20,7 @@
 //!
 //! Transport is abstracted behind [`RegistryTransport`]. Production uses
 //! [`HttpTransport`] (configurable base URL, default the canonical
-//! `opengeo/plugin-registry` raw URL). Tests use [`FileTransport`] against a
+//! `anseo/plugin-registry` raw URL). Tests use [`FileTransport`] against a
 //! temp-dir fixture, so the test suite never touches the network.
 //!
 //! ## Verification
@@ -50,9 +50,10 @@ use crate::signing::{
 };
 
 /// Canonical registry base, used when nothing is configured. Points at the
-/// raw CDN view of the `main` branch of `opengeo/plugin-registry`.
+/// raw CDN view of the `main` branch of `anseo/plugin-registry` — the single
+/// place the live registry URL is declared (Story 41.1 AC5).
 pub const DEFAULT_REGISTRY_URL: &str =
-    "https://raw.githubusercontent.com/opengeo/plugin-registry/main";
+    "https://raw.githubusercontent.com/anseo/plugin-registry/main";
 
 /// Environment variable that overrides the registry base URL.
 pub const REGISTRY_URL_ENV: &str = "ANSEO_PLUGIN_REGISTRY_URL";
@@ -313,7 +314,8 @@ pub struct RegistryClient<T: RegistryTransport> {
 
 impl RegistryClient<HttpTransport> {
     /// Build a client whose base URL comes from the environment
-    /// (`OPENGEO_PLUGIN_REGISTRY_URL`), defaulting to [`DEFAULT_REGISTRY_URL`].
+    /// (`ANSEO_PLUGIN_REGISTRY_URL`, or the deprecated
+    /// `OPENGEO_PLUGIN_REGISTRY_URL`), defaulting to [`DEFAULT_REGISTRY_URL`].
     pub fn from_env() -> Self {
         RegistryClient {
             transport: HttpTransport::from_env(),
@@ -346,7 +348,7 @@ impl<T: RegistryTransport> RegistryClient<T> {
         })
     }
 
-    /// `ogeo plugin search` — substring match over id + description, skipping
+    /// `anseo plugin search` — substring match over id + description, skipping
     /// yanked rows.
     pub fn search(&self, query: &str) -> Result<Vec<IndexEntry>, RegistryError> {
         let q = query.to_lowercase();
@@ -359,6 +361,27 @@ impl<T: RegistryTransport> RegistryClient<T> {
                 e.id.to_lowercase().contains(&q) || e.description.to_lowercase().contains(&q)
             })
             .collect())
+    }
+
+    /// Like [`search`](Self::search), but a **malformed or non-UTF-8
+    /// `index.toml`** degrades gracefully to an *empty* index rather than
+    /// erroring (Story 41.1 AC6 + Notes: "Malformed TOML must degrade
+    /// gracefully — log error + treat as empty index"). A transport/network
+    /// failure (e.g. the registry being unreachable) still propagates so the
+    /// caller can render the AC4 "registry unreachable" message.
+    pub fn search_lenient(&self, query: &str) -> Result<Vec<IndexEntry>, RegistryError> {
+        match self.search(query) {
+            Ok(hits) => Ok(hits),
+            // A parse failure is treated as an empty registry, not a hard error.
+            Err(RegistryError::Parse { path, message }) => {
+                eprintln!(
+                    "warning: registry index `{path}` is malformed ({message}); \
+                     treating as empty"
+                );
+                Ok(Vec::new())
+            }
+            Err(other) => Err(other),
+        }
     }
 
     /// Resolve the index entry for `(id, version)`. `version = "latest"` picks
