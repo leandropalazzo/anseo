@@ -4,14 +4,26 @@ This directory holds the source and bundle layout for the **official, first-part
 Anseo plugins** (Story 41.5). They are the canonical reference implementations of
 the four Phase-3 plugin kinds and double as the SDK author templates.
 
-Three plugins seed the registry. Every one is **fully functional within the
+Two plugins seed the registry. Every one is **fully functional within the
 host execution contract** — none is a stub.
 
 | Directory                  | id (registry)                  | kind            | What it actually does                                            |
 | -------------------------- | ------------------------------ | --------------- | --------------------------------------------------------------- |
-| `anseo-trend-analytics/`   | `anseo/anseo-trend-analytics`  | `analytics`     | Offline rollup (count/min/max/mean/least-squares slope) over a metric series; emits a `plugin:anseo-trend-analytics:rollup` trend result to stdout. |
-| `anseo-ndjson-export/`     | `anseo/anseo-ndjson-export`    | `output-format` | Formats a run's result rows as newline-delimited JSON (NDJSON) on stdout. |
-| `anseo-example-provider/`  | `anseo/anseo-example-provider` | `provider`      | Deterministic OFFLINE echo provider — the plugin-author template. |
+| `anseo-trend-analytics/`   | `anseo/anseo-trend-analytics`  | `analytics`     | Offline rollup (count/min/max/mean/least-squares slope) over a metric series; emits a `plugin:anseo-trend-analytics:rollup` trend result to stdout. Native subprocess — the supported, platform-gated, tested kind. |
+| `anseo-example-provider/`  | `anseo/anseo-example-provider` | `provider`      | Deterministic OFFLINE echo provider — the WASM plugin-author template. |
+
+### Why no `output-format` reference plugin?
+
+An `output-format` reference plugin is **deferred** until the output-format
+execution model is settled. The plugin contract documents `output-format` as a
+**WASM** kind, but no WASM execution runtime is wired in the host today — the
+only execution primitive that exists is the **native analytics subprocess**
+(`crates/plugin-host/src/subprocess.rs`). Shipping an output-format plugin now
+would force a choice between mis-modeling it as native (which regresses the
+loader's platform gate — it would wrongly skip legitimate WASM output-format
+plugins on Windows) or shipping a manifest the host cannot actually execute
+(a parity-honesty defect). Once the output-format runtime (WASM host vs native)
+is decided, the reference plugin lands against the real contract.
 
 ### Why no ClickHouse / BigQuery network sinks?
 

@@ -17,12 +17,11 @@
 //!     `installed.toml` is *skipped* unless the caller opts in via
 //!     [`LoadPolicy::allow_unsigned`]. We never silently load an unverified
 //!     plugin into a privileged registry.
-//!   * **Platform sandbox guard** — every *native-subprocess* plugin (Analytics
-//!     **and** Output-format both run through the subprocess seccomp-bpf /
-//!     `sandbox-exec` runner; Provider/Extractor are WASM) is Linux/macOS only.
-//!     On an unsupported platform (Windows) such a plugin is *skipped* with an
-//!     explicit `sandbox not supported on this platform` reason — never reported
-//!     `loaded` only to fail at first run (ADR Notes / OQ-P3-5).
+//!   * **Platform sandbox guard** — Analytics plugins run in the subprocess
+//!     seccomp-bpf / `sandbox-exec` sandbox, which is Linux/macOS only. On an
+//!     unsupported platform (Windows) the plugin is *skipped* with an explicit
+//!     `sandbox not supported on this platform` reason — never loaded
+//!     in-process (ADR Notes / OQ-P3-5).
 //!   * **Per-plugin isolation** — a corrupted bundle (missing/garbled manifest,
 //!     a `kind` mismatch) is recorded as `load_error` and skipped; `serve`
 //!     continues. One bad plugin never takes down startup.
@@ -198,14 +197,9 @@ fn decide(home: &Path, entry: &InstalledEntry, policy: &LoadPolicy) -> LoadedPlu
         );
     }
 
-    // (3) Platform sandbox gate for every native-subprocess plugin (the
-    // seccomp-bpf / `sandbox-exec` runner is Linux/macOS only). Both Analytics
-    // and Output-format run through that same runner
-    // (`crates/plugin-host/src/subprocess.rs`); Provider/Extractor are WASM and
-    // need no gate. On an unsupported host (Windows) we *skip* rather than report
-    // `loaded` and then fail at first run — the runtime cannot honour the
-    // sandbox there (ADR Notes / OQ-P3-5).
-    if uses_native_subprocess(kind) && !policy.platform.supports_analytics_subprocess() {
+    // (3) Platform sandbox gate for Analytics (subprocess seccomp/sandbox-exec).
+    // Windows + other unsupported hosts skip rather than fall back in-process.
+    if matches!(kind, PluginType::Analytics) && !policy.platform.supports_analytics_subprocess() {
         return skip(entry, kind, "sandbox not supported on this platform");
     }
 
@@ -219,20 +213,6 @@ fn decide(home: &Path, entry: &InstalledEntry, policy: &LoadPolicy) -> LoadedPlu
         status: LoadStatus::Loaded,
         reason: String::new(),
     }
-}
-
-/// Whether a plugin kind executes via the native subprocess runner
-/// (`crates/plugin-host/src/subprocess.rs`) rather than the WASM host.
-///
-/// The manifest `entry_point` filename is **not** a reliable signal: the install
-/// layout materializes *every* plugin's artifact as `entrypoint.wasm` regardless
-/// of its real format, so the runtime is determined by [`PluginType`] alone.
-/// Analytics and Output-format are native (Polars/NumPy/Rust numerics and large
-/// row serialization don't compile cleanly to `wasm32-wasi`); Provider and
-/// Extractor are WASM. Anything native is bound by the subprocess sandbox's
-/// platform support and must be platform-gated identically.
-fn uses_native_subprocess(kind: PluginType) -> bool {
-    matches!(kind, PluginType::Analytics | PluginType::OutputFormat)
 }
 
 fn skip(entry: &InstalledEntry, kind: PluginType, reason: &str) -> LoadedPlugin {
@@ -378,30 +358,6 @@ mod tests {
         let report = scan_and_load(tmp.path(), &policy);
         assert_eq!(report[0].status, LoadStatus::Skipped);
         assert!(report[0].reason.contains("sandbox not supported"));
-    }
-
-    #[test]
-    fn output_format_skipped_on_unsupported_platform() {
-        // Output-format is a native-subprocess plugin (same runner as analytics),
-        // so it must be platform-gated identically — not wrongly reported loaded
-        // on a host whose sandbox cannot honour it.
-        let tmp = tempfile::tempdir().unwrap();
-        write_plugin(tmp.path(), "anseo/ndjson", "0.1.0", "output-format", "signed");
-        let policy = LoadPolicy {
-            allow_unsigned: false,
-            platform: Platform::Windows,
-        };
-        let report = scan_and_load(tmp.path(), &policy);
-        assert_eq!(report[0].status, LoadStatus::Skipped);
-        assert!(report[0].reason.contains("sandbox not supported"));
-    }
-
-    #[test]
-    fn output_format_loads_on_supported_platform() {
-        let tmp = tempfile::tempdir().unwrap();
-        write_plugin(tmp.path(), "anseo/ndjson", "0.1.0", "output-format", "signed");
-        let report = scan_and_load(tmp.path(), &linux_policy(false));
-        assert_eq!(report[0].status, LoadStatus::Loaded);
     }
 
     #[test]

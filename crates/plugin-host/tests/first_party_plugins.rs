@@ -39,11 +39,6 @@ fn first_party() -> Vec<(&'static str, &'static str, PluginType)> {
             PluginType::Analytics,
         ),
         (
-            "anseo-ndjson-export",
-            "anseo/anseo-ndjson-export",
-            PluginType::OutputFormat,
-        ),
-        (
             "anseo-example-provider",
             "anseo/anseo-example-provider",
             PluginType::Provider,
@@ -105,7 +100,7 @@ fn first_party_plugins_load_through_loader() {
     };
     let report = scan_and_load(home, &policy);
 
-    assert_eq!(report.len(), 3, "all three first-party plugins reported");
+    assert_eq!(report.len(), 2, "both first-party plugins reported");
     for (_dir, id, kind) in first_party() {
         let row = report
             .iter()
@@ -206,29 +201,4 @@ fn trend_analytics_plugin_executes_and_emits_trend_result() {
         v["slope"].as_f64().expect("slope is numeric") > 0.0,
         "rising series must have positive slope"
     );
-}
-
-#[test]
-fn ndjson_export_plugin_executes_and_emits_ndjson() {
-    if !Platform::current().supports_analytics_subprocess() {
-        eprintln!("skipping: output subprocess unsupported on this platform");
-        return;
-    }
-    let bin = build_subprocess_plugin("anseo-ndjson-export", "anseo-ndjson-export");
-    let request =
-        r#"{"run_id":"r-123","rows":[{"prompt":"p1","score":0.8},{"prompt":"p2","score":0.4}]}"#;
-    let stdout = run_through_sandbox(&bin, request);
-
-    let lines: Vec<&str> = stdout.lines().filter(|l| !l.is_empty()).collect();
-    assert_eq!(lines.len(), 2, "one NDJSON record per input row");
-
-    let l0: serde_json::Value =
-        serde_json::from_str(lines[0]).expect("line 0 is well-formed JSON");
-    assert_eq!(l0["run_id"], "r-123");
-    assert_eq!(l0["prompt"], "p1");
-    assert_eq!(l0["score"], 0.8);
-
-    let l1: serde_json::Value =
-        serde_json::from_str(lines[1]).expect("line 1 is well-formed JSON");
-    assert_eq!(l1["prompt"], "p2");
 }
