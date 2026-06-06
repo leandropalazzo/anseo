@@ -1,17 +1,54 @@
 # =============================================================================
-# RELEASE — publish multi-arch container images to GHCR on version tags
+# RELEASE-TRAIN — one tag fans out to every release artifact (Story 38.19)
 #
-# Triggered by: push of any tag matching v* (e.g. v0.3.0)
-# Publishes:
-#   ghcr.io/<owner>/opengeo/api:<tag>
-#   ghcr.io/<owner>/opengeo/worker:<tag>
-#   ghcr.io/<owner>/opengeo/web:<tag>
+# A single `opengeo` version tag `vX.Y.Z` propagates everywhere: GHCR images,
+# the pinned standalone compose snapshot, the SDK publishes, the GitHub Release,
+# the plugin signing/publish, the internal-overlay submodule bump, and the
+# docs/marketing site rebuild — coordinated as ONE release, with a single
+# summary that marks the release incomplete if any leg fails.
 #
-# Tags generated (semver flavour):
-#   v1.2.3  → 1.2.3, 1.2, 1, latest
+# ── TRIGGERS ────────────────────────────────────────────────────────────────
+#   * push tag `v*`        — the production entry point. THE ONLY thing that
+#                            publishes images on a release (see no-double-publish).
+#   * workflow_dispatch    — manual re-run for a given ref (dry-run supported).
+# This workflow has NO `pull_request` / `push:branches` trigger. None of its
+# jobs are required PR checks, so the train can NEVER block ordinary PRs. (A
+# prior mistake wired a release-only job as a PR-blocking CI job and broke every
+# PR — that is structurally impossible here: the event itself gates everything.)
 #
-# Build provenance attestation is emitted for each image via SLSA.
-# Story 38.15
+# ── NO DOUBLE-PUBLISH ───────────────────────────────────────────────────────
+# The image build/publish logic lives in ONE place — the reusable workflow
+# .github/workflows/release-images.yml (the refactored Story 38.15 logic). This
+# train is the sole tag-triggered caller (`uses:`), so a tag publishes the
+# images exactly once. release-images.yml itself has no tag trigger; it only
+# runs via `workflow_call` (here) or manual `workflow_dispatch`.
+#
+# ── FAN-OUT SET & ORDERING ──────────────────────────────────────────────────
+#   resolve            → derive bare X.Y.Z (strip leading v), dry-run flag.
+#   images   (38.15)   → build+publish GHCR api/worker/web @ X.Y.Z   [reusable]
+#   compose-snapshot   → pin standalone compose.yml @ X.Y.Z, publish to
+#            (38.16)     https://anseo.ai/compose/<X.Y.Z>.yml     [needs: images]
+#   sdk-publish        → npm (@anseo/observe) + PyPI (anseo-observe)
+#                        token-gated; skips cleanly when no token (public repo).
+#   plugin-sign(41.4)  → repository_dispatch → plugin-sign.yml (real key lives
+#                        only in opengeo-internal; public repo no-ops).
+#   overlay-bump(38.18)→ repository_dispatch → opengeo-internal bumps its
+#                        submodule to the tag + green-gates. token-gated.
+#   docs-site (38.21)  → repository_dispatch → rebuild marketing+docs site
+#                        against the tag. token-gated.
+#   github-release     → create the GitHub Release w/ notes [needs: images,
+#                        compose-snapshot] — the user-facing release object.
+#   release-summary    → always() — one job that reports every leg's status and
+#                        FAILS the train if any leg failed (no silent partial).
+#
+# Independent legs (sdk/plugin/overlay/docs) run in parallel off `resolve`;
+# images→compose-snapshot→github-release form the artifact spine. No cycles.
+#
+# ── SECRETS ─────────────────────────────────────────────────────────────────
+# All tokens come from GitHub secrets, never inlined. Each cross-repo /
+# publish leg derives a non-secret "enabled" boolean from its token's PRESENCE
+# (never its value) and gates on that, so the public repo skips publish legs it
+# has no token for instead of failing red.
 # =============================================================================
 
 name: release
@@ -20,72 +57,420 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag/ref to release (e.g. v1.2.3)."
+        required: true
+        type: string
+      dry_run:
+        description: "Resolve + build images but skip all external publish/dispatch legs."
+        required: false
+        default: false
+        type: boolean
 
 permissions:
-  contents: read
-  packages: write
+  contents: write # github-release creates a Release
+  packages: write # images push to GHCR
   attestations: write
   id-token: write
 
+concurrency:
+  # One train per ref; never cancel an in-flight release.
+  group: release-train-${{ github.event.inputs.ref || github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  build-and-push:
-    name: Build & push — ${{ matrix.app }}
+  # ---------------------------------------------------------------------------
+  # Resolve the canonical bare X.Y.Z version (strip refs/tags/ + leading v) and
+  # surface the dry-run flag so downstream legs share one source of truth.
+  # ---------------------------------------------------------------------------
+  resolve:
+    name: Resolve release version
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [api, worker, web]
-
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      dry_run: ${{ steps.v.outputs.dry_run }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Resolve version + flags
+        id: v
+        env:
+          INPUT_REF: ${{ github.event.inputs.ref }}
+          GH_REF: ${{ github.ref }}
+          INPUT_DRY: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          raw="${INPUT_REF:-$GH_REF}"
+          raw="${raw#refs/tags/}"
+          raw="${raw#refs/heads/}"
+          tag="$raw"
+          ver="${raw#v}"
+          if ! printf '%s' "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([._+-][0-9A-Za-z.]+)?$'; then
+            echo "::error::release ref '$raw' does not resolve to a bare X.Y.Z version" >&2
+            exit 1
+          fi
+          {
+            echo "version=${ver}"
+            echo "tag=${tag}"
+            echo "dry_run=${INPUT_DRY:-false}"
+          } >> "$GITHUB_OUTPUT"
+          echo "resolved tag=${tag} version=${ver} dry_run=${INPUT_DRY:-false}"
 
-      # Multi-arch emulation (arm64 via QEMU)
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+  # ---------------------------------------------------------------------------
+  # (38.15) Images — the SOLE image publish path. Reuses release-images.yml so
+  # the build logic exists in exactly one place (no double-publish).
+  # ---------------------------------------------------------------------------
+  images:
+    name: Publish GHCR images
+    needs: resolve
+    uses: ./.github/workflows/release-images.yml
+    with:
+      ref: ${{ needs.resolve.outputs.tag }}
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    secrets: inherit
 
-      # Extended Buildx with multi-platform support
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Authenticate to GHCR using the built-in GITHUB_TOKEN — no PAT required
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+  # ---------------------------------------------------------------------------
+  # (38.16) Pinned standalone compose snapshot → /compose/<X.Y.Z>.yml.
+  # Needs images so the snapshot only publishes once the images it pins exist.
+  # ---------------------------------------------------------------------------
+  compose-snapshot:
+    name: Publish standalone compose snapshot
+    needs: [resolve, images]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ needs.resolve.outputs.tag }}
 
-      # Generate canonical image tags from the pushed git tag
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/opengeo/${{ matrix.app }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Render pinned snapshot
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          ./scripts/make-compose-snapshot.sh "$VERSION" dist/compose
+          ls -l dist/compose
 
-      # Build for amd64 + arm64 and push both manifests atomically
-      - name: Build and push
-        id: push
-        uses: docker/build-push-action@v5
+      # Always retain the artifact on the run so a release is reproducible /
+      # downloadable even when no external publish target is configured.
+      - name: Upload snapshot artifact
+        uses: actions/upload-artifact@v4
         with:
-          context: .
-          file: apps/${{ matrix.app }}/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.app }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+          name: compose-snapshot-${{ needs.resolve.outputs.version }}
+          path: dist/compose/${{ needs.resolve.outputs.version }}.yml
+          if-no-files-found: error
+          retention-days: 90
 
-      # Emit SLSA Level-2 build provenance attestation
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@v1
+      # Determine — from token presence only — whether we can publish to the
+      # docs-site repo that serves https://anseo.ai/compose/<X.Y.Z>.yml.
+      - name: Determine docs-site publish availability
+        id: site
+        env:
+          SITE_TOKEN: ${{ secrets.DOCS_SITE_DISPATCH_TOKEN }}
+          SITE_REPO: ${{ vars.DOCS_SITE_REPO }}
+          DRY_RUN: ${{ needs.resolve.outputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ "${DRY_RUN}" = "true" ]; then echo "enabled=false" >> "$GITHUB_OUTPUT"; echo "dry-run: skipping site publish"; exit 0; fi
+          if [ -n "${SITE_TOKEN}" ] && [ -n "${SITE_REPO}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "no DOCS_SITE_DISPATCH_TOKEN/DOCS_SITE_REPO — snapshot kept as run artifact only (public repo path)"
+          fi
+
+      # Fire a repository_dispatch to the site repo with the rendered snapshot so
+      # it deploys it under /compose/<X.Y.Z>.yml. The site repo owns the bucket.
+      - name: Dispatch compose snapshot to docs-site
+        if: ${{ steps.site.outputs.enabled == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_SITE_DISPATCH_TOKEN }}
+          SITE_REPO: ${{ vars.DOCS_SITE_REPO }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -n --arg v "$VERSION" --rawfile yml "dist/compose/${VERSION}.yml" \
+            '{event_type:"compose-snapshot", client_payload:{version:$v, compose_yml:$yml}}')"
+          printf '%s' "$payload" | gh api "repos/${SITE_REPO}/dispatches" --input -
+          echo "dispatched compose snapshot ${VERSION} → ${SITE_REPO}"
+
+  # ---------------------------------------------------------------------------
+  # SDK publishes — npm (@anseo/observe) + PyPI (anseo-observe). Each is
+  # token-gated and skips cleanly in the public repo when the token is absent.
+  # Independent of the image spine — runs in parallel off resolve.
+  # ---------------------------------------------------------------------------
+  sdk-publish:
+    name: Publish SDKs (npm + PyPI)
+    needs: resolve
+    if: ${{ needs.resolve.outputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
         with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/opengeo/${{ matrix.app }}
-          subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: true
+          ref: ${{ needs.resolve.outputs.tag }}
+
+      - name: Determine publish availability
+        id: tok
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${NPM_TOKEN}" ]; then echo "npm=true" >> "$GITHUB_OUTPUT"; else echo "npm=false" >> "$GITHUB_OUTPUT"; echo "no NPM_TOKEN — skipping npm publish"; fi
+          if [ -n "${PYPI_TOKEN}" ]; then echo "pypi=true" >> "$GITHUB_OUTPUT"; else echo "pypi=false" >> "$GITHUB_OUTPUT"; echo "no PYPI_API_TOKEN — skipping PyPI publish"; fi
+
+      - name: Setup Node
+        if: ${{ steps.tok.outputs.npm == 'true' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish @anseo/observe to npm
+        if: ${{ steps.tok.outputs.npm == 'true' }}
+        working-directory: packages/sdk-typescript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm publish --access public --provenance
+
+      - name: Setup Python
+        if: ${{ steps.tok.outputs.pypi == 'true' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build & publish anseo-observe to PyPI
+        if: ${{ steps.tok.outputs.pypi == 'true' }}
+        working-directory: packages/sdk-python
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade build twine
+          python -m build
+          python -m twine upload dist/*
+
+  # ---------------------------------------------------------------------------
+  # (41.4) Plugin signing/publish — repository_dispatch to plugin-sign.yml.
+  # The REAL root key lives only in opengeo-internal; the public repo no-ops.
+  # Token-gated; independent leg.
+  # ---------------------------------------------------------------------------
+  plugin-sign:
+    name: Trigger plugin signing/publish
+    needs: resolve
+    if: ${{ needs.resolve.outputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine availability
+        id: tok
+        env:
+          DISPATCH_TOKEN: ${{ secrets.PLUGIN_SIGN_DISPATCH_TOKEN }}
+          SIGN_DIR: ${{ vars.FIRST_PARTY_PLUGIN_DIR }}
+          SIGN_NS: ${{ vars.FIRST_PARTY_PLUGIN_NAMESPACE }}
+        run: |
+          set -euo pipefail
+          if [ -n "${DISPATCH_TOKEN}" ] && [ -n "${SIGN_DIR}" ] && [ -n "${SIGN_NS}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "plugin-sign dispatch not configured (token/dir/namespace) — skipping (public repo path)"
+          fi
+
+      - name: Dispatch plugin-sign
+        if: ${{ steps.tok.outputs.enabled == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.PLUGIN_SIGN_DISPATCH_TOKEN }}
+          SIGN_DIR: ${{ vars.FIRST_PARTY_PLUGIN_DIR }}
+          SIGN_NS: ${{ vars.FIRST_PARTY_PLUGIN_NAMESPACE }}
+        run: |
+          set -euo pipefail
+          jq -n --arg d "$SIGN_DIR" --arg ns "$SIGN_NS" \
+            '{event_type:"plugin-sign", client_payload:{version_dir:$d, namespace:$ns, keyid:"root"}}' \
+            | gh api "repos/${GITHUB_REPOSITORY}/dispatches" --input -
+          echo "dispatched plugin-sign for ${SIGN_NS} (${SIGN_DIR})"
+
+  # ---------------------------------------------------------------------------
+  # (38.18) Internal-overlay submodule bump — repository_dispatch to
+  # opengeo-internal so it points its submodule at this tag + green-gates.
+  # Token-gated; the public repo has no overlay token, so it no-ops.
+  # ---------------------------------------------------------------------------
+  overlay-bump:
+    name: Bump internal overlay submodule
+    needs: resolve
+    if: ${{ needs.resolve.outputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine availability
+        id: tok
+        env:
+          OVERLAY_TOKEN: ${{ secrets.OVERLAY_DISPATCH_TOKEN }}
+          OVERLAY_REPO: ${{ vars.OVERLAY_REPO }}
+        run: |
+          set -euo pipefail
+          if [ -n "${OVERLAY_TOKEN}" ] && [ -n "${OVERLAY_REPO}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "no OVERLAY_DISPATCH_TOKEN/OVERLAY_REPO — skipping overlay bump (public repo path)"
+          fi
+
+      - name: Dispatch overlay submodule bump
+        if: ${{ steps.tok.outputs.enabled == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.OVERLAY_DISPATCH_TOKEN }}
+          OVERLAY_REPO: ${{ vars.OVERLAY_REPO }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          jq -n --arg tag "$TAG" \
+            '{event_type:"submodule-bump", client_payload:{tag:$tag}}' \
+            | gh api "repos/${OVERLAY_REPO}/dispatches" --input -
+          echo "dispatched submodule-bump ${TAG} → ${OVERLAY_REPO}"
+
+  # ---------------------------------------------------------------------------
+  # (38.21) Docs/marketing site rebuild against the tag — repository_dispatch.
+  # Token-gated; independent leg.
+  # ---------------------------------------------------------------------------
+  docs-site:
+    name: Rebuild docs/marketing site
+    needs: resolve
+    if: ${{ needs.resolve.outputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine availability
+        id: tok
+        env:
+          SITE_TOKEN: ${{ secrets.DOCS_SITE_DISPATCH_TOKEN }}
+          SITE_REPO: ${{ vars.DOCS_SITE_REPO }}
+        run: |
+          set -euo pipefail
+          if [ -n "${SITE_TOKEN}" ] && [ -n "${SITE_REPO}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "no DOCS_SITE_DISPATCH_TOKEN/DOCS_SITE_REPO — skipping site rebuild (public repo path)"
+          fi
+
+      - name: Dispatch site rebuild
+        if: ${{ steps.tok.outputs.enabled == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_SITE_DISPATCH_TOKEN }}
+          SITE_REPO: ${{ vars.DOCS_SITE_REPO }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          jq -n --arg tag "$TAG" \
+            '{event_type:"site-rebuild", client_payload:{tag:$tag}}' \
+            | gh api "repos/${SITE_REPO}/dispatches" --input -
+          echo "dispatched site-rebuild ${TAG} → ${SITE_REPO}"
+
+  # ---------------------------------------------------------------------------
+  # GitHub Release — the user-facing release object. Needs the artifact spine
+  # (images + compose snapshot) so the release only appears once they exist.
+  # ---------------------------------------------------------------------------
+  github-release:
+    name: Create GitHub Release
+    needs: [resolve, images, compose-snapshot]
+    if: ${{ needs.resolve.outputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Download compose snapshot
+        uses: actions/download-artifact@v4
+        with:
+          name: compose-snapshot-${{ needs.resolve.outputs.version }}
+          path: dist/compose
+
+      - name: Create release with notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          notes="$(mktemp)"
+          {
+            echo "## Anseo ${TAG}"
+            echo
+            echo "### Container images (GHCR, pinned \`${VERSION}\`)"
+            echo "- \`ghcr.io/${OWNER}/opengeo/api:${VERSION}\`"
+            echo "- \`ghcr.io/${OWNER}/opengeo/worker:${VERSION}\`"
+            echo "- \`ghcr.io/${OWNER}/opengeo/web:${VERSION}\`"
+            echo
+            echo "### Self-host (standalone compose)"
+            echo "Pinned snapshot: \`https://anseo.ai/compose/${VERSION}.yml\` (attached below)."
+            echo
+            echo "### Changes"
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="${TAG}" --jq '.body' 2>/dev/null || echo "_See commit history._"
+          } > "$notes"
+          gh release create "${TAG}" \
+            --title "Anseo ${TAG}" \
+            --notes-file "$notes" \
+            "dist/compose/${VERSION}.yml#standalone-compose-${VERSION}.yml"
+
+  # ---------------------------------------------------------------------------
+  # Release summary — runs ALWAYS. One job that reports every leg's status and
+  # FAILS the train if any leg failed, so there is never a silent partial
+  # release (AC2). Token-skipped legs report as their result (skipped) and do
+  # not fail the train.
+  # ---------------------------------------------------------------------------
+  release-summary:
+    name: Release summary
+    needs: [resolve, images, compose-snapshot, sdk-publish, plugin-sign, overlay-bump, docs-site, github-release]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compose summary + gate
+        env:
+          R_IMAGES: ${{ needs.images.result }}
+          R_SNAPSHOT: ${{ needs.compose-snapshot.result }}
+          R_SDK: ${{ needs.sdk-publish.result }}
+          R_PLUGIN: ${{ needs.plugin-sign.result }}
+          R_OVERLAY: ${{ needs.overlay-bump.result }}
+          R_DOCS: ${{ needs.docs-site.result }}
+          R_RELEASE: ${{ needs.github-release.result }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Release train — ${TAG}"
+            echo
+            echo "| Leg | Story | Result |"
+            echo "| --- | ----- | ------ |"
+            echo "| GHCR images | 38.15 | ${R_IMAGES} |"
+            echo "| Compose snapshot | 38.16 | ${R_SNAPSHOT} |"
+            echo "| SDK publish (npm/PyPI) | 40.x | ${R_SDK} |"
+            echo "| Plugin sign/publish | 41.4 | ${R_PLUGIN} |"
+            echo "| Overlay submodule bump | 38.18 | ${R_OVERLAY} |"
+            echo "| Docs/marketing site | 38.21 | ${R_DOCS} |"
+            echo "| GitHub Release | 38.19 | ${R_RELEASE} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Fail the train if any leg ended in failure or was cancelled. A
+          # 'skipped' leg (no token, or dry-run) is acceptable and does NOT fail.
+          fail=0
+          for r in "$R_IMAGES" "$R_SNAPSHOT" "$R_SDK" "$R_PLUGIN" "$R_OVERLAY" "$R_DOCS" "$R_RELEASE"; do
+            case "$r" in
+              failure|cancelled) fail=1 ;;
+            esac
+          done
+          if [ "$fail" != 0 ]; then
+            echo "::error::release ${TAG} is INCOMPLETE — at least one leg failed (see table above)." >&2
+            exit 1
+          fi
+          echo "release ${TAG}: all legs succeeded or cleanly skipped."
