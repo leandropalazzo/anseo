@@ -27,16 +27,17 @@
 
 use std::sync::Arc;
 
-use anseo_comms::dispatch::Dispatcher;
+use anseo_comms::dispatch::{DispatchResult, Dispatcher};
 use anseo_comms::recipient_hash;
 use anseo_comms::template::TransactionalTemplate;
 use anseo_comms::transport::SmtpTransport;
 use anseo_comms::Stream;
 use anseo_storage::repositories::entities::EntityRepo;
+#[cfg(test)]
+use anseo_storage::repositories::verification::MockTxtResolver;
 use anseo_storage::repositories::verification::{
-    classify_token, txt_records_contain_token, MintedChallenge, MockTxtResolver, ResolveError,
-    TokenRejection, TxtResolver, VerificationMethod, ATTESTATION_TEXT, ATTESTATION_VERSION,
-    RATE_LIMIT_PER_HOUR,
+    classify_token, txt_records_contain_token, MintedChallenge, ResolveError, TokenRejection,
+    TxtResolver, VerificationMethod, ATTESTATION_TEXT, ATTESTATION_VERSION, RATE_LIMIT_PER_HOUR,
 };
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -170,6 +171,39 @@ fn parse_method(s: &str) -> Result<VerificationMethod, ApiError> {
     }
 }
 
+/// Role addresses accepted as proof of mailbox authority at a domain (RFC 2142
+/// plus `security@`), used only when the local-part itself is the authority
+/// signal. Any mailbox whose host equals the claimed domain is also accepted.
+const ROLE_LOCAL_PARTS: &[&str] = &["admin", "postmaster", "webmaster", "hostmaster", "security"];
+
+/// P1 SECURITY: true iff `email`'s host equals the normalized claimed `domain`.
+/// We additionally enumerate role local-parts for documentation/clarity, but the
+/// authority signal is strictly "the mailbox lives at the claimed domain" — a
+/// role address only matters because it, too, lives at that domain. An address
+/// at any OTHER host (e.g. `attacker@example.com` for `victim.com`) is rejected.
+fn email_proves_domain_authority(email: &str, domain: &str) -> bool {
+    let email = email.trim();
+    let Some((local, host)) = email.rsplit_once('@') else {
+        return false;
+    };
+    if local.is_empty() || host.is_empty() {
+        return false;
+    }
+    // Normalize the host the same way the claimed domain was normalized so a
+    // trailing dot / case / scheme noise cannot bypass the check.
+    let host = EntityRepo::normalize_domain(host);
+    if host != domain {
+        return false;
+    }
+    // Host matches the claimed domain. Accept either (a) ANY mailbox at the
+    // domain, or (b) a recognized role address (RFC 2142 + security@). Since the
+    // host already equals the claimed domain, (b) ⊂ (a); we evaluate the role
+    // set explicitly so the recognized addresses are first-class in the code.
+    let local = local.to_ascii_lowercase();
+    let _is_recognized_role = ROLE_LOCAL_PARTS.contains(&local.as_str());
+    true
+}
+
 async fn start_verification(
     State(state): State<AppState>,
     Json(req): Json<StartRequest>,
@@ -191,12 +225,27 @@ async fn start_verification(
     if domain.is_empty() {
         return Err(bad_request("invalid_domain", "domain must not be empty"));
     }
-    if method == VerificationMethod::EmailMagicLink && req.email.as_deref().unwrap_or("").is_empty()
-    {
-        return Err(bad_request(
-            "email_required",
-            "email magic-link verification requires a role address",
-        ));
+    if method == VerificationMethod::EmailMagicLink {
+        let email = req.email.as_deref().unwrap_or("");
+        if email.is_empty() {
+            return Err(bad_request(
+                "email_required",
+                "email magic-link verification requires a role address",
+            ));
+        }
+        // P1 SECURITY: the recipient MUST prove mailbox authority at the domain
+        // being claimed. Without this, an authed claimant could verify
+        // `victim.com` by directing the link to `attacker@example.com`. Accept
+        // ONLY (a) an address whose host equals the claimed domain, or (b) a
+        // recognized role address at that domain.
+        if !email_proves_domain_authority(email, &domain) {
+            return Err(bad_request(
+                "email_domain_mismatch",
+                "the magic-link recipient must be an address at the claimed domain \
+                 (e.g. admin@, postmaster@, webmaster@, hostmaster@, security@, or any \
+                 mailbox at the domain)",
+            ));
+        }
     }
 
     let verification = state.storage.verification();
@@ -284,22 +333,59 @@ async fn start_verification(
         }
         VerificationMethod::EmailMagicLink => {
             let email = req.email.clone().unwrap_or_default();
-            send_magic_link(&state, &email, &challenge.raw_token).await?;
-            resp.email_sent_to = Some(email);
+            match send_magic_link(&state, &email, &challenge.raw_token).await? {
+                MagicLinkOutcome::Sent | MagicLinkOutcome::AlreadySent => {
+                    resp.email_sent_to = Some(email);
+                }
+                MagicLinkOutcome::Failed(detail) => {
+                    // The challenge IS persisted (DNS-TXT fallback / retry stay
+                    // usable), but we MUST NOT claim the email was sent. Surface
+                    // a 502 so the operator knows delivery did not occur.
+                    return Err((
+                        StatusCode::BAD_GATEWAY,
+                        Json(serde_json::json!({
+                            "error": "email_dispatch_failed",
+                            "message": format!(
+                                "verification challenge created, but the magic-link \
+                                 email could not be sent ({detail}); use DNS-TXT or retry"
+                            ),
+                            "domain": domain,
+                            "method": method.as_str(),
+                            "state": "pending",
+                        })),
+                    ));
+                }
+            }
         }
     }
 
     Ok((StatusCode::CREATED, Json(resp)))
 }
 
+/// Outcome of a magic-link dispatch attempt, surfaced so the HTTP layer never
+/// claims an email was sent when it was not.
+enum MagicLinkOutcome {
+    /// The link was dispatched to the inbox.
+    Sent,
+    /// A live link with this dedup key already went out (idempotent re-send).
+    AlreadySent,
+    /// The transport did not send (e.g. SMTP not configured). The challenge is
+    /// still persisted; the operator should fall back to DNS-TXT.
+    Failed(String),
+}
+
 /// Build + dispatch the magic-link transactional email through `anseo-comms`.
 ///
 /// The dedup_key is the token hash so a magic-link is not re-sent more than once
-/// within the token window (comms AC-5). The production SMTP transport is
-/// fail-loud until wired; the dispatcher then records `failed` (never a false
-/// `sent`) — acceptable per the "log only until comms wire lands" note. The raw
-/// token is embedded ONLY in the email link, never returned to the API caller.
-async fn send_magic_link(state: &AppState, email: &str, raw_token: &str) -> Result<(), ApiError> {
+/// within the token window (comms AC-5). The raw token is embedded ONLY in the
+/// email link, never returned to the API caller. Returns the dispatch outcome so
+/// the caller can choose the correct HTTP status — `Ok(DispatchResult::Failed)`
+/// means the email did NOT send and must not be reported as success.
+async fn send_magic_link(
+    state: &AppState,
+    email: &str,
+    raw_token: &str,
+) -> Result<MagicLinkOutcome, ApiError> {
     let verify_url = format!("{}/v1/verify/{}", verify_base_url(), raw_token);
     let from = Stream::Transactional.subdomain(&mail_root());
     let message = TransactionalTemplate::DomainVerification {
@@ -311,14 +397,10 @@ async fn send_magic_link(state: &AppState, email: &str, raw_token: &str) -> Resu
     let recipient = recipient_hash(email);
     let dedup_key = anseo_storage::repositories::verification::hash_token(raw_token);
 
-    // SMTP transport is fail-loud until the wire client lands; the dispatcher
-    // audits the outcome either way. We do not surface a 5xx to the operator on
-    // a transport-not-configured error — the challenge IS recorded and the
-    // operator can fall back to DNS-TXT.
     let transport = SmtpTransport::new(format!("smtp.mail.{}", mail_root()), 587)
         .map_err(|e| storage_err(format!("smtp config: {e}")))?;
     let dispatcher = Dispatcher::new(state.storage.pool(), &transport);
-    match dispatcher
+    let result = dispatcher
         .send_transactional(
             &recipient,
             "domain_verification",
@@ -326,13 +408,26 @@ async fn send_magic_link(state: &AppState, email: &str, raw_token: &str) -> Resu
             &message,
         )
         .await
-    {
-        Ok(_) => Ok(()),
-        Err(e) => {
+        .map_err(storage_err)?;
+
+    match result {
+        DispatchResult::Sent => Ok(MagicLinkOutcome::Sent),
+        DispatchResult::AlreadySent => Ok(MagicLinkOutcome::AlreadySent),
+        // `Skipped` is a compliance suppression (not applicable to a
+        // transactional verification link) — treat as a non-send to be safe.
+        DispatchResult::Skipped(decision) => {
+            tracing::warn!(
+                event = "verification.magic_link_skipped",
+                ?decision,
+                "magic-link dispatch skipped by comms gate"
+            );
+            Ok(MagicLinkOutcome::Failed(format!(
+                "dispatch skipped: {decision:?}"
+            )))
+        }
+        DispatchResult::Failed(e) => {
             tracing::warn!(event = "verification.magic_link_dispatch_failed", error = %e);
-            // The challenge is persisted; do not fail the request on dispatch
-            // error so the audit ledger and DNS-TXT fallback remain usable.
-            Ok(())
+            Ok(MagicLinkOutcome::Failed(e))
         }
     }
 }
@@ -363,13 +458,84 @@ async fn check_verification(
     check_verification_with_resolver(&state, &req.domain, resolver.as_ref()).await
 }
 
-/// Construct the production DNS resolver. Until a DNSSEC-validating client is
-/// wired, this returns an empty in-memory resolver (every lookup → no records),
-/// so `check` always reports `pending` for DNS-TXT and the operator falls back
-/// to email or retries — it NEVER falsely verifies. Override is the testing
-/// seam; the trait is the extension point for the real client.
+/// A real async DNS TXT resolver backed by `hickory-resolver`. Looks up TXT
+/// records for the challenge name using the system resolver config (falling back
+/// to a sane default), so DNS-TXT — the PRIMARY verification method — can
+/// actually succeed in production.
+pub struct HickoryTxtResolver {
+    resolver: hickory_resolver::TokioAsyncResolver,
+}
+
+impl HickoryTxtResolver {
+    /// Build a resolver from the host's `/etc/resolv.conf`, falling back to a
+    /// default (Google/Cloudflare) config when the system config is unreadable
+    /// (e.g. minimal containers).
+    pub fn new() -> Self {
+        use hickory_resolver::config::{ResolverConfig, ResolverOpts};
+        use hickory_resolver::TokioAsyncResolver;
+        let resolver = match TokioAsyncResolver::tokio_from_system_conf() {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!(
+                    event = "verification.resolver_system_conf_failed",
+                    error = %e,
+                    "falling back to default DNS resolver config"
+                );
+                TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default())
+            }
+        };
+        Self { resolver }
+    }
+}
+
+impl Default for HickoryTxtResolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait::async_trait]
+impl TxtResolver for HickoryTxtResolver {
+    async fn lookup_txt(&self, name: &str) -> Result<Vec<String>, ResolveError> {
+        use hickory_resolver::error::ResolveErrorKind;
+        match self.resolver.txt_lookup(name).await {
+            Ok(lookup) => {
+                // Each TXT record may be split into multiple character-strings;
+                // concatenate them per record (DNS semantics) into one value.
+                let values = lookup
+                    .iter()
+                    .map(|txt| {
+                        txt.iter()
+                            .map(|chunk| String::from_utf8_lossy(chunk).into_owned())
+                            .collect::<String>()
+                    })
+                    .collect();
+                Ok(values)
+            }
+            Err(e) => match e.kind() {
+                // No records / NXDOMAIN → treat as "absent" (drives pending /
+                // revocation), NOT a transient failure.
+                ResolveErrorKind::NoRecordsFound { .. } => {
+                    Err(ResolveError::NotFound(name.to_string()))
+                }
+                _ => Err(ResolveError::Transient(e.to_string())),
+            },
+        }
+    }
+}
+
+/// Construct the production DNS resolver. In tests we return the in-memory mock
+/// (NO network I/O); in production we return the real `hickory-resolver` client
+/// so DNS-TXT verification can succeed. The trait keeps the check logic testable.
 fn build_resolver() -> Box<dyn TxtResolver> {
-    Box::new(MockTxtResolver::new())
+    #[cfg(test)]
+    {
+        Box::new(MockTxtResolver::new())
+    }
+    #[cfg(not(test))]
+    {
+        Box::new(HickoryTxtResolver::new())
+    }
 }
 
 /// Core check logic, parameterised on the resolver so tests inject a mock with
@@ -466,10 +632,46 @@ async fn check_verification_with_resolver(
 // GET/POST /verify/:token  (public magic-link confirm)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// True iff `token` is a well-formed verification token: exactly 64 lowercase
+/// hex chars (32 bytes; see `generate_token`). Rejecting anything else BEFORE
+/// rendering closes the reflected-XSS vector (a path like `"><script>...` can
+/// never reach the page) and avoids a pointless DB lookup on the POST path.
+fn is_valid_token_format(token: &str) -> bool {
+    token.len() == 64 && token.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// Minimal HTML attribute/text escaper. Defence-in-depth: the token is already
+/// format-validated to hex, but we still escape when interpolating into markup.
+fn html_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#x27;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
 /// GET: render a confirm page with NO side effects (safe for mail-scanner /
 /// link-preview prefetch — same posture as the comms one-click unsubscribe).
-async fn verify_confirm_page(Path(token): Path<String>) -> Html<String> {
-    Html(format!(
+async fn verify_confirm_page(Path(token): Path<String>) -> Result<Html<String>, ApiError> {
+    // P2 SECURITY (reflected XSS): reject malformed tokens before rendering so a
+    // crafted path can never be reflected into the page.
+    if !is_valid_token_format(&token) {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(
+                serde_json::json!({ "error": "not_found", "message": "unknown verification link" }),
+            ),
+        ));
+    }
+    let token = html_escape(&token);
+    Ok(Html(format!(
         r#"<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Confirm domain verification</title></head>
 <body>
@@ -480,7 +682,7 @@ async fn verify_confirm_page(Path(token): Path<String>) -> Html<String> {
   </form>
 </body></html>"#,
         token = token
-    ))
+    )))
 }
 
 /// POST: consume the magic-link token (single-use). Replay / expiry → 401
@@ -638,5 +840,66 @@ mod tests {
             VerificationMethod::EmailMagicLink
         );
         assert!(parse_method("carrier_pigeon").is_err());
+    }
+
+    #[test]
+    fn email_authority_rejects_foreign_host() {
+        // P1 SECURITY: an attacker's own mailbox must NOT verify someone's domain.
+        assert!(!email_proves_domain_authority(
+            "attacker@example.com",
+            "victim.com"
+        ));
+        assert!(!email_proves_domain_authority(
+            "admin@evil.com",
+            "victim.com"
+        ));
+        // Malformed / empty addresses are rejected.
+        assert!(!email_proves_domain_authority("not-an-email", "victim.com"));
+        assert!(!email_proves_domain_authority("@victim.com", "victim.com"));
+        assert!(!email_proves_domain_authority("admin@", "victim.com"));
+    }
+
+    #[test]
+    fn email_authority_accepts_same_domain_and_roles() {
+        // Any mailbox at the claimed domain proves authority.
+        assert!(email_proves_domain_authority(
+            "anyone@victim.com",
+            "victim.com"
+        ));
+        // Recognized role addresses at the claimed domain.
+        for role in ROLE_LOCAL_PARTS {
+            assert!(
+                email_proves_domain_authority(&format!("{role}@victim.com"), "victim.com"),
+                "role {role} at the claimed domain must be accepted"
+            );
+        }
+        // Host normalization: trailing dot / case must still match.
+        assert!(email_proves_domain_authority(
+            "admin@VICTIM.com.",
+            "victim.com"
+        ));
+    }
+
+    #[test]
+    fn confirm_token_format_validation() {
+        // P2 SECURITY: a 64-char lowercase hex token is the only accepted shape.
+        let good = "a".repeat(64);
+        assert!(is_valid_token_format(&good));
+        // XSS payload in the path is rejected (would 404 before rendering).
+        assert!(!is_valid_token_format("\"><script>alert(1)</script>"));
+        // Wrong length / non-hex chars rejected.
+        assert!(!is_valid_token_format("deadbeef"));
+        assert!(!is_valid_token_format(&"z".repeat(64)));
+    }
+
+    #[test]
+    fn html_escape_neutralizes_markup() {
+        assert_eq!(
+            html_escape("\"><script>alert(1)</script>"),
+            "&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"
+        );
+        // A valid hex token is unchanged by escaping.
+        let tok = "a1b2c3";
+        assert_eq!(html_escape(tok), tok);
     }
 }
