@@ -1,4 +1,7 @@
-"""Unit tests for anseo_observe — the HTTP transport is mocked."""
+"""Unit tests for the strict ``AnseoObserver.observe_run`` surface.
+
+The HTTP transport is always mocked — no test touches the network.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +10,13 @@ from datetime import datetime, timezone
 
 import pytest
 
-from anseo_observe import ObserveRunResult, OpenGeoApiError, AnseoObserver, observe_run
+from anseo_observe import (
+    AnseoApiError,
+    AnseoConfigError,
+    AnseoObserver,
+    ObserveRunResult,
+    observe_run,
+)
 
 OK_BODY = {
     "run_id": "run_123",
@@ -39,7 +48,7 @@ class RecordingTransport:
         return self.status, json.dumps(self.body)
 
 
-def test_posts_to_ingest_run_with_headers_and_snake_case_body():
+def test_posts_to_ingest_run_with_canonical_headers_and_snake_case_body():
     transport = RecordingTransport()
     observer = AnseoObserver(
         base_url="https://anseo.internal/",  # trailing slash must normalize
@@ -65,8 +74,9 @@ def test_posts_to_ingest_run_with_headers_and_snake_case_body():
     call = transport.calls[0]
     assert call["url"] == "https://anseo.internal/v1/ingest/run"
     assert call["method"] == "POST"
-    assert call["headers"]["x-opengeo-api-key"] == "key-xyz"
-    assert call["headers"]["x-opengeo-project"] == "Sunski"
+    # Canonical post-rename headers.
+    assert call["headers"]["x-anseo-api-key"] == "key-xyz"
+    assert call["headers"]["x-anseo-project"] == "Sunski"
     assert call["headers"]["content-type"] == "application/json"
     assert call["body"] == {
         "prompt_slug": "best-polarized-sunglasses",
@@ -93,7 +103,7 @@ def test_omits_project_header_and_optional_fields_when_unset():
     )
 
     call = transport.calls[0]
-    assert "x-opengeo-project" not in call["headers"]
+    assert "x-anseo-project" not in call["headers"]
     assert call["body"] == {
         "prompt_slug": "best-polarized-sunglasses",
         "provider": "openai",
@@ -112,14 +122,21 @@ def test_surfaces_kek_missing_status():
     assert result.contribution == {"status": "kek_missing"}
 
 
-def test_raises_on_non_2xx_with_status_and_code():
+def test_unsupported_provider_is_passed_through_for_server_validation():
+    transport = RecordingTransport()
+    observer = AnseoObserver(base_url="https://x", api_key="k", transport=transport)
+    observer.observe_run(prompt_slug="p", provider="unknown", model="m")
+    assert transport.calls[0]["body"]["provider"] == "unknown"
+
+
+def test_observe_run_raises_on_non_2xx_with_status_and_code():
     transport = RecordingTransport(
         status=404,
         body={"error": "prompt_not_found", "message": "prompt `p` is not declared"},
     )
     observer = AnseoObserver(base_url="https://x", api_key="k", transport=transport)
 
-    with pytest.raises(OpenGeoApiError) as excinfo:
+    with pytest.raises(AnseoApiError) as excinfo:
         observer.observe_run(prompt_slug="p", provider="openai", model="m")
 
     assert excinfo.value.status == 404
@@ -127,11 +144,11 @@ def test_raises_on_non_2xx_with_status_and_code():
     assert "not declared" in excinfo.value.message
 
 
-def test_requires_base_url_and_api_key():
-    with pytest.raises(ValueError):
-        AnseoObserver(base_url="", api_key="k")
-    with pytest.raises(ValueError):
+def test_missing_api_key_raises_config_error_at_construction_not_call_time():
+    with pytest.raises(AnseoConfigError):
         AnseoObserver(base_url="https://x", api_key="")
+    with pytest.raises(AnseoConfigError):
+        AnseoObserver(base_url="", api_key="k")
 
 
 def test_one_shot_observe_run_helper():
