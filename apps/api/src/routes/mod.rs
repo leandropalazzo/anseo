@@ -2,6 +2,7 @@ pub mod alert_rules;
 pub mod analytics;
 pub mod anomalies;
 pub mod audit;
+pub mod badge;
 pub mod brand;
 pub mod brands;
 pub mod citations;
