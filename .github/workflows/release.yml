@@ -127,6 +127,9 @@ jobs:
     uses: ./.github/workflows/release-images.yml
     with:
       ref: ${{ needs.resolve.outputs.tag }}
+      # Dry-run rehearses the multi-arch build but does NOT push images,
+      # tags, or attestations to GHCR (no registry mutation on a dry-run).
+      push: ${{ needs.resolve.outputs.dry_run != 'true' }}
     permissions:
       contents: read
       packages: write
@@ -247,7 +250,15 @@ jobs:
             exit 1
           fi
           npm version "${VERSION}" --no-git-tag-version --allow-same-version
-          npm publish --access public --provenance
+          # Idempotent / rerunnable: npm has no --skip-existing, so probe the
+          # registry first. If this exact version is already published (e.g. a
+          # prior partial-failure run got this far), skip instead of erroring red.
+          PKG="$(node -p "require('./package.json').name")"
+          if npm view "${PKG}@${VERSION}" version >/dev/null 2>&1; then
+            echo "${PKG}@${VERSION} already published — skipping npm publish (rerun-safe)"
+          else
+            npm publish --access public --provenance
+          fi
 
       - name: Setup Python
         if: ${{ steps.tok.outputs.pypi == 'true' }}
@@ -285,7 +296,10 @@ jobs:
           PY
           python -m pip install --upgrade build twine
           python -m build
-          python -m twine upload dist/*
+          # Idempotent / rerunnable: --skip-existing makes a re-upload of an
+          # already-published version a no-op instead of a hard 400 error, so a
+          # rerun after a partial failure recovers cleanly.
+          python -m twine upload --skip-existing dist/*
 
   # ---------------------------------------------------------------------------
   # (41.4) Plugin signing/publish — repository_dispatch to plugin-sign.yml.
@@ -448,10 +462,22 @@ jobs:
             gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
               -f tag_name="${TAG}" --jq '.body' 2>/dev/null || echo "_See commit history._"
           } > "$notes"
-          gh release create "${TAG}" \
-            --title "Anseo ${TAG}" \
-            --notes-file "$notes" \
-            "dist/compose/${VERSION}.yml#standalone-compose-${VERSION}.yml"
+          # Idempotent / rerunnable: `gh release create` errors if the release
+          # already exists, so a rerun after the release object was created would
+          # turn red. Probe with `gh release view`: create when absent, otherwise
+          # refresh notes/title via `edit`. Assets upload with `--clobber` so a
+          # re-upload overwrites instead of failing on "asset already exists".
+          asset="dist/compose/${VERSION}.yml#standalone-compose-${VERSION}.yml"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "release ${TAG} already exists — editing (rerun-safe)"
+            gh release edit "${TAG}" --title "Anseo ${TAG}" --notes-file "$notes"
+            gh release upload "${TAG}" "$asset" --clobber
+          else
+            gh release create "${TAG}" \
+              --title "Anseo ${TAG}" \
+              --notes-file "$notes" \
+              "$asset"
+          fi
 
   # ---------------------------------------------------------------------------
   # Release summary — runs ALWAYS. One job that reports every leg's status and

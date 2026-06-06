@@ -31,6 +31,11 @@ on:
         description: "Git ref / tag to build from (e.g. v1.2.3). Defaults to the caller's ref."
         required: false
         type: string
+      push:
+        description: "Publish images + attestations to GHCR. false = dry-run build only (no registry mutation)."
+        required: false
+        default: true
+        type: boolean
     outputs:
       version:
         description: "The resolved X.Y.Z version (leading v stripped) the images were published under."
@@ -41,6 +46,11 @@ on:
         description: "Git ref / tag to build & publish (e.g. v1.2.3)."
         required: true
         type: string
+      push:
+        description: "Publish to GHCR. Uncheck for a dry-run build (no registry mutation)."
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -124,14 +134,19 @@ jobs:
           context: .
           file: apps/${{ matrix.app }}/Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: true
+          # Dry-run (push=false) builds both arches for validation but does NOT
+          # push manifests/tags to GHCR — no registry mutation on a rehearsal.
+          push: ${{ inputs.push }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
 
-      # Emit SLSA Level-2 build provenance attestation
+      # Emit SLSA Level-2 build provenance attestation. Skipped on a dry-run
+      # (push=false): with no pushed image there is no digest to attest, and
+      # push-to-registry would mutate GHCR — exactly what a rehearsal avoids.
       - name: Attest build provenance
+        if: ${{ inputs.push }}
         uses: actions/attest-build-provenance@v1
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/opengeo/${{ matrix.app }}
