@@ -374,6 +374,27 @@ pub fn load_dispatch_context(config_path: &str) -> Option<DispatchContext> {
             return None;
         }
     };
+
+    // Story 41.2 — eagerly resolve the installed-plugin load report at worker
+    // boot so each plugin's runtime activation decision (loaded | skipped |
+    // load_error) is logged before the dispatch loop runs. Signature +
+    // platform-sandbox gates live in the loader; per-plugin failures are
+    // non-fatal so a corrupted plugin never blocks scheduled dispatch.
+    if let Some(home) = anseo_plugin_host::loader::resolve_plugin_home() {
+        let report = anseo_plugin_host::loader::scan_and_load(
+            &home,
+            &anseo_plugin_host::loader::LoadPolicy::default(),
+        );
+        tracing::info!(
+            event = "worker.plugins_scanned",
+            count = report.len(),
+            loaded = report
+                .iter()
+                .filter(|p| p.status == anseo_plugin_host::loader::LoadStatus::Loaded)
+                .count(),
+            "scanned installed plugins at worker boot"
+        );
+    }
     Some(DispatchContext {
         config,
         registry,

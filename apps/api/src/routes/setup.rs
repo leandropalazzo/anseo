@@ -1207,6 +1207,7 @@ mod tests {
                 std::collections::HashMap::new(),
             )),
             serve_info: None,
+            loaded_plugins: Arc::new(Vec::new()),
         }
     }
 

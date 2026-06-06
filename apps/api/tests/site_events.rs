@@ -44,6 +44,7 @@ async fn app() -> (axum::Router, sqlx::PgPool) {
         configured_project: Arc::new(project_name),
         setup_install_state: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
         serve_info: None,
+        loaded_plugins: Arc::new(Vec::new()),
     };
     (router(state), pool)
 }

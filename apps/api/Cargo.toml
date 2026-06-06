@@ -21,6 +21,7 @@ anseo-crawler-ingest = { path = "../../crates/crawler-ingest" }
 anseo-audit = { path = "../../crates/audit" }
 anseo-providers = { path = "../../crates/providers" }
 anseo-extractors = { path = "../../crates/extractors" }
+anseo-plugin-host = { path = "../../crates/plugin-host" }
 anseo-benchmark = { path = "../../crates/benchmark" }
 anseo-scheduler = { path = "../../crates/scheduler" }
 anseo-recommendations = { path = "../../crates/recommendations" }
@@ -47,6 +48,7 @@ hickory-resolver = "0.24"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
+tempfile = { workspace = true }
 
 [features]
 default = []

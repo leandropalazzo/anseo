@@ -91,6 +91,7 @@ async fn seeded_router_and_project() -> (axum::Router, ProjectId, String) {
             std::collections::HashMap::new(),
         )),
         serve_info: None,
+        loaded_plugins: std::sync::Arc::new(Vec::new()),
     };
     (router(state), project_id, key.plaintext)
 }
@@ -286,6 +287,7 @@ providers:
             std::collections::HashMap::new(),
         )),
         serve_info: None,
+        loaded_plugins: std::sync::Arc::new(Vec::new()),
     };
     (router(state), project_id, key.plaintext)
 }
@@ -416,6 +418,7 @@ providers:
             std::collections::HashMap::new(),
         )),
         serve_info: None,
+        loaded_plugins: std::sync::Arc::new(Vec::new()),
     };
     let app = router(state);
 

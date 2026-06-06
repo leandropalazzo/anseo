@@ -3,6 +3,7 @@
 //! in later stories.
 
 pub mod capability;
+pub mod loader;
 pub mod registry;
 pub mod signing;
 pub mod subprocess;

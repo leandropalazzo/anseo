@@ -56,6 +56,7 @@ async fn api_router_builds_with_minimal_state() {
             std::collections::HashMap::new(),
         )),
         serve_info: None,
+        loaded_plugins: std::sync::Arc::new(Vec::new()),
     };
     let _r = router(state);
     // No assertions needed: the test passes by building. If routes::test_seed

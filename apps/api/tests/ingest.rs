@@ -90,6 +90,7 @@ async fn seeded() -> (axum::Router, ProjectId, String, String) {
         configured_project: Arc::new(project_name.clone()),
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info: None,
+        loaded_plugins: std::sync::Arc::new(Vec::new()),
     };
     (router(state), project_id, project_name, key.plaintext)
 }

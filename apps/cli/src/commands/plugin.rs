@@ -22,9 +22,7 @@ use anseo_plugin_manifest::PluginManifest;
 use anseo_storage::Storage;
 use clap::Args;
 
-use super::plugin_install::{
-    install_plugin, list_installed, remove_plugin, upgrade_plugin, InstallOptions,
-};
+use super::plugin_install::{install_plugin, remove_plugin, upgrade_plugin, InstallOptions};
 use super::plugin_registry::FsRegistry;
 
 #[derive(Debug, Args)]
@@ -324,24 +322,46 @@ pub async fn run_install(args: InstallArgs) -> Result<(), OpenGeoError> {
 }
 
 #[derive(Debug, Args)]
-pub struct ListArgs {}
+pub struct ListArgs {
+    /// Load unsigned plugins too (mirrors the worker's `allow_unsigned` policy)
+    /// so the listing reflects what serve *would* activate when run with the
+    /// same flag.
+    #[arg(long)]
+    pub allow_unsigned: bool,
+}
 
-pub async fn run_list(_args: ListArgs) -> Result<(), OpenGeoError> {
-    let storage = open_pool().await?;
-    let rows = list_installed(storage.pool())
-        .await
-        .map_err(|e| OpenGeoError::Config(e.to_string()))?;
-    if rows.is_empty() {
+/// `anseo plugin list` — Story 41.2 parity with `GET /v1/plugins`.
+///
+/// Runs the same [`anseo_plugin_host::loader::scan_and_load`] pass the worker /
+/// `anseo serve` boot path runs, so the CLI and the API can never disagree on
+/// which installed plugins are `loaded`, `skipped`, or in `load_error`. This is
+/// a pure read of the on-disk install state — no DB connection required.
+pub async fn run_list(args: ListArgs) -> Result<(), OpenGeoError> {
+    use anseo_plugin_host::loader::{scan_and_load, LoadPolicy, LoadStatus};
+
+    let home = plugin_home()?;
+    let policy = LoadPolicy {
+        allow_unsigned: args.allow_unsigned,
+        ..Default::default()
+    };
+    let report = scan_and_load(&home, &policy);
+    if report.is_empty() {
         println!("no plugins installed");
         return Ok(());
     }
-    for r in rows {
-        let flag = if r.signature_verified {
-            "signed"
-        } else {
-            &r.signing_trust_root
-        };
-        println!("{}@{}  [{}]", r.plugin_name, r.plugin_version, flag);
+    for p in report {
+        // Same id/kind/status fields the `/v1/plugins` endpoint returns.
+        let mut line = format!(
+            "{}@{}  [{}]  {}",
+            p.id,
+            p.version,
+            p.kind,
+            p.status.as_str()
+        );
+        if !p.reason.is_empty() && p.status != LoadStatus::Loaded {
+            line.push_str(&format!("  — {}", p.reason));
+        }
+        println!("{line}");
     }
     Ok(())
 }

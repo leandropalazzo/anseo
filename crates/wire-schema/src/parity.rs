@@ -164,6 +164,7 @@ pub const KNOWN_V1_PATHS: &[&str] = &[
     "/v1/recommendations/{id}",
     "/v1/recommendations/{id}/state",
     "/v1/projects/{project_id}/events",
+    "/v1/plugins",
 ];
 
 /// The v-next capability registry: the single source of truth for which
