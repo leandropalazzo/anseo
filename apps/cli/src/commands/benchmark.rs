@@ -252,7 +252,8 @@ pub async fn run_optout(args: OptoutArgs) -> Result<(), OpenGeoError> {
     // Record the consent event FIRST, so the audit trail captures the opt-out
     // intent even if the key destruction step surfaces a backend error.
     let actor = resolve_actor(args.actor);
-    let id = BenchmarkConsentRepo::new(storage.pool())
+    let repo = BenchmarkConsentRepo::new(storage.pool());
+    let id = repo
         .record_optout(
             project_id,
             TERMS_VERSION,
@@ -261,6 +262,36 @@ pub async fn run_optout(args: OptoutArgs) -> Result<(), OpenGeoError> {
         )
         .await
         .map_err(|e| OpenGeoError::Config(format!("failed to record opt-out: {e}")))?;
+
+    // Story 44.1 autoreview fix: a FULL opt-out crypto-shreds the shared KEK,
+    // which makes identified contributions undecryptable too — so the
+    // brand-visibility (identified) tier MUST also be revoked, otherwise
+    // `status` keeps reporting it ACTIVE from a stale brand_visibility optin row
+    // even though its contributions can no longer be produced or read. Append a
+    // brand_visibility optout when that tier is currently active. (Append-only;
+    // if it is already inactive we leave the ledger untouched.)
+    let bv_active = repo
+        .latest_for_tier(project_id, ConsentTier::BrandVisibility)
+        .await
+        .map_err(|e| OpenGeoError::Config(format!("failed to read brand-visibility state: {e}")))?
+        .map(|r| r.is_active(TERMS_VERSION))
+        .unwrap_or(false);
+    if bv_active {
+        repo.record_optout_tier(
+            project_id,
+            ConsentTier::BrandVisibility,
+            TERMS_VERSION,
+            actor.as_deref(),
+            args.note.as_deref(),
+        )
+        .await
+        .map_err(|e| {
+            OpenGeoError::Config(format!(
+                "opt-out recorded (event id {id}) but failed to revoke the brand-visibility \
+                 tier: {e}. Re-run `ogeo benchmark optout` to complete the opt-out."
+            ))
+        })?;
+    }
 
     // CRYPTO-SHRED: destroy the per-project KEK across every SecretStore leg.
     // Idempotent — a project that never sealed a contribution simply has no
