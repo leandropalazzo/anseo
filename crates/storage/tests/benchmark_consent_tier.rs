@@ -11,6 +11,7 @@
 
 use anseo_core::BrandConfig;
 use anseo_storage::repositories::benchmark_consent::ConsentTier;
+use anseo_storage::repositories::entities::EntityRepo;
 use anseo_storage::Storage;
 use sqlx::PgPool;
 
@@ -61,6 +62,46 @@ async fn tiers_are_independent(pool: PgPool) {
         .unwrap();
     assert!(anon.is_active(TERMS));
     assert!(bv.is_active(TERMS));
+}
+
+/// Story 44.1 SECURITY gate: the brand-visibility (identified/named) opt-in is a
+/// CLAIM and requires a DOMAIN-VERIFIED entry in the registry (Story 43.2). This
+/// pins the exact predicate the CLI opt-in path enforces — resolve the project's
+/// `brand.site_url` to a normalized domain and require `claim_status ==
+/// "verified"` — so an unverified domain is REJECTED and a verified one ACCEPTED.
+#[sqlx::test(migrations = "./migrations")]
+async fn brand_visibility_requires_domain_verified_claim(pool: PgPool) {
+    let storage = Storage::from_pool(pool);
+    let brand = brand("claimco");
+    let domain = EntityRepo::normalize_domain(brand.site_url.as_deref().unwrap());
+    let entities = storage.entities();
+
+    // (a) No entity / not verified yet → the gate predicate REJECTS.
+    let none = entities.get(&domain).await.unwrap();
+    let verified = none.map(|e| e.claim_status == "verified").unwrap_or(false);
+    assert!(
+        !verified,
+        "brand-visibility opt-in must be rejected when the domain is unverified"
+    );
+
+    // Register the entity but leave it `pending` — still REJECTED.
+    entities.upsert(&domain, "Claim Co", "brand").await.unwrap();
+    let pending = entities.get(&domain).await.unwrap().unwrap();
+    assert_ne!(
+        pending.claim_status, "verified",
+        "a pending (unverified) claim must still be rejected"
+    );
+
+    // (b) Drive the entity to `verified` → the gate predicate ACCEPTS.
+    entities
+        .set_claim_status(&domain, "verified", Some("dns_txt"))
+        .await
+        .unwrap();
+    let now_verified = entities.get(&domain).await.unwrap().unwrap();
+    assert!(
+        now_verified.claim_status == "verified",
+        "brand-visibility opt-in must be accepted once the domain is verified"
+    );
 }
 
 /// Story 44.1 autoreview fix: after a full opt-out appends a brand_visibility

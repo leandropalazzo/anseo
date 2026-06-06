@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use anseo_benchmark::{ProjectKek, TERMS_VERSION};
 use anseo_core::{OpenGeoError, ProjectId};
 use anseo_storage::repositories::benchmark_consent::{BenchmarkConsentRepo, ConsentTier};
+use anseo_storage::repositories::entities::EntityRepo;
 use anseo_storage::Storage;
 use chrono::Utc;
 use clap::Args;
@@ -144,6 +145,34 @@ async fn run_optin_brand_visibility(args: OptinArgs) -> Result<(), OpenGeoError>
              verified, then retry."
                 .into(),
         ));
+    }
+
+    // SECURITY (44.1): the identified/named tier is a CLAIM, and the terms +
+    // Tier-B contract require a DOMAIN-VERIFIED claim (Story 43.2). Hard-gate on
+    // the project's domain being `verified` in the entity registry before we
+    // record the consent — appearing in aggregate data is not the same as being
+    // entitled to claim a named identity. Resolve the domain from the project
+    // config's brand.site_url, normalize it the same way the registry keys do,
+    // and require claim_status == "verified".
+    let domain = project_domain(args.config.as_deref())?;
+    let entity = EntityRepo::new(storage.pool())
+        .get(&domain)
+        .await
+        .map_err(|e| OpenGeoError::Config(format!("failed to read entity registry: {e}")))?;
+    let verified = entity
+        .as_ref()
+        .map(|e| e.claim_status == "verified")
+        .unwrap_or(false);
+    if !verified {
+        return Err(OpenGeoError::Config(format!(
+            "brand-visibility requires a domain-verified claim for `{domain}`, but it is not \
+             verified (status: {}). Verify ownership of your domain (DNS-TXT or email magic-link) \
+             before opting into the named/ranked leaderboard, then retry.",
+            entity
+                .as_ref()
+                .map(|e| e.claim_status.as_str())
+                .unwrap_or("no claim"),
+        )));
     }
 
     print_brand_visibility_terms();
@@ -489,4 +518,26 @@ async fn open_storage(
         .await
         .map_err(|e| OpenGeoError::Config(format!("failed to connect to Postgres: {e}")))?;
     Ok((storage, cfg.project_id()))
+}
+
+/// Resolve the project's normalized domain from `brand.site_url` in the project
+/// config. Used to gate the brand-visibility opt-in on a domain-verified claim
+/// (Story 44.1). Errors if the config can't be read or no `site_url` is set —
+/// you cannot make a named/ranked claim without a domain to verify.
+fn project_domain(config: Option<&std::path::Path>) -> Result<String, OpenGeoError> {
+    let path = config.unwrap_or(std::path::Path::new("anseo.yaml"));
+    let cfg = anseo_core::Config::from_path(path).map_err(|e| {
+        OpenGeoError::Config(format!(
+            "failed to read project config at `{}`: {e}",
+            path.display()
+        ))
+    })?;
+    let site_url = cfg.brand.site_url.as_deref().ok_or_else(|| {
+        OpenGeoError::Config(
+            "brand-visibility requires a verified domain, but no `brand.site_url` is set in your \
+             project config. Add your owned website URL and verify domain ownership first."
+                .into(),
+        )
+    })?;
+    Ok(EntityRepo::normalize_domain(site_url))
 }
