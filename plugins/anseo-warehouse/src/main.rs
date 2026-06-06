@@ -3,8 +3,10 @@
 //!
 //! Analytics plugins run as a **subprocess** under the host's seccomp-bpf /
 //! `sandbox-exec` sandbox (Linux/macOS only — the loader skips them on
-//! unsupported platforms). This binary is the subprocess entry point named by
-//! `manifest.yaml`'s `entry_point: bin/anseo-warehouse`.
+//! unsupported platforms). This binary is the subprocess entry point; the
+//! install pipeline materializes the signed artifact as `entrypoint.wasm` under
+//! `<home>/plugins/<id>/<version>/`, which is the `entry_point` named by
+//! `manifest.yaml`.
 //!
 //! It WRAPS the existing feature-gated ClickHouse ETL in `crates/analytics`
 //! rather than reimplementing it: ADR-006 keeps the in-tree ClickHouse path as

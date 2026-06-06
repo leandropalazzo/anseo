@@ -75,10 +75,15 @@ pub fn run(request: &ProviderRequest) -> Result<ProviderResponse, String> {
     let model = validate_model(&request.model)?;
     // A real provider performs `host:http/fetch(echo_url(&request.prompt))`
     // here. The echo API reflects the prompt, so the response is deterministic.
-    let raw = format!(
-        "{{\"args\":{{\"prompt\":\"{}\"}},\"model\":\"{}\"}}",
-        request.prompt, model
-    );
+    //
+    // Build the raw payload with serde_json so the prompt is JSON-escaped: a
+    // prompt containing `"`, `\`, or control characters would otherwise produce
+    // invalid JSON or inject structure into `raw_response`.
+    let raw = serde_json::json!({
+        "args": { "prompt": request.prompt },
+        "model": model,
+    })
+    .to_string();
     Ok(ProviderResponse {
         message_text: request.prompt.clone(),
         raw_response: raw,
@@ -111,5 +116,23 @@ mod tests {
         let resp = run(&req).expect("run succeeds");
         assert_eq!(resp.message_text, "ping");
         assert!(resp.raw_response.contains("ping"));
+    }
+
+    #[test]
+    fn run_escapes_prompt_into_valid_json() {
+        // A prompt with a quote and a backslash must not break out of the JSON
+        // string or produce malformed JSON in `raw_response`.
+        let prompt = r#"say "hi" \ now"#;
+        let req = ProviderRequest {
+            prompt: prompt.to_string(),
+            model: "echo-1".to_string(),
+        };
+        let resp = run(&req).expect("run succeeds");
+
+        // raw_response parses as JSON and round-trips the exact prompt verbatim.
+        let parsed: serde_json::Value =
+            serde_json::from_str(&resp.raw_response).expect("raw_response is valid JSON");
+        assert_eq!(parsed["args"]["prompt"], serde_json::json!(prompt));
+        assert_eq!(parsed["model"], serde_json::json!("echo-1"));
     }
 }

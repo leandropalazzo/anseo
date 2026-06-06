@@ -1,0 +1,21 @@
+# Standalone manifest for the example Provider template.
+#
+# This crate is the canonical starting point a plugin author copies; it is NOT a
+# member of the parent workspace (the empty `[workspace]` table below makes it
+# its own workspace root) so it builds and tests in isolation without pulling
+# the host workspace into a plugin build. Authors `cargo build --target
+# wasm32-wasi` to produce the `entrypoint.wasm` the manifest references.
+[package]
+name = "anseo-example-provider"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde_json = "1"

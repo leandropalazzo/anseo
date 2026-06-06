@@ -15,7 +15,10 @@ description: "Stream run results to Google BigQuery (connect-your-data sink)."
 author: "anseo.ai"
 homepage: "https://anseo.ai/plugins/anseo-connect-bigquery"
 plugin_type: output-format
-entry_point: bin/anseo-connect-bigquery
+# The install pipeline materializes the single signed artifact as
+# `entrypoint.wasm` under <home>/plugins/<id>/<version>/, so the manifest must
+# reference exactly that on-disk filename for the runtime adapter to spawn it.
+entry_point: entrypoint.wasm
 capabilities:
   # network:bigquery.googleapis.com — the only host this sink may reach.
   - kind: network
