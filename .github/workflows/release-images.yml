@@ -1,5 +1,6 @@
 # =============================================================================
-# RELEASE-IMAGES (reusable) — build & publish multi-arch GHCR images.
+# RELEASE-IMAGES (reusable, workflow_call-only; invoked by release.yml)
+#   — build & publish multi-arch GHCR images.
 #
 # This is the SINGLE source of the image-build/publish logic (Story 38.15),
 # factored out of the former standalone release.yml into a `workflow_call`
@@ -7,22 +8,28 @@
 # duplicating it. There is exactly ONE place that publishes the images, so a
 # version tag can never trigger a double-publish.
 #
-# CALLED BY:
+# CALLED BY (workflow_call ONLY — there is no direct trigger):
 #   * .github/workflows/release.yml — the release-train orchestrator, on a
-#     vX.Y.Z tag (or workflow_dispatch). This is the production entry point and
-#     the ONLY path that can publish official image tags to GHCR. It sets
-#     push=true ONLY after its tag/reachability guard (publish_ok) passes.
-#   * workflow_dispatch (below)     — BUILD-ONLY validation of a single ref for
-#     operators. A DIRECT manual dispatch can NEVER publish to GHCR or move
-#     `latest`: the `push`/`tag_latest` inputs are defined ONLY under
-#     `workflow_call`, so on a direct dispatch they don't exist and evaluate
-#     falsy — publishing requires a guarded `workflow_call` from the release
-#     train, which is the only trigger that supplies those inputs. This closes the
-#     supply-chain hole where a direct dispatch of an arbitrary/unproven ref
-#     (e.g. v9.9.9) could push official ghcr.io/.../opengeo/{api,worker,web}
-#     tags while bypassing the release train's tag/reachability validation.
-#     To actually publish, run the release train (push a vX.Y.Z tag / dispatch
-#     release.yml) — it gates publish on its own ref guard before calling here.
+#     vX.Y.Z tag (or workflow_dispatch). This is the SOLE entry point and the
+#     ONLY path that can invoke this workflow at all. It validates the ref
+#     (tag/reachability guard, publish_ok) BEFORE calling here, and sets
+#     push=true only after that guard passes. The previous DIRECT
+#     `workflow_dispatch` trigger has been REMOVED (Story 38.19 hardening): a
+#     reusable workflow that elevates with `packages: write` + `id-token: write`
+#     and logs into GHCR must not be directly entrable from an arbitrary/unproven
+#     ref. Build-only validation of a ref now goes through release.yml's dry-run
+#     (which calls this workflow via workflow_call with push=false).
+#
+# SUPPLY-CHAIN HARDENING (Story 38.19, defense-in-depth):
+#   * workflow_call-only — no direct, unguarded entry from an arbitrary ref.
+#   * actions/checkout uses persist-credentials:false — GITHUB_TOKEN is NEVER
+#     written into .git/config, so a malicious Dockerfile RUN step cannot read it
+#     from the build context even on a build-only (push=false) run.
+#   * .git / .github / *.env are excluded from the Docker build context via a
+#     root .dockerignore, so secrets-y paths never enter the image build.
+#   * GHCR login (docker/login-action) and the provenance attestation
+#     (id-token) run ONLY when inputs.push is true — build-only/dry-run runs
+#     neither authenticate to the registry nor mint an OIDC token.
 #
 # IMAGE TAGS (docker/metadata-action, semver flavour):
 #   git tag v1.2.3  → 1.2.3, 1.2, 1   (+ `latest` only on the default branch)
@@ -59,18 +66,12 @@ on:
       version:
         description: "The resolved X.Y.Z version (leading v stripped) the images were published under."
         value: ${{ jobs.build-and-push.outputs.version }}
-  # DIRECT manual dispatch is BUILD-ONLY: it validates that the given ref builds
-  # for both arches but can never push to GHCR or move `latest` (see the build
-  # job's effective-push gate below). There is intentionally no `push`/
-  # `tag_latest` input here — a direct dispatch must not be able to request a
-  # publish from an unproven ref. Publishing goes through the release train,
-  # which calls this workflow via `workflow_call` after its ref guard passes.
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Git ref / tag to build for validation (e.g. v1.2.3). BUILD-ONLY — never pushes to GHCR."
-        required: true
-        type: string
+  # NOTE (Story 38.19): the direct `workflow_dispatch` trigger has been REMOVED.
+  # This workflow is now workflow_call-ONLY — the only way to run it is via the
+  # guarded release.yml train, which validates the ref before invoking. Build-only
+  # validation of a ref goes through release.yml's dry-run (push=false). This
+  # eliminates the unguarded direct entry into a job that holds packages:write +
+  # id-token:write and logs into GHCR.
 
 permissions:
   contents: read
@@ -94,6 +95,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+          # Do NOT persist GITHUB_TOKEN into .git/config (Story 38.19 hardening).
+          # The token is unnecessary here (no further git ops need auth), and
+          # leaving it out of .git means a Dockerfile RUN step in the build
+          # context can never read it — closing the primary token-exfil vector.
+          persist-credentials: false
 
       # Resolve the bare X.Y.Z version (strip refs/tags/ and a leading v) so the
       # train can pin the standalone snapshot to the same string the images use.
@@ -111,14 +117,14 @@ jobs:
           echo "version=${ver}" >> "$GITHUB_OUTPUT"
           echo "resolved version: ${ver}"
 
-      # SUPPLY-CHAIN GUARD — STRUCTURAL, via the trigger's input surface.
+      # SUPPLY-CHAIN GUARD — STRUCTURAL.
+      # This workflow is workflow_call-ONLY (the direct workflow_dispatch trigger
+      # was removed in Story 38.19), so the ONLY way it runs is via the guarded
+      # release.yml train, which validates the ref (publish_ok) BEFORE invoking.
       # Publishing to GHCR (and moving `latest`) is driven by `inputs.push` /
-      # `inputs.tag_latest`, which are defined ONLY under `workflow_call`. On a
-      # DIRECT `workflow_dispatch` those inputs do not exist and evaluate falsy,
-      # so a manual run of an arbitrary/unproven ref (e.g. v9.9.9) can only
-      # validate the build — it can never mutate the registry or overwrite
-      # `latest`. On a `workflow_call` from the guarded release train the real
-      # values flow straight through. We deliberately do NOT key off
+      # `inputs.tag_latest`, which the train sets to true only after its guard
+      # passes; on a dry-run it calls in with push=false to validate the build
+      # without any registry mutation. We deliberately do NOT key off
       # `github.event_name`: in a reusable workflow that is always the CALLER's
       # original trigger (e.g. `push`/`workflow_dispatch`), NEVER `workflow_call`,
       # so testing it would force build-only even on a real guarded release.
@@ -131,8 +137,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Authenticate to GHCR using the built-in GITHUB_TOKEN — no PAT required
+      # Authenticate to GHCR using the built-in GITHUB_TOKEN — no PAT required.
+      # GATED on inputs.push (Story 38.19 hardening): a build-only / dry-run run
+      # (push=false) never logs in to the registry, so no registry credential is
+      # ever materialized when we are not actually publishing. We only elevate
+      # (log in + later attest) on the guarded publish path.
       - name: Log in to GHCR
+        if: ${{ inputs.push }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -177,18 +188,19 @@ jobs:
           platforms: linux/amd64,linux/arm64
           # Dry-run (push=false) builds both arches for validation but does NOT
           # push manifests/tags to GHCR — no registry mutation on a rehearsal.
-          # `inputs.push` is undefined (falsy) on a direct workflow_dispatch, so
-          # a manual run is always build-only; true only when the guarded release
-          # train calls in via workflow_call with push=true.
+          # push is true only when the guarded release train calls in via
+          # workflow_call with push=true (its ref guard already passed).
           push: ${{ inputs.push == true }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,mode=max,scope=${{ matrix.app }}
 
-      # Emit SLSA Level-2 build provenance attestation. Skipped on a dry-run
-      # (push=false): with no pushed image there is no digest to attest, and
-      # push-to-registry would mutate GHCR — exactly what a rehearsal avoids.
+      # Emit SLSA Level-2 build provenance attestation. GATED on inputs.push
+      # (Story 38.19 hardening): this is the step that consumes id-token, so a
+      # build-only / dry-run run (push=false) never mints an OIDC token. Also,
+      # with no pushed image there is no digest to attest, and push-to-registry
+      # would mutate GHCR — exactly what a rehearsal avoids.
       - name: Attest build provenance
         if: ${{ inputs.push }}
         uses: actions/attest-build-provenance@v1
