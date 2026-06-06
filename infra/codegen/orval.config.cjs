@@ -1,7 +1,7 @@
 // Anseo TypeScript SDK — orval config (Story 12.3).
 //
 // Generates a Promise-based client into packages/typescript/src/ from
-// the canonical OpenAPI artifact. Pinned to orval 7.1.0 in the
+// the canonical OpenAPI artifact. Pinned to orval 8.15.0 in the
 // Makefile; a generator bump goes through a PR with the regenerated
 // diff so the drift gate stays green.
 
@@ -15,6 +15,16 @@ module.exports = {
       target: "../../packages/typescript/src/client.ts",
       schemas: "../../packages/typescript/src/schemas",
       client: "fetch",
+      // Percent-encode path parameters in the generated URL helpers, e.g.
+      // `encodeURIComponent(String(id))`. Plugin ids are `namespace/name`
+      // (contain a slash), so without this the helper emits
+      // `/v1/plugins/${id}` → `/v1/plugins/acme/widget` (two segments) and
+      // never matches the single-segment `/v1/plugins/:id` axum route.
+      // Encoding yields `acme%2Fwidget`, which the server's `Path<String>`
+      // extractor decodes back to `acme/widget`. This is an `output`-level
+      // option (NOT under `override`); fetch-client support exists from
+      // orval 8.12.1+.
+      urlEncodeParameters: true,
       override: {
         mutator: {
           path: "../../packages/typescript/src/runtime.ts",

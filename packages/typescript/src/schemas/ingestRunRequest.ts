@@ -7,32 +7,32 @@
  * One externally-executed prompt run submitted for ingestion.
  */
 export interface IngestRunRequest {
-  /**
-   * Source domains observed in citations. When omitted, extracted from response_text.
-   * @nullable
-   */
-  citation_domains?: string[] | null;
-  /** Opt this run into the anonymous benchmark. Defaults to false. A true value with no per-project KEK is rejected 403 kek_missing. When the project also has an active benchmark opt-in on the current terms, a true run is redacted and envelope-sealed under the project KEK (Story 40.4); otherwise the run is recorded but the contribution is reported as skipped/blocked, never silently dropped. */
-  contribute?: boolean;
-  /** Provider model/version string the external run used. */
-  model: string;
-  /**
-   * When the external run was observed. Defaults to now.
-   * @nullable
-   */
-  observed_at?: string | null;
-  /**
-   * The brand's observed rank in this run, if computed by the caller.
-   * @nullable
-   */
-  observed_rank?: number | null;
   /** Slug-safe identifier of a prompt already declared in the resolved project. */
   prompt_slug: string;
   /** Provider the external run was executed against (e.g. openai). */
   provider: string;
+  /** Provider model/version string the external run used. */
+  model: string;
   /**
-   * Raw provider response text. Optional when citation_domains is supplied directly.
-   * @nullable
-   */
+     * Raw provider response text. Optional when citation_domains is supplied directly.
+     * @nullable
+     */
   response_text?: string | null;
+  /**
+     * Source domains observed in citations. When omitted, extracted from response_text.
+     * @nullable
+     */
+  citation_domains?: string[] | null;
+  /**
+     * The brand's observed rank in this run, if computed by the caller.
+     * @nullable
+     */
+  observed_rank?: number | null;
+  /**
+     * When the external run was observed. Defaults to now.
+     * @nullable
+     */
+  observed_at?: string | null;
+  /** Opt this run into the anonymous benchmark. Defaults to false. A true value with no per-project KEK is rejected 403 kek_missing. When the project also has an active benchmark opt-in on the current terms, a true run is redacted and envelope-sealed under the project KEK (Story 40.4); otherwise the run is recorded but the contribution is reported as skipped/blocked, never silently dropped. */
+  contribute?: boolean;
 }

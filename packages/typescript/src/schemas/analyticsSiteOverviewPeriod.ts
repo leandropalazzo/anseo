@@ -6,7 +6,6 @@
 export type AnalyticsSiteOverviewPeriod = typeof AnalyticsSiteOverviewPeriod[keyof typeof AnalyticsSiteOverviewPeriod];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const AnalyticsSiteOverviewPeriod = {
   '7d': '7d',
   '30d': '30d',

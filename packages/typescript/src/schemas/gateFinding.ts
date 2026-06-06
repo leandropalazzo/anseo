@@ -5,8 +5,8 @@
 import type { GateFindingSeverity } from './gateFindingSeverity';
 
 export interface GateFinding {
-  message: string;
   page_url: string;
   rule_id: string;
   severity: GateFindingSeverity;
+  message: string;
 }

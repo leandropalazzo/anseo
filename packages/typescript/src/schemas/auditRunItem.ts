@@ -4,16 +4,16 @@
  */
 
 export interface AuditRunItem {
-  created_at: string;
-  /** @nullable */
-  gate_passed?: boolean | null;
   id: string;
+  target: string;
   /**
-   * @minimum 0
-   * @maximum 100
-   */
+     * @minimum 0
+     * @maximum 100
+     */
   overall_score: number;
   /** @minimum 0 */
   pages_crawled: number;
-  target: string;
+  /** @nullable */
+  gate_passed?: boolean | null;
+  created_at: string;
 }

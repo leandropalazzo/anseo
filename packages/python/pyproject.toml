@@ -8,7 +8,11 @@ version = "0.0.0"
 description = "Anseo REST client — auto-generated from the canonical OpenAPI artifact."
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.9"
+# openapi-python-client 0.28+ (pinned 0.29.0 in infra/codegen/Makefile) emits
+# PEP 604 `X | Y` unions in endpoint modules with no
+# `from __future__ import annotations`, so the generated client only evaluates
+# on Python 3.10+. (3.9 reached end-of-life in October 2025.)
+requires-python = ">=3.10"
 dependencies = [
   "httpx>=0.27",
   "attrs>=23.2",

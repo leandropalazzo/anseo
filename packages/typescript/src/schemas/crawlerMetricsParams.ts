@@ -4,6 +4,10 @@
  */
 
 export type CrawlerMetricsParams = {
+/**
+ * @minimum 1
+ * @maximum 365
+ */
 days?: number;
 include_unverified?: boolean;
 };

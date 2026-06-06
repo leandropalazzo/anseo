@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import datetime
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-from dateutil.parser import isoparse
 
 if TYPE_CHECKING:
     from ..models.contribution_status import ContributionStatus
@@ -33,7 +35,7 @@ class IngestRunResponse:
     prompt_slug: str
     provider: str
     observed_at: datetime.datetime
-    contribution: "ContributionStatus"
+    contribution: ContributionStatus
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -65,10 +67,10 @@ class IngestRunResponse:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.contribution_status import ContributionStatus
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         run_id = d.pop("run_id")
 
         project_id = d.pop("project_id")
@@ -77,7 +79,7 @@ class IngestRunResponse:
 
         provider = d.pop("provider")
 
-        observed_at = isoparse(d.pop("observed_at"))
+        observed_at = datetime.datetime.fromisoformat(d.pop("observed_at"))
 
         contribution = ContributionStatus.from_dict(d.pop("contribution"))
 

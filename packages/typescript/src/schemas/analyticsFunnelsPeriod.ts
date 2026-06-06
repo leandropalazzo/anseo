@@ -6,7 +6,6 @@
 export type AnalyticsFunnelsPeriod = typeof AnalyticsFunnelsPeriod[keyof typeof AnalyticsFunnelsPeriod];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const AnalyticsFunnelsPeriod = {
   '7d': '7d',
   '30d': '30d',

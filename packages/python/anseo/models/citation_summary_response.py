@@ -1,4 +1,7 @@
-from typing import TYPE_CHECKING, Any, TypeVar, Union
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -18,14 +21,14 @@ T = TypeVar("T", bound="CitationSummaryResponse")
 class CitationSummaryResponse:
     """
     Attributes:
-        domains (Union[Unset, list['CitationSummaryResponseDomainsItem']]):
+        domains (list[CitationSummaryResponseDomainsItem] | Unset):
     """
 
-    domains: Union[Unset, list["CitationSummaryResponseDomainsItem"]] = UNSET
+    domains: list[CitationSummaryResponseDomainsItem] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        domains: Union[Unset, list[dict[str, Any]]] = UNSET
+        domains: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.domains, Unset):
             domains = []
             for domains_item_data in self.domains:
@@ -41,20 +44,22 @@ class CitationSummaryResponse:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.citation_summary_response_domains_item import (
             CitationSummaryResponseDomainsItem,
         )
 
-        d = src_dict.copy()
-        domains = []
+        d = dict(src_dict)
         _domains = d.pop("domains", UNSET)
-        for domains_item_data in _domains or []:
-            domains_item = CitationSummaryResponseDomainsItem.from_dict(
-                domains_item_data
-            )
+        domains: list[CitationSummaryResponseDomainsItem] | Unset = UNSET
+        if _domains is not UNSET:
+            domains = []
+            for domains_item_data in _domains:
+                domains_item = CitationSummaryResponseDomainsItem.from_dict(
+                    domains_item_data
+                )
 
-            domains.append(domains_item)
+                domains.append(domains_item)
 
         citation_summary_response = cls(
             domains=domains,

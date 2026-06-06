@@ -6,7 +6,6 @@
 export type RecommendationState = typeof RecommendationState[keyof typeof RecommendationState];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const RecommendationState = {
   generated: 'generated',
   surfaced: 'surfaced',

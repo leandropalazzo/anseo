@@ -1,4 +1,7 @@
-from typing import TYPE_CHECKING, Any, TypeVar, Union, cast
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -19,17 +22,17 @@ class BrandUpdateResult:
         project_id (str):
         name (str):
         variants (list[str]):
-        competitors (list['BrandCompetitor']):
+        competitors (list[BrandCompetitor]):
         restart_required (bool):
-        site_url (Union[None, Unset, str]):
+        site_url (None | str | Unset):
     """
 
     project_id: str
     name: str
     variants: list[str]
-    competitors: list["BrandCompetitor"]
+    competitors: list[BrandCompetitor]
     restart_required: bool
-    site_url: Union[None, Unset, str] = UNSET
+    site_url: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -46,7 +49,7 @@ class BrandUpdateResult:
 
         restart_required = self.restart_required
 
-        site_url: Union[None, Unset, str]
+        site_url: None | str | Unset
         if isinstance(self.site_url, Unset):
             site_url = UNSET
         else:
@@ -69,10 +72,10 @@ class BrandUpdateResult:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.brand_competitor import BrandCompetitor
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         project_id = d.pop("project_id")
 
         name = d.pop("name")
@@ -88,12 +91,12 @@ class BrandUpdateResult:
 
         restart_required = d.pop("restart_required")
 
-        def _parse_site_url(data: object) -> Union[None, Unset, str]:
+        def _parse_site_url(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, str], data)
+            return cast(None | str | Unset, data)
 
         site_url = _parse_site_url(d.pop("site_url", UNSET))
 

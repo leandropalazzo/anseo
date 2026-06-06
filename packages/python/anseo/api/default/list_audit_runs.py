@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -12,8 +12,8 @@ from ...types import UNSET, Response, Unset
 
 def _get_kwargs(
     *,
-    limit: Union[Unset, int] = 50,
-    x_anseo_project: Union[Unset, str] = UNSET,
+    limit: int | Unset = 50,
+    x_anseo_project: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(x_anseo_project, Unset):
@@ -36,16 +36,18 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[AuditRunList, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> AuditRunList | Error | None:
     if response.status_code == 200:
         response_200 = AuditRunList.from_dict(response.json())
 
         return response_200
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
         return response_401
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -53,8 +55,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[AuditRunList, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[AuditRunList | Error]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -65,22 +67,22 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = 50,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[AuditRunList, Error]]:
+    client: AuthenticatedClient | Client,
+    limit: int | Unset = 50,
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[AuditRunList | Error]:
     """Roadmap Epic 32 — persisted site-audit history for the project, newest first.
 
     Args:
-        limit (Union[Unset, int]):  Default: 50.
-        x_anseo_project (Union[Unset, str]):
+        limit (int | Unset):  Default: 50.
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[AuditRunList, Error]]
+        Response[AuditRunList | Error]
     """
 
     kwargs = _get_kwargs(
@@ -97,22 +99,22 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = 50,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[AuditRunList, Error]]:
+    client: AuthenticatedClient | Client,
+    limit: int | Unset = 50,
+    x_anseo_project: str | Unset = UNSET,
+) -> AuditRunList | Error | None:
     """Roadmap Epic 32 — persisted site-audit history for the project, newest first.
 
     Args:
-        limit (Union[Unset, int]):  Default: 50.
-        x_anseo_project (Union[Unset, str]):
+        limit (int | Unset):  Default: 50.
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[AuditRunList, Error]
+        AuditRunList | Error
     """
 
     return sync_detailed(
@@ -124,22 +126,22 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = 50,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[AuditRunList, Error]]:
+    client: AuthenticatedClient | Client,
+    limit: int | Unset = 50,
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[AuditRunList | Error]:
     """Roadmap Epic 32 — persisted site-audit history for the project, newest first.
 
     Args:
-        limit (Union[Unset, int]):  Default: 50.
-        x_anseo_project (Union[Unset, str]):
+        limit (int | Unset):  Default: 50.
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[AuditRunList, Error]]
+        Response[AuditRunList | Error]
     """
 
     kwargs = _get_kwargs(
@@ -154,22 +156,22 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = 50,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[AuditRunList, Error]]:
+    client: AuthenticatedClient | Client,
+    limit: int | Unset = 50,
+    x_anseo_project: str | Unset = UNSET,
+) -> AuditRunList | Error | None:
     """Roadmap Epic 32 — persisted site-audit history for the project, newest first.
 
     Args:
-        limit (Union[Unset, int]):  Default: 50.
-        x_anseo_project (Union[Unset, str]):
+        limit (int | Unset):  Default: 50.
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[AuditRunList, Error]
+        AuditRunList | Error
     """
 
     return (

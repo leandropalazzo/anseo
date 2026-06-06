@@ -6,7 +6,6 @@
 export type PluginStatusKind = typeof PluginStatusKind[keyof typeof PluginStatusKind];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const PluginStatusKind = {
   provider: 'provider',
   extractor: 'extractor',

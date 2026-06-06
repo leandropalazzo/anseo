@@ -5,11 +5,11 @@
 import type { BrandCompetitor } from './brandCompetitor';
 
 export interface BrandUpdateResult {
-  competitors: BrandCompetitor[];
-  name: string;
   project_id: string;
-  restart_required: boolean;
+  name: string;
+  variants: string[];
+  competitors: BrandCompetitor[];
   /** @nullable */
   site_url?: string | null;
-  variants: string[];
+  restart_required: boolean;
 }

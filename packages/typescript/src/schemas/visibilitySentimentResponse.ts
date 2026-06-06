@@ -5,6 +5,6 @@
 import type { VisibilitySentimentPoint } from './visibilitySentimentPoint';
 
 export interface VisibilitySentimentResponse {
-  points: VisibilitySentimentPoint[];
   window_days: number;
+  points: VisibilitySentimentPoint[];
 }

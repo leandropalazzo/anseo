@@ -1,5 +1,6 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union, cast
+from typing import Any, cast
+from urllib.parse import quote
 
 import httpx
 
@@ -12,10 +13,11 @@ from ...types import Response
 def _get_kwargs(
     id: str,
 ) -> dict[str, Any]:
+
     _kwargs: dict[str, Any] = {
         "method": "post",
         "url": "/v1/projects/{id}/archive".format(
-            id=id,
+            id=quote(str(id), safe=""),
         ),
     }
 
@@ -23,19 +25,22 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[Any, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Any | Error | None:
     if response.status_code == 204:
         response_204 = cast(Any, None)
         return response_204
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
         return response_401
+
     if response.status_code == 404:
         response_404 = Error.from_dict(response.json())
 
         return response_404
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -43,8 +48,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[Any, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Any | Error]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -56,8 +61,8 @@ def _build_response(
 def sync_detailed(
     id: str,
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Response[Union[Any, Error]]:
+    client: AuthenticatedClient | Client,
+) -> Response[Any | Error]:
     """Soft-delete a project (idempotent). It drops out of the list but its data is preserved.
 
     Args:
@@ -68,7 +73,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[Any, Error]]
+        Response[Any | Error]
     """
 
     kwargs = _get_kwargs(
@@ -85,8 +90,8 @@ def sync_detailed(
 def sync(
     id: str,
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Optional[Union[Any, Error]]:
+    client: AuthenticatedClient | Client,
+) -> Any | Error | None:
     """Soft-delete a project (idempotent). It drops out of the list but its data is preserved.
 
     Args:
@@ -97,7 +102,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[Any, Error]
+        Any | Error
     """
 
     return sync_detailed(
@@ -109,8 +114,8 @@ def sync(
 async def asyncio_detailed(
     id: str,
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Response[Union[Any, Error]]:
+    client: AuthenticatedClient | Client,
+) -> Response[Any | Error]:
     """Soft-delete a project (idempotent). It drops out of the list but its data is preserved.
 
     Args:
@@ -121,7 +126,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[Any, Error]]
+        Response[Any | Error]
     """
 
     kwargs = _get_kwargs(
@@ -136,8 +141,8 @@ async def asyncio_detailed(
 async def asyncio(
     id: str,
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Optional[Union[Any, Error]]:
+    client: AuthenticatedClient | Client,
+) -> Any | Error | None:
     """Soft-delete a project (idempotent). It drops out of the list but its data is preserved.
 
     Args:
@@ -148,7 +153,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[Any, Error]
+        Any | Error
     """
 
     return (

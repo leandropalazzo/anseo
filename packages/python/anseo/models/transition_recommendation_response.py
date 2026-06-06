@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
@@ -19,11 +22,11 @@ class TransitionRecommendationResponse:
     Attributes:
         recommendation (Recommendation): Story 19.6 — a stored GEO Recommendation (architecture-phase3-geo-
             recommendations.md §8 wire shape) plus its DB lifecycle `state`.
-        warnings (list['TransitionRecommendationResponseWarningsItem']):
+        warnings (list[TransitionRecommendationResponseWarningsItem]):
     """
 
-    recommendation: "Recommendation"
-    warnings: list["TransitionRecommendationResponseWarningsItem"]
+    recommendation: Recommendation
+    warnings: list[TransitionRecommendationResponseWarningsItem]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -46,13 +49,13 @@ class TransitionRecommendationResponse:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.recommendation import Recommendation
         from ..models.transition_recommendation_response_warnings_item import (
             TransitionRecommendationResponseWarningsItem,
         )
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         recommendation = Recommendation.from_dict(d.pop("recommendation"))
 
         warnings = []

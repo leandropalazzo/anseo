@@ -5,13 +5,13 @@
 import type { AuditFinding } from './auditFinding';
 
 export interface PageAudit {
-  findings: AuditFinding[];
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  score: number;
+  url: string;
   /** @nullable */
   title?: string | null;
-  url: string;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  score: number;
+  findings: AuditFinding[];
 }

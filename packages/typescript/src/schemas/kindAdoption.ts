@@ -4,13 +4,13 @@
  */
 
 export interface KindAdoption {
-  /** @minimum 0 */
-  acted: number;
-  /** @nullable */
-  adoption_rate?: number | null;
-  /** @minimum 0 */
-  dismissed: number;
   kind: string;
   /** @minimum 0 */
   surfaced: number;
+  /** @minimum 0 */
+  acted: number;
+  /** @minimum 0 */
+  dismissed: number;
+  /** @nullable */
+  adoption_rate?: number | null;
 }

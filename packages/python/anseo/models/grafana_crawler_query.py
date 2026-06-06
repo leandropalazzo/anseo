@@ -1,4 +1,7 @@
-from typing import Any, TypeVar, Union
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -12,14 +15,14 @@ T = TypeVar("T", bound="GrafanaCrawlerQuery")
 class GrafanaCrawlerQuery:
     """
     Attributes:
-        days (Union[Unset, int]):
-        include_unverified (Union[Unset, bool]):  Default: False.
-        target (Union[Unset, str]):
+        days (int | Unset):
+        include_unverified (bool | Unset):  Default: False.
+        target (str | Unset):
     """
 
-    days: Union[Unset, int] = UNSET
-    include_unverified: Union[Unset, bool] = False
-    target: Union[Unset, str] = UNSET
+    days: int | Unset = UNSET
+    include_unverified: bool | Unset = False
+    target: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -42,8 +45,8 @@ class GrafanaCrawlerQuery:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
-        d = src_dict.copy()
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
         days = d.pop("days", UNSET)
 
         include_unverified = d.pop("include_unverified", UNSET)

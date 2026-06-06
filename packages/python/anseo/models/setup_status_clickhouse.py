@@ -1,4 +1,7 @@
-from typing import Any, TypeVar, Union, cast
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -14,17 +17,17 @@ class SetupStatusClickhouse:
     """
     Attributes:
         state (SetupStatusClickhouseState):
-        error (Union[Unset, str]):
-        etl_lag_seconds (Union[None, Unset, float]):
-        row_count (Union[None, Unset, int]):
-        url (Union[None, Unset, str]):
+        error (str | Unset):
+        etl_lag_seconds (float | None | Unset):
+        row_count (int | None | Unset):
+        url (None | str | Unset):
     """
 
     state: SetupStatusClickhouseState
-    error: Union[Unset, str] = UNSET
-    etl_lag_seconds: Union[None, Unset, float] = UNSET
-    row_count: Union[None, Unset, int] = UNSET
-    url: Union[None, Unset, str] = UNSET
+    error: str | Unset = UNSET
+    etl_lag_seconds: float | None | Unset = UNSET
+    row_count: int | None | Unset = UNSET
+    url: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -32,19 +35,19 @@ class SetupStatusClickhouse:
 
         error = self.error
 
-        etl_lag_seconds: Union[None, Unset, float]
+        etl_lag_seconds: float | None | Unset
         if isinstance(self.etl_lag_seconds, Unset):
             etl_lag_seconds = UNSET
         else:
             etl_lag_seconds = self.etl_lag_seconds
 
-        row_count: Union[None, Unset, int]
+        row_count: int | None | Unset
         if isinstance(self.row_count, Unset):
             row_count = UNSET
         else:
             row_count = self.row_count
 
-        url: Union[None, Unset, str]
+        url: None | str | Unset
         if isinstance(self.url, Unset):
             url = UNSET
         else:
@@ -69,36 +72,36 @@ class SetupStatusClickhouse:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
-        d = src_dict.copy()
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
         state = SetupStatusClickhouseState(d.pop("state"))
 
         error = d.pop("error", UNSET)
 
-        def _parse_etl_lag_seconds(data: object) -> Union[None, Unset, float]:
+        def _parse_etl_lag_seconds(data: object) -> float | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, float], data)
+            return cast(float | None | Unset, data)
 
         etl_lag_seconds = _parse_etl_lag_seconds(d.pop("etl_lag_seconds", UNSET))
 
-        def _parse_row_count(data: object) -> Union[None, Unset, int]:
+        def _parse_row_count(data: object) -> int | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, int], data)
+            return cast(int | None | Unset, data)
 
         row_count = _parse_row_count(d.pop("row_count", UNSET))
 
-        def _parse_url(data: object) -> Union[None, Unset, str]:
+        def _parse_url(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, str], data)
+            return cast(None | str | Unset, data)
 
         url = _parse_url(d.pop("url", UNSET))
 

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
@@ -14,10 +17,10 @@ T = TypeVar("T", bound="AuditRunList")
 class AuditRunList:
     """
     Attributes:
-        items (list['AuditRunItem']):
+        items (list[AuditRunItem]):
     """
 
-    items: list["AuditRunItem"]
+    items: list[AuditRunItem]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -37,10 +40,10 @@ class AuditRunList:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.audit_run_item import AuditRunItem
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         items = []
         _items = d.pop("items")
         for items_item_data in _items:

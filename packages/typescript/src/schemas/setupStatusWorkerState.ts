@@ -6,7 +6,6 @@
 export type SetupStatusWorkerState = typeof SetupStatusWorkerState[keyof typeof SetupStatusWorkerState];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const SetupStatusWorkerState = {
   running: 'running',
   stopped: 'stopped',

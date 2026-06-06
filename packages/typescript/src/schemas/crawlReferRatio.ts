@@ -5,10 +5,10 @@
 import type { CrawlReferState } from './crawlReferState';
 
 export interface CrawlReferRatio {
-  attributed_referrals: number;
   bot_id: string;
+  verified_crawl_hits: number;
+  attributed_referrals: number;
   /** @nullable */
   ratio?: number | null;
   state: CrawlReferState;
-  verified_crawl_hits: number;
 }

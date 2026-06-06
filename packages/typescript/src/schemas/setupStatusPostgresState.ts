@@ -6,7 +6,6 @@
 export type SetupStatusPostgresState = typeof SetupStatusPostgresState[keyof typeof SetupStatusPostgresState];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const SetupStatusPostgresState = {
   healthy: 'healthy',
   degraded: 'degraded',

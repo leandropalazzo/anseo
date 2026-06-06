@@ -6,7 +6,6 @@
 export type PluginStatusStatus = typeof PluginStatusStatus[keyof typeof PluginStatusStatus];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const PluginStatusStatus = {
   loaded: 'loaded',
   skipped: 'skipped',

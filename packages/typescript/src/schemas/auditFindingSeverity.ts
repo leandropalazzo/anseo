@@ -6,7 +6,6 @@
 export type AuditFindingSeverity = typeof AuditFindingSeverity[keyof typeof AuditFindingSeverity];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const AuditFindingSeverity = {
   low: 'low',
   medium: 'medium',

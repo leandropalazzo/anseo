@@ -5,9 +5,9 @@
 import type { BrandCompetitor } from './brandCompetitor';
 
 export interface BrandUpdate {
-  competitors?: BrandCompetitor[];
   name: string;
+  variants?: string[];
+  competitors?: BrandCompetitor[];
   /** @nullable */
   site_url?: string | null;
-  variants?: string[];
 }

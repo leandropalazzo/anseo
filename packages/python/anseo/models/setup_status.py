@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
@@ -21,7 +24,7 @@ class SetupStatus:
     `state: "unknown"` + an `error` string on failure (per-probe timeout: 1s; 500ms for Docker).
 
         Attributes:
-            api_keys (list['SetupStatusApiKeysItem']):
+            api_keys (list[SetupStatusApiKeysItem]):
             clickhouse (SetupStatusClickhouse):
             docker (SetupStatusDocker):
             postgres (SetupStatusPostgres):
@@ -29,12 +32,12 @@ class SetupStatus:
             worker (SetupStatusWorker):
     """
 
-    api_keys: list["SetupStatusApiKeysItem"]
-    clickhouse: "SetupStatusClickhouse"
-    docker: "SetupStatusDocker"
-    postgres: "SetupStatusPostgres"
-    webhook_target: "SetupStatusWebhookTarget"
-    worker: "SetupStatusWorker"
+    api_keys: list[SetupStatusApiKeysItem]
+    clickhouse: SetupStatusClickhouse
+    docker: SetupStatusDocker
+    postgres: SetupStatusPostgres
+    webhook_target: SetupStatusWebhookTarget
+    worker: SetupStatusWorker
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -69,7 +72,7 @@ class SetupStatus:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.setup_status_api_keys_item import SetupStatusApiKeysItem
         from ..models.setup_status_clickhouse import SetupStatusClickhouse
         from ..models.setup_status_docker import SetupStatusDocker
@@ -77,7 +80,7 @@ class SetupStatus:
         from ..models.setup_status_webhook_target import SetupStatusWebhookTarget
         from ..models.setup_status_worker import SetupStatusWorker
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         api_keys = []
         _api_keys = d.pop("api_keys")
         for api_keys_item_data in _api_keys:

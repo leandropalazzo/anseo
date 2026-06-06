@@ -30,6 +30,7 @@ import type {
   CreateProjectResponse,
   CreatePromptRunRequest,
   CreatePromptRunResponse,
+  Error,
   GenerateRecommendationsAccepted,
   GrafanaCrawlerQuery,
   GrafanaCrawlerSeries,
@@ -53,1125 +54,1863 @@ import type {
   Sm14MetricResponse,
   TransitionRecommendationRequest,
   TransitionRecommendationResponse,
+  UnauthorizedResponse,
   UpgradePlugin200,
   VisibilitySentimentParams,
   VisibilitySentimentResponse,
   VisibilityTrendParams,
   VisibilityTrendResponse
-} from './schemas'
+} from './schemas';
+
 import { fetchClient } from './runtime';
 
-/**
- * @summary Story 47.4 — operator analytics: contribute funnel step counts + per-step drop-off (start → step → complete), verify funnel start/complete/fail counts by method (dns | email) with success rate, and daily badge-embed serves (last 30 d). Read entirely from the aggregate site-event rollups (privacy-safe by construction). Operator-scoped; not gated by X-Anseo-Project. No MCP parity (operator-internal, not agent-facing).
- */
-export type analyticsFunnelsResponse = {
-  data: AnalyticsFunnels200;
-  status: number;
+export type analyticsFunnelsResponse200 = {
+  data: AnalyticsFunnels200
+  status: 200
 }
+
+export type analyticsFunnelsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type analyticsFunnelsResponseSuccess = (analyticsFunnelsResponse200) & {
+  headers: Headers;
+};
+export type analyticsFunnelsResponseError = (analyticsFunnelsResponse401) & {
+  headers: Headers;
+};
+
+export type analyticsFunnelsResponse = (analyticsFunnelsResponseSuccess | analyticsFunnelsResponseError)
 
 export const getAnalyticsFunnelsUrl = (params?: AnalyticsFunnelsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
+      normalizedParams.append(key, value === null ? 'null' : String(value))
     }
   });
 
-  return normalizedParams.size ? `/v1/analytics/funnels?${normalizedParams.toString()}` : `/v1/analytics/funnels`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/analytics/funnels?${stringifiedParams}` : `/v1/analytics/funnels`
 }
 
+/**
+ * @summary Story 47.4 — operator analytics: contribute funnel step counts + per-step drop-off (start → step → complete), verify funnel start/complete/fail counts by method (dns | email) with success rate, and daily badge-embed serves (last 30 d). Read entirely from the aggregate site-event rollups (privacy-safe by construction). Operator-scoped; not gated by X-Anseo-Project. No MCP parity (operator-internal, not agent-facing).
+ */
 export const analyticsFunnels = async (params?: AnalyticsFunnelsParams, options?: RequestInit): Promise<analyticsFunnelsResponse> => {
-  
-  return fetchClient<Promise<analyticsFunnelsResponse>>(getAnalyticsFunnelsUrl(params),
-  {      
+
+  return fetchClient<analyticsFunnelsResponse>(getAnalyticsFunnelsUrl(params),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Story 47.4 — operator analytics: public-site overview from the aggregate rollups — unique sessions per day, top-5 pages, and top-5 referrer domains over the selected window. Privacy-safe (no raw per-visitor rows). Operator-scoped; not gated by X-Anseo-Project. No MCP parity (operator-internal, not agent-facing).
- */
-export type analyticsSiteOverviewResponse = {
-  data: AnalyticsSiteOverview200;
-  status: number;
+export type analyticsSiteOverviewResponse200 = {
+  data: AnalyticsSiteOverview200
+  status: 200
 }
+
+export type analyticsSiteOverviewResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type analyticsSiteOverviewResponseSuccess = (analyticsSiteOverviewResponse200) & {
+  headers: Headers;
+};
+export type analyticsSiteOverviewResponseError = (analyticsSiteOverviewResponse401) & {
+  headers: Headers;
+};
+
+export type analyticsSiteOverviewResponse = (analyticsSiteOverviewResponseSuccess | analyticsSiteOverviewResponseError)
 
 export const getAnalyticsSiteOverviewUrl = (params?: AnalyticsSiteOverviewParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
+      normalizedParams.append(key, value === null ? 'null' : String(value))
     }
   });
 
-  return normalizedParams.size ? `/v1/analytics/site-overview?${normalizedParams.toString()}` : `/v1/analytics/site-overview`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/analytics/site-overview?${stringifiedParams}` : `/v1/analytics/site-overview`
 }
 
+/**
+ * @summary Story 47.4 — operator analytics: public-site overview from the aggregate rollups — unique sessions per day, top-5 pages, and top-5 referrer domains over the selected window. Privacy-safe (no raw per-visitor rows). Operator-scoped; not gated by X-Anseo-Project. No MCP parity (operator-internal, not agent-facing).
+ */
 export const analyticsSiteOverview = async (params?: AnalyticsSiteOverviewParams, options?: RequestInit): Promise<analyticsSiteOverviewResponse> => {
-  
-  return fetchClient<Promise<analyticsSiteOverviewResponse>>(getAnalyticsSiteOverviewUrl(params),
-  {      
+
+  return fetchClient<analyticsSiteOverviewResponse>(getAnalyticsSiteOverviewUrl(params),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Roadmap Epic 32 — crawl a URL/sitemap and score citation-readiness against in-tree heuristics (Identity, Extractability, Corroboration). Optional CI-gate thresholds.
- */
-export type runAuditResponse = {
-  data: AuditReport;
-  status: number;
+export type runAuditResponse200 = {
+  data: AuditReport
+  status: 200
 }
 
+export type runAuditResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type runAuditResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type runAuditResponse502 = {
+  data: Error
+  status: 502
+}
+
+export type runAuditResponseSuccess = (runAuditResponse200) & {
+  headers: Headers;
+};
+export type runAuditResponseError = (runAuditResponse400 | runAuditResponse401 | runAuditResponse502) & {
+  headers: Headers;
+};
+
+export type runAuditResponse = (runAuditResponseSuccess | runAuditResponseError)
+
 export const getRunAuditUrl = () => {
+
+
 
 
   return `/v1/audit`
 }
 
+/**
+ * @summary Roadmap Epic 32 — crawl a URL/sitemap and score citation-readiness against in-tree heuristics (Identity, Extractability, Corroboration). Optional CI-gate thresholds.
+ */
 export const runAudit = async (auditRequest: AuditRequest, options?: RequestInit): Promise<runAuditResponse> => {
-  
-  return fetchClient<Promise<runAuditResponse>>(getRunAuditUrl(),
-  {      
+
+  return fetchClient<runAuditResponse>(getRunAuditUrl(),
+  {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      auditRequest,)
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(auditRequest)
   }
 );}
 
 
 
-/**
- * @summary Roadmap Epic 32 — persisted site-audit history for the project, newest first.
- */
-export type listAuditRunsResponse = {
-  data: AuditRunList;
-  status: number;
+export type listAuditRunsResponse200 = {
+  data: AuditRunList
+  status: 200
 }
+
+export type listAuditRunsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type listAuditRunsResponseSuccess = (listAuditRunsResponse200) & {
+  headers: Headers;
+};
+export type listAuditRunsResponseError = (listAuditRunsResponse401) & {
+  headers: Headers;
+};
+
+export type listAuditRunsResponse = (listAuditRunsResponseSuccess | listAuditRunsResponseError)
 
 export const getListAuditRunsUrl = (params?: ListAuditRunsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
+      normalizedParams.append(key, value === null ? 'null' : String(value))
     }
   });
 
-  return normalizedParams.size ? `/v1/audit/runs?${normalizedParams.toString()}` : `/v1/audit/runs`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/audit/runs?${stringifiedParams}` : `/v1/audit/runs`
 }
 
+/**
+ * @summary Roadmap Epic 32 — persisted site-audit history for the project, newest first.
+ */
 export const listAuditRuns = async (params?: ListAuditRunsParams, options?: RequestInit): Promise<listAuditRunsResponse> => {
-  
-  return fetchClient<Promise<listAuditRunsResponse>>(getListAuditRunsUrl(params),
-  {      
+
+  return fetchClient<listAuditRunsResponse>(getListAuditRunsUrl(params),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-export type citationSummaryResponse = {
-  data: CitationSummaryResponse;
-  status: number;
+export type citationSummaryResponse200 = {
+  data: CitationSummaryResponse
+  status: 200
 }
+
+export type citationSummaryResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type citationSummaryResponseSuccess = (citationSummaryResponse200) & {
+  headers: Headers;
+};
+export type citationSummaryResponseError = (citationSummaryResponse401) & {
+  headers: Headers;
+};
+
+export type citationSummaryResponse = (citationSummaryResponseSuccess | citationSummaryResponseError)
 
 export const getCitationSummaryUrl = (params?: CitationSummaryParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
+      normalizedParams.append(key, value === null ? 'null' : String(value))
     }
   });
 
-  return normalizedParams.size ? `/v1/citations/summary?${normalizedParams.toString()}` : `/v1/citations/summary`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/citations/summary?${stringifiedParams}` : `/v1/citations/summary`
 }
 
 export const citationSummary = async (params?: CitationSummaryParams, options?: RequestInit): Promise<citationSummaryResponse> => {
-  
-  return fetchClient<Promise<citationSummaryResponse>>(getCitationSummaryUrl(params),
-  {      
+
+  return fetchClient<citationSummaryResponse>(getCitationSummaryUrl(params),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Phase 3 Story 0.8 — deterministic brand-vs-competitors comparison matrix (substrate for MCP `compare_brands`).
- */
-export type comparisonsResponse = {
-  data: ComparisonsResponse;
-  status: number;
+export type comparisonsResponse200 = {
+  data: ComparisonsResponse
+  status: 200
 }
+
+export type comparisonsResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type comparisonsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type comparisonsResponseSuccess = (comparisonsResponse200) & {
+  headers: Headers;
+};
+export type comparisonsResponseError = (comparisonsResponse400 | comparisonsResponse401) & {
+  headers: Headers;
+};
+
+export type comparisonsResponse = (comparisonsResponseSuccess | comparisonsResponseError)
 
 export const getComparisonsUrl = (params: ComparisonsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
+      normalizedParams.append(key, value === null ? 'null' : String(value))
     }
   });
 
-  return normalizedParams.size ? `/v1/comparisons?${normalizedParams.toString()}` : `/v1/comparisons`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/comparisons?${stringifiedParams}` : `/v1/comparisons`
 }
 
+/**
+ * @summary Phase 3 Story 0.8 — deterministic brand-vs-competitors comparison matrix (substrate for MCP `compare_brands`).
+ */
 export const comparisons = async (params: ComparisonsParams, options?: RequestInit): Promise<comparisonsResponse> => {
-  
-  return fetchClient<Promise<comparisonsResponse>>(getComparisonsUrl(params),
-  {      
+
+  return fetchClient<comparisonsResponse>(getComparisonsUrl(params),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Roadmap Epic 31 — ingest raw web-server access-log lines, normalize + verify bot identity, and write crawler events for this project.
- */
-export type crawlerIngestResponse = {
-  data: CrawlerIngestResult;
-  status: number;
+export type crawlerIngestResponse200 = {
+  data: CrawlerIngestResult
+  status: 200
 }
 
+export type crawlerIngestResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type crawlerIngestResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type crawlerIngestResponseSuccess = (crawlerIngestResponse200) & {
+  headers: Headers;
+};
+export type crawlerIngestResponseError = (crawlerIngestResponse400 | crawlerIngestResponse401) & {
+  headers: Headers;
+};
+
+export type crawlerIngestResponse = (crawlerIngestResponseSuccess | crawlerIngestResponseError)
+
 export const getCrawlerIngestUrl = () => {
+
+
 
 
   return `/v1/crawlers/ingest`
 }
 
+/**
+ * @summary Roadmap Epic 31 — ingest raw web-server access-log lines, normalize + verify bot identity, and write crawler events for this project.
+ */
 export const crawlerIngest = async (crawlerIngestRequest: CrawlerIngestRequest, options?: RequestInit): Promise<crawlerIngestResponse> => {
-  
-  return fetchClient<Promise<crawlerIngestResponse>>(getCrawlerIngestUrl(),
-  {      
+
+  return fetchClient<crawlerIngestResponse>(getCrawlerIngestUrl(),
+  {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      crawlerIngestRequest,)
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(crawlerIngestRequest)
   }
 );}
 
 
 
-/**
- * @summary Roadmap Epic 31 — crawler frequency, top paths, stuck/error pages, and trend. Verified-only by default.
- */
-export type crawlerMetricsResponse = {
-  data: CrawlerMetricsResponse;
-  status: number;
+export type crawlerMetricsResponse200 = {
+  data: CrawlerMetricsResponse
+  status: 200
 }
+
+export type crawlerMetricsResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type crawlerMetricsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type crawlerMetricsResponseSuccess = (crawlerMetricsResponse200) & {
+  headers: Headers;
+};
+export type crawlerMetricsResponseError = (crawlerMetricsResponse400 | crawlerMetricsResponse401) & {
+  headers: Headers;
+};
+
+export type crawlerMetricsResponse = (crawlerMetricsResponseSuccess | crawlerMetricsResponseError)
 
 export const getCrawlerMetricsUrl = (params?: CrawlerMetricsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
+      normalizedParams.append(key, value === null ? 'null' : String(value))
     }
   });
 
-  return normalizedParams.size ? `/v1/crawlers/metrics?${normalizedParams.toString()}` : `/v1/crawlers/metrics`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/crawlers/metrics?${stringifiedParams}` : `/v1/crawlers/metrics`
 }
 
+/**
+ * @summary Roadmap Epic 31 — crawler frequency, top paths, stuck/error pages, and trend. Verified-only by default.
+ */
 export const crawlerMetrics = async (params?: CrawlerMetricsParams, options?: RequestInit): Promise<crawlerMetricsResponse> => {
-  
-  return fetchClient<Promise<crawlerMetricsResponse>>(getCrawlerMetricsUrl(params),
-  {      
+
+  return fetchClient<crawlerMetricsResponse>(getCrawlerMetricsUrl(params),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Roadmap Epic 33 — crawl-to-refer ratio by verified bot, degraded to crawls_only until referral attribution exists.
- */
-export type crawlerRatioResponse = {
-  data: CrawlReferReport;
-  status: number;
+export type crawlerRatioResponse200 = {
+  data: CrawlReferReport
+  status: 200
 }
+
+export type crawlerRatioResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type crawlerRatioResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type crawlerRatioResponseSuccess = (crawlerRatioResponse200) & {
+  headers: Headers;
+};
+export type crawlerRatioResponseError = (crawlerRatioResponse400 | crawlerRatioResponse401) & {
+  headers: Headers;
+};
+
+export type crawlerRatioResponse = (crawlerRatioResponseSuccess | crawlerRatioResponseError)
 
 export const getCrawlerRatioUrl = (params?: CrawlerRatioParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
+      normalizedParams.append(key, value === null ? 'null' : String(value))
     }
   });
 
-  return normalizedParams.size ? `/v1/crawlers/ratio?${normalizedParams.toString()}` : `/v1/crawlers/ratio`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/crawlers/ratio?${stringifiedParams}` : `/v1/crawlers/ratio`
 }
 
+/**
+ * @summary Roadmap Epic 33 — crawl-to-refer ratio by verified bot, degraded to crawls_only until referral attribution exists.
+ */
 export const crawlerRatio = async (params?: CrawlerRatioParams, options?: RequestInit): Promise<crawlerRatioResponse> => {
-  
-  return fetchClient<Promise<crawlerRatioResponse>>(getCrawlerRatioUrl(params),
-  {      
+
+  return fetchClient<crawlerRatioResponse>(getCrawlerRatioUrl(params),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Roadmap Epic 31 — Grafana JSON datasource query for crawler trends.
- */
-export type grafanaCrawlerQueryResponse = {
-  data: GrafanaCrawlerSeries[];
-  status: number;
+export type grafanaCrawlerQueryResponse200 = {
+  data: GrafanaCrawlerSeries[]
+  status: 200
 }
 
+export type grafanaCrawlerQueryResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type grafanaCrawlerQueryResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type grafanaCrawlerQueryResponseSuccess = (grafanaCrawlerQueryResponse200) & {
+  headers: Headers;
+};
+export type grafanaCrawlerQueryResponseError = (grafanaCrawlerQueryResponse400 | grafanaCrawlerQueryResponse401) & {
+  headers: Headers;
+};
+
+export type grafanaCrawlerQueryResponse = (grafanaCrawlerQueryResponseSuccess | grafanaCrawlerQueryResponseError)
+
 export const getGrafanaCrawlerQueryUrl = () => {
+
+
 
 
   return `/v1/grafana/crawlers/query`
 }
 
+/**
+ * @summary Roadmap Epic 31 — Grafana JSON datasource query for crawler trends.
+ */
 export const grafanaCrawlerQuery = async (grafanaCrawlerQuery: GrafanaCrawlerQuery, options?: RequestInit): Promise<grafanaCrawlerQueryResponse> => {
-  
-  return fetchClient<Promise<grafanaCrawlerQueryResponse>>(getGrafanaCrawlerQueryUrl(),
-  {      
+
+  return fetchClient<grafanaCrawlerQueryResponse>(getGrafanaCrawlerQueryUrl(),
+  {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      grafanaCrawlerQuery,)
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(grafanaCrawlerQuery)
   }
 );}
 
 
 
-/**
- * @summary Health probe
- */
-export type healthzResponse = {
-  data: string;
-  status: number;
+export type healthzResponse200 = {
+  data: string
+  status: 200
 }
 
+export type healthzResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type healthzResponseSuccess = (healthzResponse200) & {
+  headers: Headers;
+};
+export type healthzResponseError = (healthzResponse401) & {
+  headers: Headers;
+};
+
+export type healthzResponse = (healthzResponseSuccess | healthzResponseError)
+
 export const getHealthzUrl = () => {
+
+
 
 
   return `/v1/healthz`
 }
 
+/**
+ * @summary Health probe
+ */
 export const healthz = async ( options?: RequestInit): Promise<healthzResponse> => {
-  
-  return fetchClient<Promise<healthzResponse>>(getHealthzUrl(),
-  {      
+
+  return fetchClient<healthzResponse>(getHealthzUrl(),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * Records a prompt run executed against a provider OUTSIDE Anseo's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-Anseo-Project header and returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).
- * @summary Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-sealed-contribution path as native runs.
- */
-export type ingestExternalRunResponse = {
-  data: IngestRunResponse;
-  status: number;
+export type ingestExternalRunResponse202 = {
+  data: IngestRunResponse
+  status: 202
 }
 
+export type ingestExternalRunResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type ingestExternalRunResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type ingestExternalRunResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type ingestExternalRunResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type ingestExternalRunResponse422 = {
+  data: Error
+  status: 422
+}
+
+export type ingestExternalRunResponseSuccess = (ingestExternalRunResponse202) & {
+  headers: Headers;
+};
+export type ingestExternalRunResponseError = (ingestExternalRunResponse400 | ingestExternalRunResponse401 | ingestExternalRunResponse403 | ingestExternalRunResponse404 | ingestExternalRunResponse422) & {
+  headers: Headers;
+};
+
+export type ingestExternalRunResponse = (ingestExternalRunResponseSuccess | ingestExternalRunResponseError)
+
 export const getIngestExternalRunUrl = () => {
+
+
 
 
   return `/v1/ingest/run`
 }
 
+/**
+ * Records a prompt run executed against a provider OUTSIDE Anseo's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-Anseo-Project header and returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).
+ * @summary Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-sealed-contribution path as native runs.
+ */
 export const ingestExternalRun = async (ingestRunRequest: IngestRunRequest, options?: RequestInit): Promise<ingestExternalRunResponse> => {
-  
-  return fetchClient<Promise<ingestExternalRunResponse>>(getIngestExternalRunUrl(),
-  {      
+
+  return fetchClient<ingestExternalRunResponse>(getIngestExternalRunUrl(),
+  {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      ingestRunRequest,)
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(ingestRunRequest)
   }
 );}
 
 
 
-/**
- * @summary Story 41.2 — list installed plugins with their runtime activation status (loaded | skipped | load_error), as resolved at serve boot. Operator-scoped; not gated by X-Anseo-Project.
- */
-export type listPluginsResponse = {
-  data: PluginStatus[];
-  status: number;
+export type listPluginsResponse200 = {
+  data: PluginStatus[]
+  status: 200
 }
 
+export type listPluginsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type listPluginsResponseSuccess = (listPluginsResponse200) & {
+  headers: Headers;
+};
+export type listPluginsResponseError = (listPluginsResponse401) & {
+  headers: Headers;
+};
+
+export type listPluginsResponse = (listPluginsResponseSuccess | listPluginsResponseError)
+
 export const getListPluginsUrl = () => {
+
+
 
 
   return `/v1/plugins`
 }
 
+/**
+ * @summary Story 41.2 — list installed plugins with their runtime activation status (loaded | skipped | load_error), as resolved at serve boot. Operator-scoped; not gated by X-Anseo-Project.
+ */
 export const listPlugins = async ( options?: RequestInit): Promise<listPluginsResponse> => {
-  
-  return fetchClient<Promise<listPluginsResponse>>(getListPluginsUrl(),
-  {      
+
+  return fetchClient<listPluginsResponse>(getListPluginsUrl(),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Story 41.3 — live plugin registry catalog merged with installed state (drives the dashboard /marketplace page). Degrades to an empty list when the registry is offline so the UI renders its zero-state. Operator-scoped; not gated by X-Anseo-Project.
- */
-export type listMarketplacePluginsResponse = {
-  data: ListMarketplacePlugins200;
-  status: number;
+export type listMarketplacePluginsResponse200 = {
+  data: ListMarketplacePlugins200
+  status: 200
 }
 
+export type listMarketplacePluginsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type listMarketplacePluginsResponseSuccess = (listMarketplacePluginsResponse200) & {
+  headers: Headers;
+};
+export type listMarketplacePluginsResponseError = (listMarketplacePluginsResponse401) & {
+  headers: Headers;
+};
+
+export type listMarketplacePluginsResponse = (listMarketplacePluginsResponseSuccess | listMarketplacePluginsResponseError)
+
 export const getListMarketplacePluginsUrl = () => {
+
+
 
 
   return `/v1/marketplace/plugins`
 }
 
+/**
+ * @summary Story 41.3 — live plugin registry catalog merged with installed state (drives the dashboard /marketplace page). Degrades to an empty list when the registry is offline so the UI renders its zero-state. Operator-scoped; not gated by X-Anseo-Project.
+ */
 export const listMarketplacePlugins = async ( options?: RequestInit): Promise<listMarketplacePluginsResponse> => {
-  
-  return fetchClient<Promise<listMarketplacePluginsResponse>>(getListMarketplacePluginsUrl(),
-  {      
+
+  return fetchClient<listMarketplacePluginsResponse>(getListMarketplacePluginsUrl(),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Story 41.3 — verify (checksum + Ed25519 signature) and record a plugin install from the live registry by id. Operator-scoped; not gated by X-Anseo-Project.
- */
-export type installPluginResponse = {
-  data: InstallPlugin200;
-  status: number;
+export type installPluginResponse200 = {
+  data: InstallPlugin200
+  status: 200
 }
 
+export type installPluginResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type installPluginResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type installPluginResponseSuccess = (installPluginResponse200) & {
+  headers: Headers;
+};
+export type installPluginResponseError = (installPluginResponse401 | installPluginResponse404) & {
+  headers: Headers;
+};
+
+export type installPluginResponse = (installPluginResponseSuccess | installPluginResponseError)
+
 export const getInstallPluginUrl = () => {
+
+
 
 
   return `/v1/plugins/install`
 }
 
+/**
+ * @summary Story 41.3 — verify (checksum + Ed25519 signature) and record a plugin install from the live registry by id. Operator-scoped; not gated by X-Anseo-Project.
+ */
 export const installPlugin = async (installPluginBody: InstallPluginBody, options?: RequestInit): Promise<installPluginResponse> => {
-  
-  return fetchClient<Promise<installPluginResponse>>(getInstallPluginUrl(),
-  {      
+
+  return fetchClient<installPluginResponse>(getInstallPluginUrl(),
+  {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      installPluginBody,)
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(installPluginBody)
   }
 );}
 
 
 
-/**
- * @summary Story 41.3 — soft-remove an installed plugin (worker unloads on next restart). Operator-scoped; not gated by X-Anseo-Project.
- */
-export type removePluginResponse = {
-  data: void;
-  status: number;
+export type removePluginResponse204 = {
+  data: void
+  status: 204
 }
+
+export type removePluginResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type removePluginResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type removePluginResponseSuccess = (removePluginResponse204) & {
+  headers: Headers;
+};
+export type removePluginResponseError = (removePluginResponse401 | removePluginResponse404) & {
+  headers: Headers;
+};
+
+export type removePluginResponse = (removePluginResponseSuccess | removePluginResponseError)
 
 export const getRemovePluginUrl = (id: string,) => {
 
 
-  return `/v1/plugins/${id}`
+
+
+  return `/v1/plugins/${encodeURIComponent(String(id))}`
 }
 
+/**
+ * @summary Story 41.3 — soft-remove an installed plugin (worker unloads on next restart). Operator-scoped; not gated by X-Anseo-Project.
+ */
 export const removePlugin = async (id: string, options?: RequestInit): Promise<removePluginResponse> => {
-  
-  return fetchClient<Promise<removePluginResponse>>(getRemovePluginUrl(id),
-  {      
+
+  return fetchClient<removePluginResponse>(getRemovePluginUrl(id),
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Story 41.3 — re-install the registry-current version of a plugin (no semver resolution; the registry declares the current version). Operator-scoped; not gated by X-Anseo-Project.
- */
-export type upgradePluginResponse = {
-  data: UpgradePlugin200;
-  status: number;
+export type upgradePluginResponse200 = {
+  data: UpgradePlugin200
+  status: 200
 }
+
+export type upgradePluginResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type upgradePluginResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type upgradePluginResponseSuccess = (upgradePluginResponse200) & {
+  headers: Headers;
+};
+export type upgradePluginResponseError = (upgradePluginResponse401 | upgradePluginResponse404) & {
+  headers: Headers;
+};
+
+export type upgradePluginResponse = (upgradePluginResponseSuccess | upgradePluginResponseError)
 
 export const getUpgradePluginUrl = (id: string,) => {
 
 
-  return `/v1/plugins/${id}/upgrade`
+
+
+  return `/v1/plugins/${encodeURIComponent(String(id))}/upgrade`
 }
 
+/**
+ * @summary Story 41.3 — re-install the registry-current version of a plugin (no semver resolution; the registry declares the current version). Operator-scoped; not gated by X-Anseo-Project.
+ */
 export const upgradePlugin = async (id: string, options?: RequestInit): Promise<upgradePluginResponse> => {
-  
-  return fetchClient<Promise<upgradePluginResponse>>(getUpgradePluginUrl(id),
-  {      
+
+  return fetchClient<upgradePluginResponse>(getUpgradePluginUrl(id),
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary List active (non-archived) projects. Operator-scoped; not gated by X-Anseo-Project.
- */
-export type listProjectsResponse = {
-  data: ProjectListResponse;
-  status: number;
+export type listProjectsResponse200 = {
+  data: ProjectListResponse
+  status: 200
 }
+
+export type listProjectsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type listProjectsResponseSuccess = (listProjectsResponse200) & {
+  headers: Headers;
+};
+export type listProjectsResponseError = (listProjectsResponse401) & {
+  headers: Headers;
+};
+
+export type listProjectsResponse = (listProjectsResponseSuccess | listProjectsResponseError)
 
 export const getListProjectsUrl = () => {
 
 
+
+
   return `/v1/projects`
 }
 
+/**
+ * @summary List active (non-archived) projects. Operator-scoped; not gated by X-Anseo-Project.
+ */
 export const listProjects = async ( options?: RequestInit): Promise<listProjectsResponse> => {
-  
-  return fetchClient<Promise<listProjectsResponse>>(getListProjectsUrl(),
-  {      
+
+  return fetchClient<listProjectsResponse>(getListProjectsUrl(),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Create a project from a brand. project_id is derived from the name and returned.
- */
-export type createProjectResponse = {
-  data: CreateProjectResponse;
-  status: number;
+export type createProjectResponse201 = {
+  data: CreateProjectResponse
+  status: 201
 }
+
+export type createProjectResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type createProjectResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type createProjectResponse409 = {
+  data: Error
+  status: 409
+}
+
+export type createProjectResponseSuccess = (createProjectResponse201) & {
+  headers: Headers;
+};
+export type createProjectResponseError = (createProjectResponse400 | createProjectResponse401 | createProjectResponse409) & {
+  headers: Headers;
+};
+
+export type createProjectResponse = (createProjectResponseSuccess | createProjectResponseError)
 
 export const getCreateProjectUrl = () => {
 
 
+
+
   return `/v1/projects`
 }
 
+/**
+ * @summary Create a project from a brand. project_id is derived from the name and returned.
+ */
 export const createProject = async (createProjectRequest: CreateProjectRequest, options?: RequestInit): Promise<createProjectResponse> => {
-  
-  return fetchClient<Promise<createProjectResponse>>(getCreateProjectUrl(),
-  {      
+
+  return fetchClient<createProjectResponse>(getCreateProjectUrl(),
+  {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      createProjectRequest,)
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createProjectRequest)
   }
 );}
 
 
 
-/**
- * @summary Fetch a single project by id.
- */
-export type getProjectResponse = {
-  data: ProjectView;
-  status: number;
+export type getProjectResponse200 = {
+  data: ProjectView
+  status: 200
 }
+
+export type getProjectResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type getProjectResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type getProjectResponseSuccess = (getProjectResponse200) & {
+  headers: Headers;
+};
+export type getProjectResponseError = (getProjectResponse401 | getProjectResponse404) & {
+  headers: Headers;
+};
+
+export type getProjectResponse = (getProjectResponseSuccess | getProjectResponseError)
 
 export const getGetProjectUrl = (id: string,) => {
 
 
-  return `/v1/projects/${id}`
+
+
+  return `/v1/projects/${encodeURIComponent(String(id))}`
 }
 
+/**
+ * @summary Fetch a single project by id.
+ */
 export const getProject = async (id: string, options?: RequestInit): Promise<getProjectResponse> => {
-  
-  return fetchClient<Promise<getProjectResponse>>(getGetProjectUrl(id),
-  {      
+
+  return fetchClient<getProjectResponse>(getGetProjectUrl(id),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Soft-delete a project (idempotent). It drops out of the list but its data is preserved.
- */
-export type archiveProjectResponse = {
-  data: void;
-  status: number;
+export type archiveProjectResponse204 = {
+  data: void
+  status: 204
 }
+
+export type archiveProjectResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type archiveProjectResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type archiveProjectResponseSuccess = (archiveProjectResponse204) & {
+  headers: Headers;
+};
+export type archiveProjectResponseError = (archiveProjectResponse401 | archiveProjectResponse404) & {
+  headers: Headers;
+};
+
+export type archiveProjectResponse = (archiveProjectResponseSuccess | archiveProjectResponseError)
 
 export const getArchiveProjectUrl = (id: string,) => {
 
 
-  return `/v1/projects/${id}/archive`
+
+
+  return `/v1/projects/${encodeURIComponent(String(id))}/archive`
 }
 
+/**
+ * @summary Soft-delete a project (idempotent). It drops out of the list but its data is preserved.
+ */
 export const archiveProject = async (id: string, options?: RequestInit): Promise<archiveProjectResponse> => {
-  
-  return fetchClient<Promise<archiveProjectResponse>>(getArchiveProjectUrl(id),
-  {      
+
+  return fetchClient<archiveProjectResponse>(getArchiveProjectUrl(id),
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Server-Sent Events stream of ARCH-17 lifecycle events for one project.
- */
-export type subscribeEventsResponse = {
-  data: unknown;
-  status: number;
+export type subscribeEventsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
 }
+
+export type subscribeEventsResponse403 = {
+  data: Error
+  status: 403
+}
+
+;
+export type subscribeEventsResponseError = (subscribeEventsResponse401 | subscribeEventsResponse403) & {
+  headers: Headers;
+};
+
+export type subscribeEventsResponse = (subscribeEventsResponseError)
 
 export const getSubscribeEventsUrl = (projectId: string,) => {
 
 
-  return `/v1/projects/${projectId}/events`
+
+
+  return `/v1/projects/${encodeURIComponent(String(projectId))}/events`
 }
 
+/**
+ * @summary Server-Sent Events stream of ARCH-17 lifecycle events for one project.
+ */
 export const subscribeEvents = async (projectId: string, options?: RequestInit): Promise<subscribeEventsResponse> => {
-  
-  return fetchClient<Promise<subscribeEventsResponse>>(getSubscribeEventsUrl(projectId),
-  {      
+
+  return fetchClient<subscribeEventsResponse>(getSubscribeEventsUrl(projectId),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Dispatch a one-shot prompt run for an already-declared Prompt and Provider.
- */
-export type createPromptRunResponse = {
-  data: CreatePromptRunResponse;
-  status: number;
+export type createPromptRunResponse202 = {
+  data: CreatePromptRunResponse
+  status: 202
 }
 
+export type createPromptRunResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type createPromptRunResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type createPromptRunResponseSuccess = (createPromptRunResponse202) & {
+  headers: Headers;
+};
+export type createPromptRunResponseError = (createPromptRunResponse400 | createPromptRunResponse401) & {
+  headers: Headers;
+};
+
+export type createPromptRunResponse = (createPromptRunResponseSuccess | createPromptRunResponseError)
+
 export const getCreatePromptRunUrl = () => {
+
+
 
 
   return `/v1/prompt-runs`
 }
 
+/**
+ * @summary Dispatch a one-shot prompt run for an already-declared Prompt and Provider.
+ */
 export const createPromptRun = async (createPromptRunRequest: CreatePromptRunRequest, options?: RequestInit): Promise<createPromptRunResponse> => {
-  
-  return fetchClient<Promise<createPromptRunResponse>>(getCreatePromptRunUrl(),
-  {      
+
+  return fetchClient<createPromptRunResponse>(getCreatePromptRunUrl(),
+  {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      createPromptRunRequest,)
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPromptRunRequest)
   }
 );}
 
 
 
-/**
- * @summary Story 19.6 — cursor-paginated active recommendations for the project, newest first.
- */
-export type listRecommendationsResponse = {
-  data: RecommendationListResponse;
-  status: number;
+export type listRecommendationsResponse200 = {
+  data: RecommendationListResponse
+  status: 200
 }
+
+export type listRecommendationsResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type listRecommendationsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type listRecommendationsResponseSuccess = (listRecommendationsResponse200) & {
+  headers: Headers;
+};
+export type listRecommendationsResponseError = (listRecommendationsResponse400 | listRecommendationsResponse401) & {
+  headers: Headers;
+};
+
+export type listRecommendationsResponse = (listRecommendationsResponseSuccess | listRecommendationsResponseError)
 
 export const getListRecommendationsUrl = (params?: ListRecommendationsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
+      normalizedParams.append(key, value === null ? 'null' : String(value))
     }
   });
 
-  return normalizedParams.size ? `/v1/recommendations?${normalizedParams.toString()}` : `/v1/recommendations`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/recommendations?${stringifiedParams}` : `/v1/recommendations`
 }
 
+/**
+ * @summary Story 19.6 — cursor-paginated active recommendations for the project, newest first.
+ */
 export const listRecommendations = async (params?: ListRecommendationsParams, options?: RequestInit): Promise<listRecommendationsResponse> => {
-  
-  return fetchClient<Promise<listRecommendationsResponse>>(getListRecommendationsUrl(params),
-  {      
+
+  return fetchClient<listRecommendationsResponse>(getListRecommendationsUrl(params),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Story 19.6 — assemble an EngineInput from the project's live prompts/runs/citations, run the in-process engine, and persist the result. Returns 202 + a status_url per the Phase 2 async-write pattern.
- */
-export type generateRecommendationsResponse = {
-  data: GenerateRecommendationsAccepted;
-  status: number;
+export type generateRecommendationsResponse202 = {
+  data: GenerateRecommendationsAccepted
+  status: 202
 }
 
+export type generateRecommendationsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type generateRecommendationsResponse503 = {
+  data: Error
+  status: 503
+}
+
+export type generateRecommendationsResponseSuccess = (generateRecommendationsResponse202) & {
+  headers: Headers;
+};
+export type generateRecommendationsResponseError = (generateRecommendationsResponse401 | generateRecommendationsResponse503) & {
+  headers: Headers;
+};
+
+export type generateRecommendationsResponse = (generateRecommendationsResponseSuccess | generateRecommendationsResponseError)
+
 export const getGenerateRecommendationsUrl = () => {
+
+
 
 
   return `/v1/recommendations/generate`
 }
 
+/**
+ * @summary Story 19.6 — assemble an EngineInput from the project's live prompts/runs/citations, run the in-process engine, and persist the result. Returns 202 + a status_url per the Phase 2 async-write pattern.
+ */
 export const generateRecommendations = async ( options?: RequestInit): Promise<generateRecommendationsResponse> => {
-  
-  return fetchClient<Promise<generateRecommendationsResponse>>(getGenerateRecommendationsUrl(),
-  {      
+
+  return fetchClient<generateRecommendationsResponse>(getGenerateRecommendationsUrl(),
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Story 19.5+ — per-kind adoption: surfaced / acted / dismissed counts (the what-works-vs-what-doesn't loop). First-party only.
- */
-export type recommendationIntelligenceResponse = {
-  data: RecommendationIntelligence;
-  status: number;
+export type recommendationIntelligenceResponse200 = {
+  data: RecommendationIntelligence
+  status: 200
 }
 
+export type recommendationIntelligenceResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type recommendationIntelligenceResponseSuccess = (recommendationIntelligenceResponse200) & {
+  headers: Headers;
+};
+export type recommendationIntelligenceResponseError = (recommendationIntelligenceResponse401) & {
+  headers: Headers;
+};
+
+export type recommendationIntelligenceResponse = (recommendationIntelligenceResponseSuccess | recommendationIntelligenceResponseError)
+
 export const getRecommendationIntelligenceUrl = () => {
+
+
 
 
   return `/v1/recommendations/intelligence`
 }
 
+/**
+ * @summary Story 19.5+ — per-kind adoption: surfaced / acted / dismissed counts (the what-works-vs-what-doesn't loop). First-party only.
+ */
 export const recommendationIntelligence = async ( options?: RequestInit): Promise<recommendationIntelligenceResponse> => {
-  
-  return fetchClient<Promise<recommendationIntelligenceResponse>>(getRecommendationIntelligenceUrl(),
-  {      
+
+  return fetchClient<recommendationIntelligenceResponse>(getRecommendationIntelligenceUrl(),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Story 19.5 — SM-14 adoption metric for the project (Acted∨Measured / Surfaced∨later, first-party Kinds only).
- */
-export type recommendationMetricsResponse = {
-  data: Sm14MetricResponse;
-  status: number;
+export type recommendationMetricsResponse200 = {
+  data: Sm14MetricResponse
+  status: 200
 }
 
+export type recommendationMetricsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type recommendationMetricsResponseSuccess = (recommendationMetricsResponse200) & {
+  headers: Headers;
+};
+export type recommendationMetricsResponseError = (recommendationMetricsResponse401) & {
+  headers: Headers;
+};
+
+export type recommendationMetricsResponse = (recommendationMetricsResponseSuccess | recommendationMetricsResponseError)
+
 export const getRecommendationMetricsUrl = () => {
+
+
 
 
   return `/v1/recommendations/metrics`
 }
 
+/**
+ * @summary Story 19.5 — SM-14 adoption metric for the project (Acted∨Measured / Surfaced∨later, first-party Kinds only).
+ */
 export const recommendationMetrics = async ( options?: RequestInit): Promise<recommendationMetricsResponse> => {
-  
-  return fetchClient<Promise<recommendationMetricsResponse>>(getRecommendationMetricsUrl(),
-  {      
+
+  return fetchClient<recommendationMetricsResponse>(getRecommendationMetricsUrl(),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Story 19.6 — one recommendation + full traceability. 404 when the row is absent or owned by another project.
- */
-export type getRecommendationResponse = {
-  data: Recommendation;
-  status: number;
+export type getRecommendationResponse200 = {
+  data: Recommendation
+  status: 200
 }
+
+export type getRecommendationResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type getRecommendationResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type getRecommendationResponseSuccess = (getRecommendationResponse200) & {
+  headers: Headers;
+};
+export type getRecommendationResponseError = (getRecommendationResponse401 | getRecommendationResponse404) & {
+  headers: Headers;
+};
+
+export type getRecommendationResponse = (getRecommendationResponseSuccess | getRecommendationResponseError)
 
 export const getGetRecommendationUrl = (id: string,) => {
 
 
-  return `/v1/recommendations/${id}`
+
+
+  return `/v1/recommendations/${encodeURIComponent(String(id))}`
 }
 
+/**
+ * @summary Story 19.6 — one recommendation + full traceability. 404 when the row is absent or owned by another project.
+ */
 export const getRecommendation = async (id: string, options?: RequestInit): Promise<getRecommendationResponse> => {
-  
-  return fetchClient<Promise<getRecommendationResponse>>(getGetRecommendationUrl(id),
-  {      
+
+  return fetchClient<getRecommendationResponse>(getGetRecommendationUrl(id),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Story 19.6 — apply a lifecycle transition (Story 19.4 state machine). Illegal transitions return 409.
- */
-export type transitionRecommendationResponse = {
-  data: TransitionRecommendationResponse;
-  status: number;
+export type transitionRecommendationResponse200 = {
+  data: TransitionRecommendationResponse
+  status: 200
 }
+
+export type transitionRecommendationResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type transitionRecommendationResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type transitionRecommendationResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type transitionRecommendationResponse409 = {
+  data: Error
+  status: 409
+}
+
+export type transitionRecommendationResponseSuccess = (transitionRecommendationResponse200) & {
+  headers: Headers;
+};
+export type transitionRecommendationResponseError = (transitionRecommendationResponse400 | transitionRecommendationResponse401 | transitionRecommendationResponse404 | transitionRecommendationResponse409) & {
+  headers: Headers;
+};
+
+export type transitionRecommendationResponse = (transitionRecommendationResponseSuccess | transitionRecommendationResponseError)
 
 export const getTransitionRecommendationUrl = (id: string,) => {
 
 
-  return `/v1/recommendations/${id}/state`
+
+
+  return `/v1/recommendations/${encodeURIComponent(String(id))}/state`
 }
 
+/**
+ * @summary Story 19.6 — apply a lifecycle transition (Story 19.4 state machine). Illegal transitions return 409.
+ */
 export const transitionRecommendation = async (id: string,
     transitionRecommendationRequest: TransitionRecommendationRequest, options?: RequestInit): Promise<transitionRecommendationResponse> => {
-  
-  return fetchClient<Promise<transitionRecommendationResponse>>(getTransitionRecommendationUrl(id),
-  {      
+
+  return fetchClient<transitionRecommendationResponse>(getTransitionRecommendationUrl(id),
+  {
     ...options,
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      transitionRecommendationRequest,)
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(transitionRecommendationRequest)
   }
 );}
 
 
 
-/**
- * @summary List recent Prompt Runs
- */
-export type listRunsResponse = {
-  data: RunListResponse;
-  status: number;
+export type listRunsResponse200 = {
+  data: RunListResponse
+  status: 200
 }
+
+export type listRunsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type listRunsResponseSuccess = (listRunsResponse200) & {
+  headers: Headers;
+};
+export type listRunsResponseError = (listRunsResponse401) & {
+  headers: Headers;
+};
+
+export type listRunsResponse = (listRunsResponseSuccess | listRunsResponseError)
 
 export const getListRunsUrl = (params?: ListRunsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
+      normalizedParams.append(key, value === null ? 'null' : String(value))
     }
   });
 
-  return normalizedParams.size ? `/v1/runs?${normalizedParams.toString()}` : `/v1/runs`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/runs?${stringifiedParams}` : `/v1/runs`
 }
 
+/**
+ * @summary List recent Prompt Runs
+ */
 export const listRuns = async (params?: ListRunsParams, options?: RequestInit): Promise<listRunsResponse> => {
-  
-  return fetchClient<Promise<listRunsResponse>>(getListRunsUrl(params),
-  {      
+
+  return fetchClient<listRunsResponse>(getListRunsUrl(params),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Read the DB-authoritative brand config (name, variants, competitors, site_url).
- */
-export type getBrandResponse = {
-  data: BrandView;
-  status: number;
+export type getBrandResponse200 = {
+  data: BrandView
+  status: 200
 }
+
+export type getBrandResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type getBrandResponseSuccess = (getBrandResponse200) & {
+  headers: Headers;
+};
+export type getBrandResponseError = (getBrandResponse401) & {
+  headers: Headers;
+};
+
+export type getBrandResponse = (getBrandResponseSuccess | getBrandResponseError)
 
 export const getGetBrandUrl = () => {
 
 
+
+
   return `/v1/setup/brand`
 }
 
+/**
+ * @summary Read the DB-authoritative brand config (name, variants, competitors, site_url).
+ */
 export const getBrand = async ( options?: RequestInit): Promise<getBrandResponse> => {
-  
-  return fetchClient<Promise<getBrandResponse>>(getGetBrandUrl(),
-  {      
+
+  return fetchClient<getBrandResponse>(getGetBrandUrl(),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Update brand config. Changing the name re-derives project_id (allowed only before the first run) and sets restart_required.
- */
-export type updateBrandResponse = {
-  data: BrandUpdateResult;
-  status: number;
+export type updateBrandResponse200 = {
+  data: BrandUpdateResult
+  status: 200
 }
+
+export type updateBrandResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type updateBrandResponse409 = {
+  data: Error
+  status: 409
+}
+
+export type updateBrandResponseSuccess = (updateBrandResponse200) & {
+  headers: Headers;
+};
+export type updateBrandResponseError = (updateBrandResponse401 | updateBrandResponse409) & {
+  headers: Headers;
+};
+
+export type updateBrandResponse = (updateBrandResponseSuccess | updateBrandResponseError)
 
 export const getUpdateBrandUrl = () => {
 
 
+
+
   return `/v1/setup/brand`
 }
 
+/**
+ * @summary Update brand config. Changing the name re-derives project_id (allowed only before the first run) and sets restart_required.
+ */
 export const updateBrand = async (brandUpdate: BrandUpdate, options?: RequestInit): Promise<updateBrandResponse> => {
-  
-  return fetchClient<Promise<updateBrandResponse>>(getUpdateBrandUrl(),
-  {      
+
+  return fetchClient<updateBrandResponse>(getUpdateBrandUrl(),
+  {
     ...options,
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      brandUpdate,)
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(brandUpdate)
   }
 );}
 
 
 
-/**
- * @summary Story 15.1 — kick off (MOCK) ClickHouse local-install state machine. Returns 202 with a ULID and an SSE stream URL. Real Docker calls land in Story 15.3.
- */
-export type clickhouseInstallResponse = {
-  data: ClickHouseInstallAccepted;
-  status: number;
+export type clickhouseInstallResponse202 = {
+  data: ClickHouseInstallAccepted
+  status: 202
 }
 
+export type clickhouseInstallResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type clickhouseInstallResponseSuccess = (clickhouseInstallResponse202) & {
+  headers: Headers;
+};
+export type clickhouseInstallResponseError = (clickhouseInstallResponse401) & {
+  headers: Headers;
+};
+
+export type clickhouseInstallResponse = (clickhouseInstallResponseSuccess | clickhouseInstallResponseError)
+
 export const getClickhouseInstallUrl = () => {
+
+
 
 
   return `/v1/setup/clickhouse/install`
 }
 
+/**
+ * @summary Story 15.1 — kick off (MOCK) ClickHouse local-install state machine. Returns 202 with a ULID and an SSE stream URL. Real Docker calls land in Story 15.3.
+ */
 export const clickhouseInstall = async ( options?: RequestInit): Promise<clickhouseInstallResponse> => {
-  
-  return fetchClient<Promise<clickhouseInstallResponse>>(getClickhouseInstallUrl(),
-  {      
+
+  return fetchClient<clickhouseInstallResponse>(getClickhouseInstallUrl(),
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Story 15.1 — SSE stream of install progress events keyed by `id` (the ULID returned from POST /v1/setup/clickhouse/install). Closes when state reaches `complete` or `failed`.
- */
-export type clickhouseInstallStreamResponse = {
-  data: ClickHouseInstallEvent;
-  status: number;
+export type clickhouseInstallStreamResponse200 = {
+  data: ClickHouseInstallEvent
+  status: 200
 }
+
+export type clickhouseInstallStreamResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type clickhouseInstallStreamResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type clickhouseInstallStreamResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type clickhouseInstallStreamResponseSuccess = (clickhouseInstallStreamResponse200) & {
+  headers: Headers;
+};
+export type clickhouseInstallStreamResponseError = (clickhouseInstallStreamResponse400 | clickhouseInstallStreamResponse401 | clickhouseInstallStreamResponse404) & {
+  headers: Headers;
+};
+
+export type clickhouseInstallStreamResponse = (clickhouseInstallStreamResponseSuccess | clickhouseInstallStreamResponseError)
 
 export const getClickhouseInstallStreamUrl = (params: ClickhouseInstallStreamParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
+      normalizedParams.append(key, value === null ? 'null' : String(value))
     }
   });
 
-  return normalizedParams.size ? `/v1/setup/clickhouse/install-stream?${normalizedParams.toString()}` : `/v1/setup/clickhouse/install-stream`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/setup/clickhouse/install-stream?${stringifiedParams}` : `/v1/setup/clickhouse/install-stream`
 }
 
+/**
+ * @summary Story 15.1 — SSE stream of install progress events keyed by `id` (the ULID returned from POST /v1/setup/clickhouse/install). Closes when state reaches `complete` or `failed`.
+ */
 export const clickhouseInstallStream = async (params: ClickhouseInstallStreamParams, options?: RequestInit): Promise<clickhouseInstallStreamResponse> => {
-  
-  return fetchClient<Promise<clickhouseInstallStreamResponse>>(getClickhouseInstallStreamUrl(params),
-  {      
+
+  return fetchClient<clickhouseInstallStreamResponse>(getClickhouseInstallStreamUrl(params),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Story 15.1 — synchronous status probe across Postgres, ClickHouse, worker, webhook target, API keys, and Docker. Always returns 200; individual sections report `state: "unknown"` on probe failure or timeout.
- */
-export type setupStatusResponse = {
-  data: SetupStatus;
-  status: number;
+export type setupStatusResponse200 = {
+  data: SetupStatus
+  status: 200
 }
 
+export type setupStatusResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type setupStatusResponseSuccess = (setupStatusResponse200) & {
+  headers: Headers;
+};
+export type setupStatusResponseError = (setupStatusResponse401) & {
+  headers: Headers;
+};
+
+export type setupStatusResponse = (setupStatusResponseSuccess | setupStatusResponseError)
+
 export const getSetupStatusUrl = () => {
+
+
 
 
   return `/v1/setup/status`
 }
 
+/**
+ * @summary Story 15.1 — synchronous status probe across Postgres, ClickHouse, worker, webhook target, API keys, and Docker. Always returns 200; individual sections report `state: "unknown"` on probe failure or timeout.
+ */
 export const setupStatus = async ( options?: RequestInit): Promise<setupStatusResponse> => {
-  
-  return fetchClient<Promise<setupStatusResponse>>(getSetupStatusUrl(),
-  {      
+
+  return fetchClient<setupStatusResponse>(getSetupStatusUrl(),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Roadmap Epic 30 — sentiment aggregate under the existing visibility resource.
- */
-export type visibilitySentimentResponse = {
-  data: VisibilitySentimentResponse;
-  status: number;
+export type visibilitySentimentResponse200 = {
+  data: VisibilitySentimentResponse
+  status: 200
 }
+
+export type visibilitySentimentResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type visibilitySentimentResponseSuccess = (visibilitySentimentResponse200) & {
+  headers: Headers;
+};
+export type visibilitySentimentResponseError = (visibilitySentimentResponse401) & {
+  headers: Headers;
+};
+
+export type visibilitySentimentResponse = (visibilitySentimentResponseSuccess | visibilitySentimentResponseError)
 
 export const getVisibilitySentimentUrl = (params?: VisibilitySentimentParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
+      normalizedParams.append(key, value === null ? 'null' : String(value))
     }
   });
 
-  return normalizedParams.size ? `/v1/visibility/sentiment?${normalizedParams.toString()}` : `/v1/visibility/sentiment`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/visibility/sentiment?${stringifiedParams}` : `/v1/visibility/sentiment`
 }
 
+/**
+ * @summary Roadmap Epic 30 — sentiment aggregate under the existing visibility resource.
+ */
 export const visibilitySentiment = async (params?: VisibilitySentimentParams, options?: RequestInit): Promise<visibilitySentimentResponse> => {
-  
-  return fetchClient<Promise<visibilitySentimentResponse>>(getVisibilitySentimentUrl(params),
-  {      
+
+  return fetchClient<visibilitySentimentResponse>(getVisibilitySentimentUrl(params),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
 
 
-/**
- * @summary Story 47.1 — public, unauthenticated privacy-safe site-event ingest. No API key required (the public site posts directly). No PII stored: no IP column, no user IDs; session_id is an ephemeral per-visit UUID. Unknown event_type values are silently dropped with 204 to prevent allowlist enumeration. Rate-limited 60/min per IP at the edge (IP never persisted).
- */
-export type ingestSiteEventResponse = {
-  data: void;
-  status: number;
+export type ingestSiteEventResponse204 = {
+  data: void
+  status: 204
 }
 
+export type ingestSiteEventResponse429 = {
+  data: void
+  status: 429
+}
+
+export type ingestSiteEventResponseSuccess = (ingestSiteEventResponse204) & {
+  headers: Headers;
+};
+export type ingestSiteEventResponseError = (ingestSiteEventResponse429) & {
+  headers: Headers;
+};
+
+export type ingestSiteEventResponse = (ingestSiteEventResponseSuccess | ingestSiteEventResponseError)
+
 export const getIngestSiteEventUrl = () => {
+
+
 
 
   return `/v1/site-events`
 }
 
+/**
+ * @summary Story 47.1 — public, unauthenticated privacy-safe site-event ingest. No API key required (the public site posts directly). No PII stored: no IP column, no user IDs; session_id is an ephemeral per-visit UUID. Unknown event_type values are silently dropped with 204 to prevent allowlist enumeration. Rate-limited 60/min per IP at the edge (IP never persisted).
+ */
 export const ingestSiteEvent = async (ingestSiteEventBody: IngestSiteEventBody, options?: RequestInit): Promise<ingestSiteEventResponse> => {
-  
-  return fetchClient<Promise<ingestSiteEventResponse>>(getIngestSiteEventUrl(),
-  {      
+
+  return fetchClient<ingestSiteEventResponse>(getIngestSiteEventUrl(),
+  {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      ingestSiteEventBody,)
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(ingestSiteEventBody)
   }
 );}
 
 
 
-export type visibilityTrendResponse = {
-  data: VisibilityTrendResponse;
-  status: number;
+export type visibilityTrendResponse200 = {
+  data: VisibilityTrendResponse
+  status: 200
 }
+
+export type visibilityTrendResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type visibilityTrendResponseSuccess = (visibilityTrendResponse200) & {
+  headers: Headers;
+};
+export type visibilityTrendResponseError = (visibilityTrendResponse401) & {
+  headers: Headers;
+};
+
+export type visibilityTrendResponse = (visibilityTrendResponseSuccess | visibilityTrendResponseError)
 
 export const getVisibilityTrendUrl = (params: VisibilityTrendParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
+      normalizedParams.append(key, value === null ? 'null' : String(value))
     }
   });
 
-  return normalizedParams.size ? `/v1/visibility/trend?${normalizedParams.toString()}` : `/v1/visibility/trend`
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/visibility/trend?${stringifiedParams}` : `/v1/visibility/trend`
 }
 
 export const visibilityTrend = async (params: VisibilityTrendParams, options?: RequestInit): Promise<visibilityTrendResponse> => {
-  
-  return fetchClient<Promise<visibilityTrendResponse>>(getVisibilityTrendUrl(params),
-  {      
+
+  return fetchClient<visibilityTrendResponse>(getVisibilityTrendUrl(params),
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 

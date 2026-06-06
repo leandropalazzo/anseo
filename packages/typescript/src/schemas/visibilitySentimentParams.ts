@@ -4,5 +4,9 @@
  */
 
 export type VisibilitySentimentParams = {
+/**
+ * @minimum 1
+ * @maximum 365
+ */
 days?: number;
 };

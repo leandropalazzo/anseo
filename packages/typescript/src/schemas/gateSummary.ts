@@ -5,7 +5,7 @@
 import type { GateFinding } from './gateFinding';
 
 export interface GateSummary {
+  passed: boolean;
   fail_on: string[];
   failed_findings: GateFinding[];
-  passed: boolean;
 }

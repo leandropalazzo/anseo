@@ -1,4 +1,7 @@
-from typing import Any, TypeVar, Union, cast
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -13,33 +16,33 @@ class AuditRequest:
     """
     Attributes:
         target (str): URL, sitemap URL, file:// URL, or local HTML fixture path.
-        max_pages (Union[None, Unset, int]):  Default: 25.
-        timeout_ms (Union[None, Unset, int]):  Default: 10000.
-        fail_on (Union[Unset, list[str]]): Rule ids or severities (low/medium/high).
+        max_pages (int | None | Unset):  Default: 25.
+        timeout_ms (int | None | Unset):  Default: 10000.
+        fail_on (list[str] | Unset): Rule ids or severities (low/medium/high).
     """
 
     target: str
-    max_pages: Union[None, Unset, int] = 25
-    timeout_ms: Union[None, Unset, int] = 10000
-    fail_on: Union[Unset, list[str]] = UNSET
+    max_pages: int | None | Unset = 25
+    timeout_ms: int | None | Unset = 10000
+    fail_on: list[str] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         target = self.target
 
-        max_pages: Union[None, Unset, int]
+        max_pages: int | None | Unset
         if isinstance(self.max_pages, Unset):
             max_pages = UNSET
         else:
             max_pages = self.max_pages
 
-        timeout_ms: Union[None, Unset, int]
+        timeout_ms: int | None | Unset
         if isinstance(self.timeout_ms, Unset):
             timeout_ms = UNSET
         else:
             timeout_ms = self.timeout_ms
 
-        fail_on: Union[Unset, list[str]] = UNSET
+        fail_on: list[str] | Unset = UNSET
         if not isinstance(self.fail_on, Unset):
             fail_on = self.fail_on
 
@@ -60,25 +63,25 @@ class AuditRequest:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
-        d = src_dict.copy()
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
         target = d.pop("target")
 
-        def _parse_max_pages(data: object) -> Union[None, Unset, int]:
+        def _parse_max_pages(data: object) -> int | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, int], data)
+            return cast(int | None | Unset, data)
 
         max_pages = _parse_max_pages(d.pop("max_pages", UNSET))
 
-        def _parse_timeout_ms(data: object) -> Union[None, Unset, int]:
+        def _parse_timeout_ms(data: object) -> int | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, int], data)
+            return cast(int | None | Unset, data)
 
         timeout_ms = _parse_timeout_ms(d.pop("timeout_ms", UNSET))
 

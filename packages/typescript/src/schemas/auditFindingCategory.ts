@@ -6,7 +6,6 @@
 export type AuditFindingCategory = typeof AuditFindingCategory[keyof typeof AuditFindingCategory];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const AuditFindingCategory = {
   identity: 'identity',
   extractability: 'extractability',

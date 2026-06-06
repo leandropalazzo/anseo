@@ -1,4 +1,7 @@
-from typing import Any, TypeVar, Union, cast
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -17,14 +20,14 @@ class CrawlReferRatio:
         verified_crawl_hits (int):
         attributed_referrals (int):
         state (CrawlReferState):
-        ratio (Union[None, Unset, float]):
+        ratio (float | None | Unset):
     """
 
     bot_id: str
     verified_crawl_hits: int
     attributed_referrals: int
     state: CrawlReferState
-    ratio: Union[None, Unset, float] = UNSET
+    ratio: float | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -36,7 +39,7 @@ class CrawlReferRatio:
 
         state = self.state.value
 
-        ratio: Union[None, Unset, float]
+        ratio: float | None | Unset
         if isinstance(self.ratio, Unset):
             ratio = UNSET
         else:
@@ -58,8 +61,8 @@ class CrawlReferRatio:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
-        d = src_dict.copy()
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
         bot_id = d.pop("bot_id")
 
         verified_crawl_hits = d.pop("verified_crawl_hits")
@@ -68,12 +71,12 @@ class CrawlReferRatio:
 
         state = CrawlReferState(d.pop("state"))
 
-        def _parse_ratio(data: object) -> Union[None, Unset, float]:
+        def _parse_ratio(data: object) -> float | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, float], data)
+            return cast(float | None | Unset, data)
 
         ratio = _parse_ratio(d.pop("ratio", UNSET))
 

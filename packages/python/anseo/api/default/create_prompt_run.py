@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -14,7 +14,7 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     *,
     body: CreatePromptRunRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
+    x_anseo_project: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(x_anseo_project, Unset):
@@ -25,9 +25,8 @@ def _get_kwargs(
         "url": "/v1/prompt-runs",
     }
 
-    _body = body.to_dict()
+    _kwargs["json"] = body.to_dict()
 
-    _kwargs["json"] = _body
     headers["Content-Type"] = "application/json"
 
     _kwargs["headers"] = headers
@@ -35,20 +34,23 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[CreatePromptRunResponse, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> CreatePromptRunResponse | Error | None:
     if response.status_code == 202:
         response_202 = CreatePromptRunResponse.from_dict(response.json())
 
         return response_202
+
     if response.status_code == 400:
         response_400 = Error.from_dict(response.json())
 
         return response_400
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
         return response_401
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -56,8 +58,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[CreatePromptRunResponse, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[CreatePromptRunResponse | Error]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -68,14 +70,14 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: CreatePromptRunRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[CreatePromptRunResponse, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[CreatePromptRunResponse | Error]:
     """Dispatch a one-shot prompt run for an already-declared Prompt and Provider.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (CreatePromptRunRequest):
 
     Raises:
@@ -83,7 +85,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[CreatePromptRunResponse, Error]]
+        Response[CreatePromptRunResponse | Error]
     """
 
     kwargs = _get_kwargs(
@@ -100,14 +102,14 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: CreatePromptRunRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[CreatePromptRunResponse, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> CreatePromptRunResponse | Error | None:
     """Dispatch a one-shot prompt run for an already-declared Prompt and Provider.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (CreatePromptRunRequest):
 
     Raises:
@@ -115,7 +117,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[CreatePromptRunResponse, Error]
+        CreatePromptRunResponse | Error
     """
 
     return sync_detailed(
@@ -127,14 +129,14 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: CreatePromptRunRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[CreatePromptRunResponse, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[CreatePromptRunResponse | Error]:
     """Dispatch a one-shot prompt run for an already-declared Prompt and Provider.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (CreatePromptRunRequest):
 
     Raises:
@@ -142,7 +144,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[CreatePromptRunResponse, Error]]
+        Response[CreatePromptRunResponse | Error]
     """
 
     kwargs = _get_kwargs(
@@ -157,14 +159,14 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: CreatePromptRunRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[CreatePromptRunResponse, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> CreatePromptRunResponse | Error | None:
     """Dispatch a one-shot prompt run for an already-declared Prompt and Provider.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (CreatePromptRunRequest):
 
     Raises:
@@ -172,7 +174,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[CreatePromptRunResponse, Error]
+        CreatePromptRunResponse | Error
     """
 
     return (

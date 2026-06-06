@@ -7,16 +7,16 @@ import type { AuditFindingSeverity } from './auditFindingSeverity';
 import type { AuditFindingStatus } from './auditFindingStatus';
 
 export interface AuditFinding {
-  category: AuditFindingCategory;
-  evidence: string[];
-  message: string;
-  recommendation_kind: string;
   rule_id: string;
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  score: number;
+  category: AuditFindingCategory;
   severity: AuditFindingSeverity;
   status: AuditFindingStatus;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  score: number;
+  message: string;
+  recommendation_kind: string;
+  evidence: string[];
 }

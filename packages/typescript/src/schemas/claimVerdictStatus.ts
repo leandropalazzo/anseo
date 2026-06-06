@@ -6,7 +6,6 @@
 export type ClaimVerdictStatus = typeof ClaimVerdictStatus[keyof typeof ClaimVerdictStatus];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ClaimVerdictStatus = {
   accurate: 'accurate',
   inaccurate: 'inaccurate',

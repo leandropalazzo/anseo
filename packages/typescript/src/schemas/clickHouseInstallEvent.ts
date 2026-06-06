@@ -11,9 +11,9 @@ export interface ClickHouseInstallEvent {
   at: string;
   log_line: string;
   /**
-   * @minimum 0
-   * @maximum 1
-   */
+     * @minimum 0
+     * @maximum 1
+     */
   progress: number;
   step: ClickHouseInstallEventStep;
 }

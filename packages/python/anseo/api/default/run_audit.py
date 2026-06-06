@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -14,7 +14,7 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     *,
     body: AuditRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
+    x_anseo_project: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(x_anseo_project, Unset):
@@ -25,9 +25,8 @@ def _get_kwargs(
         "url": "/v1/audit",
     }
 
-    _body = body.to_dict()
+    _kwargs["json"] = body.to_dict()
 
-    _kwargs["json"] = _body
     headers["Content-Type"] = "application/json"
 
     _kwargs["headers"] = headers
@@ -35,24 +34,28 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[AuditReport, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> AuditReport | Error | None:
     if response.status_code == 200:
         response_200 = AuditReport.from_dict(response.json())
 
         return response_200
+
     if response.status_code == 400:
         response_400 = Error.from_dict(response.json())
 
         return response_400
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
         return response_401
+
     if response.status_code == 502:
         response_502 = Error.from_dict(response.json())
 
         return response_502
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -60,8 +63,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[AuditReport, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[AuditReport | Error]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -72,15 +75,15 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: AuditRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[AuditReport, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[AuditReport | Error]:
     """Roadmap Epic 32 — crawl a URL/sitemap and score citation-readiness against in-tree heuristics
     (Identity, Extractability, Corroboration). Optional CI-gate thresholds.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (AuditRequest):
 
     Raises:
@@ -88,7 +91,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[AuditReport, Error]]
+        Response[AuditReport | Error]
     """
 
     kwargs = _get_kwargs(
@@ -105,15 +108,15 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: AuditRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[AuditReport, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> AuditReport | Error | None:
     """Roadmap Epic 32 — crawl a URL/sitemap and score citation-readiness against in-tree heuristics
     (Identity, Extractability, Corroboration). Optional CI-gate thresholds.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (AuditRequest):
 
     Raises:
@@ -121,7 +124,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[AuditReport, Error]
+        AuditReport | Error
     """
 
     return sync_detailed(
@@ -133,15 +136,15 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: AuditRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[AuditReport, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[AuditReport | Error]:
     """Roadmap Epic 32 — crawl a URL/sitemap and score citation-readiness against in-tree heuristics
     (Identity, Extractability, Corroboration). Optional CI-gate thresholds.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (AuditRequest):
 
     Raises:
@@ -149,7 +152,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[AuditReport, Error]]
+        Response[AuditReport | Error]
     """
 
     kwargs = _get_kwargs(
@@ -164,15 +167,15 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: AuditRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[AuditReport, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> AuditReport | Error | None:
     """Roadmap Epic 32 — crawl a URL/sitemap and score citation-readiness against in-tree heuristics
     (Identity, Extractability, Corroboration). Optional CI-gate thresholds.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (AuditRequest):
 
     Raises:
@@ -180,7 +183,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[AuditReport, Error]
+        AuditReport | Error
     """
 
     return (

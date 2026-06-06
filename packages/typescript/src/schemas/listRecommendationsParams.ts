@@ -4,6 +4,13 @@
  */
 
 export type ListRecommendationsParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
 limit?: number;
+/**
+ * Opaque page cursor from a previous response's next_cursor.
+ */
 cursor?: string;
 };

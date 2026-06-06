@@ -1,4 +1,7 @@
-from typing import TYPE_CHECKING, Any, TypeVar, Union
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -16,14 +19,14 @@ T = TypeVar("T", bound="RunListResponse")
 class RunListResponse:
     """
     Attributes:
-        runs (Union[Unset, list['RunListResponseRunsItem']]):
+        runs (list[RunListResponseRunsItem] | Unset):
     """
 
-    runs: Union[Unset, list["RunListResponseRunsItem"]] = UNSET
+    runs: list[RunListResponseRunsItem] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        runs: Union[Unset, list[dict[str, Any]]] = UNSET
+        runs: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.runs, Unset):
             runs = []
             for runs_item_data in self.runs:
@@ -39,16 +42,18 @@ class RunListResponse:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.run_list_response_runs_item import RunListResponseRunsItem
 
-        d = src_dict.copy()
-        runs = []
+        d = dict(src_dict)
         _runs = d.pop("runs", UNSET)
-        for runs_item_data in _runs or []:
-            runs_item = RunListResponseRunsItem.from_dict(runs_item_data)
+        runs: list[RunListResponseRunsItem] | Unset = UNSET
+        if _runs is not UNSET:
+            runs = []
+            for runs_item_data in _runs:
+                runs_item = RunListResponseRunsItem.from_dict(runs_item_data)
 
-            runs.append(runs_item)
+                runs.append(runs_item)
 
         run_list_response = cls(
             runs=runs,

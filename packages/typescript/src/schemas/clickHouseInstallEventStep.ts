@@ -6,7 +6,6 @@
 export type ClickHouseInstallEventStep = typeof ClickHouseInstallEventStep[keyof typeof ClickHouseInstallEventStep];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ClickHouseInstallEventStep = {
   docker_detected: 'docker_detected',
   image_pulling: 'image_pulling',

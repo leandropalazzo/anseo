@@ -1,4 +1,7 @@
-from typing import TYPE_CHECKING, Any, TypeVar, Union, cast
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -15,12 +18,12 @@ class RecommendationListResponse:
     """Story 19.6 — cursor-paginated active recommendations. `next_cursor` is null on the last page.
 
     Attributes:
-        items (list['Recommendation']):
-        next_cursor (Union[None, str]): Opaque cursor for the next page; null when no further pages remain.
+        items (list[Recommendation]):
+        next_cursor (None | str): Opaque cursor for the next page; null when no further pages remain.
     """
 
-    items: list["Recommendation"]
-    next_cursor: Union[None, str]
+    items: list[Recommendation]
+    next_cursor: None | str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -29,7 +32,7 @@ class RecommendationListResponse:
             items_item = items_item_data.to_dict()
             items.append(items_item)
 
-        next_cursor: Union[None, str]
+        next_cursor: None | str
         next_cursor = self.next_cursor
 
         field_dict: dict[str, Any] = {}
@@ -44,10 +47,10 @@ class RecommendationListResponse:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.recommendation import Recommendation
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         items = []
         _items = d.pop("items")
         for items_item_data in _items:
@@ -55,10 +58,10 @@ class RecommendationListResponse:
 
             items.append(items_item)
 
-        def _parse_next_cursor(data: object) -> Union[None, str]:
+        def _parse_next_cursor(data: object) -> None | str:
             if data is None:
                 return data
-            return cast(Union[None, str], data)
+            return cast(None | str, data)
 
         next_cursor = _parse_next_cursor(d.pop("next_cursor"))
 

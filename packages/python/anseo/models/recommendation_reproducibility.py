@@ -1,4 +1,7 @@
-from typing import Any, TypeVar, Union, cast
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -13,17 +16,17 @@ class RecommendationReproducibility:
     """
     Attributes:
         class_ (str):
-        note (Union[None, Unset, str]):
+        note (None | str | Unset):
     """
 
     class_: str
-    note: Union[None, Unset, str] = UNSET
+    note: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         class_ = self.class_
 
-        note: Union[None, Unset, str]
+        note: None | str | Unset
         if isinstance(self.note, Unset):
             note = UNSET
         else:
@@ -42,16 +45,16 @@ class RecommendationReproducibility:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
-        d = src_dict.copy()
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
         class_ = d.pop("class")
 
-        def _parse_note(data: object) -> Union[None, Unset, str]:
+        def _parse_note(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, str], data)
+            return cast(None | str | Unset, data)
 
         note = _parse_note(d.pop("note", UNSET))
 

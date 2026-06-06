@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import datetime
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-from dateutil.parser import isoparse
 
 from ..models.crawl_refer_state import CrawlReferState
 
@@ -23,13 +25,13 @@ class CrawlReferReport:
             window_start (datetime.datetime):
             window_end (datetime.datetime):
             state (CrawlReferState):
-            bots (list['CrawlReferRatio']):
+            bots (list[CrawlReferRatio]):
     """
 
     window_start: datetime.datetime
     window_end: datetime.datetime
     state: CrawlReferState
-    bots: list["CrawlReferRatio"]
+    bots: list[CrawlReferRatio]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -58,13 +60,13 @@ class CrawlReferReport:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.crawl_refer_ratio import CrawlReferRatio
 
-        d = src_dict.copy()
-        window_start = isoparse(d.pop("window_start"))
+        d = dict(src_dict)
+        window_start = datetime.datetime.fromisoformat(d.pop("window_start"))
 
-        window_end = isoparse(d.pop("window_end"))
+        window_end = datetime.datetime.fromisoformat(d.pop("window_end"))
 
         state = CrawlReferState(d.pop("state"))
 

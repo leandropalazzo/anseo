@@ -6,7 +6,6 @@
 export type CreatePromptRunRequestProvider = typeof CreatePromptRunRequestProvider[keyof typeof CreatePromptRunRequestProvider];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const CreatePromptRunRequestProvider = {
   openai: 'openai',
   anthropic: 'anthropic',

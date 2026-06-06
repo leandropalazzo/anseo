@@ -9,8 +9,8 @@ import type { CrawlReferState } from './crawlReferState';
  * Roadmap Epic 33 crawl-to-refer ratio. When referral attribution is unavailable, state is crawls_only and ratio is null.
  */
 export interface CrawlReferReport {
-  bots: CrawlReferRatio[];
-  state: CrawlReferState;
-  window_end: string;
   window_start: string;
+  window_end: string;
+  state: CrawlReferState;
+  bots: CrawlReferRatio[];
 }

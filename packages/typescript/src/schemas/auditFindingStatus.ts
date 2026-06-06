@@ -6,7 +6,6 @@
 export type AuditFindingStatus = typeof AuditFindingStatus[keyof typeof AuditFindingStatus];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const AuditFindingStatus = {
   pass: 'pass',
   warn: 'warn',

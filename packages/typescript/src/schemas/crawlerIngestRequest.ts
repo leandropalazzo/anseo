@@ -6,8 +6,8 @@ import type { CrawlerIngestRequestFormat } from './crawlerIngestRequestFormat';
 import type { CrawlerIngestRequestPrivacyMode } from './crawlerIngestRequestPrivacyMode';
 
 export interface CrawlerIngestRequest {
-  format?: CrawlerIngestRequestFormat;
   /** Raw access-log lines (nginx/Apache), one hit per line. */
   lines: string[];
+  format?: CrawlerIngestRequestFormat;
   privacy_mode?: CrawlerIngestRequestPrivacyMode;
 }

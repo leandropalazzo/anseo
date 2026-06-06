@@ -4,6 +4,6 @@
  */
 
 export interface CreateProjectResponse {
-  name: string;
   project_id: string;
+  name: string;
 }

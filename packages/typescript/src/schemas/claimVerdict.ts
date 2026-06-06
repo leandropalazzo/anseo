@@ -5,13 +5,13 @@
 import type { ClaimVerdictStatus } from './claimVerdictStatus';
 
 export interface ClaimVerdict {
-  claim_kind: string;
-  claim_text: string;
   entity: string;
+  claim_text: string;
+  claim_kind: string;
+  status: ClaimVerdictStatus;
+  rationale: string;
   /** @nullable */
   matched_fact_key?: string | null;
-  observed_at: string;
   prompt_run_id: string;
-  rationale: string;
-  status: ClaimVerdictStatus;
+  observed_at: string;
 }

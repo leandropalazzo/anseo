@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
@@ -14,10 +17,10 @@ T = TypeVar("T", bound="RecommendationIntelligence")
 class RecommendationIntelligence:
     """
     Attributes:
-        by_kind (list['KindAdoption']):
+        by_kind (list[KindAdoption]):
     """
 
-    by_kind: list["KindAdoption"]
+    by_kind: list[KindAdoption]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -37,10 +40,10 @@ class RecommendationIntelligence:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.kind_adoption import KindAdoption
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         by_kind = []
         _by_kind = d.pop("by_kind")
         for by_kind_item_data in _by_kind:

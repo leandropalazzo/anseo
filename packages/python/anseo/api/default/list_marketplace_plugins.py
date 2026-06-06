@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -13,6 +13,7 @@ from ...types import Response
 
 
 def _get_kwargs() -> dict[str, Any]:
+
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/v1/marketplace/plugins",
@@ -22,16 +23,18 @@ def _get_kwargs() -> dict[str, Any]:
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[Error, ListMarketplacePluginsResponse200]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Error | ListMarketplacePluginsResponse200 | None:
     if response.status_code == 200:
         response_200 = ListMarketplacePluginsResponse200.from_dict(response.json())
 
         return response_200
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
         return response_401
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -39,8 +42,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[Error, ListMarketplacePluginsResponse200]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Error | ListMarketplacePluginsResponse200]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -51,8 +54,8 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Response[Union[Error, ListMarketplacePluginsResponse200]]:
+    client: AuthenticatedClient | Client,
+) -> Response[Error | ListMarketplacePluginsResponse200]:
     """Story 41.3 — live plugin registry catalog merged with installed state (drives the dashboard
     /marketplace page). Degrades to an empty list when the registry is offline so the UI renders its
     zero-state. Operator-scoped; not gated by X-Anseo-Project.
@@ -62,7 +65,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[Error, ListMarketplacePluginsResponse200]]
+        Response[Error | ListMarketplacePluginsResponse200]
     """
 
     kwargs = _get_kwargs()
@@ -76,8 +79,8 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Optional[Union[Error, ListMarketplacePluginsResponse200]]:
+    client: AuthenticatedClient | Client,
+) -> Error | ListMarketplacePluginsResponse200 | None:
     """Story 41.3 — live plugin registry catalog merged with installed state (drives the dashboard
     /marketplace page). Degrades to an empty list when the registry is offline so the UI renders its
     zero-state. Operator-scoped; not gated by X-Anseo-Project.
@@ -87,7 +90,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[Error, ListMarketplacePluginsResponse200]
+        Error | ListMarketplacePluginsResponse200
     """
 
     return sync_detailed(
@@ -97,8 +100,8 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Response[Union[Error, ListMarketplacePluginsResponse200]]:
+    client: AuthenticatedClient | Client,
+) -> Response[Error | ListMarketplacePluginsResponse200]:
     """Story 41.3 — live plugin registry catalog merged with installed state (drives the dashboard
     /marketplace page). Degrades to an empty list when the registry is offline so the UI renders its
     zero-state. Operator-scoped; not gated by X-Anseo-Project.
@@ -108,7 +111,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[Error, ListMarketplacePluginsResponse200]]
+        Response[Error | ListMarketplacePluginsResponse200]
     """
 
     kwargs = _get_kwargs()
@@ -120,8 +123,8 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
-) -> Optional[Union[Error, ListMarketplacePluginsResponse200]]:
+    client: AuthenticatedClient | Client,
+) -> Error | ListMarketplacePluginsResponse200 | None:
     """Story 41.3 — live plugin registry catalog merged with installed state (drives the dashboard
     /marketplace page). Degrades to an empty list when the registry is offline so the UI renders its
     zero-state. Operator-scoped; not gated by X-Anseo-Project.
@@ -131,7 +134,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[Error, ListMarketplacePluginsResponse200]
+        Error | ListMarketplacePluginsResponse200
     """
 
     return (

@@ -1,4 +1,7 @@
-from typing import Any, TypeVar, Union
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -13,11 +16,11 @@ class InstallPluginBody:
     """
     Attributes:
         id (str):
-        acknowledge_unsigned (Union[Unset, bool]):
+        acknowledge_unsigned (bool | Unset):
     """
 
     id: str
-    acknowledge_unsigned: Union[Unset, bool] = UNSET
+    acknowledge_unsigned: bool | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -38,8 +41,8 @@ class InstallPluginBody:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
-        d = src_dict.copy()
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
         id = d.pop("id")
 
         acknowledge_unsigned = d.pop("acknowledge_unsigned", UNSET)
