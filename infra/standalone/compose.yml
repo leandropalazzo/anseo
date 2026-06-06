@@ -1,0 +1,162 @@
+# Anseo — standalone production Docker Compose stack.
+#
+# Self-contained deploy bundle. Unlike infra/docker/compose.yml (the dev stack,
+# which builds images from a source checkout), this file references ONLY
+# published GHCR images pinned to a version — so an operator can bring the whole
+# stack up on a clean host WITHOUT cloning the source repo:
+#
+#   curl -fsSL https://anseo.ai/compose.yml -o compose.yml
+#   curl -fsSL https://anseo.ai/.env.example -o .env   # then edit secrets
+#   docker compose up -d
+#
+# Deploy guidance (exposure baseline, reverse proxy/TLS, backups):
+#   https://anseo.ai/docs/deploy   (also docs/manual/deploy.md in the repo)
+#
+# SECURITY DEFAULTS
+#   - Every published port binds 127.0.0.1 by default (localhost-only). Set
+#     ANSEO_BIND_HOST=0.0.0.0 only behind a reverse proxy you control.
+#   - All secrets live in .env. The shipped .env.example carries DEV defaults
+#     marked "CHANGE THIS before exposing" — rotate them before any exposure.
+#
+# IMAGE REGISTRY / TAG
+#   Images resolve to ${ANSEO_IMAGE_REGISTRY}/{api,worker,web}:${ANSEO_VERSION}.
+#   Both are parameterized via .env so a future registry/repo rename is a
+#   one-line change. ANSEO_VERSION MUST be a pinned vX.Y.Z (never :latest/:dev).
+
+name: anseo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-anseo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-anseo}
+      POSTGRES_DB: ${POSTGRES_DB:-anseo}
+    ports:
+      - "${ANSEO_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-anseo} -d ${POSTGRES_DB:-anseo}"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${ANSEO_BIND_HOST:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 3s
+
+  api:
+    # Published Axum API image (Story 38.15). Pinned by ANSEO_VERSION — no build:.
+    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/api:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned vX.Y.Z in .env}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-anseo}:${POSTGRES_PASSWORD:-anseo}@postgres:5432/${POSTGRES_DB:-anseo}
+      REDIS_URL: redis://redis:6379
+      ANSEO_BIND_ADDR: 0.0.0.0:8080
+      # The api binds 0.0.0.0 inside its container so the sibling `web` container
+      # can reach it at api:8080 over the private compose bridge (host ports stay
+      # 127.0.0.1 only). A non-loopback bind requires ≥1 active API key, so the
+      # stack seeds this bootstrap key on first boot. CHANGE THIS before exposing.
+      ANSEO_BOOTSTRAP_API_KEY: ${ANSEO_BOOTSTRAP_API_KEY:-ogeo_DevComposeBootstrapKeyDoNotUse01}
+      RUST_LOG: ${RUST_LOG:-info}
+      # Path to the canonical project YAML inside the container. The API derives
+      # its project_id from this file's brand.name. The standalone bundle ships
+      # no fixture; the DB is authoritative after first run, so a built-in
+      # default config is sufficient. Override ANSEO_CONFIG only if you mount one.
+      ANSEO_CONFIG: ${ANSEO_CONFIG:-/anseo.yaml}
+      # Durable provider-secret store: the OS keyring is unavailable in a
+      # headless container, so secrets persist in an age-encrypted file that
+      # needs a passphrase. CHANGE THIS before exposing — a weak/known passphrase
+      # means provider keys set via the dashboard are recoverable from the volume.
+      ANSEO_KEYRING_PASSPHRASE: ${ANSEO_KEYRING_PASSPHRASE:-dev-compose-secrets-passphrase}
+      # Skip the keyring leg (no D-Bus in a headless container) so the secret
+      # store uses the durable age-file directly.
+      ANSEO_DISABLE_KEYRING: "1"
+      # Pin the age secrets file under a named volume so dashboard-set keys
+      # survive `docker compose down && up`.
+      XDG_CONFIG_HOME: /data/config
+    volumes:
+      # Durable home for the age-encrypted provider-secrets file
+      # (<XDG_CONFIG_HOME>/anseo/secrets.age).
+      - api-secrets:/data/config
+    ports:
+      - "${ANSEO_BIND_HOST:-127.0.0.1}:${ANSEO_API_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # /healthz is auth-gated; the probe carries the same bootstrap key. `$$`
+      # escapes compose interpolation so the container expands its own runtime
+      # ANSEO_BOOTSTRAP_API_KEY (stays correct when the operator overrides it).
+      test: ["CMD-SHELL", "wget -q -O- --header=\"X-Anseo-API-Key: $$ANSEO_BOOTSTRAP_API_KEY\" http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  worker:
+    # Published background worker image (Story 38.15). Pinned — no build:.
+    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/worker:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned vX.Y.Z in .env}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-anseo}:${POSTGRES_PASSWORD:-anseo}@postgres:5432/${POSTGRES_DB:-anseo}
+      REDIS_URL: redis://redis:6379
+      RUST_LOG: ${RUST_LOG:-info}
+      ANSEO_CONFIG: ${ANSEO_CONFIG:-/anseo.yaml}
+      # Mirror the api's secret-store env so the worker reads the same
+      # dashboard-set provider keys from the shared age-secrets volume.
+      ANSEO_KEYRING_PASSPHRASE: ${ANSEO_KEYRING_PASSPHRASE:-dev-compose-secrets-passphrase}
+      ANSEO_DISABLE_KEYRING: "1"
+      XDG_CONFIG_HOME: /data/config
+    volumes:
+      # Shared age-secrets home so the worker reads dashboard-set provider keys.
+      - api-secrets:/data/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    # Published Next.js dashboard image (Story 38.15). Pinned — no build:.
+    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/web:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned vX.Y.Z in .env}
+    restart: unless-stopped
+    environment:
+      ANSEO_API_BASE_URL: http://api:8080
+      # SSR fetches authenticate to the api with the same bootstrap key. Override
+      # both via ANSEO_BOOTSTRAP_API_KEY to keep them in lockstep.
+      ANSEO_API_KEY: ${ANSEO_BOOTSTRAP_API_KEY:-ogeo_DevComposeBootstrapKeyDoNotUse01}
+    ports:
+      - "${ANSEO_BIND_HOST:-127.0.0.1}:${ANSEO_WEB_PORT:-5173}:5173"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5173 || exit 1"]
+      interval: 10s
+      # SSR `/` makes several live-API round-trips per render; a short timeout
+      # kills each probe mid-render, so allow 20s.
+      timeout: 20s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  postgres-data:
+  redis-data:
+  api-secrets:
