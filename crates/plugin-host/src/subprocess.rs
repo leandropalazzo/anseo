@@ -197,25 +197,12 @@ pub fn build_command(
 /// Spawn the sandboxed program and enforce the wall-clock quota with a host-side
 /// watchdog (§8.4): on timeout the child is killed and [`RunOutcome::Timeout`]
 /// returned rather than letting the orchestrator hang.
-///
-/// Stdout is drained **concurrently** on a dedicated reader thread for the whole
-/// lifetime of the child — never only after exit. A subprocess that writes more
-/// than the OS pipe buffer (~64 KiB; an output-format plugin serializing many
-/// rows routinely exceeds this) would otherwise block on `write` while the
-/// parent blocked on exit, deadlocking until the wall-clock watchdog fired. With
-/// a live reader the pipe never fills, so the child runs to completion and we
-/// capture the *full* output. On timeout we kill the child first, then join the
-/// reader — which finishes at EOF once the killed child's stdout fd is closed —
-/// so even a timed-out run yields whatever partial bytes it had produced (the
-/// reader buffer is dropped with [`RunOutcome::Timeout`], but the kill cannot
-/// hang behind a full pipe). stderr stays [`Stdio::null`].
 pub fn run(
     platform: Platform,
     sandbox: &AnalyticsSandbox,
     program: &str,
     args: &[&str],
 ) -> Result<RunOutcome, SandboxError> {
-    use std::io::Read;
     use std::process::Stdio;
     use std::time::Instant;
 
@@ -225,22 +212,6 @@ pub fn run(
         .spawn()
         .map_err(|e| SandboxError::Spawn(e.to_string()))?;
 
-    // Hand stdout to a dedicated reader thread that drains it to EOF as soon as
-    // the child is alive. This keeps the pipe from filling and blocking the
-    // child's writes (the deadlock this guards against).
-    let stdout_pipe = child.stdout.take();
-    let reader = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        if let Some(mut out) = stdout_pipe {
-            // Errors here just truncate the capture; the watchdog still governs
-            // liveness, so we never propagate a read error into a hang.
-            let _ = out.read_to_end(&mut buf);
-        }
-        buf
-    });
-
-    // Wall-clock watchdog. The child's stdout is being drained in parallel, so a
-    // normal exit cannot be starved by a full pipe.
     let start = Instant::now();
     loop {
         match child
@@ -248,9 +219,11 @@ pub fn run(
             .map_err(|e| SandboxError::Spawn(e.to_string()))?
         {
             Some(status) => {
-                // Child exited; its stdout fd is closed, so the reader is at (or
-                // racing toward) EOF — join collects the full captured bytes.
-                let stdout = reader.join().unwrap_or_default();
+                let mut stdout = Vec::new();
+                if let Some(mut out) = child.stdout.take() {
+                    use std::io::Read;
+                    let _ = out.read_to_end(&mut stdout);
+                }
                 return Ok(RunOutcome::Exited {
                     code: status.code().unwrap_or(-1),
                     stdout,
@@ -258,12 +231,8 @@ pub fn run(
             }
             None => {
                 if start.elapsed() >= sandbox.wall_clock {
-                    // Kill, then join the reader: killing closes the child's
-                    // stdout, so the reader hits EOF and the join cannot hang
-                    // behind a full pipe.
                     let _ = child.kill();
                     let _ = child.wait();
-                    let _ = reader.join();
                     return Ok(RunOutcome::Timeout);
                 }
                 std::thread::sleep(Duration::from_millis(20));

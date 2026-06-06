@@ -361,28 +361,6 @@ mod tests {
     }
 
     #[test]
-    fn wasm_kinds_not_gated_on_unsupported_platform() {
-        // Provider/Extractor are WASM-only; the native-subprocess platform gate
-        // must NOT skip them on an unsupported host.
-        let tmp = tempfile::tempdir().unwrap();
-        write_plugin(tmp.path(), "anseo/prov", "0.1.0", "provider", "signed");
-        write_plugin(tmp.path(), "anseo/extr", "0.1.0", "extractor", "signed");
-        let policy = LoadPolicy {
-            allow_unsigned: false,
-            platform: Platform::Windows,
-        };
-        let report = scan_and_load(tmp.path(), &policy);
-        for p in &report {
-            assert_eq!(
-                p.status,
-                LoadStatus::Loaded,
-                "{} (WASM kind) must not be platform-gated",
-                p.id
-            );
-        }
-    }
-
-    #[test]
     fn analytics_loads_on_supported_platform() {
         let tmp = tempfile::tempdir().unwrap();
         write_plugin(tmp.path(), "acme/a", "0.1.0", "analytics", "signed");

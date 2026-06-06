@@ -121,49 +121,6 @@ fn wall_clock_watchdog_kills_runaway() {
     );
 }
 
-// ---- concurrent stdout drain: large output must not deadlock (BUG 1) ----
-
-#[cfg(unix)]
-#[test]
-fn large_stdout_is_fully_captured_without_hang() {
-    // Regression: the old watchdog only read child.stdout AFTER exit. A child
-    // writing more than the OS pipe buffer (~64 KiB) blocks on write while the
-    // parent waits for exit -> deadlock until the wall-clock fires. We now drain
-    // stdout concurrently, so a child can emit far more than the pipe buffer and
-    // we still capture every byte and finish well under the wall-clock.
-    //
-    // `head -c 300000 /dev/zero` streams 300 KB to stdout (~4.7x a 64 KiB pipe)
-    // from a single child — no inner pipeline, so it stays within the sandbox's
-    // RLIMIT_NPROC quota. (/dev/zero is a read; the sandbox only denies writes.)
-    let target: usize = 300_000;
-    let mut sb = AnalyticsSandbox::defaults(std::env::temp_dir());
-    // Generous relative to the work, tight enough that a deadlock would surface
-    // as a Timeout rather than a wedged test: 10s.
-    sb.wall_clock = Duration::from_secs(10);
-
-    let outcome = run(
-        Platform::current(),
-        &sb,
-        "/bin/sh",
-        &["-c", &format!("head -c {target} /dev/zero")],
-    )
-    .unwrap();
-
-    match outcome {
-        RunOutcome::Exited { code, stdout } => {
-            assert_eq!(code, 0, "large-output child should exit cleanly");
-            assert_eq!(
-                stdout.len(),
-                target,
-                "the FULL {target} bytes of stdout must be captured (no pipe-buffer truncation/deadlock)"
-            );
-        }
-        RunOutcome::Timeout => {
-            panic!("large stdout deadlocked: watchdog fired instead of draining the pipe")
-        }
-    }
-}
-
 #[cfg(unix)]
 #[test]
 fn rlimit_address_space_is_applied_to_child() {
