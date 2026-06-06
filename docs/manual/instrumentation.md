@@ -2,7 +2,7 @@
 
 The instrumentation SDKs let you ship **externally-executed** LLM runs into Anseo. You already ran a prompt against a provider (OpenAI, Anthropic, …) *outside* Anseo; the SDK posts that run to `POST /v1/ingest/run`, so it flows through the **same extraction → redaction → benchmark-contribution path** as a native `ogeo prompt run`. Think OpenTelemetry-for-AI-search-visibility: a thin wrapper reads the provider's raw response, derives `provider`/`model`, and ships the run — without changing your inference logic, and **without ever interrupting your application**.
 
-> This page documents the OSS-canonical instrumentation surface only: the three SDKs (Python/TypeScript/Go), the ingest wire shape, the consent + redaction boundary, and the canonical-suite hook. The language-agnostic contract lives in [`../sdk-spec.md`](../sdk-spec.md); per-package READMEs live under [`packages/`](https://github.com/leandropalazzo/opengeo/tree/main/packages).
+> This page documents the OSS-canonical instrumentation surface only: the three SDKs (Python/TypeScript/Go), the ingest wire shape, the consent + redaction boundary, and the canonical-suite hook. The language-agnostic contract lives in [`../sdk-spec.md`](../sdk-spec.md); per-package READMEs live under [`packages/`](https://github.com/leandropalazzo/anseo/tree/main/packages).
 
 ## When to use the SDK vs. native runs
 
@@ -21,7 +21,7 @@ All three SDKs talk to the same endpoint with the same wire shape (see [Wire sha
 
 ### Python — `anseo-observe`
 
-Zero runtime dependencies (standard-library `urllib` only). Source: [`packages/sdk-python/anseo_observe/`](https://github.com/leandropalazzo/opengeo/tree/main/packages/sdk-python).
+Zero runtime dependencies (standard-library `urllib` only). Source: [`packages/sdk-python/anseo_observe/`](https://github.com/leandropalazzo/anseo/tree/main/packages/sdk-python).
 
 ```python
 import os
@@ -64,7 +64,7 @@ Construction raises `AnseoConfigError` when `base_url`/`api_key` is missing; `ob
 
 ### TypeScript — `@opengeo/observe`
 
-Zero runtime dependencies — uses the global `fetch` (Node ≥ 18, Deno, edge runtimes, browsers). Source: [`packages/sdk-typescript/`](https://github.com/leandropalazzo/opengeo/tree/main/packages/sdk-typescript).
+Zero runtime dependencies — uses the global `fetch` (Node ≥ 18, Deno, edge runtimes, browsers). Source: [`packages/sdk-typescript/`](https://github.com/leandropalazzo/anseo/tree/main/packages/sdk-typescript).
 
 ```ts
 import { AnseoObserver } from "@anseo/observe";
@@ -91,7 +91,7 @@ A one-liner `observeRun(config, run)` function is also exported for fire-and-for
 
 ### Go
 
-Standard library only. Source: [`packages/sdk-go/`](https://github.com/leandropalazzo/opengeo/tree/main/packages/sdk-go).
+Standard library only. Source: [`packages/sdk-go/`](https://github.com/leandropalazzo/anseo/tree/main/packages/sdk-go).
 
 ```go
 import observe "github.com/opengeo/opengeo/packages/sdk-go"
