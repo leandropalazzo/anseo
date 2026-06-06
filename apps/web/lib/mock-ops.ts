@@ -108,21 +108,9 @@ export const TEAM_MEMBERS: ReadonlyArray<TeamMember> = [
 ];
 
 // ─── Settings: deploy cluster health ─────────────────────────────────────────
-
-export interface ServiceHealth {
-  svc: string;
-  ok: boolean;
-  latency: string;
-  qps: string;
-}
-
-export const CLUSTER_HEALTH: ReadonlyArray<ServiceHealth> = [
-  { svc: "api",       ok: true, latency: "12ms", qps: "8/s" },
-  { svc: "worker",    ok: true, latency: "—",    qps: "queued: 0" },
-  { svc: "postgres",  ok: true, latency: "2ms",  qps: "—" },
-  { svc: "scheduler", ok: true, latency: "—",    qps: "next: 47m" },
-  { svc: "mcp",       ok: true, latency: "9ms",  qps: "0/s" },
-];
+// (Removed in Story 46.3 — the Deployment settings section now reads api/worker
+// liveness live from GET /v1/serve/status; remaining services are labeled as
+// having no live probe yet rather than mocked here.)
 
 // ─── Onboarding: first-run log ───────────────────────────────────────────────
 

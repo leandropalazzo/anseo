@@ -36,7 +36,6 @@ const KNOWN_MOCK_DEBT: ReadonlyArray<string> = [
   "app/runs/_components/runs-table.tsx",
   "app/runs/_components/runs-view.tsx",
   "app/runs/page.tsx",
-  "app/settings/_components/deploy.tsx",
   "app/settings/_components/extractors.tsx",
   "app/settings/page.tsx",
 ];
