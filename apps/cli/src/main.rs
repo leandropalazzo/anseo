@@ -105,6 +105,7 @@ fn main() {
             ProjectSub::List(args) => run_async(commands::project::run_list(args)),
             ProjectSub::Create(args) => run_async(commands::project::run_create(args)),
             ProjectSub::Use(args) => run_async(commands::project::run_use(args)),
+            ProjectSub::Shred(args) => run_async(commands::project::run_shred(args)),
         },
     };
 
