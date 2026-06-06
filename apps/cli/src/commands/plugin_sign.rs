@@ -159,20 +159,73 @@ fn decode_seed(hex_str: &str) -> Result<[u8; 32], OpenGeoError> {
 }
 
 fn write_secret(path: &std::path::Path, hex: &str) -> Result<(), OpenGeoError> {
+    use std::io::Write;
+
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| OpenGeoError::Config(format!("mkdir {}: {e}", parent.display())))?;
         }
     }
-    std::fs::write(path, format!("{hex}\n"))
+
+    // On Unix, create the file with mode 0600 *up front* so the secret seed is
+    // never briefly world-readable between create and chmod. Any failure to
+    // apply restrictive permissions is surfaced, not ignored.
+    #[cfg(unix)]
+    let mut file = {
+        use std::os::unix::fs::OpenOptionsExt;
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(path)
+            .map_err(|e| {
+                OpenGeoError::Config(format!("create {} (mode 0600): {e}", path.display()))
+            })?
+    };
+
+    #[cfg(not(unix))]
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|e| OpenGeoError::Config(format!("create {}: {e}", path.display())))?;
+
+    file.write_all(format!("{hex}\n").as_bytes())
         .map_err(|e| OpenGeoError::Config(format!("write {}: {e}", path.display())))?;
-    // Best-effort 0600 on Unix so the secret seed isn't world-readable.
+
+    // Verify the on-disk permissions are actually restrictive (e.g. a
+    // pre-existing umask or fs that ignored the create mode) and fail loudly
+    // if the secret ended up readable by group/other.
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        let mode = file
+            .metadata()
+            .map_err(|e| OpenGeoError::Config(format!("stat {}: {e}", path.display())))?
+            .permissions()
+            .mode()
+            & 0o777;
+        if mode & 0o077 != 0 {
+            // Try once to tighten it, then re-check.
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).map_err(|e| {
+                OpenGeoError::Config(format!("chmod 0600 {}: {e}", path.display()))
+            })?;
+            let mode = std::fs::metadata(path)
+                .map_err(|e| OpenGeoError::Config(format!("stat {}: {e}", path.display())))?
+                .permissions()
+                .mode()
+                & 0o777;
+            if mode & 0o077 != 0 {
+                return Err(OpenGeoError::Config(format!(
+                    "refusing to leave secret {} with permissions {:o} (group/other readable)",
+                    path.display(),
+                    mode
+                )));
+            }
+        }
     }
+
     Ok(())
 }
 
@@ -239,5 +292,25 @@ mod tests {
         };
         verify_signed_plugin(&signed, &[root.public], &RevocationList::default(), None)
             .expect("CLI-signed bundle must verify under the install-path verifier");
+    }
+
+    /// `keygen --out` must write the secret seed file with mode 0600 on Unix so
+    /// it is never group/other readable (Finding 3).
+    #[cfg(unix)]
+    #[test]
+    fn keygen_secret_file_is_0600() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("root.key");
+
+        run_keygen(KeygenArgs { out: Some(out.clone()) }).expect("keygen must succeed");
+
+        let mode = std::fs::metadata(&out).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "secret seed file must be 0600, got {mode:o}");
+
+        // Sanity: it actually contains a 32-byte hex seed (+ trailing newline).
+        let contents = std::fs::read_to_string(&out).unwrap();
+        assert_eq!(hex::decode(contents.trim()).unwrap().len(), 32);
     }
 }

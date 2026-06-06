@@ -62,6 +62,35 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      # ---------------------------------------------------------------------
+      # Compute a NON-SECRET availability flag at step level. We must NOT put a
+      # secret directly in a later step's `if:` — GitHub evaluates `if:` before
+      # that step's `env:` block exists, so a secret referenced there is always
+      # empty and the gated step silently never runs. Instead derive a plain
+      # boolean output here (the secret's *presence*, never its value, crosses
+      # into `if:`), and gate downstream steps on this step's output.
+      # ---------------------------------------------------------------------
+      - name: Determine signing-key availability + resolve inputs
+        id: signing
+        env:
+          ANSEO_PLUGIN_SIGNING_KEY: ${{ secrets.ANSEO_PLUGIN_SIGNING_KEY }}
+          # workflow_dispatch carries inputs.*; repository_dispatch carries the
+          # same fields under client_payload.*. Resolve both into plain outputs
+          # so downstream steps don't have to branch on the event name.
+          IN_VERSION_DIR: ${{ github.event.inputs.version_dir || github.event.client_payload.version_dir }}
+          IN_NAMESPACE: ${{ github.event.inputs.namespace || github.event.client_payload.namespace }}
+          IN_KEYID: ${{ github.event.inputs.keyid || github.event.client_payload.keyid || 'root' }}
+        run: |
+          set -euo pipefail
+          if [ -n "${ANSEO_PLUGIN_SIGNING_KEY}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version_dir=${IN_VERSION_DIR}" >> "$GITHUB_OUTPUT"
+          echo "namespace=${IN_NAMESPACE}" >> "$GITHUB_OUTPUT"
+          echo "keyid=${IN_KEYID}" >> "$GITHUB_OUTPUT"
+
       # The CLI enables anseo-plugin-host/signing-tools unconditionally, so the
       # `anseo` binary always carries `plugin keygen` / `plugin sign`.
       - name: Build the signing CLI
@@ -69,18 +98,67 @@ jobs:
 
       # ---------------------------------------------------------------------
       # PRODUCTION path (opengeo-internal): the ANSEO_PLUGIN_SIGNING_KEY secret
-      # is present, so sign the requested bundle with the real root key and
-      # push signature.bin + claim.toml back to the registry.
+      # is present, so sign the requested bundle with the real root key. The
+      # produced signature.bin + claim.toml are uploaded as a build artifact
+      # (and, when a registry push target is configured, committed back to the
+      # registry — see the optional step below).
       # ---------------------------------------------------------------------
       - name: Sign with the project root key
-        if: ${{ env.ANSEO_PLUGIN_SIGNING_KEY != '' && github.event_name == 'workflow_dispatch' }}
+        if: ${{ steps.signing.outputs.enabled == 'true' }}
         env:
           ANSEO_PLUGIN_SIGNING_KEY: ${{ secrets.ANSEO_PLUGIN_SIGNING_KEY }}
         run: |
+          set -euo pipefail
           ./target/debug/anseo plugin sign \
-            "${{ inputs.version_dir }}" \
-            --namespace "${{ inputs.namespace }}" \
-            --keyid "${{ inputs.keyid }}"
+            "${{ steps.signing.outputs.version_dir }}" \
+            --namespace "${{ steps.signing.outputs.namespace }}" \
+            --keyid "${{ steps.signing.outputs.keyid }}"
+
+      # Persist the produced artifacts so a successful run actually yields
+      # retrievable, signed output (they would otherwise vanish with the runner).
+      - name: Upload signed artifacts
+        if: ${{ steps.signing.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-plugin-${{ steps.signing.outputs.namespace }}
+          path: |
+            ${{ steps.signing.outputs.version_dir }}/signature.bin
+            ${{ steps.signing.outputs.version_dir }}/claim.toml
+          if-no-files-found: error
+          retention-days: 90
+
+      # ---------------------------------------------------------------------
+      # OPTIONAL: publish the signed artifacts back into the plugin registry.
+      # The production copy of this workflow lives in opengeo-internal, which
+      # owns the registry push target + token; if PLUGIN_REGISTRY_REPO is
+      # configured there, commit signature.bin + claim.toml into the registry
+      # so installs/workers pick them up automatically. Guarded so the public
+      # repo (no secret, no var) skips it entirely.
+      # ---------------------------------------------------------------------
+      - name: Publish signed artifacts to the registry
+        if: ${{ steps.signing.outputs.enabled == 'true' && vars.PLUGIN_REGISTRY_REPO != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.PLUGIN_REGISTRY_TOKEN }}
+          REGISTRY_REPO: ${{ vars.PLUGIN_REGISTRY_REPO }}
+        run: |
+          set -euo pipefail
+          version_dir="${{ steps.signing.outputs.version_dir }}"
+          namespace="${{ steps.signing.outputs.namespace }}"
+          work="$(mktemp -d)"
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REGISTRY_REPO}.git" "$work/registry"
+          dest="$work/registry/${version_dir}"
+          mkdir -p "$dest"
+          cp "${version_dir}/signature.bin" "${version_dir}/claim.toml" "$dest/"
+          cd "$work/registry"
+          git config user.name "anseo-signing-bot"
+          git config user.email "signing-bot@anseo.ai"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "registry already up to date — nothing to publish"
+          else
+            git commit -m "sign(${namespace}): publish signature.bin + claim.toml for ${version_dir}"
+            git push origin HEAD
+          fi
 
       # ---------------------------------------------------------------------
       # PUBLIC self-check: no secret available. Prove keygen → sign → the bundle
@@ -88,9 +166,7 @@ jobs:
       # guarantee in the public repo without ever exposing a real key.
       # ---------------------------------------------------------------------
       - name: Self-check (ephemeral key) — no production secret present
-        if: ${{ env.ANSEO_PLUGIN_SIGNING_KEY == '' }}
-        env:
-          ANSEO_PLUGIN_SIGNING_KEY: ${{ secrets.ANSEO_PLUGIN_SIGNING_KEY }}
+        if: ${{ steps.signing.outputs.enabled == 'false' }}
         run: |
           set -euo pipefail
           # The unit/integration suite includes the sign→verify round-trip and
