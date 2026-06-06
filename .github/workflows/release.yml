@@ -189,6 +189,7 @@ jobs:
           GH_REF: ${{ github.ref }}
           TAG: ${{ steps.v.outputs.tag }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DRY_RUN: ${{ steps.v.outputs.dry_run }}
         run: |
           set -euo pipefail
           # Strict release-tag shape — no prerelease/build suffix may publish.
@@ -233,6 +234,28 @@ jobs:
           echo "publish_ok=${ok}" >> "$GITHUB_OUTPUT"
           echo "publish_ok=${ok} (event=${EVENT_NAME}, tag=${TAG})"
 
+          # ---------------------------------------------------------------------
+          # FAIL-FAST on a REAL release that fails the ref guard.
+          #
+          # A real release attempt is a tag `push`, OR a `workflow_dispatch` with
+          # dry_run=false. If such an attempt resolves publish_ok=false (non-semver
+          # tag, or a tag not reachable from the default branch), EVERY publish leg
+          # is `if:`-skipped — and because skipped != failed, release-summary would
+          # otherwise conclude SUCCESS, handing the operator a GREEN run that
+          # silently published nothing. Turn the whole train RED here instead so the
+          # failure is loud and nothing downstream runs.
+          #
+          # A DRY-RUN with a bad ref is explicitly allowed to be a no-op rehearsal
+          # (publish_ok=false, but we do NOT fail) — rehearsals may legitimately
+          # point at any ref. A normal default-branch-reachable vX.Y.Z release has
+          # ok=true and passes through untouched.
+          if [ "${ok}" != "true" ] && [ "${DRY_RUN}" != "true" ]; then
+            if [ "$EVENT_NAME" = "push" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "::error::release refused: ref '${TAG}' is not a default-branch-reachable vX.Y.Z tag; nothing will be published." >&2
+              exit 1
+            fi
+          fi
+
   # ---------------------------------------------------------------------------
   # (38.15) Images — the SOLE image publish path. Reuses release-images.yml so
   # the build logic exists in exactly one place (no double-publish).
@@ -274,6 +297,15 @@ jobs:
     # Carries DOCS_SITE_DISPATCH_TOKEN in its site-dispatch step → protected
     # environment gate. A maintainer approves the `release` deployment before this
     # job's runner starts and the token is materialized.
+    #
+    # Gated identically to every other publish leg: a dry-run (rehearsal) or a ref
+    # that fails the supply-chain guard (publish_ok=false) must NOT enter this
+    # protected, approval-gated job at all — otherwise a `dry_run=true` dispatch
+    # would still wait for the `release` environment approval, check out the ref,
+    # and render/upload a compose artifact before the site-dispatch step is
+    # skipped, which contradicts the dry-run contract (build images, skip ALL
+    # external publish/dispatch and never block on maintainer approval).
+    if: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
     environment: release
     runs-on: ubuntu-latest
     steps:
