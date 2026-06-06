@@ -11,6 +11,7 @@ pub mod audit;
 pub mod benchmark_consent;
 pub mod brand_accuracy;
 pub mod citations;
+pub mod contributions;
 pub mod disputes;
 pub mod entities;
 pub mod mentions;

@@ -156,4 +156,10 @@ impl Storage {
     pub fn verification(&self) -> repositories::verification::VerificationRepo<'_> {
         repositories::verification::VerificationRepo::new(&self.pool)
     }
+
+    /// Epic 44 / Story 44.2 — Identified-contribution persistence + server-side
+    /// brand resolution (verification_token → verified domain → registry FK).
+    pub fn contributions(&self) -> repositories::contributions::ContributionRepo<'_> {
+        repositories::contributions::ContributionRepo::new(&self.pool)
+    }
 }

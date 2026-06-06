@@ -112,6 +112,7 @@ pub fn router(state: AppState) -> Router {
         .merge(phase_1_reads_under_v1)
         .merge(routes::prompt_runs::v1_router())
         .merge(routes::ingest::v1_router())
+        .merge(routes::contributions::v1_router())
         .merge(routes::prompts::v1_router())
         .merge(routes::brands::v1_router())
         .merge(routes::brand::v1_router())

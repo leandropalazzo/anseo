@@ -8,6 +8,7 @@ pub mod brands;
 pub mod citations;
 pub mod comms;
 pub mod comparisons;
+pub mod contributions;
 pub mod crawlers;
 pub mod density_check;
 pub mod disputes;
