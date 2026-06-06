@@ -192,6 +192,22 @@ class observe:  # noqa: N801 — public API spelled lowercase by design
     # --- decorator protocol -----------------------------------------------
     def __call__(self, func: F) -> F:
         import functools
+        import inspect
+
+        # Async coroutine functions (the common case for real LLM SDKs, e.g.
+        # ``await client.chat.completions.create(...)``) need an async wrapper
+        # that ``await``s the wrapped call. The sync path is left untouched.
+        if inspect.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                run = self._new_run()
+                result = await func(*args, **kwargs)  # raises => nothing sent
+                run.capture(result)
+                run._ship()
+                return result
+
+            return cast(F, async_wrapper)
 
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:

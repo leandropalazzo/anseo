@@ -6,6 +6,7 @@ documented OpenAI/Anthropic shapes — the real SDKs are never imported.
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 from anseo_observe import AnseoObserver, observe
@@ -107,6 +108,85 @@ def test_decorator_ships_return_value():
     assert isinstance(result, FakeOpenAIResponse)
     assert len(transport.calls) == 1
     assert transport.calls[0]["model"] == "gpt-4o-mini"
+
+
+def test_async_decorator_ships_return_value():
+    transport = RecordingTransport()
+    obs = _observer(transport)
+
+    @observe(obs, prompt_slug="p")
+    async def ask():
+        # mimic ``await client.chat.completions.create(...)``
+        return FakeOpenAIResponse("gpt-4o-mini", "answer")
+
+    result = asyncio.run(ask())
+    assert isinstance(result, FakeOpenAIResponse)
+    assert len(transport.calls) == 1
+    assert transport.calls[0]["model"] == "gpt-4o-mini"
+
+
+def test_async_decorator_emits_same_payload_shape_as_sync():
+    sync_transport = RecordingTransport()
+
+    @observe(_observer(sync_transport), prompt_slug="best-sunglasses")
+    def ask_sync():
+        return FakeOpenAIResponse("gpt-4o-2024-08-06", "Try Sunski")
+
+    async_transport = RecordingTransport()
+
+    @observe(_observer(async_transport), prompt_slug="best-sunglasses")
+    async def ask_async():
+        return FakeOpenAIResponse("gpt-4o-2024-08-06", "Try Sunski")
+
+    ask_sync()
+    asyncio.run(ask_async())
+
+    sync_body = sync_transport.calls[0]
+    async_body = async_transport.calls[0]
+    # Same payload shape (keys) and same instrumented fields across both paths.
+    assert async_body.keys() == sync_body.keys()
+    for field in ("prompt_slug", "provider", "model", "response_text"):
+        assert async_body[field] == sync_body[field]
+    assert "observed_at" in async_body
+
+
+def test_async_decorator_autodetects_anthropic():
+    transport = RecordingTransport()
+
+    @observe(_observer(transport), prompt_slug="p")
+    async def ask():
+        return FakeAnthropicResponse("claude-3-5-sonnet-20241022", "Hello")
+
+    asyncio.run(ask())
+    body = transport.calls[0]
+    assert body["provider"] == "anthropic"
+    assert body["model"] == "claude-3-5-sonnet-20241022"
+    assert body["response_text"] == "Hello"
+
+
+def test_async_decorator_nothing_shipped_when_call_raises():
+    transport = RecordingTransport()
+
+    @observe(_observer(transport), prompt_slug="p")
+    async def ask():
+        raise RuntimeError("LLM call blew up")
+
+    try:
+        asyncio.run(ask())
+    except RuntimeError:
+        pass
+    assert transport.calls == []
+
+
+def test_async_decorator_preserves_coroutine_function():
+    import inspect
+
+    @observe(_observer(RecordingTransport()), prompt_slug="p")
+    async def ask():
+        return "x"
+
+    # The wrapper must itself be awaitable, not a plain sync function.
+    assert inspect.iscoroutinefunction(ask)
 
 
 def test_explicit_provider_model_override_autodetect():
