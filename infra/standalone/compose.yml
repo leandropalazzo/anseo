@@ -79,9 +79,13 @@ services:
     image: busybox:1.36
     environment:
       ANSEO_BIND_HOST: ${ANSEO_BIND_HOST:-127.0.0.1}
-      ANSEO_BOOTSTRAP_API_KEY: ${ANSEO_BOOTSTRAP_API_KEY:-}
-      ANSEO_KEYRING_PASSPHRASE: ${ANSEO_KEYRING_PASSPHRASE:-}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      # Mirror the EXACT fallbacks the protected services apply (${VAR:-dev-default})
+      # so an UNSET secret resolves to the dev default here too and is caught —
+      # otherwise an empty value would pass preflight while the real api/worker/
+      # postgres silently fall back to the known default.
+      ANSEO_BOOTSTRAP_API_KEY: ${ANSEO_BOOTSTRAP_API_KEY:-ogeo_DevComposeBootstrapKeyDoNotUse01}
+      ANSEO_KEYRING_PASSPHRASE: ${ANSEO_KEYRING_PASSPHRASE:-dev-compose-secrets-passphrase}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-anseo}
     command:
       - sh
       - -ec
