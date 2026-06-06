@@ -86,13 +86,22 @@ export type ContributionStatus =
   | { status: "kek_missing" }
   | { status: "redaction_rejected"; reason: string };
 
-/** Response from `POST /v1/ingest/run`. Mirrors the API's `IngestRunResponse`. */
+/**
+ * Response from `POST /v1/ingest/run`. Mirrors the API's `IngestRunResponse`.
+ *
+ * The field names are the **snake_case wire names** from the core spec
+ * (`docs/sdk-spec.md` §3), preserved verbatim for cross-SDK parity: the Python
+ * (`anseo_observe.IngestRunResponse`) and Go (`RunResult`) SDKs expose the same
+ * logical fields under the same names. The result is the parsed server body, so
+ * its keys are these wire names at runtime — re-spelling them to camelCase here
+ * would both diverge from the other SDKs and misdescribe the object shape.
+ */
 export interface ObserveRunResult {
-  runId: string;
-  projectId: string;
-  promptSlug: string;
+  run_id: string;
+  project_id: string;
+  prompt_slug: string;
   provider: string;
-  observedAt: string;
+  observed_at: string;
   contribution: ContributionStatus;
 }
 

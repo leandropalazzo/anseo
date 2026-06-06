@@ -58,7 +58,7 @@ const result = await observer.observeRun({
 
 // { status: "sealed" } | { status: "skipped_not_opted_in" }
 // | { status: "kek_missing" } | { status: "redaction_rejected", reason }
-console.log(result.runId, result.contribution.status);
+console.log(result.run_id, result.contribution.status);
 ```
 
 `observeRun` rejects with an `AnseoApiError` (carrying `.status` and `.code`) on

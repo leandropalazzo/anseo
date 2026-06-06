@@ -15,11 +15,11 @@ import {
 } from "./index";
 
 const OK_BODY: ObserveRunResult = {
-  runId: "run_123",
-  projectId: "proj_abc",
-  promptSlug: "best-polarized-sunglasses",
+  run_id: "run_123",
+  project_id: "proj_abc",
+  prompt_slug: "best-polarized-sunglasses",
   provider: "openai",
-  observedAt: "2026-06-04T12:00:00Z",
+  observed_at: "2026-06-04T12:00:00Z",
   contribution: { status: "sealed" },
 };
 
@@ -163,7 +163,7 @@ describe("AnseoObserver", () => {
       { baseUrl: "https://anseo.internal", apiKey: "k", fetch: fetchMock },
       { promptSlug: "p", provider: "openai", model: "m" },
     );
-    expect(result.runId).toBe("run_123");
+    expect(result.run_id).toBe("run_123");
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 });
