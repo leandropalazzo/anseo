@@ -436,6 +436,50 @@ fn build_spec() -> serde_json::Value {
                     }
                 }
             },
+            "/v1/analytics/site-overview": {
+                "get": {
+                    "operationId": "analyticsSiteOverview",
+                    "summary": "Story 47.4 — operator analytics: public-site overview from the aggregate rollups — unique sessions per day, top-5 pages, and top-5 referrer domains over the selected window. Privacy-safe (no raw per-visitor rows). Operator-scoped; not gated by X-Anseo-Project. No MCP parity (operator-internal, not agent-facing).",
+                    "parameters": [
+                        {
+                            "name": "period",
+                            "in": "query",
+                            "required": false,
+                            "schema": { "type": "string", "enum": ["7d", "30d"] },
+                            "description": "Trailing window. Defaults to 7d; any unsupported value clamps to 7d."
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": { "application/json": { "schema": { "type": "object" } } }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                }
+            },
+            "/v1/analytics/funnels": {
+                "get": {
+                    "operationId": "analyticsFunnels",
+                    "summary": "Story 47.4 — operator analytics: contribute funnel step counts + per-step drop-off (start → step → complete), verify funnel start/complete/fail counts by method (dns | email) with success rate, and daily badge-embed serves (last 30 d). Read entirely from the aggregate site-event rollups (privacy-safe by construction). Operator-scoped; not gated by X-Anseo-Project. No MCP parity (operator-internal, not agent-facing).",
+                    "parameters": [
+                        {
+                            "name": "period",
+                            "in": "query",
+                            "required": false,
+                            "schema": { "type": "string", "enum": ["7d", "30d"] },
+                            "description": "Trailing window for the contribute + verify funnels. Defaults to 7d; any unsupported value clamps to 7d. Badge embeds are always last 30 d."
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": { "application/json": { "schema": { "type": "object" } } }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                }
+            },
             "/v1/plugins/install": {
                 "post": {
                     "operationId": "installPlugin",
@@ -822,6 +866,26 @@ mod tests {
             spec["paths"]["/v1/recommendations/{id}/state"]["patch"]["responses"]["409"]
                 .is_object()
         );
+    }
+
+    #[test]
+    fn spec_includes_story_47_4_analytics_paths() {
+        let spec = build_spec();
+        for (path, op_id) in [
+            ("/v1/analytics/site-overview", "analyticsSiteOverview"),
+            ("/v1/analytics/funnels", "analyticsFunnels"),
+        ] {
+            let get = &spec["paths"][path]["get"];
+            assert!(get.is_object(), "spec missing analytics path {path}");
+            assert_eq!(get["operationId"], op_id);
+            // Operator-scoped: API-key/401 secured, period query param, JSON 200.
+            assert!(get["responses"]["200"].is_object());
+            assert_eq!(
+                get["responses"]["401"]["$ref"],
+                "#/components/responses/Unauthorized"
+            );
+            assert_eq!(get["parameters"][0]["name"], "period");
+        }
     }
 
     #[test]

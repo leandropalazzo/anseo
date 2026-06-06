@@ -300,9 +300,10 @@ impl<'a> SiteEventRepo<'a> {
     //
     // WINDOW SEMANTICS: an N-day window means today + (N-1) previous calendar
     // days. For DATE-bucketed rollup tables that is `day >= current_date -
-    // (N-1)`. We subtract one so 7d = 7 calendar days (not 8), keeping these
-    // rollup-backed queries in agreement with the timestamp-backed verify query
-    // (`ts >= now() - N days`).
+    // (N-1)`. We subtract one so 7d = 7 calendar days (not 8). The
+    // timestamp-backed verify query (`verify_counts_by_method`) projects `ts` to
+    // its UTC calendar day and applies the SAME boundary, so all panels cover an
+    // identical N-calendar-day window.
     // ─────────────────────────────────────────────────────────────────────────
 
     /// Unique sessions per day over the trailing `period_days`, oldest day first.
@@ -320,8 +321,8 @@ impl<'a> SiteEventRepo<'a> {
             FROM site_event_rollups
             WHERE event_type = 'page_view'
               -- N-day window = today + (N-1) previous calendar days. Subtract one
-              -- so 7d covers 7 days (not 8), matching the timestamp-backed verify
-              -- query's `ts >= now() - N days`.
+              -- so 7d covers 7 days (not 8), matching the verify query's
+              -- UTC-calendar-day window.
               AND day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => ($1::int - 1))
             GROUP BY day
             ORDER BY day ASC
@@ -454,7 +455,11 @@ impl<'a> SiteEventRepo<'a> {
                 COUNT(*)::bigint AS count
             FROM site_events
             WHERE event_type IN ('verify_start', 'verify_complete', 'verify_fail')
-              AND ts >= now() - make_interval(days => $1::int)
+              -- Same UTC CALENDAR-day window the rollup-backed queries use, so the
+              -- Verify Funnel covers exactly N calendar days and agrees with the
+              -- contribute funnel + overview for the same period (rather than a
+              -- rolling now()-N timestamp window that bleeds into the (N+1)th day).
+              AND (ts AT TIME ZONE 'UTC')::date >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => ($1::int - 1))
             GROUP BY event_type, method
             "#,
         )
@@ -730,19 +735,36 @@ mod tests {
     async fn dashboard_window_covers_exactly_n_days(pool: PgPool) {
         let repo = SiteEventRepo::new(&pool);
 
-        // Insert one page_view per day for offsets 0..=8 days ago (9 distinct
-        // days). Each gets a unique session so unique_sessions = 1/day.
+        // Insert one page_view + one verify_start per day for offsets 0..=8 days
+        // ago (9 distinct days). page_view gets a unique session so
+        // unique_sessions = 1/day; verify_start backs the cross-check that the
+        // raw timestamp-backed verify query shares the rollup's calendar window.
+        // We anchor each row to NOON UTC of its offset day so the rolling
+        // `now() - N days` boundary (which would land mid-afternoon) and the
+        // calendar-day boundary disagree on the edge day if the windows differ.
         for offset in 0..=8 {
             let sid = uuid::Uuid::new_v4();
             repo.insert("page_view", sid, Some("/"), None, &serde_json::json!({}))
                 .await
                 .unwrap();
+            let vsid = uuid::Uuid::new_v4();
+            repo.insert(
+                "verify_start",
+                vsid,
+                None,
+                None,
+                &serde_json::json!({"method": "dns"}),
+            )
+            .await
+            .unwrap();
             sqlx::query(
-                "UPDATE site_events SET ts = now() - make_interval(days => $1::int) \
-                 WHERE session_id = $2",
+                "UPDATE site_events SET ts = \
+                 ((now() AT TIME ZONE 'UTC')::date - make_interval(days => $1::int) \
+                  + interval '12 hours') \
+                 WHERE session_id = ANY($2)",
             )
             .bind(offset)
-            .bind(sid)
+            .bind(&[sid, vsid][..])
             .execute(&pool)
             .await
             .unwrap();
@@ -767,6 +789,34 @@ mod tests {
 
         // 30-day window covers all 9 seeded days.
         assert_eq!(repo.sessions_per_day(30).await.unwrap().len(), 9);
+
+        // The raw timestamp-backed verify query must share the rollup's
+        // UTC-calendar-day window EXACTLY: 7d → 7 verify_start rows (today + 6
+        // previous), never 8. With rows anchored at noon UTC, a rolling
+        // `now() - 7 days` window would have admitted the offset-7 day's
+        // afternoon row; the calendar-day boundary excludes it.
+        let vm7: i64 = repo
+            .verify_counts_by_method(7)
+            .await
+            .unwrap()
+            .iter()
+            .filter(|(et, _, _)| et == "verify_start")
+            .map(|(_, _, c)| c)
+            .sum();
+        assert_eq!(
+            vm7, 7,
+            "verify window must match the rollup window: exactly 7 calendar days, not 8"
+        );
+        // 30d covers all 9 seeded verify_start rows — agrees with sessions_per_day(30).
+        let vm30: i64 = repo
+            .verify_counts_by_method(30)
+            .await
+            .unwrap()
+            .iter()
+            .filter(|(et, _, _)| et == "verify_start")
+            .map(|(_, _, c)| c)
+            .sum();
+        assert_eq!(vm30, 9);
     }
 
     /// Finding 1 (defense in depth) — even if raw `site_events` rows carry a full
