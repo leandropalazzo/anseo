@@ -4,13 +4,30 @@ This directory holds the source and bundle layout for the **official, first-part
 Anseo plugins** (Story 41.5). They are the canonical reference implementations of
 the four Phase-3 plugin kinds and double as the SDK author templates.
 
-Three plugins seed the registry:
+Three plugins seed the registry. Every one is **fully functional within the
+host execution contract** — none is a stub.
 
-| Directory                  | id (registry)              | kind            | What it does                                            |
-| -------------------------- | -------------------------- | --------------- | ------------------------------------------------------- |
-| `anseo-warehouse/`         | `anseo/anseo-warehouse`    | `analytics`     | Wraps the ClickHouse warehouse/ETL as a subprocess plugin (ADR-006 Tier-2+). |
-| `anseo-connect-bigquery/`  | `anseo/anseo-connect-bigquery` | `output-format` | Streams run results to BigQuery (`output:connect`).     |
-| `anseo-example-provider/`  | `anseo/anseo-example-provider` | `provider`      | Minimal WASM provider that calls a public echo API — the plugin-author template. |
+| Directory                  | id (registry)                  | kind            | What it actually does                                            |
+| -------------------------- | ------------------------------ | --------------- | --------------------------------------------------------------- |
+| `anseo-trend-analytics/`   | `anseo/anseo-trend-analytics`  | `analytics`     | Offline rollup (count/min/max/mean/least-squares slope) over a metric series; emits a `plugin:anseo-trend-analytics:rollup` trend result to stdout. |
+| `anseo-ndjson-export/`     | `anseo/anseo-ndjson-export`    | `output-format` | Formats a run's result rows as newline-delimited JSON (NDJSON) on stdout. |
+| `anseo-example-provider/`  | `anseo/anseo-example-provider` | `provider`      | Deterministic OFFLINE echo provider — the plugin-author template. |
+
+### Why no ClickHouse / BigQuery network sinks?
+
+The host's plugin execution primitive is the **analytics subprocess sandbox**
+(`crates/plugin-host/src/subprocess.rs`): the child runs under seccomp-bpf
+(Linux) / `sandbox-exec (deny network*)` (macOS), the allowlist **forbids
+`socket`/`connect`**, the host passes the request as **args**, captures
+**stdout**, and **discards stderr**. There is no stdin and no wired host
+fetch-proxy (the `host:http/fetch` capability in `crates/plugin-host/src/capability.rs`
+is a call-time *policy* check only — no execution path delivers proxied bytes to
+a subprocess). So a network-dependent ClickHouse/BigQuery integration **cannot
+run** as a plugin today. Rather than ship stubs whose manifests overstate the
+artifact (a parity-honesty defect), the first-party set is built from work the
+sandbox can actually do: offline computation that reads args and writes stdout.
+The `anseo-example-provider` template shows where a real `network` capability +
+host-mediated fetch *would* go if/when that path is wired.
 
 ## On-disk bundle shape
 

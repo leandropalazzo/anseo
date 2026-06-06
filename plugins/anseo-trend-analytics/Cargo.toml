@@ -1,0 +1,25 @@
+# Standalone manifest for the first-party trend-analytics plugin.
+#
+# This crate is NOT a member of the host workspace (the empty `[workspace]`
+# table makes it its own workspace root) so it builds and tests in isolation as
+# a native subprocess binary — the artifact the analytics sandbox spawns.
+#
+# Build: `cargo build --release` → a native binary the install pipeline
+# materializes as `entrypoint.wasm` under <home>/plugins/<id>/<version>/ (the
+# install layout uses that filename regardless of artifact kind; see
+# crates/plugin-host/src/subprocess.rs).
+[package]
+name = "anseo-trend-analytics"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[workspace]
+
+[[bin]]
+name = "anseo-trend-analytics"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "1"

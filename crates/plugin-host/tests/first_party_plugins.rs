@@ -14,10 +14,11 @@
 //! real download.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use anseo_plugin_host::loader::{scan_and_load, LoadPolicy, LoadStatus};
-use anseo_plugin_host::subprocess::Platform;
+use anseo_plugin_host::subprocess::{run, AnalyticsSandbox, Platform, RunOutcome};
 use anseo_plugin_manifest::{PluginManifest, PluginType};
 
 /// Repo root, derived from this crate's manifest dir (`crates/plugin-host`).
@@ -33,13 +34,13 @@ fn repo_root() -> PathBuf {
 fn first_party() -> Vec<(&'static str, &'static str, PluginType)> {
     vec![
         (
-            "anseo-warehouse",
-            "anseo/anseo-warehouse",
+            "anseo-trend-analytics",
+            "anseo/anseo-trend-analytics",
             PluginType::Analytics,
         ),
         (
-            "anseo-connect-bigquery",
-            "anseo/anseo-connect-bigquery",
+            "anseo-ndjson-export",
+            "anseo/anseo-ndjson-export",
             PluginType::OutputFormat,
         ),
         (
@@ -119,4 +120,115 @@ fn first_party_plugins_load_through_loader() {
         assert_eq!(row.kind, kind.to_string(), "{id}: reports its kind");
         assert!(row.reason.is_empty(), "{id}: clean load has no reason");
     }
+}
+
+// ---------------------------------------------------------------------------
+// Real execution tests — prove the subprocess plugins are NOT stubs.
+//
+// These compile each native subprocess plugin (its own standalone workspace),
+// then invoke it through the *exact* host execution primitive
+// (`subprocess::run`, the analytics sandbox) with the request passed as args,
+// and assert a well-formed, non-empty JSON result on stdout. A stub that only
+// logged to stderr would fail: stderr is discarded by `run`, so the only way to
+// pass is to do real work and write the result to stdout.
+// ---------------------------------------------------------------------------
+
+/// Build the named plugin's release binary in its own workspace and return the
+/// path to the produced executable. Skips the build's interaction with the host
+/// workspace because each plugin Cargo.toml carries an empty `[workspace]`.
+fn build_subprocess_plugin(dir: &str, bin_name: &str) -> PathBuf {
+    let plugin_dir = repo_root().join("plugins").join(dir);
+    let status = Command::new(env!("CARGO"))
+        .arg("build")
+        .arg("--release")
+        .arg("--bin")
+        .arg(bin_name)
+        .current_dir(&plugin_dir)
+        .status()
+        .unwrap_or_else(|e| panic!("{dir}: failed to spawn cargo build: {e}"));
+    assert!(status.success(), "{dir}: cargo build --release must succeed");
+
+    let bin = plugin_dir
+        .join("target")
+        .join("release")
+        .join(bin_name);
+    assert!(
+        bin.exists(),
+        "{dir}: built binary must exist at {}",
+        bin.display()
+    );
+    bin
+}
+
+/// Run a built plugin binary through the real host sandbox primitive with the
+/// request as argv[1], returning the captured stdout as a String.
+fn run_through_sandbox(bin: &Path, request: &str) -> String {
+    let scratch = tempfile::tempdir().expect("scratch dir");
+    let sandbox = AnalyticsSandbox::defaults(scratch.path().to_path_buf());
+    let outcome = run(
+        Platform::current(),
+        &sandbox,
+        &bin.to_string_lossy(),
+        &[request],
+    )
+    .expect("sandboxed run spawns");
+
+    match outcome {
+        RunOutcome::Exited { code, stdout } => {
+            assert_eq!(code, 0, "plugin must exit 0; stdout was empty? proves work");
+            assert!(!stdout.is_empty(), "plugin must write a result to stdout");
+            String::from_utf8(stdout).expect("stdout is valid UTF-8")
+        }
+        RunOutcome::Timeout => panic!("plugin timed out under the sandbox"),
+    }
+}
+
+#[test]
+fn trend_analytics_plugin_executes_and_emits_trend_result() {
+    if !Platform::current().supports_analytics_subprocess() {
+        eprintln!("skipping: analytics subprocess unsupported on this platform");
+        return;
+    }
+    let bin = build_subprocess_plugin("anseo-trend-analytics", "anseo-trend-analytics");
+    let request =
+        r#"{"window":"30d","metric":"citation_share","points":[0.10,0.12,0.15,0.19]}"#;
+    let stdout = run_through_sandbox(&bin, request);
+
+    let v: serde_json::Value =
+        serde_json::from_str(stdout.trim()).expect("stdout is well-formed JSON");
+    // A real computation, namespaced trend kind, rising series → rising.
+    assert_eq!(v["trend_kind"], "plugin:anseo-trend-analytics:rollup");
+    assert_eq!(v["metric"], "citation_share");
+    assert_eq!(v["window"], "30d");
+    assert_eq!(v["count"], 4);
+    assert_eq!(v["direction"], "rising");
+    assert!(
+        v["slope"].as_f64().expect("slope is numeric") > 0.0,
+        "rising series must have positive slope"
+    );
+}
+
+#[test]
+fn ndjson_export_plugin_executes_and_emits_ndjson() {
+    if !Platform::current().supports_analytics_subprocess() {
+        eprintln!("skipping: output subprocess unsupported on this platform");
+        return;
+    }
+    let bin = build_subprocess_plugin("anseo-ndjson-export", "anseo-ndjson-export");
+    let request =
+        r#"{"run_id":"r-123","rows":[{"prompt":"p1","score":0.8},{"prompt":"p2","score":0.4}]}"#;
+    let stdout = run_through_sandbox(&bin, request);
+
+    let lines: Vec<&str> = stdout.lines().filter(|l| !l.is_empty()).collect();
+    assert_eq!(lines.len(), 2, "one NDJSON record per input row");
+
+    let l0: serde_json::Value =
+        serde_json::from_str(lines[0]).expect("line 0 is well-formed JSON");
+    assert_eq!(l0["run_id"], "r-123");
+    assert_eq!(l0["prompt"], "p1");
+    assert_eq!(l0["score"], 0.8);
+
+    let l1: serde_json::Value =
+        serde_json::from_str(lines[1]).expect("line 1 is well-formed JSON");
+    assert_eq!(l1["prompt"], "p2");
 }

@@ -1,22 +1,31 @@
 # Anseo first-party plugin — minimal example Provider (SDK author template).
 #
-# Provider plugin (WASM): calls a public echo API and returns a deterministic
-# response. It exists primarily as documentation — the canonical starting point
-# for plugin authors building their own Provider. Reaches users through the
-# existing provider surface via the
+# Provider plugin (WASM): a deterministic, OFFLINE echo provider. Given a prompt
+# and the `echo-1` model it returns the prompt verbatim plus a JSON-escaped raw
+# payload. It is the canonical starting point for plugin authors building their
+# own Provider. It makes NO outbound calls — the plugin sandbox forbids sockets —
+# so it declares the explicit zero-network surface below. A real provider that
+# needed an upstream API would add a `network` capability AND perform a
+# host-mediated fetch; this template stays offline so it is deterministic and
+# needs no credentials.
+#
+# Reaches users through the existing provider surface via the
 # plugin:anseo/anseo-example-provider:provider namespace.
 #
 # Registry id: anseo/anseo-example-provider
 name: anseo-example-provider
 version: "0.1.0"
-description: "Minimal example Provider plugin (SDK author template; calls a public echo API)."
+description: "Minimal example Provider plugin (SDK author template; deterministic offline echo)."
 author: "anseo.ai"
 homepage: "https://anseo.ai/plugins/anseo-example-provider"
 plugin_type: provider
 # WASM module built from src/lib.rs by the 41.4 CI signing pipeline.
 entry_point: entrypoint.wasm
 capabilities:
-  # The single host the example provider is allowed to reach.
-  - kind: network
-    allowlist:
-      - "postman-echo.com"
+  # This template touches no host surface: it opens no sockets and reads no
+  # secrets. It declares a single emit-event marker so the manifest carries an
+  # explicit, honest capability declaration (the validator requires at least one
+  # capability entry) and so authors can see where a real grant would go.
+  - kind: emit-event
+    kinds:
+      - "provider.response.emitted"

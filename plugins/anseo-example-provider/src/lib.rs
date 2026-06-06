@@ -2,8 +2,14 @@
 //! SDK author template (Story 41.5).
 //!
 //! This is the minimal shape a Provider plugin takes: it receives a prompt
-//! request, performs its work (here: a call to a public echo API, scoped by the
-//! `network` capability declared in `manifest.yaml`), and returns a response.
+//! request, performs its work, and returns a response. To stay deterministic —
+//! and because the plugin sandbox forbids sockets (see
+//! `crates/plugin-host/src/subprocess.rs`) — this template's work is a pure,
+//! OFFLINE echo: it returns the prompt verbatim plus a JSON-escaped raw payload.
+//! It makes NO network calls and declares NO `network` capability. A real
+//! provider that needed an upstream API would add a `network` capability to
+//! `manifest.yaml` and perform a host-mediated fetch; the [`upstream_url`] helper
+//! shows where that request would be built.
 //!
 //! Build target: `wasm32-wasi` → `entrypoint.wasm` (the manifest `entry_point`).
 //! The 41.4 CI pipeline compiles this, computes `SHA-256(manifest.yaml ||
@@ -39,10 +45,12 @@ pub struct ProviderResponse {
 /// the upstream model catalog.
 pub const ACCEPTED_MODELS: &[&str] = &["echo-1"];
 
-/// The single network host this plugin is permitted to reach. MUST match the
-/// `network` allowlist in `manifest.yaml`; the host mediates every outbound
-/// fetch against the declared capability.
-pub const ECHO_HOST: &str = "postman-echo.com";
+/// Illustrative upstream host a *networked* provider might call. This template
+/// is OFFLINE and never reaches it; the constant exists only so [`upstream_url`]
+/// can demonstrate where a real provider would build its request. If you make a
+/// real networked provider, declare a matching `network` capability in
+/// `manifest.yaml`; the host mediates every fetch against that allowlist.
+pub const EXAMPLE_UPSTREAM_HOST: &str = "postman-echo.com";
 
 /// Validate that the requested model is one this provider serves. The host
 /// calls this before [`run`]; an unknown model is a hard error rather than a
@@ -58,14 +66,14 @@ pub fn validate_model(model: &str) -> Result<String, String> {
     }
 }
 
-/// Build the echo endpoint URL for a prompt. A real provider would build its
-/// upstream request here; the echo API simply reflects the input so the example
-/// is deterministic and needs no credentials.
-pub fn echo_url(prompt: &str) -> String {
-    // The host enforces that the resolved host stays within the declared
-    // `network` allowlist (= ECHO_HOST).
+/// Illustrative-only: build the URL a *networked* provider would request. This
+/// template does NOT call it (the [`run`] path is fully offline); the helper
+/// exists so authors can see where an upstream request is constructed. A real
+/// provider would pass this to a host-mediated `host:http/fetch` after declaring
+/// a matching `network` capability.
+pub fn upstream_url(prompt: &str) -> String {
     let encoded = prompt.replace(' ', "+");
-    format!("https://{ECHO_HOST}/get?prompt={encoded}")
+    format!("https://{EXAMPLE_UPSTREAM_HOST}/get?prompt={encoded}")
 }
 
 /// The plugin entry point. In the deployed WASM build the host invokes this
@@ -73,8 +81,10 @@ pub fn echo_url(prompt: &str) -> String {
 /// readable and unit-testable.
 pub fn run(request: &ProviderRequest) -> Result<ProviderResponse, String> {
     let model = validate_model(&request.model)?;
-    // A real provider performs `host:http/fetch(echo_url(&request.prompt))`
-    // here. The echo API reflects the prompt, so the response is deterministic.
+    // This template is OFFLINE: it echoes the prompt rather than calling out. A
+    // networked provider would here perform a host-mediated
+    // `host:http/fetch(upstream_url(&request.prompt))` (after declaring a
+    // `network` capability) and use the response instead.
     //
     // Build the raw payload with serde_json so the prompt is JSON-escaped: a
     // prompt containing `"`, `\`, or control characters would otherwise produce
@@ -101,9 +111,9 @@ mod tests {
     }
 
     #[test]
-    fn echo_url_stays_within_allowlisted_host() {
-        let url = echo_url("hello world");
-        assert!(url.starts_with(&format!("https://{ECHO_HOST}/")));
+    fn upstream_url_builds_illustrative_request() {
+        let url = upstream_url("hello world");
+        assert!(url.starts_with(&format!("https://{EXAMPLE_UPSTREAM_HOST}/")));
         assert!(url.contains("prompt=hello+world"));
     }
 

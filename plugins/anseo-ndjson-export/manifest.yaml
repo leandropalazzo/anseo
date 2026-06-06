@@ -1,0 +1,30 @@
+# Anseo first-party plugin — NDJSON output formatter (Story 41.5).
+#
+# Output-format plugin (native subprocess). Converts a completed run's result
+# rows into newline-delimited JSON (NDJSON) on stdout — the canonical streaming
+# shape for piping a run into a file, `jq`, or a downstream loader. Runs ENTIRELY
+# OFFLINE inside the subprocess sandbox (which forbids sockets), so it declares
+# the explicit zero-network capability surface below: it only emits a
+# completion audit event and opens no sockets and reads no secrets. The host,
+# not the plugin, owns delivery of the formatted bytes.
+#
+# Reaches users through the existing output surface via the
+# plugin:anseo/anseo-ndjson-export:output-format namespace — no new routes.
+#
+# Registry id: anseo/anseo-ndjson-export
+name: anseo-ndjson-export
+version: "0.1.0"
+description: "Format run results as newline-delimited JSON (NDJSON) on stdout."
+author: "anseo.ai"
+homepage: "https://anseo.ai/plugins/anseo-ndjson-export"
+plugin_type: output-format
+# Native subprocess binary built from src/main.rs by the 41.4 CI signing
+# pipeline. Materialized as `entrypoint.wasm` under
+# <home>/plugins/<id>/<version>/ (install-layout filename convention).
+entry_point: entrypoint.wasm
+capabilities:
+  # The ONLY host surface this formatter touches: a per-export completion audit
+  # event. No network, no secrets.
+  - kind: emit-event
+    kinds:
+      - "output.export.completed"

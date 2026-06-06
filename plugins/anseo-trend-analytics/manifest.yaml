@@ -1,0 +1,37 @@
+# Anseo first-party plugin — local trend-analytics rollup (Story 41.5).
+#
+# Analytics plugin (native subprocess). Computes a real statistical rollup
+# (count / min / max / mean / least-squares slope) over a supplied metric
+# series and emits a namespaced trend result. Runs ENTIRELY OFFLINE inside the
+# analytics-subprocess sandbox, which forbids sockets — so this plugin declares
+# NO network capability and makes no outbound calls.
+#
+# Reaches users through the existing analytics surface via the
+# plugin:anseo/anseo-trend-analytics:analytics namespace — no new routes.
+#
+# Registry id: anseo/anseo-trend-analytics  (name below is the bare DNS-safe name)
+name: anseo-trend-analytics
+version: "0.1.0"
+description: "Offline trend-analytics rollup (count/min/max/mean/slope) over a metric series."
+author: "anseo.ai"
+homepage: "https://anseo.ai/plugins/anseo-trend-analytics"
+plugin_type: analytics
+# Native subprocess binary built from src/main.rs by the 41.4 CI signing
+# pipeline. The install pipeline materializes the single signed artifact as
+# `entrypoint.wasm` under <home>/plugins/<id>/<version>/, so the manifest must
+# reference exactly that on-disk filename for the runtime adapter to spawn it
+# (the filename is the install-layout convention, not the artifact format).
+entry_point: entrypoint.wasm
+capabilities:
+  # Declared maximum analytics windows, carried through to the audit row. The
+  # plugin reads the requested window from its argv request and echoes it back.
+  - kind: analytics-window
+    windows:
+      - "30d"
+      - "90d"
+      - "365d"
+  # The rollup emits a completion audit event. This is the ONLY host surface the
+  # plugin touches; it opens no sockets and reads no secrets.
+  - kind: emit-event
+    kinds:
+      - "analytics.rollup.completed"

@@ -1,0 +1,22 @@
+# Standalone manifest for the first-party NDJSON output-format plugin.
+#
+# NOT a member of the host workspace (empty `[workspace]` table => own root) so
+# it builds and tests in isolation as a native subprocess binary.
+#
+# Build: `cargo build --release` → a native binary the install pipeline
+# materializes as `entrypoint.wasm` under <home>/plugins/<id>/<version>/.
+[package]
+name = "anseo-ndjson-export"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[workspace]
+
+[[bin]]
+name = "anseo-ndjson-export"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "1"
