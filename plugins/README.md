@@ -115,6 +115,16 @@ verification chain (`signing_digest`, `NamespaceClaim`) and
 `docs/manual/plugin-authoring.md` for the publisher flow. Unsigned bundles load
 only behind `--allow-unsigned` (CLI) / `LoadPolicy::allow_unsigned`.
 
+> **Deferred host hardening.** At runtime `scan_and_load` decides load/skip/error
+> from the manifest, the recorded `signature_status`, and the platform sandbox
+> capability — it does **not** yet verify that `entrypoint.wasm` is present on
+> disk or recompute/verify the Ed25519 signature over the bundle bytes at load
+> time. That load-time artifact-presence + signature verification is tracked
+> separately as part of the subprocess/loader hardening follow-up. (The
+> first-party load-roundtrip test still stages a real built `entrypoint.wasm`
+> next to each manifest, so it stays high-fidelity rather than passing for a
+> bundle missing its entrypoint.)
+
 ## Parity boundary
 
 These plugins reach users only through the **existing** surfaces via the

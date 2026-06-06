@@ -5,13 +5,26 @@
 //!   2. passes `PluginManifest::validate()` (DNS-safe name, semver, capability
 //!      present, relative entry_point),
 //!   3. declares the kind the story requires, and
-//!   4. loads cleanly through the runtime loader `scan_and_load` — i.e. it
-//!      reaches `LoadStatus::Loaded` through the exact gates `anseo serve`
-//!      applies (signed + sandbox-supported platform).
+//!   4. reaches `LoadStatus::Loaded` through the runtime loader `scan_and_load`,
+//!      exercising the load *decision* (manifest read + parse, signature-status
+//!      gate, platform sandbox gate) against a realistically-staged bundle.
 //!
-//! Hermetic: the manifest is read from the repo and staged into a tempdir that
-//! mirrors the `<home>/plugins/<id>/<version>/` install layout. No network, no
-//! real download.
+//! Scope note — what the load gate does and does NOT check today:
+//!   `scan_and_load` decides load/skip/error from (a) the on-disk manifest, (b)
+//!   the `signature_status` recorded in `installed.toml`, and (c) the platform
+//!   sandbox capability. It does **not** itself verify that `entrypoint.wasm`
+//!   exists or recompute/verify the Ed25519 signature over the bundle bytes at
+//!   load time — that load-time artifact-presence + signature verification is a
+//!   host hardening item tracked separately (the subprocess/loader hardening
+//!   follow-up; see plugins/README.md). To keep this test high-fidelity (and
+//!   not green for a bundle missing its entrypoint), we still stage a *real*
+//!   built `entrypoint.wasm` next to each manifest, mirroring exactly what the
+//!   installer materializes under `<home>/plugins/<id>/<version>/`.
+//!
+//! Hermetic: the manifest is read from the repo and staged — together with a
+//! freshly built artifact — into a tempdir that mirrors the install layout. No
+//! network, no real download. The built artifact lives only in the tempdir and
+//! is never committed.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -79,15 +92,33 @@ fn first_party_plugins_load_through_loader() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let home = tmp.path();
 
-    // Stage each first-party manifest into the install layout, recorded as
-    // `signed` (the 41.4 CI pipeline signs them). Use a Linux-pinned policy so
-    // the analytics sandbox gate is host-independent in CI.
+    // Stage each first-party plugin into the install layout exactly as the
+    // installer materializes it: the manifest PLUS a freshly built
+    // `entrypoint.wasm`, recorded as `signed` (the 41.4 CI pipeline signs them).
+    // Building a real artifact keeps this test honest — a bundle that is missing
+    // its entrypoint would not match what `ogeo plugin install` writes, even
+    // though the current `scan_and_load` decision does not yet read the artifact
+    // (load-time artifact-presence + signature verification is the deferred host
+    // hardening item; see the module doc and plugins/README.md). Use a
+    // Linux-pinned policy so the analytics sandbox gate is host-independent.
     let mut installed = String::new();
-    for (dir, id, _kind) in first_party() {
+    for (dir, id, kind) in first_party() {
         let src = repo_root().join("plugins").join(dir).join("manifest.yaml");
         let dst_dir = home.join("plugins").join(id).join("0.1.0");
         fs::create_dir_all(&dst_dir).expect("create install dir");
         fs::copy(&src, dst_dir.join("manifest.yaml")).expect("stage manifest");
+
+        // Build the plugin's native artifact and stage it under the conventional
+        // `entrypoint.wasm` filename (the install layout uses that name
+        // regardless of artifact kind — see plugins/build.sh). The artifact is
+        // written into the tempdir only and is never committed to git.
+        let artifact = build_plugin_artifact(dir, kind);
+        fs::copy(&artifact, dst_dir.join("entrypoint.wasm")).expect("stage entrypoint.wasm");
+        assert!(
+            dst_dir.join("entrypoint.wasm").is_file(),
+            "{id}: staged bundle must contain a real entrypoint.wasm"
+        );
+
         installed.push_str(&format!(
             "[[plugin]]\nid = \"{id}\"\nversion = \"0.1.0\"\nsignature_status = \"signed\"\nnamespace = \"anseo\"\n",
         ));
@@ -153,6 +184,59 @@ fn build_subprocess_plugin(dir: &str, bin_name: &str) -> PathBuf {
         bin.display()
     );
     bin
+}
+
+/// Build a real artifact for a first-party plugin and return its path, so the
+/// load-roundtrip test can stage a genuine `entrypoint.wasm` matching what the
+/// installer materializes. The artifact kind tracks the plugin kind:
+///
+///   * Analytics → native subprocess binary (the exact artifact the sandbox
+///     spawns); reuses [`build_subprocess_plugin`] so we build it the same way
+///     the execution test does.
+///   * Provider → native cdylib (`.dylib`/`.so`/`.dll` per host). We build the
+///     *native* cdylib rather than the `wasm32-wasip1` target so the test never
+///     depends on a rustup wasm target being installed in CI; it is still a
+///     real, freshly compiled artifact (not an empty placeholder). The on-disk
+///     install convention names it `entrypoint.wasm` regardless of true format
+///     — see plugins/build.sh.
+///
+/// The path returned points into the plugin's own `target/` dir; the caller
+/// copies it into a tempdir and never commits it.
+fn build_plugin_artifact(dir: &str, kind: PluginType) -> PathBuf {
+    match kind {
+        PluginType::Analytics => build_subprocess_plugin(dir, dir),
+        _ => build_native_cdylib(dir),
+    }
+}
+
+/// Build the plugin crate's native cdylib in its own workspace and return the
+/// produced shared-library path (resolved by extension, host-portable).
+fn build_native_cdylib(dir: &str) -> PathBuf {
+    let plugin_dir = repo_root().join("plugins").join(dir);
+    let status = Command::new(env!("CARGO"))
+        .arg("build")
+        .arg("--release")
+        .current_dir(&plugin_dir)
+        .status()
+        .unwrap_or_else(|e| panic!("{dir}: failed to spawn cargo build: {e}"));
+    assert!(
+        status.success(),
+        "{dir}: cargo build --release must succeed"
+    );
+
+    // cdylib output name: lib<name with - → _>.<dylib|so|dll>.
+    let lib_stem = format!("lib{}", dir.replace('-', "_"));
+    let release = plugin_dir.join("target").join("release");
+    for ext in ["dylib", "so", "dll"] {
+        let candidate = release.join(format!("{lib_stem}.{ext}"));
+        if candidate.is_file() {
+            return candidate;
+        }
+    }
+    panic!(
+        "{dir}: expected a cdylib ({lib_stem}.[dylib|so|dll]) under {}",
+        release.display()
+    );
 }
 
 /// Run a built plugin binary through the real host sandbox primitive with the
