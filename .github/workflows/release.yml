@@ -136,6 +136,13 @@ jobs:
       # non-semver tag, or a tag not reachable from the default branch cannot
       # expose a publish token. Fail-closed: anything unproven => 'false'.
       publish_ok: ${{ steps.guard.outputs.publish_ok }}
+      # LATEST-TAG GATE: 'true' only when the tag commit is the CURRENT
+      # default-branch TIP (top-of-tree). Used to decide whether `latest` may
+      # move to this release's images. A re-push / re-dispatch of an OLD but
+      # still-reachable tag has publish_ok=true (it republishes its semver tags)
+      # yet tag_latest=false, so it cannot drag `latest` backwards onto stale
+      # images. Fail-closed: anything unproven => 'false'.
+      tag_latest: ${{ steps.guard.outputs.tag_latest }}
     steps:
       # Full history + tags so the guard can verify a dispatch-supplied tag is
       # reachable from the default branch (ancestry check).
@@ -195,10 +202,20 @@ jobs:
           # Strict release-tag shape — no prerelease/build suffix may publish.
           semver='^v[0-9]+\.[0-9]+\.[0-9]+$'
           ok=false
+          # LATEST gate, computed alongside the publish gate below. 'true' only
+          # when the tag commit is the CURRENT default-branch tip (top-of-tree).
+          # Fail-closed: stays false unless tip-equality is positively proven.
+          latest=false
+
+          emit_outputs() {
+            echo "publish_ok=${ok}" >> "$GITHUB_OUTPUT"
+            echo "tag_latest=${latest}" >> "$GITHUB_OUTPUT"
+            echo "publish_ok=${ok} tag_latest=${latest} (event=${EVENT_NAME}, tag=${TAG})"
+          }
 
           if ! printf '%s' "$TAG" | grep -Eq "$semver"; then
             echo "::warning::ref '$TAG' is not a strict release tag (vX.Y.Z) — publish legs will be skipped (fail-closed)."
-            echo "publish_ok=false" >> "$GITHUB_OUTPUT"
+            emit_outputs
             exit 0
           fi
 
@@ -219,10 +236,20 @@ jobs:
               git fetch origin "+refs/tags/${TAG}:refs/tags/${TAG}" || true
               if ! tag_sha="$(git rev-parse -q --verify "refs/tags/${TAG}^{commit}")"; then
                 echo "::warning::ref '${TAG}' does not resolve to an existing git TAG — publish skipped (fail-closed)."
-              elif ! git rev-parse -q --verify "refs/remotes/origin/${def}" >/dev/null; then
+              elif ! def_sha="$(git rev-parse -q --verify "refs/remotes/origin/${def}")"; then
                 echo "::warning::could not resolve default branch origin/${def} to verify tag reachability — publish skipped (fail-closed)."
-              elif git merge-base --is-ancestor "$tag_sha" "refs/remotes/origin/${def}"; then
+              elif git merge-base --is-ancestor "$tag_sha" "$def_sha"; then
                 ok=true
+                # LATEST policy: `latest` moves ONLY for a top-of-tree release —
+                # i.e. the tag commit IS the current default-branch tip. A re-push
+                # of an OLD reachable tag is still publish-worthy (ok=true, its
+                # X.Y.Z/X.Y/X semver tags republish) but its commit is BEHIND the
+                # tip, so latest stays false and cannot regress to stale images.
+                if [ "$tag_sha" = "$def_sha" ]; then
+                  latest=true
+                else
+                  echo "::notice::tag '${TAG}' (${tag_sha}) is reachable but NOT the default-branch tip (${def_sha}) — semver tags will publish but 'latest' will NOT move (stale-latest guard)."
+                fi
               else
                 echo "::warning::tag '${TAG}' (${tag_sha}) is NOT reachable from default branch origin/${def} — refusing to publish (fail-closed)."
               fi
@@ -231,8 +258,7 @@ jobs:
             echo "::warning::unexpected event '${EVENT_NAME}' — publish skipped (fail-closed)."
           fi
 
-          echo "publish_ok=${ok}" >> "$GITHUB_OUTPUT"
-          echo "publish_ok=${ok} (event=${EVENT_NAME}, tag=${TAG})"
+          emit_outputs
 
           # ---------------------------------------------------------------------
           # FAIL-FAST on a REAL release that fails the ref guard.
@@ -274,12 +300,16 @@ jobs:
       # registry mutation). This keeps the image leg fail-closed in lockstep with
       # every other publish leg.
       push: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
-      # Move `latest` ONLY on the normal top-of-tree tag-push release path
-      # (github.event_name == 'push' on the v* tag), and never on a dry-run.
-      # A manual workflow_dispatch republish (event_name == 'workflow_dispatch'),
-      # which may target an OLD tag, leaves this false so it cannot drag `latest`
-      # backwards onto a stale release.
-      tag_latest: ${{ github.event_name == 'push' && needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+      # Move `latest` ONLY when the tag legitimately represents the newest
+      # top-of-tree release — i.e. the tag commit equals the current
+      # default-branch tip (resolve.tag_latest). This is strictly stronger than
+      # the old `event_name == 'push'` check: a tag PUSHED at an OLD but still
+      # default-branch-reachable commit (or a workflow_dispatch republish of one)
+      # passes publish_ok (its X.Y.Z/X.Y/X semver tags republish) but has
+      # tag_latest=false, so it can NEVER drag `latest` backwards onto stale
+      # images. Still gated on non-dry-run + publish_ok so latest moves only on a
+      # real publish.
+      tag_latest: ${{ needs.resolve.outputs.tag_latest == 'true' && needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
     permissions:
       contents: read
       packages: write
@@ -401,8 +431,42 @@ jobs:
           PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -n "${NPM_TOKEN}" ]; then echo "npm=true" >> "$GITHUB_OUTPUT"; else echo "npm=false" >> "$GITHUB_OUTPUT"; echo "no NPM_TOKEN — skipping npm publish"; fi
-          if [ -n "${PYPI_TOKEN}" ]; then echo "pypi=true" >> "$GITHUB_OUTPUT"; else echo "pypi=false" >> "$GITHUB_OUTPUT"; echo "no PYPI_API_TOKEN — skipping PyPI publish"; fi
+          # THREE-CASE SDK TOKEN POLICY — the SDK leg publishes TWO registries
+          # (npm @anseo/observe + PyPI anseo-observe) that must ship together.
+          # Handling each token independently would let a HALF-configured token
+          # set publish one registry, skip the other, and still exit 0 → the
+          # release-summary would mark the SDK leg GREEN with half the SDK
+          # missing (silent partial). Distinguish the cases explicitly up-front:
+          #
+          #   (a) BOTH absent  → public-repo / no-publish path. Skip cleanly:
+          #                      npm=false, pypi=false (NOT a failure).
+          #   (b) BOTH present  → publish both registries.
+          #   (c) EXACTLY ONE   → misconfiguration for a real release. FAIL the
+          #                      job loudly so the train turns RED instead of
+          #                      silently shipping one SDK.
+          #
+          # This runs AFTER the env/publish_ok gate (this whole job is `if:`-gated
+          # on dry_run=false && publish_ok=true), so it only ever fails a REAL
+          # release attempt — never a dry-run or a non-release ref.
+          npm_set=false; pypi_set=false
+          [ -n "${NPM_TOKEN}" ] && npm_set=true
+          [ -n "${PYPI_TOKEN}" ] && pypi_set=true
+
+          if [ "$npm_set" != "$pypi_set" ]; then
+            have="npm"; [ "$pypi_set" = "true" ] && have="pypi"
+            echo "::error::SDK release incomplete: only ${have} token configured; both NPM_TOKEN and PYPI_API_TOKEN are required to publish the SDK leg." >&2
+            exit 1
+          fi
+
+          if [ "$npm_set" = "true" ]; then
+            echo "npm=true" >> "$GITHUB_OUTPUT"
+            echo "pypi=true" >> "$GITHUB_OUTPUT"
+            echo "both NPM_TOKEN and PYPI_API_TOKEN present — publishing npm + PyPI"
+          else
+            echo "npm=false" >> "$GITHUB_OUTPUT"
+            echo "pypi=false" >> "$GITHUB_OUTPUT"
+            echo "neither NPM_TOKEN nor PYPI_API_TOKEN configured — skipping SDK publish cleanly (public repo path)"
+          fi
 
       - name: Setup Node
         if: ${{ steps.tok.outputs.npm == 'true' }}
