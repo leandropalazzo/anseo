@@ -7,6 +7,7 @@ Anseo is open-source AI-search-visibility **observability infrastructure** — "
 | [CLI](./cli.md) | `ogeo` binary | operators, CI/CD, scripts | every command + use case |
 | [MCP](./mcp.md) | `opengeo-mcp` server | AI agents / assistants | every tool + how to connect |
 | [Web](./web.md) | Next.js dashboard | humans (read + control) | every route + use case |
+| [Instrumentation](./instrumentation.md) | `anseo-observe` SDKs + `/v1/ingest/run` | developers shipping external LLM runs | quickstarts, consent, what's transmitted, canonical-suite hook |
 | [Deploy](./deploy.md) | tiers 0–2 | operators standing up a node | how to run each tier |
 
 > The narrative onboarding manual (concepts, install, the Phase-1 closed loop) lives at [`../release-manual.html`](../release-manual.html). These three docs are the **surface references** — exhaustive, use-case-indexed.
@@ -36,6 +37,7 @@ Anseo is open-source AI-search-visibility **observability infrastructure** — "
 | Bootstrap a project, run prompts, gate CI | **CLI** (`ogeo init`, `ogeo prompt run`, `ogeo check visibility`, `ogeo audit --fail-on`) |
 | Let an AI assistant query my visibility / run audits | **MCP** (`run_prompt`, `get_visibility`, `compare_brands`, `audit`, …) |
 | Explore trends, triage anomalies, review evidence | **Web** (`/visibility`, `/alerts`, `/runs/[id]`, `/recommendations`) |
+| Ship LLM runs I executed outside Anseo into the same pipeline | **[Instrumentation](./instrumentation.md)** (`anseo-observe` SDKs → `/v1/ingest/run`) |
 | Stand up a node (solo CLI / single binary / Compose) | **[Deploy](./deploy.md)** (the three tiers) |
 | Automate recurring monitoring | **CLI/Web** schedules + **webhooks** |
 | Pipe data into BI / other tools | **CLI** `--format json` / **REST API** (see CLI manual → API keys) |
