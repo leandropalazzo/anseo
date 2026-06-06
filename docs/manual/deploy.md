@@ -51,6 +51,23 @@ DATABASE_URL=postgres://opengeo:opengeo@db.internal:5432/opengeo ogeo serve
 
 **Binding & safety.** The default bind is `127.0.0.1:8080` (localhost-only). A **non-loopback bind with no API keys configured is refused** — so you can't accidentally expose an unauthenticated instance. Before binding to a public interface: create API keys (`ogeo api key create`) and put the process behind your own TLS / auth / network controls.
 
+> **Standalone exposure baseline (Tier 2).** Before you set `ANSEO_BIND_HOST=0.0.0.0`:
+> 1. **Rotate the bootstrap key — in the database, not just `.env`.** The shipped `ANSEO_BOOTSTRAP_API_KEY` is a well-known dev credential, seeded into Postgres on first boot (only when zero keys exist) under the name `bootstrap`. If you already booted the trial with the default, changing the env var does **not** revoke the persisted key. Mint a fresh named key, point `.env` at it, then revoke `bootstrap`:
+>    ```bash
+>    # a) Mint a new key — the plaintext is printed ONCE; copy it.
+>    docker compose exec api ogeo api key create --name prod --config /anseo.yaml
+>    # b) Set ANSEO_BOOTSTRAP_API_KEY to that plaintext (web/SSR + healthchecks
+>    #    authenticate with it), then recreate the api/web containers.
+>    $EDITOR .env && docker compose up -d
+>    # c) Revoke the well-known dev key (by name; idempotent).
+>    docker compose exec api ogeo api key revoke --name bootstrap --config /anseo.yaml
+>    ```
+>    Setting a strong `ANSEO_BOOTSTRAP_API_KEY` *before the first `up`* seeds that value instead and avoids the rotation entirely.
+> 2. **Rotate `POSTGRES_PASSWORD` and `ANSEO_KEYRING_PASSPHRASE`.** Keep the password URL-safe, or set a percent-encoded `DATABASE_URL` directly (see `.env.example`).
+> 3. **Datastores stay localhost.** Postgres/Redis publish on `127.0.0.1` regardless of `ANSEO_BIND_HOST`; `0.0.0.0` only opens the api/web ports. Keep it that way — Redis has no auth.
+>
+> This is **enforced**, not just advised: a `preflight` guard runs before api/worker/web and **refuses to start the stack** if `ANSEO_BIND_HOST` is non-loopback while `ANSEO_BOOTSTRAP_API_KEY`, `ANSEO_KEYRING_PASSPHRASE`, or `POSTGRES_PASSWORD` is still the shipped dev default or unset. A localhost trial is unaffected. (Rotating the env still requires step 1's in-DB revoke if you already booted with the default key.)
+
 ---
 
 ## Tier 2 — Docker Compose
@@ -67,6 +84,25 @@ docker compose -f infra/docker/compose.yml down  # tear down
 **Localhost-only by default.** Every published port binds to `127.0.0.1`. Override the interface with the `OGEO_BIND_HOST` env var **only** once the instance is behind your own network controls. Other knobs (`POSTGRES_PORT`, credentials, …) live in `.env` with sensible defaults baked into `compose.yml`.
 
 > Working from a source checkout? `scripts/local-deploy.sh` wraps build → up → health-wait and rebuilds only stale app images.
+
+### Tier 2, standalone — production, no source checkout
+
+For a production / self-host deploy you don't need to clone the repo at all. A single standalone `compose.yml` pulls the **published, version-pinned** GHCR images and wires the same stack (Postgres + Redis + api + worker + web):
+
+```bash
+curl -fsSL https://anseo.ai/compose.yml        -o compose.yml
+curl -fsSL https://anseo.ai/.env.example       -o .env
+curl -fsSL https://anseo.ai/anseo.example.yaml -o anseo.example.yaml   # required: bind-mounted into api + worker
+
+# Set ANSEO_VERSION, rotate every "CHANGE THIS" secret, and edit
+# anseo.example.yaml (brand, prompts, providers) before exposing.
+$EDITOR .env anseo.example.yaml
+
+docker compose up -d
+docker compose ps        # wait until every service is (healthy)
+```
+
+Versioned snapshots are served too (e.g. `https://anseo.ai/compose/0.5.0.yml`) so a deploy can pin an exact bundle. Same localhost-only default (`ANSEO_BIND_HOST`); the artifact source lives at [`infra/standalone/`](../../infra/standalone/README.md). Before exposing to the internet, follow the exposure baseline below.
 
 ---
 
