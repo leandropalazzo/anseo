@@ -203,6 +203,20 @@ fn is_badge_active(claim_status: &str) -> bool {
     matches!(claim_status, "verified" | "claimed")
 }
 
+/// `true` when the entity's `role` authorizes the requested badge variant.
+/// A verified source-only domain must NOT be able to serve a "brand" badge
+/// (and vice-versa). Roles are `'brand' | 'source' | 'both'`; `both` matches
+/// either variant. Combined with [`is_badge_active`], this gates the verified
+/// SVG on BOTH an active claim AND a role that matches what was requested.
+fn role_matches_variant(role: &str, variant: BadgeVariant) -> bool {
+    match role {
+        "both" => true,
+        "brand" => variant == BadgeVariant::Brand,
+        "source" => variant == BadgeVariant::Source,
+        _ => false,
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /v1/badge/:domain/:variant
 // ─────────────────────────────────────────────────────────────────────────────
@@ -272,9 +286,12 @@ async fn serve_badge(
         }
     };
 
+    // A verified SVG requires BOTH an active claim AND a role that authorizes
+    // the requested variant — otherwise a source-only domain could serve a
+    // "brand" badge (and vice-versa). Either failure → lapsed image + 410.
     let active = entity
         .as_ref()
-        .map(|e| is_badge_active(&e.claim_status))
+        .map(|e| is_badge_active(&e.claim_status) && role_matches_variant(&e.role, variant))
         .unwrap_or(false);
 
     if active {
@@ -358,11 +375,15 @@ async fn get_embed_snippet(
 
     let badge_active = entity
         .as_ref()
-        .map(|e| is_badge_active(&e.claim_status))
+        .map(|e| is_badge_active(&e.claim_status) && role_matches_variant(&e.role, variant))
         .unwrap_or(false);
 
     let base = badge_base_url();
     let badge_url = format!("{base}/v1/badge/{domain}/{}", variant.slug());
+    // Backlink target: `{base}/brand/{domain}` is a page on the PUBLIC benchmark
+    // web app (opengeo-web `app/brand/[domain]/page.jsx`, Story 43.4), NOT an
+    // API route in this service — `base` defaults to https://benchmark.anseo.ai.
+    // The mandatory badge backlink must point at that public profile page.
     let verification_url = format!("{base}/brand/{domain}");
 
     // Neutral, state-agnostic accessibility text. The pasted snippet is static
@@ -445,6 +466,39 @@ mod tests {
         assert!(!is_badge_active("unclaimed"));
         assert!(!is_badge_active("conflict"));
         assert!(!is_badge_active("lapsed"));
+    }
+
+    #[test]
+    fn role_must_match_requested_variant() {
+        // The verified badge is gated on BOTH an active claim AND a role that
+        // authorizes the requested variant. This mirrors the `serve_badge`
+        // active-check: `is_badge_active(status) && role_matches_variant(role, v)`.
+
+        // verified brand + brand request → active (200).
+        assert!(
+            is_badge_active("verified") && role_matches_variant("brand", BadgeVariant::Brand),
+            "verified brand domain should serve a brand badge"
+        );
+        // verified source-only + brand request → NOT active (410): the bug fix.
+        assert!(
+            !(is_badge_active("verified") && role_matches_variant("source", BadgeVariant::Brand)),
+            "verified source-only domain must NOT serve a brand badge"
+        );
+        // verified source-only + source request → active (200).
+        assert!(
+            is_badge_active("verified") && role_matches_variant("source", BadgeVariant::Source)
+        );
+        // verified both → active for either variant (200).
+        assert!(is_badge_active("verified") && role_matches_variant("both", BadgeVariant::Brand));
+        assert!(is_badge_active("verified") && role_matches_variant("both", BadgeVariant::Source));
+
+        // Role gate is independent of claim gate: even a perfect role match is
+        // inactive when the claim is not verified/claimed.
+        assert!(!(is_badge_active("revoked") && role_matches_variant("both", BadgeVariant::Brand)));
+
+        // Unknown role never matches.
+        assert!(!role_matches_variant("partner", BadgeVariant::Brand));
+        assert!(!role_matches_variant("partner", BadgeVariant::Source));
     }
 
     #[test]
