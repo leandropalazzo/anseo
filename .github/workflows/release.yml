@@ -1,17 +1,92 @@
 # =============================================================================
-# RELEASE — publish multi-arch container images to GHCR on version tags
+# RELEASE-TRAIN — one tag fans out to every release artifact (Story 38.19)
 #
-# Triggered by: push of any tag matching v* (e.g. v0.3.0)
-# Publishes:
-#   ghcr.io/<owner>/opengeo/api:<tag>
-#   ghcr.io/<owner>/opengeo/worker:<tag>
-#   ghcr.io/<owner>/opengeo/web:<tag>
+# A single `opengeo` version tag `vX.Y.Z` propagates everywhere: GHCR images,
+# the pinned standalone compose snapshot, the SDK publishes, the GitHub Release,
+# the plugin signing/publish, the internal-overlay submodule bump, and the
+# docs/marketing site rebuild — coordinated as ONE release, with a single
+# summary that marks the release incomplete if any leg fails.
 #
-# Tags generated (semver flavour):
-#   v1.2.3  → 1.2.3, 1.2, 1, latest
+# ── TRIGGERS ────────────────────────────────────────────────────────────────
+#   * push tag `v*`        — the production entry point. THE ONLY thing that
+#                            publishes images on a release (see no-double-publish).
+#   * workflow_dispatch    — manual re-run for a given ref (dry-run supported).
+# This workflow has NO `pull_request` / `push:branches` trigger. None of its
+# jobs are required PR checks, so the train can NEVER block ordinary PRs. (A
+# prior mistake wired a release-only job as a PR-blocking CI job and broke every
+# PR — that is structurally impossible here: the event itself gates everything.)
 #
-# Build provenance attestation is emitted for each image via SLSA.
-# Story 38.15
+# ── NO DOUBLE-PUBLISH ───────────────────────────────────────────────────────
+# The image build/publish logic lives in ONE place — the reusable workflow
+# .github/workflows/release-images.yml (the refactored Story 38.15 logic). This
+# train is the sole tag-triggered caller (`uses:`), so a tag publishes the
+# images exactly once. release-images.yml itself has no tag trigger; it only
+# runs via `workflow_call` (here) or manual `workflow_dispatch`.
+#
+# ── FAN-OUT SET & ORDERING ──────────────────────────────────────────────────
+#   resolve            → derive bare X.Y.Z (strip leading v), dry-run flag.
+#   images   (38.15)   → build+publish GHCR api/worker/web @ X.Y.Z   [reusable]
+#   compose-snapshot   → pin standalone compose.yml @ X.Y.Z, publish to
+#            (38.16)     https://anseo.ai/compose/<X.Y.Z>.yml     [needs: images]
+#   sdk-publish        → npm (@anseo/observe) + PyPI (anseo-observe)
+#                        token-gated; skips cleanly when no token (public repo).
+#   plugin-sign(41.4)  → BEST-EFFORT repository_dispatch → plugin-sign.yml (real
+#                        key lives only in opengeo-internal; public repo no-ops).
+#   overlay-bump(38.18)→ BEST-EFFORT repository_dispatch → opengeo-internal bumps
+#                        its submodule to the tag + green-gates. token-gated.
+#   docs-site (38.21)  → BEST-EFFORT repository_dispatch → rebuild marketing+docs
+#                        site against the tag. token-gated.
+#   github-release     → create the GitHub Release w/ notes [needs: images,
+#                        compose-snapshot] — the user-facing release object.
+#   release-summary    → always() — one job that reports every leg's status and
+#                        FAILS the train if any VERIFIED leg failed (no silent
+#                        partial). The cross-repo BEST-EFFORT dispatch legs only
+#                        confirm the event was ACCEPTED (not that the downstream
+#                        ran), so they are reported as "dispatched (not verified)"
+#                        and are EXCLUDED from the red/green completeness gate —
+#                        a fire-and-forget dispatch is never counted as a done leg.
+#
+# ── VERIFIED vs BEST-EFFORT LEGS ────────────────────────────────────────────
+# Gating (success truly reflects the artifact exists): images, compose-snapshot,
+# sdk-publish, github-release. Non-gating fire-and-forget dispatches: plugin-sign,
+# overlay-bump, docs-site — verify their downstream runs in the target repos.
+#
+# Independent legs (sdk/plugin/overlay/docs) run in parallel off `resolve`;
+# images→compose-snapshot→github-release form the artifact spine. No cycles.
+#
+# ── SECRETS & SUPPLY-CHAIN HARDENING ────────────────────────────────────────
+# All tokens come from GitHub secrets, never inlined. Each cross-repo /
+# publish leg derives a non-secret "enabled" boolean from its token's PRESENCE
+# (never its value) and gates on that, so the public repo skips publish legs it
+# has no token for instead of failing red.
+#
+# Two independent layers protect the publish/signing tokens (NPM_TOKEN,
+# PYPI_API_TOKEN, plugin-sign / overlay / docs-site / registry tokens):
+#
+#  1. PROTECTED ENVIRONMENT GATE. Every job that can expose a publish/signing
+#     secret declares `environment: release`. The `release` GitHub environment
+#     MUST be configured (Settings → Environments → release) with REQUIRED
+#     REVIEWERS and, ideally, a deployment-protection rule restricting it to
+#     `v*` tags / the default branch. A maintainer must APPROVE the deployment
+#     before the runner for those jobs starts and the secrets are materialized —
+#     even on a tag push or a workflow_dispatch. Jobs that need no publish secret
+#     (resolve, images via GITHUB_TOKEN, github-release via GITHUB_TOKEN,
+#     release-summary) are NOT in the environment and run without approval.
+#
+#  2. REF RESTRICTION (resolve.publish_ok). Before any secret-bearing OR
+#     image/release-publishing leg runs, `resolve` proves the ref is a REAL
+#     release tag reachable from the default branch. On BOTH `push` and
+#     `workflow_dispatch` the ref must resolve to a tag matching
+#     ^v[0-9]+\.[0-9]+\.[0-9]+$ AND that tag's commit must be an ancestor of
+#     origin/<default>. A tag push is NOT trusted on shape alone — a tag can point
+#     at an unmerged/unreviewed commit — so the push path runs the identical
+#     ancestry check as dispatch. A non-tag, a non-semver tag, or a tag not
+#     reachable from the default branch yields publish_ok=false and every
+#     publish leg (GHCR images push, GitHub Release, compose-snapshot site
+#     publish, SDK publish, and the cross-repo dispatches) is `if:`-skipped
+#     (fails closed). This stops a dispatch pointed at an arbitrary branch/SHA —
+#     or a tag pushed at an unmerged commit — from publishing images/releases or
+#     running npm/Python lifecycle scripts with the publish tokens in scope.
 # =============================================================================
 
 name: release
@@ -20,72 +95,773 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag/ref to release (e.g. v1.2.3)."
+        required: true
+        type: string
+      dry_run:
+        description: "Resolve + build images but skip all external publish/dispatch legs."
+        required: false
+        default: false
+        type: boolean
 
 permissions:
-  contents: read
-  packages: write
+  contents: write # github-release creates a Release
+  packages: write # images push to GHCR
   attestations: write
   id-token: write
 
+concurrency:
+  # One train per ref; never cancel an in-flight release.
+  group: release-train-${{ github.event.inputs.ref || github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  build-and-push:
-    name: Build & push — ${{ matrix.app }}
+  # ---------------------------------------------------------------------------
+  # Resolve the canonical bare X.Y.Z version (strip refs/tags/ + leading v) and
+  # surface the dry-run flag so downstream legs share one source of truth.
+  # ---------------------------------------------------------------------------
+  resolve:
+    name: Resolve release version
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [api, worker, web]
-
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      dry_run: ${{ steps.v.outputs.dry_run }}
+      # SUPPLY-CHAIN GATE: 'true' only when the ref is a real, default-branch-
+      # reachable release tag (see guard step). Every secret-bearing publish leg
+      # gates its `if:` on this so a dispatch at an arbitrary branch/SHA, a
+      # non-semver tag, or a tag not reachable from the default branch cannot
+      # expose a publish token. Fail-closed: anything unproven => 'false'.
+      publish_ok: ${{ steps.guard.outputs.publish_ok }}
+      # LATEST-TAG GATE: 'true' only when the tag commit is the CURRENT
+      # default-branch TIP (top-of-tree). Used to decide whether `latest` may
+      # move to this release's images. A re-push / re-dispatch of an OLD but
+      # still-reachable tag has publish_ok=true (it republishes its semver tags)
+      # yet tag_latest=false, so it cannot drag `latest` backwards onto stale
+      # images. Fail-closed: anything unproven => 'false'.
+      tag_latest: ${{ steps.guard.outputs.tag_latest }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # Multi-arch emulation (arm64 via QEMU)
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      # Extended Buildx with multi-platform support
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Authenticate to GHCR using the built-in GITHUB_TOKEN — no PAT required
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      # Full history + tags so the guard can verify a dispatch-supplied tag is
+      # reachable from the default branch (ancestry check).
+      - uses: actions/checkout@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
-      # Generate canonical image tags from the pushed git tag
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/opengeo/${{ matrix.app }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Resolve version + flags
+        id: v
+        env:
+          INPUT_REF: ${{ github.event.inputs.ref }}
+          GH_REF: ${{ github.ref }}
+          INPUT_DRY: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          raw="${INPUT_REF:-$GH_REF}"
+          raw="${raw#refs/tags/}"
+          raw="${raw#refs/heads/}"
+          tag="$raw"
+          ver="${raw#v}"
+          if ! printf '%s' "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([._+-][0-9A-Za-z.]+)?$'; then
+            echo "::error::release ref '$raw' does not resolve to a bare X.Y.Z version" >&2
+            exit 1
+          fi
+          {
+            echo "version=${ver}"
+            echo "tag=${tag}"
+            echo "dry_run=${INPUT_DRY:-false}"
+          } >> "$GITHUB_OUTPUT"
+          echo "resolved tag=${tag} version=${ver} dry_run=${INPUT_DRY:-false}"
 
-      # Build for amd64 + arm64 and push both manifests atomically
-      - name: Build and push
-        id: push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: apps/${{ matrix.app }}/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.app }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+      # -----------------------------------------------------------------------
+      # REF-RESTRICTION GUARD (supply-chain). Prove the resolved ref is a REAL
+      # release TAG that is reachable from the default branch before ANY publish
+      # token is exposed. Emits publish_ok=true/false; never throws (fail-closed):
+      # an unproven ref simply yields publish_ok=false and the publish legs skip.
+      #
+      #   BOTH push and workflow_dispatch apply the SAME proof: the ref must
+      #   (a) be strict semver vX.Y.Z (no prerelease/build suffix), (b) exist as
+      #   an actual git tag, and (c) the tag's commit must be an ancestor of
+      #   origin/<default branch>. A tag push alone is NOT trusted — a tag can be
+      #   pushed pointing at an unmerged/unreviewed commit, so the push path runs
+      #   the identical default-branch-reachability check as dispatch. An arbitrary
+      #   branch/SHA, a tag that doesn't exist, a non-semver tag, or a tag living
+      #   only on an unmerged branch => publish_ok=false (fail-closed).
+      # -----------------------------------------------------------------------
+      - name: Restrict publishing to default-branch-reachable release tags
+        id: guard
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_REF: ${{ github.ref }}
+          TAG: ${{ steps.v.outputs.tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DRY_RUN: ${{ steps.v.outputs.dry_run }}
+        run: |
+          set -euo pipefail
+          # Strict release-tag shape — no prerelease/build suffix may publish.
+          semver='^v[0-9]+\.[0-9]+\.[0-9]+$'
+          ok=false
+          # LATEST gate, computed alongside the publish gate below. 'true' only
+          # when the tag commit is the CURRENT default-branch tip (top-of-tree).
+          # Fail-closed: stays false unless tip-equality is positively proven.
+          latest=false
 
-      # Emit SLSA Level-2 build provenance attestation
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@v1
+          emit_outputs() {
+            echo "publish_ok=${ok}" >> "$GITHUB_OUTPUT"
+            echo "tag_latest=${latest}" >> "$GITHUB_OUTPUT"
+            echo "publish_ok=${ok} tag_latest=${latest} (event=${EVENT_NAME}, tag=${TAG})"
+          }
+
+          # SINGLE EXIT DISCIPLINE: do NOT early-`exit 0` on a refused ref. Every
+          # path below sets ok/latest, falls through to emit_outputs, and THEN
+          # reaches the fail-fast — so a refused REAL release (e.g. a non-strict
+          # tag like v1.2.3-rc1, or a tag not reachable from the default branch)
+          # always turns the train RED instead of finishing green with nothing
+          # published. A non-strict tag simply leaves ok=false and skips the
+          # ancestry block; the fail-fast (or, for dry-run, the no-op contract)
+          # then decides the outcome.
+          if ! printf '%s' "$TAG" | grep -Eq "$semver"; then
+            echo "::warning::ref '$TAG' is not a strict release tag (vX.Y.Z) — publish legs will be skipped (fail-closed)."
+          elif [ "$EVENT_NAME" = "push" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            # BOTH the push and dispatch paths require the SAME proof: the ref must
+            # be a strict-semver TAG whose commit is reachable from the default
+            # branch. A tag push can point at an unmerged/unreviewed commit, so a
+            # tag ref alone is NOT sufficient to publish — re-verify ancestry here.
+            if [ "$EVENT_NAME" = "push" ] && [ "$GH_REF" != "refs/tags/${TAG}" ]; then
+              echo "::warning::push ref '$GH_REF' is not a release tag — publish skipped (fail-closed)."
+            else
+              def="${DEFAULT_BRANCH:-main}"
+              # Make sure we have the default branch + the tag object locally.
+              # (resolve checks out with fetch-depth:0, so full history is present;
+              # we still fetch the default branch + tag explicitly to be safe on
+              # the push path, where only the tag ref was checked out.)
+              git fetch --no-tags origin "+refs/heads/${def}:refs/remotes/origin/${def}" || true
+              git fetch origin "+refs/tags/${TAG}:refs/tags/${TAG}" || true
+              if ! tag_sha="$(git rev-parse -q --verify "refs/tags/${TAG}^{commit}")"; then
+                echo "::warning::ref '${TAG}' does not resolve to an existing git TAG — publish skipped (fail-closed)."
+              elif ! def_sha="$(git rev-parse -q --verify "refs/remotes/origin/${def}")"; then
+                echo "::warning::could not resolve default branch origin/${def} to verify tag reachability — publish skipped (fail-closed)."
+              elif git merge-base --is-ancestor "$tag_sha" "$def_sha"; then
+                ok=true
+                # LATEST policy: `latest` moves ONLY for a top-of-tree release —
+                # i.e. the tag commit IS the current default-branch tip. A re-push
+                # of an OLD reachable tag is still publish-worthy (ok=true, its
+                # X.Y.Z/X.Y/X semver tags republish) but its commit is BEHIND the
+                # tip, so latest stays false and cannot regress to stale images.
+                if [ "$tag_sha" = "$def_sha" ]; then
+                  latest=true
+                else
+                  echo "::notice::tag '${TAG}' (${tag_sha}) is reachable but NOT the default-branch tip (${def_sha}) — semver tags will publish but 'latest' will NOT move (stale-latest guard)."
+                fi
+              else
+                echo "::warning::tag '${TAG}' (${tag_sha}) is NOT reachable from default branch origin/${def} — refusing to publish (fail-closed)."
+              fi
+            fi
+          else
+            echo "::warning::unexpected event '${EVENT_NAME}' — publish skipped (fail-closed)."
+          fi
+
+          emit_outputs
+
+          # ---------------------------------------------------------------------
+          # FAIL-FAST on a REAL release that fails the ref guard.
+          #
+          # A real release attempt is a tag `push`, OR a `workflow_dispatch` with
+          # dry_run=false. If such an attempt resolves publish_ok=false (non-semver
+          # tag, or a tag not reachable from the default branch), EVERY publish leg
+          # is `if:`-skipped — and because skipped != failed, release-summary would
+          # otherwise conclude SUCCESS, handing the operator a GREEN run that
+          # silently published nothing. Turn the whole train RED here instead so the
+          # failure is loud and nothing downstream runs.
+          #
+          # A DRY-RUN with a bad ref is explicitly allowed to be a no-op rehearsal
+          # (publish_ok=false, but we do NOT fail) — rehearsals may legitimately
+          # point at any ref. A normal default-branch-reachable vX.Y.Z release has
+          # ok=true and passes through untouched.
+          #
+          # This block is now reached on EVERY non-dry-run path (including the
+          # non-strict / prerelease-suffix tag case, which previously short-
+          # circuited with `exit 0` before getting here and finished GREEN without
+          # publishing — a silent no-op release). There is intentionally NO other
+          # `exit 0` or early return between guard start and here.
+          if [ "${ok}" != "true" ] && [ "${DRY_RUN}" != "true" ]; then
+            if [ "$EVENT_NAME" = "push" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+              echo "::error::release refused: '${TAG}' is not a strict vX.Y.Z tag reachable from the default branch; nothing published. Prerelease/suffixed tags are not publishable by the release train." >&2
+              exit 1
+            fi
+          fi
+
+  # ---------------------------------------------------------------------------
+  # (38.15) Images — the SOLE image publish path. Reuses release-images.yml so
+  # the build logic exists in exactly one place (no double-publish).
+  # ---------------------------------------------------------------------------
+  images:
+    name: Publish GHCR images
+    needs: resolve
+    uses: ./.github/workflows/release-images.yml
+    with:
+      ref: ${{ needs.resolve.outputs.tag }}
+      # PUSH ONLY for a real, default-branch-reachable release tag that is not a
+      # dry-run. A dry-run (rehearsal) OR a ref that fails the supply-chain guard
+      # (publish_ok=false — e.g. a dispatch at a branch named like `v1.2.3`, or a
+      # semver tag not reachable from the default branch) still BUILDS both arches
+      # for validation but does NOT push images/tags/attestations to GHCR (no
+      # registry mutation). This keeps the image leg fail-closed in lockstep with
+      # every other publish leg.
+      push: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+      # Move `latest` ONLY when the tag legitimately represents the newest
+      # top-of-tree release — i.e. the tag commit equals the current
+      # default-branch tip (resolve.tag_latest). This is strictly stronger than
+      # the old `event_name == 'push'` check: a tag PUSHED at an OLD but still
+      # default-branch-reachable commit (or a workflow_dispatch republish of one)
+      # passes publish_ok (its X.Y.Z/X.Y/X semver tags republish) but has
+      # tag_latest=false, so it can NEVER drag `latest` backwards onto stale
+      # images. Still gated on non-dry-run + publish_ok so latest moves only on a
+      # real publish.
+      tag_latest: ${{ needs.resolve.outputs.tag_latest == 'true' && needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    secrets: inherit
+
+  # ---------------------------------------------------------------------------
+  # (38.16) Pinned standalone compose snapshot → /compose/<X.Y.Z>.yml.
+  # Needs images so the snapshot only publishes once the images it pins exist.
+  # ---------------------------------------------------------------------------
+  compose-snapshot:
+    name: Publish standalone compose snapshot
+    needs: [resolve, images]
+    # Carries DOCS_SITE_DISPATCH_TOKEN in its site-dispatch step → protected
+    # environment gate. A maintainer approves the `release` deployment before this
+    # job's runner starts and the token is materialized.
+    #
+    # Gated identically to every other publish leg: a dry-run (rehearsal) or a ref
+    # that fails the supply-chain guard (publish_ok=false) must NOT enter this
+    # protected, approval-gated job at all — otherwise a `dry_run=true` dispatch
+    # would still wait for the `release` environment approval, check out the ref,
+    # and render/upload a compose artifact before the site-dispatch step is
+    # skipped, which contradicts the dry-run contract (build images, skip ALL
+    # external publish/dispatch and never block on maintainer approval).
+    if: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+    environment: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
         with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/opengeo/${{ matrix.app }}
-          subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: true
+          ref: ${{ needs.resolve.outputs.tag }}
+
+      - name: Render pinned snapshot
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          ./scripts/make-compose-snapshot.sh "$VERSION" dist/compose
+          ls -l dist/compose
+
+      # Always retain the artifact on the run so a release is reproducible /
+      # downloadable even when no external publish target is configured.
+      - name: Upload snapshot artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-snapshot-${{ needs.resolve.outputs.version }}
+          path: dist/compose/${{ needs.resolve.outputs.version }}.yml
+          if-no-files-found: error
+          retention-days: 90
+
+      # Determine — from token presence only — whether we can publish to the
+      # docs-site repo that serves https://anseo.ai/compose/<X.Y.Z>.yml.
+      - name: Determine docs-site publish availability
+        id: site
+        env:
+          SITE_TOKEN: ${{ secrets.DOCS_SITE_DISPATCH_TOKEN }}
+          SITE_REPO: ${{ vars.DOCS_SITE_REPO }}
+          DRY_RUN: ${{ needs.resolve.outputs.dry_run }}
+          PUBLISH_OK: ${{ needs.resolve.outputs.publish_ok }}
+        run: |
+          set -euo pipefail
+          if [ "${DRY_RUN}" = "true" ]; then echo "enabled=false" >> "$GITHUB_OUTPUT"; echo "dry-run: skipping site publish"; exit 0; fi
+          # Supply-chain: never dispatch (token in scope) for a non-release ref.
+          if [ "${PUBLISH_OK}" != "true" ]; then echo "enabled=false" >> "$GITHUB_OUTPUT"; echo "ref is not a default-branch-reachable release tag — skipping site publish (fail-closed)"; exit 0; fi
+          if [ -n "${SITE_TOKEN}" ] && [ -n "${SITE_REPO}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "no DOCS_SITE_DISPATCH_TOKEN/DOCS_SITE_REPO — snapshot kept as run artifact only (public repo path)"
+          fi
+
+      # Fire a repository_dispatch to the site repo with the rendered snapshot so
+      # it deploys it under /compose/<X.Y.Z>.yml. The site repo owns the bucket.
+      # BEST-EFFORT TRIGGER ONLY — succeeds when GitHub accepts the event, NOT
+      # when the snapshot is live at the URL. The VERIFIED part of this job is the
+      # rendered+uploaded run artifact (above), which IS retained regardless; that
+      # is what makes compose-snapshot a legitimate gate leg. The publish-to-URL
+      # is fire-and-forget on top of that guaranteed artifact.
+      - name: Dispatch compose snapshot to docs-site (best-effort — does not wait for downstream)
+        if: ${{ steps.site.outputs.enabled == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_SITE_DISPATCH_TOKEN }}
+          SITE_REPO: ${{ vars.DOCS_SITE_REPO }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -n --arg v "$VERSION" --rawfile yml "dist/compose/${VERSION}.yml" \
+            '{event_type:"compose-snapshot", client_payload:{version:$v, compose_yml:$yml}}')"
+          printf '%s' "$payload" | gh api --method POST "repos/${SITE_REPO}/dispatches" --input -
+          echo "dispatched compose snapshot ${VERSION} → ${SITE_REPO}"
+
+  # ---------------------------------------------------------------------------
+  # SDK publishes — npm (@anseo/observe) + PyPI (anseo-observe). Each is
+  # token-gated and skips cleanly in the public repo when the token is absent.
+  # Independent of the image spine — runs in parallel off resolve.
+  # ---------------------------------------------------------------------------
+  sdk-publish:
+    name: Publish SDKs (npm + PyPI)
+    needs: resolve
+    # Token-bearing (NPM_TOKEN + PYPI_API_TOKEN) and runs npm/Python lifecycle
+    # scripts → BOTH hardening layers apply:
+    #   • protected environment gate (maintainer must approve the `release`
+    #     deployment before the runner starts and the tokens are exposed);
+    #   • ref restriction (publish_ok) so the build/publish only ever runs on a
+    #     default-branch-reachable release tag, never an arbitrary dispatch ref.
+    if: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+    environment: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
+
+      - name: Determine publish availability
+        id: tok
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          # THREE-CASE SDK TOKEN POLICY — the SDK leg publishes TWO registries
+          # (npm @anseo/observe + PyPI anseo-observe) that must ship together.
+          # Handling each token independently would let a HALF-configured token
+          # set publish one registry, skip the other, and still exit 0 → the
+          # release-summary would mark the SDK leg GREEN with half the SDK
+          # missing (silent partial). Distinguish the cases explicitly up-front:
+          #
+          #   (a) BOTH absent  → public-repo / no-publish path. Skip cleanly:
+          #                      npm=false, pypi=false (NOT a failure).
+          #   (b) BOTH present  → publish both registries.
+          #   (c) EXACTLY ONE   → misconfiguration for a real release. FAIL the
+          #                      job loudly so the train turns RED instead of
+          #                      silently shipping one SDK.
+          #
+          # This runs AFTER the env/publish_ok gate (this whole job is `if:`-gated
+          # on dry_run=false && publish_ok=true), so it only ever fails a REAL
+          # release attempt — never a dry-run or a non-release ref.
+          npm_set=false; pypi_set=false
+          [ -n "${NPM_TOKEN}" ] && npm_set=true
+          [ -n "${PYPI_TOKEN}" ] && pypi_set=true
+
+          if [ "$npm_set" != "$pypi_set" ]; then
+            have="npm"; [ "$pypi_set" = "true" ] && have="pypi"
+            echo "::error::SDK release incomplete: only ${have} token configured; both NPM_TOKEN and PYPI_API_TOKEN are required to publish the SDK leg." >&2
+            exit 1
+          fi
+
+          if [ "$npm_set" = "true" ]; then
+            echo "npm=true" >> "$GITHUB_OUTPUT"
+            echo "pypi=true" >> "$GITHUB_OUTPUT"
+            echo "both NPM_TOKEN and PYPI_API_TOKEN present — publishing npm + PyPI"
+          else
+            echo "npm=false" >> "$GITHUB_OUTPUT"
+            echo "pypi=false" >> "$GITHUB_OUTPUT"
+            echo "neither NPM_TOKEN nor PYPI_API_TOKEN configured — skipping SDK publish cleanly (public repo path)"
+          fi
+
+      - name: Setup pnpm
+        if: ${{ steps.tok.outputs.npm == 'true' }}
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.0
+
+      - name: Setup Node
+        if: ${{ steps.tok.outputs.npm == 'true' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Build @anseo/observe (emit runnable dist/ JS + types)
+        if: ${{ steps.tok.outputs.npm == 'true' }}
+        working-directory: packages/sdk-typescript
+        run: |
+          set -euo pipefail
+          # The published package ships only `dist/` (built JS + .d.ts), never
+          # raw `src/*.ts`. Build it explicitly here so the artifact is provably
+          # compiled before `npm version`/`npm publish` (prepublishOnly also runs
+          # the build, but doing it up front fails the train loudly on a broken
+          # compile instead of mid-publish).
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Publish @anseo/observe to npm
+        if: ${{ steps.tok.outputs.npm == 'true' }}
+        working-directory: packages/sdk-typescript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Pin the package to the RESOLVED release version (bare X.Y.Z, no
+          # leading v) so the train never publishes the stale manifest version
+          # (0.1.0). --no-git-tag-version: no commit/tag in the checkout;
+          # --allow-same-version: idempotent re-publish of the same tag.
+          if [ -z "${VERSION}" ]; then
+            echo "::error::resolved release version is empty — refusing to publish npm" >&2
+            exit 1
+          fi
+          npm version "${VERSION}" --no-git-tag-version --allow-same-version
+          # Idempotent / rerunnable: npm has no --skip-existing, so probe the
+          # registry first. If this exact version is already published (e.g. a
+          # prior partial-failure run got this far), skip instead of erroring red.
+          PKG="$(node -p "require('./package.json').name")"
+          if npm view "${PKG}@${VERSION}" version >/dev/null 2>&1; then
+            echo "${PKG}@${VERSION} already published — skipping npm publish (rerun-safe)"
+          else
+            npm publish --access public --provenance
+          fi
+
+      - name: Setup Python
+        if: ${{ steps.tok.outputs.pypi == 'true' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build & publish anseo-observe to PyPI
+        if: ${{ steps.tok.outputs.pypi == 'true' }}
+        working-directory: packages/sdk-python
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Pin the package to the RESOLVED release version (bare X.Y.Z, no
+          # leading v) so the train never builds the stale manifest version
+          # (0.1.0). Build backend is setuptools, so set the static
+          # `version = "..."` field in [project] of pyproject.toml directly.
+          if [ -z "${VERSION}" ]; then
+            echo "::error::resolved release version is empty — refusing to publish PyPI" >&2
+            exit 1
+          fi
+          python - "$VERSION" <<'PY'
+          import re, sys, pathlib
+          ver = sys.argv[1]
+          p = pathlib.Path("pyproject.toml")
+          text = p.read_text()
+          new, n = re.subn(r'(?m)^version\s*=\s*".*"$', f'version = "{ver}"', text, count=1)
+          if n != 1:
+              sys.exit(f"failed to pin version in pyproject.toml (matched {n} times)")
+          p.write_text(new)
+          print(f"pinned anseo-observe version = {ver}")
+          PY
+          python -m pip install --upgrade build twine
+          python -m build
+          # Idempotent / rerunnable: --skip-existing makes a re-upload of an
+          # already-published version a no-op instead of a hard 400 error, so a
+          # rerun after a partial failure recovers cleanly.
+          python -m twine upload --skip-existing dist/*
+
+  # ---------------------------------------------------------------------------
+  # (41.4) Plugin signing/publish — repository_dispatch to plugin-sign.yml.
+  # The REAL root key lives only in opengeo-internal; the public repo no-ops.
+  # Token-gated; independent leg.
+  # ---------------------------------------------------------------------------
+  plugin-sign:
+    name: Trigger plugin signing/publish (best-effort, does not wait for downstream)
+    needs: resolve
+    # Carries PLUGIN_SIGN_DISPATCH_TOKEN → protected environment gate + ref
+    # restriction. Still fire-and-forget / excluded from the success gate.
+    if: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+    environment: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine availability
+        id: tok
+        env:
+          DISPATCH_TOKEN: ${{ secrets.PLUGIN_SIGN_DISPATCH_TOKEN }}
+          SIGN_DIR: ${{ vars.FIRST_PARTY_PLUGIN_DIR }}
+          SIGN_NS: ${{ vars.FIRST_PARTY_PLUGIN_NAMESPACE }}
+        run: |
+          set -euo pipefail
+          if [ -n "${DISPATCH_TOKEN}" ] && [ -n "${SIGN_DIR}" ] && [ -n "${SIGN_NS}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "plugin-sign dispatch not configured (token/dir/namespace) — skipping (public repo path)"
+          fi
+
+      # BEST-EFFORT TRIGGER ONLY. `gh api .../dispatches` succeeds the instant
+      # GitHub ACCEPTS the repository_dispatch event — NOT when plugin-sign.yml
+      # starts or finishes. So this step's success means "dispatch accepted", not
+      # "plugin signed/published". The downstream signing run is observed in its
+      # OWN repo; this leg is deliberately excluded from release-summary's
+      # red/green completeness gate (see release-summary).
+      - name: Dispatch plugin-sign (best-effort — does not wait for downstream)
+        if: ${{ steps.tok.outputs.enabled == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.PLUGIN_SIGN_DISPATCH_TOKEN }}
+          SIGN_DIR: ${{ vars.FIRST_PARTY_PLUGIN_DIR }}
+          SIGN_NS: ${{ vars.FIRST_PARTY_PLUGIN_NAMESPACE }}
+        run: |
+          set -euo pipefail
+          jq -n --arg d "$SIGN_DIR" --arg ns "$SIGN_NS" \
+            '{event_type:"plugin-sign", client_payload:{version_dir:$d, namespace:$ns, keyid:"root"}}' \
+            | gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" --input -
+          echo "dispatched plugin-sign for ${SIGN_NS} (${SIGN_DIR})"
+
+  # ---------------------------------------------------------------------------
+  # (38.18) Internal-overlay submodule bump — repository_dispatch to
+  # opengeo-internal so it points its submodule at this tag + green-gates.
+  # Token-gated; the public repo has no overlay token, so it no-ops.
+  # ---------------------------------------------------------------------------
+  overlay-bump:
+    name: Bump internal overlay submodule (best-effort, does not wait for downstream)
+    needs: resolve
+    # Carries OVERLAY_DISPATCH_TOKEN → protected environment gate + ref
+    # restriction. Still fire-and-forget / excluded from the success gate.
+    if: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+    environment: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine availability
+        id: tok
+        env:
+          OVERLAY_TOKEN: ${{ secrets.OVERLAY_DISPATCH_TOKEN }}
+          OVERLAY_REPO: ${{ vars.OVERLAY_REPO }}
+        run: |
+          set -euo pipefail
+          if [ -n "${OVERLAY_TOKEN}" ] && [ -n "${OVERLAY_REPO}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "no OVERLAY_DISPATCH_TOKEN/OVERLAY_REPO — skipping overlay bump (public repo path)"
+          fi
+
+      # BEST-EFFORT TRIGGER ONLY. The dispatch succeeds as soon as GitHub accepts
+      # the event — NOT when opengeo-internal finishes bumping its submodule and
+      # green-gating. Downstream success is observed in opengeo-internal; this leg
+      # is excluded from release-summary's completeness gate (see release-summary).
+      - name: Dispatch overlay submodule bump (best-effort — does not wait for downstream)
+        if: ${{ steps.tok.outputs.enabled == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.OVERLAY_DISPATCH_TOKEN }}
+          OVERLAY_REPO: ${{ vars.OVERLAY_REPO }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          jq -n --arg tag "$TAG" \
+            '{event_type:"submodule-bump", client_payload:{tag:$tag}}' \
+            | gh api --method POST "repos/${OVERLAY_REPO}/dispatches" --input -
+          echo "dispatched submodule-bump ${TAG} → ${OVERLAY_REPO}"
+
+  # ---------------------------------------------------------------------------
+  # (38.21) Docs/marketing site rebuild against the tag — repository_dispatch.
+  # Token-gated; independent leg.
+  # ---------------------------------------------------------------------------
+  docs-site:
+    name: Rebuild docs/marketing site (best-effort, does not wait for downstream)
+    needs: resolve
+    # Carries DOCS_SITE_DISPATCH_TOKEN → protected environment gate + ref
+    # restriction. Still fire-and-forget / excluded from the success gate.
+    if: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+    environment: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine availability
+        id: tok
+        env:
+          SITE_TOKEN: ${{ secrets.DOCS_SITE_DISPATCH_TOKEN }}
+          SITE_REPO: ${{ vars.DOCS_SITE_REPO }}
+        run: |
+          set -euo pipefail
+          if [ -n "${SITE_TOKEN}" ] && [ -n "${SITE_REPO}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "no DOCS_SITE_DISPATCH_TOKEN/DOCS_SITE_REPO — skipping site rebuild (public repo path)"
+          fi
+
+      # BEST-EFFORT TRIGGER ONLY. The dispatch succeeds when GitHub accepts the
+      # event — NOT when the site repo finishes rebuilding against the tag.
+      # Downstream success is observed in the site repo; this leg is excluded
+      # from release-summary's completeness gate (see release-summary).
+      - name: Dispatch site rebuild (best-effort — does not wait for downstream)
+        if: ${{ steps.tok.outputs.enabled == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_SITE_DISPATCH_TOKEN }}
+          SITE_REPO: ${{ vars.DOCS_SITE_REPO }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          jq -n --arg tag "$TAG" \
+            '{event_type:"site-rebuild", client_payload:{tag:$tag}}' \
+            | gh api --method POST "repos/${SITE_REPO}/dispatches" --input -
+          echo "dispatched site-rebuild ${TAG} → ${SITE_REPO}"
+
+  # ---------------------------------------------------------------------------
+  # GitHub Release — the user-facing release object. Needs the artifact spine
+  # (images + compose snapshot) so the release only appears once they exist.
+  # ---------------------------------------------------------------------------
+  github-release:
+    name: Create GitHub Release
+    needs: [resolve, images, compose-snapshot]
+    # Create the user-facing Release ONLY for a non-dry-run, default-branch-
+    # reachable release tag. publish_ok=false (dispatch at an arbitrary branch/SHA,
+    # a non-semver tag, or a tag not reachable from the default branch) must NOT
+    # create/edit a Release or upload assets — fail-closed in lockstep with the
+    # image + secret-bearing legs.
+    if: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Download compose snapshot
+        uses: actions/download-artifact@v4
+        with:
+          name: compose-snapshot-${{ needs.resolve.outputs.version }}
+          path: dist/compose
+
+      - name: Create release with notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          notes="$(mktemp)"
+          {
+            echo "## Anseo ${TAG}"
+            echo
+            echo "### Container images (GHCR, pinned \`${VERSION}\`)"
+            echo "- \`ghcr.io/${OWNER}/opengeo/api:${VERSION}\`"
+            echo "- \`ghcr.io/${OWNER}/opengeo/worker:${VERSION}\`"
+            echo "- \`ghcr.io/${OWNER}/opengeo/web:${VERSION}\`"
+            echo
+            echo "### Self-host (standalone compose)"
+            echo "Pinned snapshot: \`https://anseo.ai/compose/${VERSION}.yml\` (attached below)."
+            echo
+            echo "### Changes"
+            gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="${TAG}" --jq '.body' 2>/dev/null || echo "_See commit history._"
+          } > "$notes"
+          # Idempotent / rerunnable: `gh release create` errors if the release
+          # already exists, so a rerun after the release object was created would
+          # turn red. Probe with `gh release view`: create when absent, otherwise
+          # refresh notes/title via `edit`. Assets upload with `--clobber` so a
+          # re-upload overwrites instead of failing on "asset already exists".
+          asset="dist/compose/${VERSION}.yml#standalone-compose-${VERSION}.yml"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "release ${TAG} already exists — editing (rerun-safe)"
+            gh release edit "${TAG}" --title "Anseo ${TAG}" --notes-file "$notes"
+            gh release upload "${TAG}" "$asset" --clobber
+          else
+            gh release create "${TAG}" \
+              --title "Anseo ${TAG}" \
+              --notes-file "$notes" \
+              "$asset"
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Release summary — runs ALWAYS. One job that reports every leg's status and
+  # FAILS the train if any VERIFIED leg failed, so there is never a silent
+  # partial release (AC2).
+  #
+  # The gate distinguishes two classes of leg, because their `result` means very
+  # different things:
+  #
+  #   VERIFIED (gating) — in-repo, synchronous legs whose job success truly
+  #   reflects that the release artifact was produced: images, compose-snapshot
+  #   (renders+uploads the artifact), sdk-publish, github-release. A failure here
+  #   means the release really is broken, so it turns the summary red.
+  #
+  #   BEST-EFFORT DISPATCH (non-gating) — plugin-sign / overlay-bump / docs-site
+  #   only POST a repository_dispatch; the job goes green the instant GitHub
+  #   ACCEPTS the event, NOT when the downstream signing/overlay/docs workflow
+  #   runs or succeeds. Counting these toward the gate would let the summary go
+  #   GREEN even though we have NOT verified the downstream actually ran — the
+  #   exact silent partial release this summary exists to prevent — and would
+  #   also let a downstream we cannot see make the train red on someone else's
+  #   failure. So they are reported as "dispatched (not verified)" and EXCLUDED
+  #   from red/green. Downstream success is observed in the target repos.
+  #
+  # Token-skipped VERIFIED legs report as their result (skipped) and do not fail.
+  # ---------------------------------------------------------------------------
+  release-summary:
+    name: Release summary
+    needs: [resolve, images, compose-snapshot, sdk-publish, plugin-sign, overlay-bump, docs-site, github-release]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compose summary + gate
+        env:
+          R_IMAGES: ${{ needs.images.result }}
+          R_SNAPSHOT: ${{ needs.compose-snapshot.result }}
+          R_SDK: ${{ needs.sdk-publish.result }}
+          R_RELEASE: ${{ needs.github-release.result }}
+          # Best-effort dispatch legs — reported, NOT gated.
+          R_PLUGIN: ${{ needs.plugin-sign.result }}
+          R_OVERLAY: ${{ needs.overlay-bump.result }}
+          R_DOCS: ${{ needs.docs-site.result }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Release train — ${TAG}"
+            echo
+            echo "### Verified legs (these determine release success)"
+            echo
+            echo "| Leg | Story | Result |"
+            echo "| --- | ----- | ------ |"
+            echo "| GHCR images | 38.15 | ${R_IMAGES} |"
+            echo "| Compose snapshot | 38.16 | ${R_SNAPSHOT} |"
+            echo "| SDK publish (npm/PyPI) | 40.x | ${R_SDK} |"
+            echo "| GitHub Release | 38.19 | ${R_RELEASE} |"
+            echo
+            echo "### Best-effort cross-repo dispatches (NOT verified, do not gate)"
+            echo
+            echo "_These legs only confirm the dispatch was accepted by GitHub — the"
+            echo "downstream workflow may not have run yet. Verify success in the"
+            echo "target repo; a value below does NOT mean the downstream completed._"
+            echo
+            echo "| Leg | Story | Dispatch | Target repo |"
+            echo "| --- | ----- | -------- | ----------- |"
+            echo "| Plugin sign/publish | 41.4 | ${R_PLUGIN} (not verified) | this repo (plugin-sign.yml) |"
+            echo "| Overlay submodule bump | 38.18 | ${R_OVERLAY} (not verified) | opengeo-internal |"
+            echo "| Docs/marketing site | 38.21 | ${R_DOCS} (not verified) | docs-site |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # GATE: fail the train ONLY if a VERIFIED in-repo leg failed/was
+          # cancelled. A 'skipped' leg (no token, or dry-run) is acceptable and
+          # does NOT fail. The best-effort dispatch legs are intentionally NOT in
+          # this loop: their result reflects "dispatch accepted", not downstream
+          # completion, so they can neither falsely-green nor falsely-red the
+          # release. We do not pretend a fire-and-forget dispatch is a completed
+          # release leg.
+          fail=0
+          for r in "$R_IMAGES" "$R_SNAPSHOT" "$R_SDK" "$R_RELEASE"; do
+            case "$r" in
+              failure|cancelled) fail=1 ;;
+            esac
+          done
+          if [ "$fail" != 0 ]; then
+            echo "::error::release ${TAG} is INCOMPLETE — at least one VERIFIED leg failed (see table above)." >&2
+            exit 1
+          fi
+          echo "release ${TAG}: all verified legs succeeded or cleanly skipped; cross-repo dispatches fired best-effort (verify downstream separately)."

@@ -1,0 +1,210 @@
+# =============================================================================
+# RELEASE-IMAGES (reusable, workflow_call-only; invoked by release.yml)
+#   — build & publish multi-arch GHCR images.
+#
+# This is the SINGLE source of the image-build/publish logic (Story 38.15),
+# factored out of the former standalone release.yml into a `workflow_call`
+# reusable workflow so the release-train (Story 38.19) can fan it out without
+# duplicating it. There is exactly ONE place that publishes the images, so a
+# version tag can never trigger a double-publish.
+#
+# CALLED BY (workflow_call ONLY — there is no direct trigger):
+#   * .github/workflows/release.yml — the release-train orchestrator, on a
+#     vX.Y.Z tag (or workflow_dispatch). This is the SOLE entry point and the
+#     ONLY path that can invoke this workflow at all. It validates the ref
+#     (tag/reachability guard, publish_ok) BEFORE calling here, and sets
+#     push=true only after that guard passes. The previous DIRECT
+#     `workflow_dispatch` trigger has been REMOVED (Story 38.19 hardening): a
+#     reusable workflow that elevates with `packages: write` + `id-token: write`
+#     and logs into GHCR must not be directly entrable from an arbitrary/unproven
+#     ref. Build-only validation of a ref now goes through release.yml's dry-run
+#     (which calls this workflow via workflow_call with push=false).
+#
+# SUPPLY-CHAIN HARDENING (Story 38.19, defense-in-depth):
+#   * workflow_call-only — no direct, unguarded entry from an arbitrary ref.
+#   * actions/checkout uses persist-credentials:false — GITHUB_TOKEN is NEVER
+#     written into .git/config, so a malicious Dockerfile RUN step cannot read it
+#     from the build context even on a build-only (push=false) run.
+#   * .git / .github / *.env are excluded from the Docker build context via a
+#     root .dockerignore, so secrets-y paths never enter the image build.
+#   * GHCR login (docker/login-action) and the provenance attestation
+#     (id-token) run ONLY when inputs.push is true — build-only/dry-run runs
+#     neither authenticate to the registry nor mint an OIDC token.
+#
+# IMAGE TAGS (docker/metadata-action, semver flavour):
+#   git tag v1.2.3  → 1.2.3, 1.2, 1   (+ `latest` only on the default branch)
+# Note the leading `v` is STRIPPED ({{version}} → 1.2.3), which is what the
+# standalone bundle's ANSEO_VERSION (X.Y.Z, no v) and compose pins expect.
+#
+# This workflow has NO `pull_request` / `push:branches` trigger, so it is never
+# a blocking PR check.
+# =============================================================================
+
+name: release-images
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref / tag to build from (e.g. v1.2.3). Defaults to the caller's ref."
+        required: false
+        type: string
+      push:
+        description: "Publish images + attestations to GHCR. false = dry-run build only (no registry mutation)."
+        required: false
+        default: true
+        type: boolean
+      tag_latest:
+        description: >-
+          Move the `latest` tag to THIS build. Must be true ONLY for a normal
+          top-of-tree tag-push release. Defaults to false so a manual republish
+          or a rebuild of an OLD tag never overwrites `latest` with a stale image.
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      version:
+        description: "The resolved X.Y.Z version (leading v stripped) the images were published under."
+        value: ${{ jobs.build-and-push.outputs.version }}
+  # NOTE (Story 38.19): the direct `workflow_dispatch` trigger has been REMOVED.
+  # This workflow is now workflow_call-ONLY — the only way to run it is via the
+  # guarded release.yml train, which validates the ref before invoking. Build-only
+  # validation of a ref goes through release.yml's dry-run (push=false). This
+  # eliminates the unguarded direct entry into a job that holds packages:write +
+  # id-token:write and logs into GHCR.
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+
+jobs:
+  build-and-push:
+    name: Build & push — ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, worker, web]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          # Do NOT persist GITHUB_TOKEN into .git/config (Story 38.19 hardening).
+          # The token is unnecessary here (no further git ops need auth), and
+          # leaving it out of .git means a Dockerfile RUN step in the build
+          # context can never read it — closing the primary token-exfil vector.
+          persist-credentials: false
+
+      # Resolve the bare X.Y.Z version (strip refs/tags/ and a leading v) so the
+      # train can pin the standalone snapshot to the same string the images use.
+      - name: Resolve version
+        id: version
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+          GH_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          raw="${INPUT_REF:-$GH_REF}"
+          raw="${raw#refs/tags/}"
+          raw="${raw#refs/heads/}"
+          ver="${raw#v}"
+          echo "version=${ver}" >> "$GITHUB_OUTPUT"
+          echo "resolved version: ${ver}"
+
+      # SUPPLY-CHAIN GUARD — STRUCTURAL.
+      # This workflow is workflow_call-ONLY (the direct workflow_dispatch trigger
+      # was removed in Story 38.19), so the ONLY way it runs is via the guarded
+      # release.yml train, which validates the ref (publish_ok) BEFORE invoking.
+      # Publishing to GHCR (and moving `latest`) is driven by `inputs.push` /
+      # `inputs.tag_latest`, which the train sets to true only after its guard
+      # passes; on a dry-run it calls in with push=false to validate the build
+      # without any registry mutation. We deliberately do NOT key off
+      # `github.event_name`: in a reusable workflow that is always the CALLER's
+      # original trigger (e.g. `push`/`workflow_dispatch`), NEVER `workflow_call`,
+      # so testing it would force build-only even on a real guarded release.
+
+      # Multi-arch emulation (arm64 via QEMU)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Extended Buildx with multi-platform support
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Authenticate to GHCR using the built-in GITHUB_TOKEN — no PAT required.
+      # GATED on inputs.push (Story 38.19 hardening): a build-only / dry-run run
+      # (push=false) never logs in to the registry, so no registry credential is
+      # ever materialized when we are not actually publishing. We only elevate
+      # (log in + later attest) on the guarded publish path.
+      - name: Log in to GHCR
+        if: ${{ inputs.push }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Generate canonical image tags from the RESOLVED version (steps.version),
+      # NOT the workflow event ref. On workflow_dispatch github.ref is the
+      # selected BRANCH, so semver rules keyed off the event ref would emit no
+      # X.Y.Z/X.Y/X tags; passing `value=v<X.Y.Z>` makes the semver patterns
+      # derive from the resolved version on BOTH the tag-push and dispatch paths.
+      # The leading `v` is re-applied here only so docker/metadata-action's semver
+      # parser sees a tag-shaped value; {{version}}/{{major}}/{{minor}} strip it
+      # back to the bare X.Y.Z that ANSEO_VERSION + the compose snapshot expect.
+      #
+      # `latest` is gated on the explicit `tag_latest` input — i.e. the RESOLVED
+      # build ref, decided by the caller — NOT on docker/metadata-action's
+      # {{is_default_branch}}, which reads the workflow EVENT ref. {{is_default_branch}}
+      # is true for ANY run dispatched from the default branch (incl. a manual
+      # republish with `ref: <old tag>`), so it would let a rerun overwrite
+      # `latest` with an arbitrary/old release. release.yml passes tag_latest=true
+      # ONLY on the normal top-of-tree tag-push path; manual republish / dry-run /
+      # old-tag rebuilds leave it false, so `latest` never moves to a stale image.
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/opengeo/${{ matrix.app }}
+          tags: |
+            type=semver,pattern={{version}},value=v${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}},value=v${{ steps.version.outputs.version }}
+            type=raw,value=latest,enable=${{ inputs.tag_latest }}
+
+      # Build for amd64 + arm64 and push both manifests atomically
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          # Dry-run (push=false) builds both arches for validation but does NOT
+          # push manifests/tags to GHCR — no registry mutation on a rehearsal.
+          # push is true only when the guarded release train calls in via
+          # workflow_call with push=true (its ref guard already passed).
+          push: ${{ inputs.push == true }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+
+      # Emit SLSA Level-2 build provenance attestation. GATED on inputs.push
+      # (Story 38.19 hardening): this is the step that consumes id-token, so a
+      # build-only / dry-run run (push=false) never mints an OIDC token. Also,
+      # with no pushed image there is no digest to attest, and push-to-registry
+      # would mutate GHCR — exactly what a rehearsal avoids.
+      - name: Attest build provenance
+        if: ${{ inputs.push }}
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/opengeo/${{ matrix.app }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

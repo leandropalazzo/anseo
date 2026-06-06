@@ -1,0 +1,50 @@
+# =============================================================================
+# .dockerignore — Docker BUILD CONTEXT exclusions for the release image builds.
+#
+# The release-images.yml reusable workflow builds each app image with
+# `context: .` (this repo root) via docker/build-push-action. Everything NOT
+# excluded here is uploaded into the build daemon's context and is readable by
+# any Dockerfile `RUN` step. This file keeps secrets-y and irrelevant paths OUT
+# of that context (Story 38.19 supply-chain hardening), so even a malicious
+# Dockerfile cannot read e.g. a persisted git credential or a stray .env from
+# the context.
+# =============================================================================
+
+# VCS metadata — never belongs in an image, and (defense-in-depth) would carry
+# any persisted GITHUB_TOKEN out of .git/config. Checkout already runs with
+# persist-credentials:false; excluding .git removes the path entirely.
+.git
+.gitignore
+.gitattributes
+.gitmodules
+
+# CI / workflow definitions — not needed to build the apps.
+.github
+
+# Secrets / local environment files — must never enter a build context.
+.env
+.env.*
+**/.env
+**/.env.*
+*.pem
+*.key
+**/*.pem
+**/*.key
+
+# Local dev / editor cruft and build output that bloats the context.
+.DS_Store
+**/.DS_Store
+.idea
+.vscode
+node_modules
+**/node_modules
+target
+**/target
+dist
+**/dist
+coverage
+**/coverage
+
+# Docker / compose files are not build inputs for the app images.
+docker-compose*.yml
+**/docker-compose*.yml

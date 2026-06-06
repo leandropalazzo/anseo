@@ -33,8 +33,8 @@
  * attributes off the response object you hand it.
  */
 
-import type { AnseoObserver, ObserveRunResult } from "./client";
-import { detectProviderModel, extractText } from "./detect";
+import type { AnseoObserver, ObserveRunResult } from "./client.js";
+import { detectProviderModel, extractText } from "./detect.js";
 
 /** Options shared by {@link observe} and {@link startRun}. */
 export interface ObserveOptions {
