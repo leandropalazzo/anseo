@@ -1,0 +1,215 @@
+from http import HTTPStatus
+from typing import Any, cast
+from urllib.parse import quote
+
+import httpx
+
+from ...client import AuthenticatedClient, Client
+from ...types import Response, UNSET
+from ... import errors
+
+from ...models.crawler_ingest_request import CrawlerIngestRequest
+from ...models.crawler_ingest_result import CrawlerIngestResult
+from ...models.error import Error
+from ...types import UNSET, Unset
+from typing import cast
+
+
+
+def _get_kwargs(
+    *,
+    body: CrawlerIngestRequest,
+    x_open_geo_project: str | Unset = UNSET,
+
+) -> dict[str, Any]:
+    headers: dict[str, Any] = {}
+    if not isinstance(x_open_geo_project, Unset):
+        headers["X-OpenGEO-Project"] = x_open_geo_project
+
+
+
+    
+
+    
+
+    _kwargs: dict[str, Any] = {
+        "method": "post",
+        "url": "/v1/crawlers/ingest",
+    }
+
+    _kwargs["json"] = body.to_dict()
+
+
+    headers["Content-Type"] = "application/json"
+
+    _kwargs["headers"] = headers
+    return _kwargs
+
+
+
+def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> CrawlerIngestResult | Error | None:
+    if response.status_code == 200:
+        response_200 = CrawlerIngestResult.from_dict(response.json())
+
+
+
+        return response_200
+
+    if response.status_code == 400:
+        response_400 = Error.from_dict(response.json())
+
+
+
+        return response_400
+
+    if response.status_code == 401:
+        response_401 = Error.from_dict(response.json())
+
+
+
+        return response_401
+
+    if client.raise_on_unexpected_status:
+        raise errors.UnexpectedStatus(response.status_code, response.content)
+    else:
+        return None
+
+
+def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[CrawlerIngestResult | Error]:
+    return Response(
+        status_code=HTTPStatus(response.status_code),
+        content=response.content,
+        headers=response.headers,
+        parsed=_parse_response(client=client, response=response),
+    )
+
+
+def sync_detailed(
+    *,
+    client: AuthenticatedClient | Client,
+    body: CrawlerIngestRequest,
+    x_open_geo_project: str | Unset = UNSET,
+
+) -> Response[CrawlerIngestResult | Error]:
+    """ Roadmap Epic 31 — ingest raw web-server access-log lines, normalize + verify bot identity, and write
+    crawler events for this project.
+
+    Args:
+        x_open_geo_project (str | Unset):
+        body (CrawlerIngestRequest):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[CrawlerIngestResult | Error]
+     """
+
+
+    kwargs = _get_kwargs(
+        body=body,
+x_open_geo_project=x_open_geo_project,
+
+    )
+
+    response = client.get_httpx_client().request(
+        **kwargs,
+    )
+
+    return _build_response(client=client, response=response)
+
+def sync(
+    *,
+    client: AuthenticatedClient | Client,
+    body: CrawlerIngestRequest,
+    x_open_geo_project: str | Unset = UNSET,
+
+) -> CrawlerIngestResult | Error | None:
+    """ Roadmap Epic 31 — ingest raw web-server access-log lines, normalize + verify bot identity, and write
+    crawler events for this project.
+
+    Args:
+        x_open_geo_project (str | Unset):
+        body (CrawlerIngestRequest):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        CrawlerIngestResult | Error
+     """
+
+
+    return sync_detailed(
+        client=client,
+body=body,
+x_open_geo_project=x_open_geo_project,
+
+    ).parsed
+
+async def asyncio_detailed(
+    *,
+    client: AuthenticatedClient | Client,
+    body: CrawlerIngestRequest,
+    x_open_geo_project: str | Unset = UNSET,
+
+) -> Response[CrawlerIngestResult | Error]:
+    """ Roadmap Epic 31 — ingest raw web-server access-log lines, normalize + verify bot identity, and write
+    crawler events for this project.
+
+    Args:
+        x_open_geo_project (str | Unset):
+        body (CrawlerIngestRequest):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        Response[CrawlerIngestResult | Error]
+     """
+
+
+    kwargs = _get_kwargs(
+        body=body,
+x_open_geo_project=x_open_geo_project,
+
+    )
+
+    response = await client.get_async_httpx_client().request(
+        **kwargs
+    )
+
+    return _build_response(client=client, response=response)
+
+async def asyncio(
+    *,
+    client: AuthenticatedClient | Client,
+    body: CrawlerIngestRequest,
+    x_open_geo_project: str | Unset = UNSET,
+
+) -> CrawlerIngestResult | Error | None:
+    """ Roadmap Epic 31 — ingest raw web-server access-log lines, normalize + verify bot identity, and write
+    crawler events for this project.
+
+    Args:
+        x_open_geo_project (str | Unset):
+        body (CrawlerIngestRequest):
+
+    Raises:
+        errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
+        httpx.TimeoutException: If the request takes longer than Client.timeout.
+
+    Returns:
+        CrawlerIngestResult | Error
+     """
+
+
+    return (await asyncio_detailed(
+        client=client,
+body=body,
+x_open_geo_project=x_open_geo_project,
+
+    )).parsed

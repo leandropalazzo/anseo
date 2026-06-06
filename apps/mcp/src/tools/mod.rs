@@ -11,6 +11,7 @@ pub mod audit;
 pub mod compare_brands;
 pub mod get_citations;
 pub mod get_visibility;
+pub mod ingest_run;
 pub mod list_trends;
 pub mod recommend;
 pub mod run_prompt;
@@ -56,6 +57,7 @@ pub fn registry() -> Vec<Box<dyn Tool>> {
         Box::new(recommend::RecommendDismiss),
         Box::new(recommend::RecommendMarkActed),
         Box::new(audit::Audit),
+        Box::new(ingest_run::IngestRun),
     ]
 }
 
@@ -91,12 +93,12 @@ mod tests {
     use anseo_wire_schema::mcp::tools::{TrendDelta, TrendRecord};
 
     /// Story 17.6 / AD-Phase3-PluginsCannotRegisterMcpTools: the MCP tool set
-    /// is the closed FR-46..FR-51 list. The registry is a fixed function with
-    /// no registration API, so plugins have no surface to add a tool — the
-    /// only way to add one is to edit this binary. This test pins the count
-    /// and names so a stray plugin-tool seam can never sneak in.
+    /// is a closed list. The registry is a fixed function with no registration
+    /// API, so plugins have no surface to add a tool — the only way to add one
+    /// is to edit this binary. This test pins the count and names so a stray
+    /// plugin-tool seam can never sneak in. Story 40.1 adds `ingest_run`.
     #[test]
-    fn registry_is_the_closed_twelve_tool_set() {
+    fn registry_is_the_closed_tool_set() {
         let names: Vec<&str> = registry().iter().map(|t| t.name()).collect();
         assert_eq!(
             names,
@@ -113,6 +115,7 @@ mod tests {
                 "recommend.dismiss",
                 "recommend.mark_acted",
                 "audit",
+                "ingest_run",
             ]
         );
     }

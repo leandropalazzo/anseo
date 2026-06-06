@@ -10,11 +10,22 @@
 //! 1. **Persist the run.** The external run is stored as a `prompt_run` row for
 //!    the resolved project via the existing [`PromptRunRepo`], exactly like the
 //!    native [`crate::routes::prompt_runs`] write path. The prompt must already
-//!    be declared in the project (undeclared slugs get a 404, not auto-create).
+//!    be declared in the project (undeclared slugs get a `422 prompt_not_found`,
+//!    not auto-create); an unresolvable provider gets `422 provider_not_supported`.
+//!    A well-formed request returns `202 { run_id, … }`.
 //!
-//! 2. **Consent + envelope gate (RISK-3).** If — and only if — the project has
-//!    an *active* benchmark opt-in on the current [`TERMS_VERSION`], the
-//!    contribution is routed through [`Redactor`] + envelope [sealing](ProjectKek::seal).
+//! 2. **Per-run `contribute` flag + KEK hard gate (AC-3, RISK-3).** The request
+//!    carries `contribute: bool` (default `false`; ships in the schema from
+//!    Story 40.1 so the SDK clients never need a breaking update). A request
+//!    with `contribute: true` but no per-project KEK (Story 39.1) is rejected
+//!    up-front with `403 kek_missing` — the run is not recorded under a false
+//!    promise of contribution. `contribute: false` proceeds regardless of KEK
+//!    state.
+//!
+//!    Beyond the gate, a run is sealed only when it BOTH set `contribute: true`
+//!    AND the project has an *active* benchmark opt-in on the current
+//!    [`TERMS_VERSION`]; the contribution is then routed through [`Redactor`] +
+//!    envelope [sealing](ProjectKek::seal).
 //!    Sealing REQUIRES a per-project KEK (Story 39.1). The critical correctness
 //!    rule: **benchmark data is never silently dropped.** If the project opted
 //!    in but no KEK can be loaded, we do NOT skip quietly — the run is persisted
@@ -65,6 +76,16 @@ pub struct IngestRunRequest {
     /// When the external run was observed. Defaults to now if omitted.
     #[serde(default)]
     pub observed_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Opt this specific run into the anonymous benchmark contribution path.
+    ///
+    /// Defaults to `false`. Ships in the schema from day one (Story 40.1) so
+    /// the SDK clients (40.2/40.3) don't need a breaking update when 40.4 wires
+    /// the full consent/redaction enforcement. Until 40.4, `contribute: true`
+    /// is honoured only as far as the KEK hard gate (a `true` request with no
+    /// per-project KEK is rejected `403 kek_missing`); the actual sealing
+    /// remains gated on the project's durable benchmark opt-in.
+    #[serde(default)]
+    pub contribute: bool,
 }
 
 /// Why the benchmark contribution leg did (or did not) produce a sealed
@@ -97,21 +118,41 @@ pub struct IngestRunResponse {
     pub contribution: ContributionStatus,
 }
 
+/// Why a request was rejected at the pure-validation stage. Distinguished so
+/// the handler can map each to the AC-mandated status code:
+/// `provider_not_supported` is a `422` (the body is well-formed but names a
+/// provider that doesn't resolve), while shape problems are a `400`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ValidationError {
+    /// The body is malformed (bad slug, empty model). Maps to `400`.
+    BadRequest(String),
+    /// `provider` does not resolve to a first-party name or `plugin:<id>`.
+    /// Maps to `422 provider_not_supported`.
+    ProviderNotSupported(String),
+}
+
 /// Pure validation of the inbound shape. Mirrors the native write path's
 /// slug-safety + non-empty checks so external runs can't smuggle in shapes the
-/// redactor would later reject.
-pub fn validate_request(req: &IngestRunRequest) -> Result<(), String> {
+/// redactor would later reject, and resolves the provider against the same
+/// [`anseo_core::ProviderName`] grammar the orchestrator uses (first-party
+/// names OR `plugin:<id>`).
+pub fn validate_request(req: &IngestRunRequest) -> Result<(), ValidationError> {
     if !is_slug_safe(&req.prompt_slug) {
-        return Err(format!(
+        return Err(ValidationError::BadRequest(format!(
             "`prompt_slug` `{}` is not slug-safe (lowercase ASCII + digits + hyphens)",
             req.prompt_slug
-        ));
-    }
-    if req.provider.trim().is_empty() {
-        return Err("`provider` must not be empty".to_string());
+        )));
     }
     if req.model.trim().is_empty() {
-        return Err("`model` must not be empty".to_string());
+        return Err(ValidationError::BadRequest(
+            "`model` must not be empty".to_string(),
+        ));
+    }
+    if anseo_core::ProviderName::parse(req.provider.trim()).is_none() {
+        return Err(ValidationError::ProviderNotSupported(format!(
+            "provider `{}` is not supported (expected a first-party name or `plugin:<id>`)",
+            req.provider
+        )));
     }
     Ok(())
 }
@@ -211,8 +252,18 @@ async fn ingest_run(
     State(state): State<AppState>,
     Json(req): Json<IngestRunRequest>,
 ) -> Result<(StatusCode, Json<IngestRunResponse>), (StatusCode, Json<serde_json::Value>)> {
-    if let Err(msg) = validate_request(&req) {
-        return Err(err(StatusCode::BAD_REQUEST, "validation_failed", msg));
+    match validate_request(&req) {
+        Ok(()) => {}
+        Err(ValidationError::BadRequest(msg)) => {
+            return Err(err(StatusCode::BAD_REQUEST, "validation_failed", msg));
+        }
+        Err(ValidationError::ProviderNotSupported(msg)) => {
+            return Err(err(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "provider_not_supported",
+                msg,
+            ));
+        }
     }
 
     let project_id = scope.id();
@@ -234,13 +285,56 @@ async fn ingest_run(
         })?;
     let Some(prompt) = prompt else {
         return Err(err(
-            StatusCode::NOT_FOUND,
+            StatusCode::UNPROCESSABLE_ENTITY,
             "prompt_not_found",
             format!(
                 "prompt `{}` is not declared in this project — add it before ingesting external runs",
                 req.prompt_slug
             ),
         ));
+    };
+
+    // 1b. KEK hard gate (AC-3, RISK-3). A caller that asks to `contribute` is
+    //     asserting "seal this into the benchmark"; sealing is impossible
+    //     without a per-project KEK (Story 39.1). Reject up-front with
+    //     `403 kek_missing` so the run is NOT recorded under a false promise of
+    //     contribution. `contribute: false` (the default) skips this entirely
+    //     and proceeds regardless of KEK state. Load once and reuse below so the
+    //     contribution leg doesn't re-load.
+    //
+    //     NOTE: until Story 40.4 wires full consent/redaction enforcement,
+    //     `contribute: true` is honoured only as far as this gate — the actual
+    //     sealing still hangs off the project's durable benchmark opt-in.
+    let project_id_str = project_id.to_string();
+    let kek = if req.contribute {
+        let pid = project_id_str.clone();
+        match tokio::task::spawn_blocking(move || {
+            let store = anseo_core::default_chain();
+            ProjectKek::load(&store, &pid)
+        })
+        .await
+        {
+            Ok(Ok(kek)) => Some(kek),
+            Ok(Err(_)) => {
+                return Err(err(
+                    StatusCode::FORBIDDEN,
+                    "kek_missing",
+                    "this run requested `contribute: true` but the project has no per-project \
+                     benchmark KEK — provision one before contributing external runs"
+                        .to_string(),
+                ));
+            }
+            Err(join_err) => {
+                tracing::error!(error = %join_err, "ingest: KEK load task panicked");
+                return Err(err(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal_error",
+                    "failed to load project benchmark key".to_string(),
+                ));
+            }
+        }
+    } else {
+        None
     };
 
     let observed_at = req.observed_at.unwrap_or_else(chrono::Utc::now);
@@ -280,7 +374,7 @@ async fn ingest_run(
             if let anseo_storage::Error::Sqlx(sqlx::Error::Database(db_err)) = &e {
                 if db_err.code().as_deref() == Some("23503") {
                     return err(
-                        StatusCode::NOT_FOUND,
+                        StatusCode::UNPROCESSABLE_ENTITY,
                         "prompt_not_found",
                         "prompt was deleted between lookup and insert; retry will re-validate"
                             .to_string(),
@@ -319,32 +413,10 @@ async fn ingest_run(
         .map(|c| c.terms_version.clone())
         .unwrap_or_default();
 
-    // Load the per-project KEK ONLY when the project actually opted in — a
-    // project that never opted in needs no key and gets a clean skip. Loading
-    // goes through the operator's durable secret-store chain (keyring →
-    // age-file → in-memory), the same chain the rest of the API uses for
-    // secrets; it can block, so run it off the async runtime.
-    let project_id_str = project_id.to_string();
-    let kek = if opted_in {
-        match tokio::task::spawn_blocking(move || {
-            let store = anseo_core::default_chain();
-            ProjectKek::load(&store, &project_id_str)
-        })
-        .await
-        {
-            Ok(Ok(kek)) => Some(kek),
-            // KEK genuinely absent — handled as the explicit KekMissing status
-            // below (NOT a silent drop).
-            Ok(Err(_)) => None,
-            Err(join_err) => {
-                tracing::error!(error = %join_err, "ingest: KEK load task panicked");
-                None
-            }
-        }
-    } else {
-        None
-    };
-
+    // The KEK was already loaded by the `contribute` gate above (and the
+    // request was rejected `403 kek_missing` if absent), so no second secret-
+    // store round-trip here. A `contribute: false` request never loaded a KEK
+    // and `kek` is `None`, which `decide_contribution` reports as a clean skip.
     let raw = RawPromptRun {
         project_id: project_id.to_string(),
         prompt_slug: req.prompt_slug.clone(),
@@ -360,7 +432,13 @@ async fn ingest_run(
         ip_address: String::new(),
     };
 
-    let (contribution, sealed) = decide_contribution(opted_in, &consented_terms, kek.as_ref(), raw);
+    // A run only enters the contribution path when it BOTH opted into the
+    // benchmark (durable project consent) AND set `contribute: true` on this
+    // request. `contribute: false` short-circuits to a clean skip regardless of
+    // project consent — the per-run flag is the narrower of the two gates.
+    let contribute_this_run = req.contribute && opted_in;
+    let (contribution, sealed) =
+        decide_contribution(contribute_this_run, &consented_terms, kek.as_ref(), raw);
 
     // Persisting the sealed contribution to a contributions outbox is Story
     // 40.2/40.3 (the SDK + upload path); 40.1's correctness boundary is that
@@ -375,7 +453,7 @@ async fn ingest_run(
     }
 
     Ok((
-        StatusCode::OK,
+        StatusCode::ACCEPTED,
         Json(IngestRunResponse {
             run_id: run_id.to_string(),
             project_id: project_id.to_string(),
@@ -405,6 +483,7 @@ mod tests {
             citation_domains: domains.map(|d| d.into_iter().map(str::to_string).collect()),
             observed_rank: Some(2),
             observed_at: Some(Utc.with_ymd_and_hms(2026, 6, 15, 8, 43, 21).unwrap()),
+            contribute: false,
         }
     }
 
@@ -433,17 +512,53 @@ mod tests {
     fn validate_rejects_non_slug_prompt() {
         let mut r = req(None, None);
         r.prompt_slug = "Vector DB".into();
-        assert!(validate_request(&r).unwrap_err().contains("slug-safe"));
+        assert!(matches!(
+            validate_request(&r),
+            Err(ValidationError::BadRequest(m)) if m.contains("slug-safe")
+        ));
     }
 
     #[test]
-    fn validate_rejects_empty_provider_and_model() {
+    fn validate_rejects_empty_or_unknown_provider() {
+        // Empty and unknown providers both fail to resolve → ProviderNotSupported.
         let mut r = req(None, None);
         r.provider = "".into();
-        assert!(validate_request(&r).is_err());
+        assert!(matches!(
+            validate_request(&r),
+            Err(ValidationError::ProviderNotSupported(_))
+        ));
+        let mut r = req(None, None);
+        r.provider = "totally-made-up".into();
+        assert!(matches!(
+            validate_request(&r),
+            Err(ValidationError::ProviderNotSupported(_))
+        ));
+    }
+
+    #[test]
+    fn validate_rejects_empty_model_as_bad_request() {
         let mut r = req(None, None);
         r.model = "  ".into();
-        assert!(validate_request(&r).is_err());
+        assert!(matches!(
+            validate_request(&r),
+            Err(ValidationError::BadRequest(_))
+        ));
+    }
+
+    #[test]
+    fn validate_accepts_first_party_and_plugin_providers() {
+        let mut r = req(None, None);
+        r.provider = "anthropic".into();
+        assert!(validate_request(&r).is_ok());
+        r.provider = "plugin:test.mock-provider".into();
+        assert!(validate_request(&r).is_ok());
+    }
+
+    #[test]
+    fn contribute_defaults_to_false_when_omitted() {
+        let raw = r#"{"prompt_slug":"vector-db","provider":"openai","model":"gpt-4o"}"#;
+        let r: IngestRunRequest = serde_json::from_str(raw).unwrap();
+        assert!(!r.contribute);
     }
 
     #[test]

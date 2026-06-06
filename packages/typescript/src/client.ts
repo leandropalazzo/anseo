@@ -29,6 +29,8 @@ import type {
   GenerateRecommendationsAccepted,
   GrafanaCrawlerQuery,
   GrafanaCrawlerSeries,
+  IngestRunRequest,
+  IngestRunResponse,
   ListAuditRunsParams,
   ListRecommendationsParams,
   ListRunsParams,
@@ -322,6 +324,35 @@ export const healthz = async ( options?: RequestInit): Promise<healthzResponse> 
     method: 'GET'
     
     
+  }
+);}
+
+
+
+/**
+ * Records a prompt run executed against a provider OUTSIDE OpenGEO's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-OpenGEO-Project header and returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped.
+ * @summary Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-sealed-contribution path as native runs.
+ */
+export type ingestExternalRunResponse = {
+  data: IngestRunResponse;
+  status: number;
+}
+
+export const getIngestExternalRunUrl = () => {
+
+
+  return `/v1/ingest/run`
+}
+
+export const ingestExternalRun = async (ingestRunRequest: IngestRunRequest, options?: RequestInit): Promise<ingestExternalRunResponse> => {
+  
+  return fetchClient<Promise<ingestExternalRunResponse>>(getIngestExternalRunUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(
+      ingestRunRequest,)
   }
 );}
 
