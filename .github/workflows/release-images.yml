@@ -97,16 +97,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Generate canonical image tags from the resolved version
+      # Generate canonical image tags from the RESOLVED version (steps.version),
+      # NOT the workflow event ref. On workflow_dispatch github.ref is the
+      # selected BRANCH, so semver rules keyed off the event ref would emit no
+      # X.Y.Z/X.Y/X tags; passing `value=v<X.Y.Z>` makes the semver patterns
+      # derive from the resolved version on BOTH the tag-push and dispatch paths.
+      # The leading `v` is re-applied here only so docker/metadata-action's semver
+      # parser sees a tag-shaped value; {{version}}/{{major}}/{{minor}} strip it
+      # back to the bare X.Y.Z that ANSEO_VERSION + the compose snapshot expect.
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/opengeo/${{ matrix.app }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=semver,pattern={{version}},value=v${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}},value=v${{ steps.version.outputs.version }}
             type=raw,value=latest,enable={{is_default_branch}}
 
       # Build for amd64 + arm64 and push both manifests atomically

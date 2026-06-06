@@ -235,8 +235,18 @@ jobs:
         working-directory: packages/sdk-typescript
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.resolve.outputs.version }}
         run: |
           set -euo pipefail
+          # Pin the package to the RESOLVED release version (bare X.Y.Z, no
+          # leading v) so the train never publishes the stale manifest version
+          # (0.1.0). --no-git-tag-version: no commit/tag in the checkout;
+          # --allow-same-version: idempotent re-publish of the same tag.
+          if [ -z "${VERSION}" ]; then
+            echo "::error::resolved release version is empty — refusing to publish npm" >&2
+            exit 1
+          fi
+          npm version "${VERSION}" --no-git-tag-version --allow-same-version
           npm publish --access public --provenance
 
       - name: Setup Python
@@ -251,8 +261,28 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+          VERSION: ${{ needs.resolve.outputs.version }}
         run: |
           set -euo pipefail
+          # Pin the package to the RESOLVED release version (bare X.Y.Z, no
+          # leading v) so the train never builds the stale manifest version
+          # (0.1.0). Build backend is setuptools, so set the static
+          # `version = "..."` field in [project] of pyproject.toml directly.
+          if [ -z "${VERSION}" ]; then
+            echo "::error::resolved release version is empty — refusing to publish PyPI" >&2
+            exit 1
+          fi
+          python - "$VERSION" <<'PY'
+          import re, sys, pathlib
+          ver = sys.argv[1]
+          p = pathlib.Path("pyproject.toml")
+          text = p.read_text()
+          new, n = re.subn(r'(?m)^version\s*=\s*".*"$', f'version = "{ver}"', text, count=1)
+          if n != 1:
+              sys.exit(f"failed to pin version in pyproject.toml (matched {n} times)")
+          p.write_text(new)
+          print(f"pinned anseo-observe version = {ver}")
+          PY
           python -m pip install --upgrade build twine
           python -m build
           python -m twine upload dist/*
