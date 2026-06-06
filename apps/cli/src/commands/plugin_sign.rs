@@ -52,7 +52,10 @@ pub fn run_keygen(args: KeygenArgs) -> Result<(), OpenGeoError> {
             );
         }
         None => {
-            println!("secret  (store as ANSEO_PLUGIN_SIGNING_KEY): {}", kp.secret_hex());
+            println!(
+                "secret  (store as ANSEO_PLUGIN_SIGNING_KEY): {}",
+                kp.secret_hex()
+            );
             println!("warning: secret printed to stdout — only do this in a private shell.");
         }
     }
@@ -99,9 +102,8 @@ pub fn run_sign(args: SignArgs) -> Result<(), OpenGeoError> {
 
     let manifest_path = args.dir.join("manifest.yaml");
     let entry_path = args.dir.join("entrypoint.wasm");
-    let manifest_bytes = std::fs::read(&manifest_path).map_err(|e| {
-        OpenGeoError::Config(format!("read {}: {e}", manifest_path.display()))
-    })?;
+    let manifest_bytes = std::fs::read(&manifest_path)
+        .map_err(|e| OpenGeoError::Config(format!("read {}: {e}", manifest_path.display())))?;
     let entrypoint_bytes = std::fs::read(&entry_path)
         .map_err(|e| OpenGeoError::Config(format!("read {}: {e}", entry_path.display())))?;
 
@@ -133,10 +135,17 @@ pub fn run_sign(args: SignArgs) -> Result<(), OpenGeoError> {
     std::fs::write(&claim_path, claim_toml)
         .map_err(|e| OpenGeoError::Config(format!("write {}: {e}", claim_path.display())))?;
 
-    println!("signed {} ({} bytes wasm)", args.dir.display(), entrypoint_bytes.len());
+    println!(
+        "signed {} ({} bytes wasm)",
+        args.dir.display(),
+        entrypoint_bytes.len()
+    );
     println!("  wrote {}", sig_path.display());
     println!("  wrote {}", claim_path.display());
-    println!("  root pubkey (must be pinned as ANSEO_ROOT_PUBKEY): {}", root.public_hex());
+    println!(
+        "  root pubkey (must be pinned as ANSEO_ROOT_PUBKEY): {}",
+        root.public_hex()
+    );
     Ok(())
 }
 
@@ -229,9 +238,8 @@ fn write_secret(path: &std::path::Path, hex: &str) -> Result<(), OpenGeoError> {
             & 0o777;
         if mode & 0o077 != 0 {
             // Try once to tighten it, then re-check.
-            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).map_err(|e| {
-                OpenGeoError::Config(format!("chmod 0600 {}: {e}", path.display()))
-            })?;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+                .map_err(|e| OpenGeoError::Config(format!("chmod 0600 {}: {e}", path.display())))?;
             let mode = std::fs::metadata(path)
                 .map_err(|e| OpenGeoError::Config(format!("stat {}: {e}", path.display())))?
                 .permissions()
@@ -292,8 +300,11 @@ mod tests {
             .find(|l| l.starts_with("signature"))
             .and_then(|l| l.split('"').nth(1))
             .unwrap();
-        let author_pubkey: [u8; 32] =
-            hex::decode(author_hex).unwrap().as_slice().try_into().unwrap();
+        let author_pubkey: [u8; 32] = hex::decode(author_hex)
+            .unwrap()
+            .as_slice()
+            .try_into()
+            .unwrap();
         let claim_sig = hex::decode(sig_hex).unwrap();
 
         let claim = NamespaceClaim {
@@ -325,7 +336,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let out = dir.path().join("root.key");
 
-        run_keygen(KeygenArgs { out: Some(out.clone()) }).expect("keygen must succeed");
+        run_keygen(KeygenArgs {
+            out: Some(out.clone()),
+        })
+        .expect("keygen must succeed");
 
         let mode = std::fs::metadata(&out).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600, "secret seed file must be 0600, got {mode:o}");
@@ -370,9 +384,19 @@ mod tests {
             .find(|l| l.starts_with("author_pubkey"))
             .and_then(|l| l.split('"').nth(1))
             .unwrap();
-        let recorded: [u8; 32] = hex::decode(author_hex).unwrap().as_slice().try_into().unwrap();
-        assert_eq!(recorded, author.public, "author key file must drive the signature");
-        assert_ne!(recorded, root.public, "author must be distinct from root here");
+        let recorded: [u8; 32] = hex::decode(author_hex)
+            .unwrap()
+            .as_slice()
+            .try_into()
+            .unwrap();
+        assert_eq!(
+            recorded, author.public,
+            "author key file must drive the signature"
+        );
+        assert_ne!(
+            recorded, root.public,
+            "author must be distinct from root here"
+        );
 
         // And the produced bundle verifies under the install-path verifier.
         let plugin_sig = std::fs::read(vdir.join("signature.bin")).unwrap();

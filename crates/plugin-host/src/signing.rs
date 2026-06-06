@@ -287,11 +287,7 @@ impl Keypair {
 /// [`verify_signed_plugin`] step (4) checks. Returns the raw 64-byte signature
 /// that the registry stores as `signature.bin`.
 #[cfg(feature = "signing-tools")]
-pub fn sign_plugin(
-    author: &Keypair,
-    manifest_bytes: &[u8],
-    entrypoint_bytes: &[u8],
-) -> [u8; 64] {
+pub fn sign_plugin(author: &Keypair, manifest_bytes: &[u8], entrypoint_bytes: &[u8]) -> [u8; 64] {
     let digest = signing_digest(manifest_bytes, entrypoint_bytes);
     author.signing_key().sign(&digest).to_bytes()
 }
@@ -448,9 +444,13 @@ mod sign_roundtrip_tests {
             claim: &claim,
             claim_signature: &claim_sig,
         };
-        let err =
-            verify_signed_plugin(&signed, &[real_root.public], &RevocationList::default(), None)
-                .expect_err("claim not root-signed must be untrusted");
+        let err = verify_signed_plugin(
+            &signed,
+            &[real_root.public],
+            &RevocationList::default(),
+            None,
+        )
+        .expect_err("claim not root-signed must be untrusted");
         assert!(matches!(err, SigningError::UntrustedNamespaceClaim(_)));
     }
 
@@ -483,8 +483,13 @@ mod sign_roundtrip_tests {
             claim: &claim,
             claim_signature: &claim_sig,
         };
-        verify_signed_plugin(&signed, &[original.public], &RevocationList::default(), None)
-            .expect("reloaded-secret signature must verify against the original public key");
+        verify_signed_plugin(
+            &signed,
+            &[original.public],
+            &RevocationList::default(),
+            None,
+        )
+        .expect("reloaded-secret signature must verify against the original public key");
     }
 }
 

@@ -209,7 +209,10 @@ entry_point: entrypoint.wasm
 /// Build an UNSIGNED first-party registry fixture (publisher = anseo.ai, no
 /// signature.bin / claim.toml).
 fn build_unsigned_first_party_registry(root: &Path) {
-    let dir = root.join("plugins").join(FIRST_PARTY_ID).join(FIRST_PARTY_VERSION);
+    let dir = root
+        .join("plugins")
+        .join(FIRST_PARTY_ID)
+        .join(FIRST_PARTY_VERSION);
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         root.join("index.toml"),
@@ -247,7 +250,8 @@ async fn plg_41_4_first_party_unsigned_refuses_even_with_allow_unsigned(pool: Pg
     .await;
     let err = result.expect_err("first-party unsigned plugin must refuse to install");
     assert!(
-        err.to_string().contains("first-party plugin must be signed"),
+        err.to_string()
+            .contains("first-party plugin must be signed"),
         "expected first-party-must-be-signed error, got: {err}"
     );
 
