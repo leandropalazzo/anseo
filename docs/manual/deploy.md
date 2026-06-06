@@ -65,6 +65,8 @@ DATABASE_URL=postgres://opengeo:opengeo@db.internal:5432/opengeo ogeo serve
 >    Setting a strong `ANSEO_BOOTSTRAP_API_KEY` *before the first `up`* seeds that value instead and avoids the rotation entirely.
 > 2. **Rotate `POSTGRES_PASSWORD` and `ANSEO_KEYRING_PASSPHRASE`.** Keep the password URL-safe, or set a percent-encoded `DATABASE_URL` directly (see `.env.example`).
 > 3. **Datastores stay localhost.** Postgres/Redis publish on `127.0.0.1` regardless of `ANSEO_BIND_HOST`; `0.0.0.0` only opens the api/web ports. Keep it that way — Redis has no auth.
+>
+> This is **enforced**, not just advised: a `preflight` guard runs before api/worker/web and **refuses to start the stack** if `ANSEO_BIND_HOST` is non-loopback while `ANSEO_BOOTSTRAP_API_KEY`, `ANSEO_KEYRING_PASSPHRASE`, or `POSTGRES_PASSWORD` is still the shipped dev default or unset. A localhost trial is unaffected. (Rotating the env still requires step 1's in-DB revoke if you already booted with the default key.)
 
 ---
 

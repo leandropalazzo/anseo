@@ -69,6 +69,42 @@ services:
       retries: 15
       start_period: 3s
 
+  # Fail-fast trust-boundary guard. Runs once before api/worker/web start. On a
+  # localhost-only bind (the trial) it is a no-op. The moment ANSEO_BIND_HOST is
+  # a non-loopback address (public/proxied), it REFUSES to start the stack if any
+  # secret is still the shipped well-known dev default or unset — so the public
+  # API can never come up authenticated only by a credential published in this
+  # repo. ($$ escapes compose interpolation so the container evaluates its own env.)
+  preflight:
+    image: busybox:1.36
+    environment:
+      ANSEO_BIND_HOST: ${ANSEO_BIND_HOST:-127.0.0.1}
+      ANSEO_BOOTSTRAP_API_KEY: ${ANSEO_BOOTSTRAP_API_KEY:-}
+      ANSEO_KEYRING_PASSPHRASE: ${ANSEO_KEYRING_PASSPHRASE:-}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    command:
+      - sh
+      - -ec
+      - |
+        case "$$ANSEO_BIND_HOST" in
+          ""|127.0.0.1|localhost|::1|"[::1]") echo "preflight: localhost-only bind — OK"; exit 0 ;;
+        esac
+        fail=0
+        if [ -z "$$ANSEO_BOOTSTRAP_API_KEY" ] || [ "$$ANSEO_BOOTSTRAP_API_KEY" = "ogeo_DevComposeBootstrapKeyDoNotUse01" ]; then
+          echo "REFUSING: ANSEO_BIND_HOST=$$ANSEO_BIND_HOST exposes the API, but ANSEO_BOOTSTRAP_API_KEY is unset or the well-known dev default." >&2; fail=1
+        fi
+        if [ "$$ANSEO_KEYRING_PASSPHRASE" = "dev-compose-secrets-passphrase" ]; then
+          echo "REFUSING: public bind but ANSEO_KEYRING_PASSPHRASE is the dev default." >&2; fail=1
+        fi
+        if [ "$$POSTGRES_PASSWORD" = "anseo" ]; then
+          echo "REFUSING: public bind but POSTGRES_PASSWORD is the dev default." >&2; fail=1
+        fi
+        if [ "$$fail" != 0 ]; then
+          echo "Set strong secrets in .env AND rotate the seeded bootstrap key in the DB before exposing — see https://anseo.ai/docs/deploy (exposure baseline)." >&2
+          exit 1
+        fi
+        echo "preflight: public bind with non-default secrets — OK"
+
   api:
     # Published Axum API image (Story 38.15). Pinned by ANSEO_VERSION — no build:.
     image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/api:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned X.Y.Z in .env}
@@ -112,6 +148,8 @@ services:
     ports:
       - "${ANSEO_BIND_HOST:-127.0.0.1}:${ANSEO_API_PORT:-8080}:8080"
     depends_on:
+      preflight:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -149,6 +187,8 @@ services:
       # Shared age-secrets home so the worker reads dashboard-set provider keys.
       - api-secrets:/data/config
     depends_on:
+      preflight:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -166,6 +206,8 @@ services:
     ports:
       - "${ANSEO_BIND_HOST:-127.0.0.1}:${ANSEO_WEB_PORT:-5173}:5173"
     depends_on:
+      preflight:
+        condition: service_completed_successfully
       api:
         condition: service_healthy
     healthcheck:

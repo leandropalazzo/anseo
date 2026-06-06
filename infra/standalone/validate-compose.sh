@@ -117,4 +117,16 @@ for service in api worker; do
   fi
 done
 
-echo "OK: standalone compose validates; no build:, app images pinned to X.Y.Z, postgres:16, redis:7, all ports bound to 127.0.0.1, project config mounted read-only."
+# Trust-boundary guard: the preflight service must exist and gate api/worker/web,
+# so a public bind can't come up on default secrets. Assert the wiring is present.
+if ! echo "${CONFIG_OUT}" | grep -Eq '^[[:space:]]*preflight:'; then
+  echo "FAIL: preflight trust-boundary guard service is missing from the compose" >&2
+  exit 1
+fi
+PREFLIGHT_DEPS="$(echo "${CONFIG_OUT}" | grep -c 'service_completed_successfully')"
+if [ "${PREFLIGHT_DEPS}" -lt 3 ]; then
+  echo "FAIL: api/worker/web must each depend_on the preflight guard (found ${PREFLIGHT_DEPS}/3)" >&2
+  exit 1
+fi
+
+echo "OK: standalone compose validates; no build:, app images pinned to X.Y.Z, postgres:16, redis:7, all ports bound to 127.0.0.1, project config mounted read-only, preflight trust-boundary guard wired."
