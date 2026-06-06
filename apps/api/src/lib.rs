@@ -71,6 +71,11 @@ pub struct AppState {
     /// used standalone (the `/v1/serve/status` endpoint returns `mode:
     /// "standalone"` in that case).
     pub serve_info: Option<Arc<ServeInfo>>,
+    /// Story 41.2 — runtime plugin load report, computed once at boot by
+    /// `anseo_plugin_host::loader::scan_and_load`. Each installed plugin carries
+    /// its activation status (`loaded | skipped | load_error`); `GET /v1/plugins`
+    /// serves this verbatim and `anseo plugin list` renders the same data.
+    pub loaded_plugins: Arc<Vec<anseo_plugin_host::loader::LoadedPlugin>>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -163,9 +168,17 @@ pub fn router(state: AppState) -> Router {
     // `require_api_key` but NOT by the `X-Anseo-Project` guard (you can't
     // select a project before listing/creating one). Nested at `/v1` so they
     // share the prefix without inheriting the per-request resolution layer.
-    let v1_operator_surface = routes::projects::v1_router().route_layer(
-        axum::middleware::from_fn_with_state(state.clone(), require_api_key),
-    );
+    //
+    // Story 41.2 — `GET /v1/plugins` lists the plugins loaded at serve boot,
+    // which is global/operator state (not project data), so it belongs on the
+    // operator surface alongside the project registry: `require_api_key` but
+    // NOT the `X-Anseo-Project` guard.
+    let v1_operator_surface = routes::projects::v1_router()
+        .merge(routes::plugins::v1_router())
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            require_api_key,
+        ));
 
     let phase_1_at_root_gated = phase_1_reads_at_root.route_layer(
         axum::middleware::from_fn_with_state(state.clone(), require_api_key),

@@ -88,6 +88,18 @@ fn build_spec() -> serde_json::Value {
                         "runs": { "type": "array", "items": { "type": "object" } }
                     }
                 },
+                "PluginStatus": {
+                    "type": "object",
+                    "description": "Story 41.2 — runtime activation status of one installed plugin, as resolved at `anseo serve` boot. `anseo plugin list` renders the same fields.",
+                    "required": ["id", "version", "kind", "status"],
+                    "properties": {
+                        "id": { "type": "string", "description": "Plugin id (`namespace/name`)." },
+                        "version": { "type": "string" },
+                        "kind": { "type": "string", "enum": ["provider", "extractor", "analytics", "output-format", "unknown"] },
+                        "status": { "type": "string", "enum": ["loaded", "skipped", "load_error"] },
+                        "reason": { "type": "string", "description": "Human-readable reason for a `skipped` / `load_error` outcome; absent when `loaded`." }
+                    }
+                },
                 "VisibilityTrendResponse": {
                     "type": "object",
                     "properties": {
@@ -390,6 +402,22 @@ fn build_spec() -> serde_json::Value {
                             "content": {
                                 "text/plain": { "schema": { "type": "string", "example": "ok" } }
                             }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                }
+            },
+            "/v1/plugins": {
+                "get": {
+                    "operationId": "listPlugins",
+                    "summary": "Story 41.2 — list installed plugins with their runtime activation status (loaded | skipped | load_error), as resolved at serve boot.",
+                    "parameters": [
+                        { "$ref": "#/components/parameters/ProjectHeader" }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PluginStatus" } } } }
                         },
                         "401": { "$ref": "#/components/responses/Unauthorized" }
                     }

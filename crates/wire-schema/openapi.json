@@ -1134,6 +1134,47 @@
           }
         }
       },
+      "PluginStatus": {
+        "description": "Story 41.2 — runtime activation status of one installed plugin, as resolved at `anseo serve` boot. `anseo plugin list` renders the same fields.",
+        "properties": {
+          "id": {
+            "description": "Plugin id (`namespace/name`).",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "provider",
+              "extractor",
+              "analytics",
+              "output-format",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "description": "Human-readable reason for a `skipped` / `load_error` outcome; absent when `loaded`.",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "loaded",
+              "skipped",
+              "load_error"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "kind",
+          "status"
+        ],
+        "type": "object"
+      },
       "ProjectListResponse": {
         "type": "object",
         "required": [
@@ -2131,6 +2172,30 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/v1/plugins": {
+      "get": {
+        "operationId": "listPlugins",
+        "summary": "Story 41.2 — list installed plugins with their runtime activation status (loaded | skipped | load_error), as resolved at serve boot. Operator-scoped; not gated by X-Anseo-Project.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PluginStatus"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }

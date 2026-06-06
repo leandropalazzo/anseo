@@ -163,6 +163,7 @@ async fn seed() -> (axum::Router, String, PgPool) {
             std::collections::HashMap::new(),
         )),
         serve_info: None,
+        loaded_plugins: std::sync::Arc::new(Vec::new()),
     };
     (router(state), key.plaintext, pool)
 }
@@ -438,6 +439,7 @@ async fn openrouter_runs_split_by_upstream_model() {
             std::collections::HashMap::new(),
         )),
         serve_info: None,
+        loaded_plugins: std::sync::Arc::new(Vec::new()),
     };
     let app = router(state);
     let (status, body) = get_json(

@@ -191,6 +191,26 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
     let socket = check_bind_acceptable(&bind_addr, test_mode_enabled, active_keys)
         .map_err(|msg| anyhow::anyhow!(msg))?;
 
+    // Story 41.2 — runtime plugin activation. Eagerly scan the install
+    // directory *before* the server accepts requests so every installed plugin's
+    // load decision (loaded | skipped | load_error) is resolved up front.
+    // Signature + platform-sandbox gates are honoured inside the loader; a
+    // corrupted plugin is recorded as `load_error` and skipped — never fatal.
+    let loaded_plugins = match anseo_plugin_host::loader::resolve_plugin_home() {
+        Some(home) => anseo_plugin_host::loader::scan_and_load(
+            &home,
+            &anseo_plugin_host::loader::LoadPolicy::default(),
+        ),
+        None => {
+            tracing::warn!(
+                event = "service.plugin_home_unresolved",
+                "could not resolve plugin home (no HOME/XDG_CONFIG_HOME); no plugins loaded"
+            );
+            Vec::new()
+        }
+    };
+    let loaded_plugins = Arc::new(loaded_plugins);
+
     let (events_tx, _rx) = event_channel();
     spawn_notify_bridge(database_url.clone(), events_tx.clone());
 
@@ -203,6 +223,7 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
         configured_project,
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info,
+        loaded_plugins,
     };
     let app = router(state);
 

@@ -129,6 +129,7 @@ dependencies = [
  "anseo-core",
  "anseo-crawler-ingest",
  "anseo-extractors",
+ "anseo-plugin-host",
  "anseo-providers",
  "anseo-recommendations",
  "anseo-scheduler",
@@ -144,6 +145,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tempfile",
  "tokio",
  "tokio-stream",
  "tower 0.5.3",
@@ -365,6 +367,7 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "toml 0.8.23",
+ "tracing",
 ]
 
 [[package]]
@@ -480,6 +483,7 @@ version = "0.6.0"
 dependencies = [
  "anseo-analytics",
  "anseo-core",
+ "anseo-plugin-host",
  "anseo-providers",
  "anseo-scheduler",
  "anseo-storage",

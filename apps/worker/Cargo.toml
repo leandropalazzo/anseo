@@ -22,6 +22,7 @@ anseo-storage = { path = "../../crates/storage" }
 anseo-scheduler = { path = "../../crates/scheduler" }
 # Schedule dispatch drives the live provider matrix through the orchestrator.
 anseo-providers = { path = "../../crates/providers" }
+anseo-plugin-host = { path = "../../crates/plugin-host" }
 # Story 31-4: link the resumable Postgres→ClickHouse ETL engine. The analytics
 # `clickhouse` feature (which pulls in reqwest) is propagated through this
 # crate's own `clickhouse` feature below.

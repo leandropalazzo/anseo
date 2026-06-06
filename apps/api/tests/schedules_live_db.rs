@@ -61,6 +61,7 @@ async fn seed() -> (axum::Router, String) {
             std::collections::HashMap::new(),
         )),
         serve_info: None,
+        loaded_plugins: std::sync::Arc::new(Vec::new()),
     };
     (router(state), key.plaintext)
 }
