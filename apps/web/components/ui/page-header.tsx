@@ -34,7 +34,7 @@ export function PageHeader({ title, description, actions, className }: PageHeade
         .join(" ")}
     >
       <div>
-        <h1 className="m-0 text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
+        <h1 className="m-0 text-[length:var(--font-size-2xl)] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">
           {title}
         </h1>
         {description && (

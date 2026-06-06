@@ -66,7 +66,7 @@ export default async function RecommendationDetailPage({
             <NdpMarkerFor rec={rec} />
             <Pill mono>{rec.state}</Pill>
           </div>
-          <h1 className="m-0 text-[length:18px] font-normal text-[color:var(--text)]">
+          <h1 className="m-0 text-[length:var(--font-size-xl)] font-normal text-[color:var(--text)]">
             {rec.summary}
           </h1>
           <div className="flex flex-wrap gap-[6px]">

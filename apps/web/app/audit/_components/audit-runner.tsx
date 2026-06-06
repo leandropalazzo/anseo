@@ -107,7 +107,7 @@ export function AuditRunner({
               <div className="font-[family-name:var(--font-mono)] text-[length:var(--font-size-xs)] text-[color:var(--text-muted)]">
                 {report.pages.length} page{report.pages.length === 1 ? "" : "s"} crawled
               </div>
-              <div className="text-[length:28px] text-[color:var(--text)]">
+              <div className="text-[length:var(--font-size-3xl)] text-[color:var(--text)]">
                 {report.overall_score}
                 <span className="text-[length:var(--font-size-sm)] text-[color:var(--text-faint)]">
                   /100

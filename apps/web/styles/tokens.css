@@ -46,10 +46,18 @@
   --accent-ink:  #0A0A0A;
   --accent-soft: oklch(0.86 0.17 95 / 0.12);
 
-  /* Chart ramp (mono bars) — shared with the public-web design system. */
+  /* Chart ramp — the single source of categorical series color.
+   * Stops 1–3 match the public-web design-system ramp (mono bars).
+   * Stops 4–7 extend it for multi-series charts (e.g. share-of-voice)
+   * so no component hand-rolls its own palette. Each stop is a distinct
+   * hue for color-blind separability; pair with a label/glyph per UX-DR. */
   --chart-1: oklch(0.86 0.17 95);
   --chart-2: oklch(0.74 0.14 165);
   --chart-3: oklch(0.70 0.17 255);
+  --chart-4: oklch(0.72 0.14 50);
+  --chart-5: oklch(0.66 0.10 215);
+  --chart-6: oklch(0.78 0.16 70);
+  --chart-7: color-mix(in oklch, var(--text-muted) 70%, transparent);
 
   /* Semantic */
   --ok:     oklch(0.74 0.14 155);
@@ -70,6 +78,12 @@
   --font-size-base: 12px;
   --font-size-sm:   11px;
   --font-size-xs:   10px;
+  /* Display sizes — used by page titles / large metric numerals. Tokenized
+   * so the ad-hoc text-[length:18..28px] page headers stay on one scale. */
+  --font-size-lg:   14px;
+  --font-size-xl:   18px;
+  --font-size-2xl:  22px;
+  --font-size-3xl:  28px;
 
   /* Provider colors (constant across themes). Pair with `█` glyph. */
   --p-openai:     oklch(0.74 0.14 165);
@@ -107,6 +121,10 @@
   --chart-1: oklch(0.62 0.16 95);
   --chart-2: oklch(0.58 0.13 165);
   --chart-3: oklch(0.55 0.16 255);
+  --chart-4: oklch(0.58 0.14 50);
+  --chart-5: oklch(0.54 0.10 215);
+  --chart-6: oklch(0.64 0.16 70);
+  --chart-7: color-mix(in oklch, var(--text-muted) 70%, transparent);
   --shadow-pop:  0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 
