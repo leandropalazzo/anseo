@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use anseo_benchmark::{ProjectKek, TERMS_VERSION};
 use anseo_core::{OpenGeoError, ProjectId};
-use anseo_storage::repositories::benchmark_consent::BenchmarkConsentRepo;
+use anseo_storage::repositories::benchmark_consent::{BenchmarkConsentRepo, ConsentTier};
 use anseo_storage::Storage;
 use chrono::Utc;
 use clap::Args;
@@ -32,6 +32,12 @@ pub struct OptinArgs {
     /// Free-form note recorded alongside the opt-in event.
     #[arg(long)]
     pub note: Option<String>,
+    /// Opt into the BRAND-VISIBILITY (identified) tier instead of the anonymous
+    /// aggregate tier (Story 44.1). This is the explicit, separately-revocable
+    /// opt-in that lets your brand appear named and ranked in the public
+    /// visibility leaderboard. Requires a verified domain. APPEARING ≠ CLAIMING.
+    #[arg(long = "brand-visibility")]
+    pub brand_visibility: bool,
 }
 
 #[derive(Debug, Args)]
@@ -47,6 +53,13 @@ pub struct OptoutArgs {
     /// required unless you pass this flag.
     #[arg(long)]
     pub yes: bool,
+    /// Withdraw from the BRAND-VISIBILITY (identified) tier only (Story 44.1).
+    /// Single command, single confirmation (GDPR Art.7(3)). Future identified
+    /// contributions stop immediately. This does NOT crypto-shred the benchmark
+    /// key — anonymous aggregate contribution (if active) is unaffected. Omit
+    /// this flag to perform the full anonymous-tier crypto-shred opt-out.
+    #[arg(long = "brand-visibility")]
+    pub brand_visibility: bool,
 }
 
 #[derive(Debug, Args)]
@@ -56,6 +69,10 @@ pub struct StatusArgs {
 }
 
 pub async fn run_optin(args: OptinArgs) -> Result<(), OpenGeoError> {
+    if args.brand_visibility {
+        return run_optin_brand_visibility(args).await;
+    }
+
     let (storage, project_id) = open_storage(args.config.as_deref()).await?;
     let terms = std::fs::read_to_string(TERMS_PATH).map_err(|e| {
         OpenGeoError::Config(format!(
@@ -102,7 +119,106 @@ pub async fn run_optin(args: OptinArgs) -> Result<(), OpenGeoError> {
     Ok(())
 }
 
+/// `ogeo benchmark optin --brand-visibility` (Story 44.1).
+///
+/// The identified tier is stricter than anonymous: it requires the anonymous
+/// aggregate tier to already be active (you cannot be identified without first
+/// contributing the aggregate signal) and shows exactly what ADDITIONAL data is
+/// transmitted (the verification token + domain association — never a raw brand
+/// name). Records a separate `tier = brand_visibility` consent row.
+async fn run_optin_brand_visibility(args: OptinArgs) -> Result<(), OpenGeoError> {
+    let (storage, project_id) = open_storage(args.config.as_deref()).await?;
+    let repo = BenchmarkConsentRepo::new(storage.pool());
+
+    // AC1: the identified tier builds ON TOP of the anonymous tier. Refuse if
+    // the project is not currently anonymously opted in on the current terms.
+    let anon = repo
+        .latest_for_tier(project_id, ConsentTier::Anonymous)
+        .await
+        .map_err(|e| OpenGeoError::Config(format!("failed to read anonymous consent: {e}")))?;
+    let anon_active = anon.map(|r| r.is_active(TERMS_VERSION)).unwrap_or(false);
+    if !anon_active {
+        return Err(OpenGeoError::Config(
+            "brand-visibility opt-in requires the anonymous aggregate tier to be active first. \
+             Run `ogeo benchmark optin` (without --brand-visibility) and ensure your domain is \
+             verified, then retry."
+                .into(),
+        ));
+    }
+
+    print_brand_visibility_terms();
+
+    if !args.yes {
+        print!("Type `yes` to opt into the brand-visibility (identified) tier: ");
+        io::stdout().flush().ok();
+        let mut answer = String::new();
+        io::stdin()
+            .lock()
+            .read_line(&mut answer)
+            .map_err(|e| OpenGeoError::Config(format!("failed to read confirmation: {e}")))?;
+        if answer.trim() != "yes" {
+            return Err(OpenGeoError::Config(
+                "brand-visibility opt-in cancelled — type `yes` exactly to confirm".into(),
+            ));
+        }
+    }
+
+    let actor = resolve_actor(args.actor);
+    let id = repo
+        .record_optin_tier(
+            project_id,
+            ConsentTier::BrandVisibility,
+            TERMS_VERSION,
+            actor.as_deref(),
+            args.note.as_deref(),
+        )
+        .await
+        .map_err(|e| {
+            OpenGeoError::Config(format!("failed to record brand-visibility opt-in: {e}"))
+        })?;
+    println!(
+        "✓ Opted into brand-visibility (identified) tier (event id {id}, terms version \
+         {TERMS_VERSION}, at {}).",
+        Utc::now().to_rfc3339()
+    );
+    println!(
+        "  Your brand will appear named and ranked in the public visibility leaderboard once \
+         server-side resolution (44.2/44.3) is live. Withdraw any time with \
+         `ogeo benchmark optout --brand-visibility`."
+    );
+    Ok(())
+}
+
+/// Print the stricter brand-visibility consent terms, spelling out exactly what
+/// ADDITIONAL data the identified tier transmits beyond the anonymous tier.
+fn print_brand_visibility_terms() {
+    println!("BRAND-VISIBILITY (IDENTIFIED) TIER — additional consent");
+    println!();
+    println!("  This tier is STRICTER than the anonymous aggregate tier you already accepted. By");
+    println!("  opting in you authorize the following ADDITIONAL data on the contribution path:");
+    println!();
+    println!("    • your verified-domain verification token (resolves to your brand identity");
+    println!("      server-side via the entity registry — your brand NAME is never transmitted");
+    println!("      by the client),");
+    println!("    • the association between that token and this project's contributions.");
+    println!();
+    println!("  Effect: your brand appears NAMED and RANKED in the public visibility leaderboard.");
+    println!("  APPEARING in aggregate data is not the same as CLAIMING a named identity — this");
+    println!("  opt-in is what makes the claim. It is separate from, and revocable independently");
+    println!("  of, your anonymous aggregate consent.");
+    println!();
+    println!("  Withdrawal is one action: `ogeo benchmark optout --brand-visibility` stops all");
+    println!("  future identified contributions immediately (GDPR Art.7(3)).");
+    println!();
+    println!("  Terms version (pinned): {TERMS_VERSION}");
+    println!();
+}
+
 pub async fn run_optout(args: OptoutArgs) -> Result<(), OpenGeoError> {
+    if args.brand_visibility {
+        return run_optout_brand_visibility(args).await;
+    }
+
     let (storage, project_id) = open_storage(args.config.as_deref()).await?;
     let project_str = project_id.to_string();
 
@@ -174,6 +290,63 @@ pub async fn run_optout(args: OptoutArgs) -> Result<(), OpenGeoError> {
     Ok(())
 }
 
+/// `ogeo benchmark optout --brand-visibility` (Story 44.1, AC4).
+///
+/// Single command, single "yes" confirmation (GDPR Art.7(3) — withdrawal is one
+/// action). Appends a `tier = brand_visibility` optout event; future identified
+/// contributions stop immediately. This is a SOFT withdrawal of the named-tier
+/// claim — it deliberately does NOT crypto-shred the benchmark KEK, because the
+/// anonymous aggregate tier may still be active and shares that key. To fully
+/// erase aggregate contributions, run `ogeo benchmark optout` (no flag).
+async fn run_optout_brand_visibility(args: OptoutArgs) -> Result<(), OpenGeoError> {
+    let (storage, project_id) = open_storage(args.config.as_deref()).await?;
+
+    if !args.yes {
+        print!(
+            "Withdraw from the brand-visibility (identified) tier? Your brand stops appearing \
+             named in the leaderboard. Type `yes` to confirm: "
+        );
+        io::stdout().flush().ok();
+        let mut answer = String::new();
+        io::stdin()
+            .lock()
+            .read_line(&mut answer)
+            .map_err(|e| OpenGeoError::Config(format!("failed to read confirmation: {e}")))?;
+        if answer.trim() != "yes" {
+            return Err(OpenGeoError::Config(
+                "brand-visibility opt-out cancelled — type `yes` exactly to confirm. Your \
+                 identified-tier consent is unchanged."
+                    .into(),
+            ));
+        }
+    }
+
+    let actor = resolve_actor(args.actor);
+    let id = BenchmarkConsentRepo::new(storage.pool())
+        .record_optout_tier(
+            project_id,
+            ConsentTier::BrandVisibility,
+            TERMS_VERSION,
+            actor.as_deref(),
+            args.note.as_deref(),
+        )
+        .await
+        .map_err(|e| {
+            OpenGeoError::Config(format!("failed to record brand-visibility opt-out: {e}"))
+        })?;
+    println!(
+        "✓ Withdrawn from brand-visibility (identified) tier (event id {id}, terms version \
+         {TERMS_VERSION}, at {}).",
+        Utc::now().to_rfc3339()
+    );
+    println!(
+        "  Future identified contributions have stopped. Your anonymous aggregate consent (if \
+         active) is unaffected; run `ogeo benchmark optout` without --brand-visibility to also \
+         crypto-shred the aggregate key."
+    );
+    Ok(())
+}
+
 /// Print the honest-scope warning before an irreversible crypto-shred opt-out.
 ///
 /// Mirrors the honest-scope language from the compliance addendum: the
@@ -240,6 +413,24 @@ pub async fn run_status(args: StatusArgs) -> Result<(), OpenGeoError> {
                     "⚠ Recorded consent is on stale terms version. Re-run `ogeo benchmark optin` to refresh."
                 );
             }
+        }
+    }
+
+    // Story 44.1: report the brand-visibility (identified) tier independently.
+    let identified = BenchmarkConsentRepo::new(storage.pool())
+        .latest_for_tier(project_id, ConsentTier::BrandVisibility)
+        .await
+        .map_err(|e| OpenGeoError::Config(format!("failed to read brand-visibility state: {e}")))?;
+    match identified {
+        None => println!("Brand-visibility (identified) tier: not opted in"),
+        Some(row) => {
+            let active = row.is_active(TERMS_VERSION);
+            println!(
+                "Brand-visibility (identified) tier: {} (last event: {} at {})",
+                if active { "active" } else { "inactive" },
+                row.event,
+                row.created_at.to_rfc3339()
+            );
         }
     }
     Ok(())

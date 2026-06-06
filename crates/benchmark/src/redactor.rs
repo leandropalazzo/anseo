@@ -21,6 +21,26 @@
 //! // There's no `new` or `From` constructor exposed either.
 //! let _ = BenchmarkPayload::new();
 //! ```
+//!
+//! Story 44.1 structural pin: the identified tier carries brand identity ONLY
+//! via the verification token on the sealed contribution — the redacted
+//! payload still has NO `brand_name`. There is no accessor for it because the
+//! field does not exist:
+//!
+//! ```compile_fail
+//! use anseo_benchmark::{ProjectKek, RawPromptRun, Redactor, TERMS_VERSION};
+//! use anseo_core::InMemoryStore;
+//! let store = InMemoryStore::durable_for_tests();
+//! let kek = ProjectKek::load_or_create(&store, "01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
+//! let raw = RawPromptRun { /* ... */ project_id: "x".into(), prompt_slug: "p".into(),
+//!     provider: "openai".into(), model: "m".into(),
+//!     observed_at: chrono::Utc::now(), observed_rank: None, citation_domains: vec![],
+//!     brand_name: "Pinecone".into(), raw_response_text: String::new(),
+//!     api_key_used: String::new(), ip_address: String::new() };
+//! let payload = Redactor::new(&kek, TERMS_VERSION).redact(raw).unwrap();
+//! // No such accessor: brand_name is NOT in BenchmarkPayload.
+//! let _ = payload.brand_name();
+//! ```
 
 use chrono::{DateTime, Timelike, Utc};
 use hmac::{Hmac, Mac};

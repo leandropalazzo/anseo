@@ -12,15 +12,47 @@ use uuid::Uuid;
 
 use crate::error::Error;
 
+/// Consent tier. The anonymous-aggregate tier (Story 13.1) and the
+/// brand-visibility identified tier (Story 44.1) are recorded and revoked
+/// **independently** — a project may be anonymously opted in while remaining
+/// identified-out, and vice versa. APPEARING ≠ CLAIMING: only the
+/// `BrandVisibility` tier authorizes transmitting brand identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConsentTier {
+    Anonymous,
+    BrandVisibility,
+}
+
+impl ConsentTier {
+    /// The string stored in the `tier` column (must match the migration CHECK).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ConsentTier::Anonymous => "anonymous",
+            ConsentTier::BrandVisibility => "brand_visibility",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConsentRow {
     pub id: Uuid,
     pub project_id: ProjectId,
     pub event: String,
+    pub tier: String,
     pub terms_version: String,
     pub actor: Option<String>,
     pub note: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+impl ConsentRow {
+    /// True iff this row represents an *active* consent for the current terms:
+    /// the most-recent event is `optin` and the pinned terms version matches.
+    /// Caller is responsible for having selected the latest row in the relevant
+    /// tier.
+    pub fn is_active(&self, current_terms: &str) -> bool {
+        self.event == "optin" && self.terms_version == current_terms
+    }
 }
 
 pub struct BenchmarkConsentRepo<'a> {
@@ -32,6 +64,9 @@ impl<'a> BenchmarkConsentRepo<'a> {
         Self { pool }
     }
 
+    /// Append an opt-in event on the **anonymous** tier (Story 13.1
+    /// back-compat). Equivalent to
+    /// `record_optin_tier(.., ConsentTier::Anonymous, ..)`.
     pub async fn record_optin(
         &self,
         project_id: ProjectId,
@@ -39,22 +74,19 @@ impl<'a> BenchmarkConsentRepo<'a> {
         actor: Option<&str>,
         note: Option<&str>,
     ) -> Result<Uuid, Error> {
-        let id = Uuid::from_u128(ulid::Ulid::new().0);
-        sqlx::query(
-            r#"INSERT INTO benchmark_consent
-               (id, project_id, event, terms_version, actor, note)
-               VALUES ($1, $2, 'optin', $3, $4, $5)"#,
+        self.record_event(
+            project_id,
+            "optin",
+            ConsentTier::Anonymous,
+            terms_version,
+            actor,
+            note,
         )
-        .bind(id)
-        .bind(project_id)
-        .bind(terms_version)
-        .bind(actor)
-        .bind(note)
-        .execute(self.pool)
-        .await?;
-        Ok(id)
+        .await
     }
 
+    /// Append an opt-out event on the **anonymous** tier (Story 13.1
+    /// back-compat).
     pub async fn record_optout(
         &self,
         project_id: ProjectId,
@@ -62,14 +94,69 @@ impl<'a> BenchmarkConsentRepo<'a> {
         actor: Option<&str>,
         note: Option<&str>,
     ) -> Result<Uuid, Error> {
+        self.record_event(
+            project_id,
+            "optout",
+            ConsentTier::Anonymous,
+            terms_version,
+            actor,
+            note,
+        )
+        .await
+    }
+
+    /// Append an opt-in event on `tier` (Story 44.1). The brand-visibility
+    /// tier is the EXPLICIT identified opt-in; it is recorded independently of
+    /// the anonymous tier. Returns the new consent record id — for the
+    /// identified tier this is the id every identified contribution must
+    /// reference (CC-NFR2 provenance, see `contributions.consent_record_id`).
+    pub async fn record_optin_tier(
+        &self,
+        project_id: ProjectId,
+        tier: ConsentTier,
+        terms_version: &str,
+        actor: Option<&str>,
+        note: Option<&str>,
+    ) -> Result<Uuid, Error> {
+        self.record_event(project_id, "optin", tier, terms_version, actor, note)
+            .await
+    }
+
+    /// Append an opt-out event on `tier` (Story 44.1). Withdrawal is one action
+    /// (GDPR Art.7(3)): a single append flips the tier inactive immediately.
+    pub async fn record_optout_tier(
+        &self,
+        project_id: ProjectId,
+        tier: ConsentTier,
+        terms_version: &str,
+        actor: Option<&str>,
+        note: Option<&str>,
+    ) -> Result<Uuid, Error> {
+        self.record_event(project_id, "optout", tier, terms_version, actor, note)
+            .await
+    }
+
+    /// Shared append. CC-NFR2 append-only: every consent change is a new row,
+    /// never an update or delete.
+    async fn record_event(
+        &self,
+        project_id: ProjectId,
+        event: &str,
+        tier: ConsentTier,
+        terms_version: &str,
+        actor: Option<&str>,
+        note: Option<&str>,
+    ) -> Result<Uuid, Error> {
         let id = Uuid::from_u128(ulid::Ulid::new().0);
         sqlx::query(
             r#"INSERT INTO benchmark_consent
-               (id, project_id, event, terms_version, actor, note)
-               VALUES ($1, $2, 'optout', $3, $4, $5)"#,
+               (id, project_id, event, tier, terms_version, actor, note)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)"#,
         )
         .bind(id)
         .bind(project_id)
+        .bind(event)
+        .bind(tier.as_str())
         .bind(terms_version)
         .bind(actor)
         .bind(note)
@@ -78,35 +165,50 @@ impl<'a> BenchmarkConsentRepo<'a> {
         Ok(id)
     }
 
-    /// Most-recent consent row for this project, or `None` if the
-    /// project has never opt'd in. Caller decides whether the redactor
-    /// may emit payloads (active = most recent event is 'optin' AND
-    /// terms_version matches `TERMS_VERSION`).
+    /// Most-recent consent row for this project on the **anonymous** tier, or
+    /// `None` if the project has never opted in to it. Back-compat shim over
+    /// [`Self::latest_for_tier`] preserving the Story 13.1 signature.
     pub async fn latest_for_project(
         &self,
         project_id: ProjectId,
     ) -> Result<Option<ConsentRow>, Error> {
+        self.latest_for_tier(project_id, ConsentTier::Anonymous)
+            .await
+    }
+
+    /// Most-recent consent row for this project on `tier`, or `None` if the
+    /// project has never opted in to that tier. The caller decides activeness
+    /// via [`ConsentRow::is_active`] (most recent event is `optin` AND the
+    /// pinned terms version matches the current terms).
+    pub async fn latest_for_tier(
+        &self,
+        project_id: ProjectId,
+        tier: ConsentTier,
+    ) -> Result<Option<ConsentRow>, Error> {
         let row = sqlx::query(
-            r#"SELECT id, project_id, event, terms_version, actor, note, created_at
+            r#"SELECT id, project_id, event, tier, terms_version, actor, note, created_at
                FROM benchmark_consent
-               WHERE project_id = $1
+               WHERE project_id = $1 AND tier = $2
                ORDER BY created_at DESC
                LIMIT 1"#,
         )
         .bind(project_id)
+        .bind(tier.as_str())
         .fetch_optional(self.pool)
         .await?;
-        row.map(|r| {
-            Ok(ConsentRow {
-                id: r.try_get("id")?,
-                project_id: r.try_get("project_id")?,
-                event: r.try_get("event")?,
-                terms_version: r.try_get("terms_version")?,
-                actor: r.try_get("actor")?,
-                note: r.try_get("note")?,
-                created_at: r.try_get("created_at")?,
-            })
-        })
-        .transpose()
+        row.map(map_consent_row).transpose()
     }
+}
+
+fn map_consent_row(r: sqlx::postgres::PgRow) -> Result<ConsentRow, Error> {
+    Ok(ConsentRow {
+        id: r.try_get("id")?,
+        project_id: r.try_get("project_id")?,
+        event: r.try_get("event")?,
+        tier: r.try_get("tier")?,
+        terms_version: r.try_get("terms_version")?,
+        actor: r.try_get("actor")?,
+        note: r.try_get("note")?,
+        created_at: r.try_get("created_at")?,
+    })
 }

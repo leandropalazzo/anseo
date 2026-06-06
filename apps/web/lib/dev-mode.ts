@@ -13,6 +13,14 @@ export function isHostedCloud(): boolean {
   return process.env.NEXT_PUBLIC_OGEO_HOSTED_CLOUD === "1";
 }
 
+// Story 44.1 — brand-visibility (identified) tier gate. The identified-tier
+// toggle in Settings → Privacy is DISABLED with a "terms in review" notice
+// until the benchmark identified-tier terms (Epic 39.7) are finalized. Once
+// 39.7 ships, set NEXT_PUBLIC_ANSEO_BENCHMARK_TERMS_FINALIZED=1 to enable it.
+export function isBenchmarkTermsFinalized(): boolean {
+  return process.env.NEXT_PUBLIC_ANSEO_BENCHMARK_TERMS_FINALIZED === "1";
+}
+
 export type PluginLogLine = {
   at: string;
   level: "info" | "warn" | "error";

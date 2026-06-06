@@ -275,12 +275,44 @@ impl ProjectKek {
         self.key.as_slice()
     }
 
-    /// Envelope-encrypt a redacted payload into a [`SealedContribution`].
+    /// Envelope-encrypt a redacted payload into an **anonymous-tier**
+    /// [`SealedContribution`] (no brand identity attached).
     ///
     /// Generates a fresh random DEK, AEAD-encrypts the serialized payload with
     /// it, then wraps the DEK under this KEK. The plaintext DEK is dropped at
     /// the end of this function and never persisted.
     pub fn seal(&self, payload: &BenchmarkPayload) -> Result<SealedContribution, CryptoError> {
+        self.seal_inner(payload, None)
+    }
+
+    /// Envelope-encrypt a redacted payload into a **brand-visibility
+    /// (identified) tier** [`SealedContribution`] (Story 44.1).
+    ///
+    /// Identical to [`ProjectKek::seal`] except the resulting contribution
+    /// carries a `verification_token` (43.2) that resolves to brand identity
+    /// **server-side** via the entity registry. The token is the ONLY identity
+    /// carried — the brand name is never present in [`BenchmarkPayload`] nor in
+    /// the sealed wire form. APPEARING ≠ CLAIMING.
+    ///
+    /// HARD GATE (Story 39.1a): identity is transmitted only when this method is
+    /// reached, and reaching it requires a live `&self` ([`ProjectKek`]). A
+    /// caller without a KEK cannot construct one (no public constructor), and
+    /// [`ProjectKek::load`] returns [`CryptoError::KekMissing`] when none is
+    /// provisioned — so an identified contribution attempted with no KEK is
+    /// refused, never silently skipped.
+    pub fn seal_identified(
+        &self,
+        payload: &BenchmarkPayload,
+        verification_token: &str,
+    ) -> Result<SealedContribution, CryptoError> {
+        self.seal_inner(payload, Some(verification_token))
+    }
+
+    fn seal_inner(
+        &self,
+        payload: &BenchmarkPayload,
+        verification_token: Option<&str>,
+    ) -> Result<SealedContribution, CryptoError> {
         // Serialized plaintext is confidential redacted data — scrub it on drop.
         let plaintext = Zeroizing::new(
             serde_json::to_vec(payload).map_err(|e| CryptoError::Serialize(e.to_string()))?,
@@ -331,6 +363,7 @@ impl ProjectKek {
             dek_nonce: hex::encode(dek_nonce),
             payload_ct: hex::encode(payload_ct),
             payload_nonce: hex::encode(payload_nonce),
+            verification_token: verification_token.map(str::to_string),
         })
     }
 
@@ -411,6 +444,13 @@ pub struct SealedContribution {
     pub payload_ct: String,
     /// Nonce used to encrypt the payload (hex, 24 bytes).
     pub payload_nonce: String,
+    /// Brand-visibility (identified) tier ONLY (Story 44.1): the verification
+    /// token (43.2) that resolves to brand identity server-side. `None` for
+    /// anonymous-tier contributions. This is the ONLY identity carried — a raw
+    /// brand name is never present here nor in [`BenchmarkPayload`]. APPEARING ≠
+    /// CLAIMING.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verification_token: Option<String>,
 }
 
 #[cfg(test)]
@@ -659,6 +699,63 @@ mod tests {
         // Sibling KEK survives and still opens its own contribution.
         let other_reloaded = ProjectKek::load(&store, OTHER).unwrap();
         assert!(other_reloaded.open(&other_sealed).is_ok());
+    }
+
+    #[test]
+    fn anonymous_seal_carries_no_verification_token() {
+        // Story 44.1 AC2: the anonymous tier never attaches identity.
+        let store = durable_store();
+        let kek = ProjectKek::load_or_create(&store, PROJECT).unwrap();
+        let sealed = kek.seal(&payload(&kek)).unwrap();
+        assert_eq!(sealed.verification_token, None);
+        // And it is omitted from the wire form entirely.
+        let wire = serde_json::to_string(&sealed).unwrap();
+        assert!(
+            !wire.contains("verification_token"),
+            "anonymous wire must not mention verification_token: {wire}"
+        );
+    }
+
+    #[test]
+    fn identified_seal_carries_token_only_no_brand_name() {
+        // Story 44.1 AC2: identity is carried ONLY via the verification token.
+        // The brand name ("Pinecone" in the fixture) must never appear, even
+        // though the identified tier is active.
+        let store = durable_store();
+        let kek = ProjectKek::load_or_create(&store, PROJECT).unwrap();
+        let token = "vtok-43-2-resolves-server-side";
+        let sealed = kek.seal_identified(&payload(&kek), token).unwrap();
+
+        assert_eq!(sealed.verification_token.as_deref(), Some(token));
+        let wire = serde_json::to_string(&sealed).unwrap();
+        assert!(
+            wire.contains(token),
+            "token must travel on the wire: {wire}"
+        );
+        assert!(
+            !wire.contains("Pinecone"),
+            "brand_name leaked into identified contribution: {wire}"
+        );
+        // Round-trips through serde with the token preserved.
+        let back: SealedContribution = serde_json::from_str(&wire).unwrap();
+        assert_eq!(back, sealed);
+        // The sealed payload itself still opens to a BenchmarkPayload with no
+        // brand_name (the redacted shape is unchanged by the identified tier).
+        assert_eq!(kek.open(&sealed).unwrap(), payload(&kek));
+    }
+
+    #[test]
+    fn identified_contribution_refused_when_kek_missing() {
+        // Story 44.1 AC3: with no per-project KEK, an identified contribution is
+        // REFUSED with KekMissing — never silently skipped, never partially
+        // written. The gate is type-level: you cannot reach seal_identified
+        // without a ProjectKek, and load is the only way to get one.
+        let store = durable_store();
+        let err = ProjectKek::load(&store, PROJECT).unwrap_err();
+        assert!(
+            matches!(err, CryptoError::KekMissing { .. }),
+            "expected KekMissing, got {err:?}"
+        );
     }
 
     #[test]
