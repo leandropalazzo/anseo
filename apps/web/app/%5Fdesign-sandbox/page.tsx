@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Bar } from "@/components/charts/bar";
 import { Sparkline } from "@/components/charts/sparkline";
+import { CHART_RAMP } from "@/lib/chart-colors";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CodeBlock } from "@/components/ui/code-block";
@@ -255,6 +256,23 @@ function ChartsPanel({ theme }: { theme: Theme }) {
                 <div className="flex-1">
                   <Bar value={v} ariaLabel={`Sample ${i}`} />
                 </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="Chart ramp" eyebrow="charts · ramp">
+          <div className="flex flex-wrap gap-[8px]">
+            {CHART_RAMP.map((c, i) => (
+              <div key={i} className="flex items-center gap-[6px]">
+                <span
+                  aria-hidden
+                  className="inline-block h-[14px] w-[14px] border border-[color:var(--hairline)]"
+                  style={{ background: c }}
+                />
+                <span className="font-[family-name:var(--font-mono)] text-[length:var(--font-size-xs)] text-[color:var(--text-muted)]">
+                  chart-{i + 1}
+                </span>
               </div>
             ))}
           </div>

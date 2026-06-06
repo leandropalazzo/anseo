@@ -1,4 +1,4 @@
-import { providerCssVar } from "@/lib/provider-colors";
+import { chartColor } from "@/lib/chart-colors";
 
 /** One subject's share of the comparison-window mention total. */
 export interface ShareRow {
@@ -13,25 +13,18 @@ export interface ShareOfVoiceChartProps {
   primary?: string;
 }
 
-const PALETTE = [
-  "var(--accent)",
-  providerCssVar("anthropic"),
-  providerCssVar("gemini"),
-  providerCssVar("openai"),
-  providerCssVar("perplexity"),
-  "color-mix(in oklch, var(--text-muted) 70%, transparent)",
-  "var(--warn)",
-];
-
 /**
  * Share-of-voice snapshot. The /comparisons contract carries no daily series,
  * so this renders a single stacked horizontal bar of the current-window share
  * per subject, each band labelled so non-color readers can identify it.
+ *
+ * Series colors come from the shared `CHART_RAMP` (chart-color.ts) — band 0
+ * is `--chart-1` (== `--accent`), so the primary brand keeps its yellow band.
  */
 export function ShareOfVoiceChart({ rows, primary = "" }: ShareOfVoiceChartProps) {
   if (rows.length === 0) return null;
   const total = rows.reduce((acc, r) => acc + r.share, 0) || 1;
-  const colorFor = (i: number) => PALETTE[i % PALETTE.length]!;
+  const colorFor = (i: number) => chartColor(i);
 
   const bands = rows.map((r, i) => {
     const before = rows

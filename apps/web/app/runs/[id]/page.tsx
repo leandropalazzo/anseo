@@ -165,7 +165,7 @@ export default async function RunDetailPage({
                 {run.id} · <LocalTime iso={run.started_at} mode="datetime" />
               </span>
             </div>
-            <h1 className="m-0 mt-[6px] text-[length:22px] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">{run.prompt_name}</h1>
+            <h1 className="m-0 mt-[6px] text-[length:var(--font-size-2xl)] font-normal tracking-[var(--display-tracking)] text-[color:var(--text)]">{run.prompt_name}</h1>
             <div className="mt-[6px] flex flex-wrap gap-[6px]">
               <Pill mono>prompt: {run.prompt_name}</Pill>
               <Pill mono>provider: {run.provider}</Pill>
