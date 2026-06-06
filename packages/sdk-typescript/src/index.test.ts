@@ -2,17 +2,24 @@ import { describe, it, expect, vi } from "vitest";
 
 import {
   AnseoObserver,
+  AnseoApiError,
+  AnseoConfigError,
   OpenGeoApiError,
+  observe,
   observeRun,
+  startRun,
+  detectProviderModel,
+  extractText,
+  type AnseoLogger,
   type ObserveRunResult,
 } from "./index";
 
 const OK_BODY: ObserveRunResult = {
-  runId: "run_123",
-  projectId: "proj_abc",
-  promptSlug: "best-polarized-sunglasses",
+  run_id: "run_123",
+  project_id: "proj_abc",
+  prompt_slug: "best-polarized-sunglasses",
   provider: "openai",
-  observedAt: "2026-06-04T12:00:00Z",
+  observed_at: "2026-06-04T12:00:00Z",
   contribution: { status: "sealed" },
 };
 
@@ -128,18 +135,23 @@ describe("AnseoObserver", () => {
       provider: "openai",
       model: "m",
     });
+    // OpenGeoApiError is a back-compat alias of AnseoApiError.
     await expect(promise).rejects.toBeInstanceOf(OpenGeoApiError);
+    await expect(promise).rejects.toBeInstanceOf(AnseoApiError);
     await expect(promise).rejects.toMatchObject({
-      name: "OpenGeoApiError",
+      name: "AnseoApiError",
       status: 404,
       code: "prompt_not_found",
     });
   });
 
-  it("requires baseUrl and apiKey", () => {
-    expect(
-      () => new AnseoObserver({ baseUrl: "", apiKey: "k" }),
-    ).toThrow(/baseUrl/);
+  it("requires baseUrl and apiKey, throwing AnseoConfigError at construction", () => {
+    expect(() => new AnseoObserver({ baseUrl: "", apiKey: "k" })).toThrow(
+      /baseUrl/,
+    );
+    expect(() => new AnseoObserver({ baseUrl: "", apiKey: "k" })).toThrow(
+      AnseoConfigError,
+    );
     expect(
       () => new AnseoObserver({ baseUrl: "https://x", apiKey: "" }),
     ).toThrow(/apiKey/);
@@ -151,7 +163,233 @@ describe("AnseoObserver", () => {
       { baseUrl: "https://anseo.internal", apiKey: "k", fetch: fetchMock },
       { promptSlug: "p", provider: "openai", model: "m" },
     );
-    expect(result.runId).toBe("run_123");
+    expect(result.run_id).toBe("run_123");
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+});
+
+function silentLogger(): AnseoLogger {
+  return { debug: vi.fn(), warn: vi.fn() };
+}
+
+describe("AnseoObserver.send (best-effort, at-most-once)", () => {
+  it("returns the result on the happy path", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(OK_BODY));
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal",
+      apiKey: "k",
+      fetch: fetchMock,
+      logger: silentLogger(),
+    });
+    const result = await observer.send({
+      promptSlug: "p",
+      provider: "openai",
+      model: "m",
+    });
+    expect(result).toEqual(OK_BODY);
+  });
+
+  it("swallows a transport failure, returns null, and never retries", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+    const logger = silentLogger();
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal",
+      apiKey: "k",
+      fetch: fetchMock,
+      logger,
+    });
+    const result = await observer.send({
+      promptSlug: "p",
+      provider: "openai",
+      model: "m",
+    });
+    expect(result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // at-most-once: no retry
+    expect(logger.debug).toHaveBeenCalled();
+  });
+
+  it("swallows a 5xx without retrying (at-most-once on server error)", async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(jsonResponse({ error: "internal" }, 500)),
+    );
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal",
+      apiKey: "k",
+      fetch: fetchMock,
+      logger: silentLogger(),
+    });
+    const result = await observer.send({
+      promptSlug: "p",
+      provider: "openai",
+      model: "m",
+    });
+    expect(result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs a 401 at WARN but still swallows it", async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(jsonResponse({ error: "unauthorized" }, 401)),
+    );
+    const logger = silentLogger();
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal",
+      apiKey: "bad",
+      fetch: fetchMock,
+      logger,
+    });
+    const result = await observer.send({
+      promptSlug: "p",
+      provider: "openai",
+      model: "m",
+    });
+    expect(result).toBeNull();
+    expect(logger.warn).toHaveBeenCalled();
+  });
+});
+
+describe("provider/model auto-detection", () => {
+  it("detects OpenAI chat completions", () => {
+    const resp = {
+      object: "chat.completion",
+      model: "gpt-4o-2024-08-06",
+      choices: [{ message: { content: "Try Sunski." } }],
+    };
+    expect(detectProviderModel(resp)).toEqual({
+      provider: "openai",
+      model: "gpt-4o-2024-08-06",
+    });
+    expect(extractText(resp)).toBe("Try Sunski.");
+  });
+
+  it("detects the OpenAI Responses API via output_text", () => {
+    const resp = { object: "response", model: "gpt-4o", output_text: "hi" };
+    expect(detectProviderModel(resp).provider).toBe("openai");
+    expect(extractText(resp)).toBe("hi");
+  });
+
+  it("detects Anthropic messages and concatenates text blocks", () => {
+    const resp = {
+      type: "message",
+      model: "claude-3-5-sonnet-20241022",
+      content: [
+        { type: "text", text: "Hello " },
+        { type: "text", text: "world" },
+      ],
+    };
+    expect(detectProviderModel(resp)).toEqual({
+      provider: "anthropic",
+      model: "claude-3-5-sonnet-20241022",
+    });
+    expect(extractText(resp)).toBe("Hello world");
+  });
+
+  it("returns undefined provider/model for an unknown shape", () => {
+    expect(detectProviderModel({ foo: "bar" })).toEqual({
+      provider: undefined,
+      model: undefined,
+    });
+  });
+
+  it("treats a plain string as the response text", () => {
+    expect(extractText("just text")).toBe("just text");
+  });
+});
+
+describe("observe wrapper", () => {
+  it("captures provider/model/text from the wrapped call and ships", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(OK_BODY));
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal",
+      apiKey: "k",
+      fetch: fetchMock,
+      logger: silentLogger(),
+    });
+
+    const resp = {
+      object: "chat.completion",
+      model: "gpt-4o-2024-08-06",
+      choices: [{ message: { content: "Try Sunski." } }],
+    };
+    const returned = await observe(
+      observer,
+      { promptSlug: "best-sunglasses" },
+      () => resp,
+    );
+
+    expect(returned).toBe(resp); // pass-through
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.provider).toBe("openai");
+    expect(body.model).toBe("gpt-4o-2024-08-06");
+    expect(body.response_text).toBe("Try Sunski.");
+    expect(body.prompt_slug).toBe("best-sunglasses");
+  });
+
+  it("sends nothing when the wrapped call throws, and propagates the error", async () => {
+    const fetchMock = vi.fn();
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal",
+      apiKey: "k",
+      fetch: fetchMock,
+      logger: silentLogger(),
+    });
+    const boom = new Error("provider down");
+    await expect(
+      observe(observer, { promptSlug: "p" }, () => {
+        throw boom;
+      }),
+    ).rejects.toBe(boom);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("skips the send when model cannot be determined", async () => {
+    const fetchMock = vi.fn();
+    const logger = silentLogger();
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal",
+      apiKey: "k",
+      fetch: fetchMock,
+      logger,
+    });
+    // Unknown shape => no model detected, none supplied.
+    await observe(observer, { promptSlug: "p" }, () => ({ foo: "bar" }));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalled();
+  });
+
+  it("startRun supports manual capture + ship with explicit overrides", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(OK_BODY));
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal",
+      apiKey: "k",
+      fetch: fetchMock,
+      logger: silentLogger(),
+    });
+    const run = startRun(observer, { promptSlug: "p" });
+    run.capture("plain text answer", { provider: "openai", model: "gpt-4o" });
+    const result = await run.ship();
+    expect(result).toEqual(OK_BODY);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.response_text).toBe("plain text answer");
+    expect(body.provider).toBe("openai");
+    expect(body.model).toBe("gpt-4o");
+  });
+
+  it("ships nothing when startRun is never captured", async () => {
+    const fetchMock = vi.fn();
+    const logger = silentLogger();
+    const observer = new AnseoObserver({
+      baseUrl: "https://anseo.internal",
+      apiKey: "k",
+      fetch: fetchMock,
+      logger,
+    });
+    const run = startRun(observer, { promptSlug: "p" });
+    const result = await run.ship();
+    expect(result).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

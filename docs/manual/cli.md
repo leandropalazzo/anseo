@@ -193,3 +193,14 @@ ogeo audit https://example.com --fail-on high --max-pages 50
 ```bash
 ogeo report generate --format json --window 30d | your-loader
 ```
+
+---
+
+## Instrumentation SDKs
+
+To feed **externally-executed** LLM runs into Anseo from your own application
+(the OpenTelemetry pattern), use the thin instrumentation SDKs in
+[`packages/`](../../packages/) — Python (`sdk-python`, `anseo_observe`),
+TypeScript (`sdk-typescript`, `@anseo/observe`), and Go (`sdk-go`). They wrap a
+call and POST the run to `/v1/ingest/run`, best-effort. Full usage docs:
+documented separately (Story 40.5).
