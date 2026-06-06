@@ -31,9 +31,14 @@ import type {
   GrafanaCrawlerSeries,
   IngestRunRequest,
   IngestRunResponse,
+  IngestSiteEventBody,
+  InstallPlugin200,
+  InstallPluginBody,
   ListAuditRunsParams,
+  ListMarketplacePlugins200,
   ListRecommendationsParams,
   ListRunsParams,
+  PluginStatus,
   ProjectListResponse,
   ProjectView,
   Recommendation,
@@ -44,6 +49,7 @@ import type {
   Sm14MetricResponse,
   TransitionRecommendationRequest,
   TransitionRecommendationResponse,
+  UpgradePlugin200,
   VisibilitySentimentParams,
   VisibilitySentimentResponse,
   VisibilityTrendParams,
@@ -353,6 +359,142 @@ export const ingestExternalRun = async (ingestRunRequest: IngestRunRequest, opti
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(
       ingestRunRequest,)
+  }
+);}
+
+
+
+/**
+ * @summary Story 41.2 — list installed plugins with their runtime activation status (loaded | skipped | load_error), as resolved at serve boot. Operator-scoped; not gated by X-Anseo-Project.
+ */
+export type listPluginsResponse = {
+  data: PluginStatus[];
+  status: number;
+}
+
+export const getListPluginsUrl = () => {
+
+
+  return `/v1/plugins`
+}
+
+export const listPlugins = async ( options?: RequestInit): Promise<listPluginsResponse> => {
+  
+  return fetchClient<Promise<listPluginsResponse>>(getListPluginsUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary Story 41.3 — live plugin registry catalog merged with installed state (drives the dashboard /marketplace page). Degrades to an empty list when the registry is offline so the UI renders its zero-state. Operator-scoped; not gated by X-Anseo-Project.
+ */
+export type listMarketplacePluginsResponse = {
+  data: ListMarketplacePlugins200;
+  status: number;
+}
+
+export const getListMarketplacePluginsUrl = () => {
+
+
+  return `/v1/marketplace/plugins`
+}
+
+export const listMarketplacePlugins = async ( options?: RequestInit): Promise<listMarketplacePluginsResponse> => {
+  
+  return fetchClient<Promise<listMarketplacePluginsResponse>>(getListMarketplacePluginsUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary Story 41.3 — verify (checksum + Ed25519 signature) and record a plugin install from the live registry by id. Operator-scoped; not gated by X-Anseo-Project.
+ */
+export type installPluginResponse = {
+  data: InstallPlugin200;
+  status: number;
+}
+
+export const getInstallPluginUrl = () => {
+
+
+  return `/v1/plugins/install`
+}
+
+export const installPlugin = async (installPluginBody: InstallPluginBody, options?: RequestInit): Promise<installPluginResponse> => {
+  
+  return fetchClient<Promise<installPluginResponse>>(getInstallPluginUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(
+      installPluginBody,)
+  }
+);}
+
+
+
+/**
+ * @summary Story 41.3 — soft-remove an installed plugin (worker unloads on next restart). Operator-scoped; not gated by X-Anseo-Project.
+ */
+export type removePluginResponse = {
+  data: void;
+  status: number;
+}
+
+export const getRemovePluginUrl = (id: string,) => {
+
+
+  return `/v1/plugins/${id}`
+}
+
+export const removePlugin = async (id: string, options?: RequestInit): Promise<removePluginResponse> => {
+  
+  return fetchClient<Promise<removePluginResponse>>(getRemovePluginUrl(id),
+  {      
+    ...options,
+    method: 'DELETE'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary Story 41.3 — re-install the registry-current version of a plugin (no semver resolution; the registry declares the current version). Operator-scoped; not gated by X-Anseo-Project.
+ */
+export type upgradePluginResponse = {
+  data: UpgradePlugin200;
+  status: number;
+}
+
+export const getUpgradePluginUrl = (id: string,) => {
+
+
+  return `/v1/plugins/${id}/upgrade`
+}
+
+export const upgradePlugin = async (id: string, options?: RequestInit): Promise<upgradePluginResponse> => {
+  
+  return fetchClient<Promise<upgradePluginResponse>>(getUpgradePluginUrl(id),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
   }
 );}
 
@@ -899,6 +1041,34 @@ export const visibilitySentiment = async (params?: VisibilitySentimentParams, op
     method: 'GET'
     
     
+  }
+);}
+
+
+
+/**
+ * @summary Story 47.1 — public, unauthenticated privacy-safe site-event ingest. No API key required (the public site posts directly). No PII stored: no IP column, no user IDs; session_id is an ephemeral per-visit UUID. Unknown event_type values are silently dropped with 204 to prevent allowlist enumeration. Rate-limited 60/min per IP at the edge (IP never persisted).
+ */
+export type ingestSiteEventResponse = {
+  data: void;
+  status: number;
+}
+
+export const getIngestSiteEventUrl = () => {
+
+
+  return `/v1/site-events`
+}
+
+export const ingestSiteEvent = async (ingestSiteEventBody: IngestSiteEventBody, options?: RequestInit): Promise<ingestSiteEventResponse> => {
+  
+  return fetchClient<Promise<ingestSiteEventResponse>>(getIngestSiteEventUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(
+      ingestSiteEventBody,)
   }
 );}
 

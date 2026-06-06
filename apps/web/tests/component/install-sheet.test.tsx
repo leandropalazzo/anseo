@@ -21,7 +21,7 @@ beforeEach(() => install.mockReset());
 
 function plugin(overrides: Partial<MarketplacePlugin> = {}): MarketplacePlugin {
   return {
-    slug: "community/markdown-export",
+    slug: "fixtures/beta-unsigned",
     name: "Markdown Export",
     version: "0.9.0",
     description: "x",
@@ -65,7 +65,7 @@ describe("InstallSheet", () => {
 
     fireEvent.click(screen.getByTestId("unsigned-confirm"));
     await waitFor(() =>
-      expect(install).toHaveBeenCalledWith("community/markdown-export", {
+      expect(install).toHaveBeenCalledWith("fixtures/beta-unsigned", {
         acknowledge_unsigned: true,
       }),
     );

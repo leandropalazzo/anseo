@@ -2,7 +2,7 @@
 //
 // UX-DR97 — plugin names must not render raw emoji in the brutalist Signal
 // surface; every emoji/pictographic codepoint collapses to a single `▒` glyph
-// so a name like "SERP Enrichment 🚀" renders as "SERP Enrichment ▒".
+// so a name like "Demo Plugin 🚀" renders as "Demo Plugin ▒".
 
 import type { PluginCapability } from "./api";
 

@@ -2200,6 +2200,154 @@
         }
       }
     },
+    "/v1/marketplace/plugins": {
+      "get": {
+        "operationId": "listMarketplacePlugins",
+        "summary": "Story 41.3 — live plugin registry catalog merged with installed state (drives the dashboard /marketplace page). Degrades to an empty list when the registry is offline so the UI renders its zero-state. Operator-scoped; not gated by X-Anseo-Project.",
+        "responses": {
+          "200": {
+            "description": "OK — { plugins: MarketplacePlugin[] }",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/plugins/install": {
+      "post": {
+        "operationId": "installPlugin",
+        "summary": "Story 41.3 — verify (checksum + Ed25519 signature) and record a plugin install from the live registry by id. Operator-scoped; not gated by X-Anseo-Project.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "acknowledge_unsigned": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Install outcome (ok + signature_status + audit_event_id, or a structured error_kind).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Plugin id not present in the registry index.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/plugins/{id}": {
+      "delete": {
+        "operationId": "removePlugin",
+        "summary": "Story 41.3 — soft-remove an installed plugin (worker unloads on next restart). Operator-scoped; not gated by X-Anseo-Project.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No active install for this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/plugins/{id}/upgrade": {
+      "post": {
+        "operationId": "upgradePlugin",
+        "summary": "Story 41.3 — re-install the registry-current version of a plugin (no semver resolution; the registry declares the current version). Operator-scoped; not gated by X-Anseo-Project.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upgrade outcome (same shape as install).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Plugin id not present in the registry index.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/projects": {
       "get": {
         "operationId": "listProjects",
