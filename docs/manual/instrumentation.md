@@ -67,9 +67,9 @@ Construction raises `AnseoConfigError` when `base_url`/`api_key` is missing; `ob
 Zero runtime dependencies — uses the global `fetch` (Node ≥ 18, Deno, edge runtimes, browsers). Source: [`packages/sdk-typescript/`](https://github.com/leandropalazzo/opengeo/tree/main/packages/sdk-typescript).
 
 ```ts
-import { OpenGeoObserver } from "@opengeo/observe";
+import { AnseoObserver } from "@anseo/observe";
 
-const observer = new OpenGeoObserver({
+const observer = new AnseoObserver({
   baseUrl: "https://anseo.internal",
   apiKey: process.env.ANSEO_API_KEY!,
   project: "Sunski", // omit for single-project deployments
@@ -83,10 +83,11 @@ const result = await observer.observeRun({
   // optional: citationDomains: ["sunski.com"], observedRank: 1, observedAt: new Date(),
 });
 
-console.log(result.runId, result.contribution.status);
+// result fields are the snake_case wire shape (parity with the Python/Go SDKs)
+console.log(result.run_id, result.contribution.status);
 ```
 
-A one-liner `observeRun(config, run)` function is also exported for fire-and-forget use. Non-2xx responses reject with an `OpenGeoApiError` carrying `.status` and `.code`.
+A one-liner `observeRun(config, run)` function is also exported for fire-and-forget use. Non-2xx responses reject with an `AnseoApiError` carrying `.status` and `.code`.
 
 ### Go
 
