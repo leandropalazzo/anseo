@@ -18,6 +18,12 @@ chrono = { workspace = true }
 ulid = { workspace = true }
 uuid = { workspace = true }
 anyhow = { workspace = true }
+# Story 43.2 domain-verification: token hashing + constant-time compare +
+# pluggable async DNS resolver trait.
+sha2 = { workspace = true }
+hex = { workspace = true }
+subtle = { workspace = true }
+async-trait = "0.1"
 
 [dev-dependencies]
 # Story 19.2 dedup test: feed real engine output through the repo. No normal

@@ -150,4 +150,10 @@ impl Storage {
     pub fn disputes(&self) -> repositories::disputes::DisputeRepo<'_> {
         repositories::disputes::DisputeRepo::new(&self.pool)
     }
+
+    /// Epic 43 / Story 43.2 — Domain-ownership verification (DNS-TXT challenge
+    /// minting, single-use consume, rate-limit window, revocation scan).
+    pub fn verification(&self) -> repositories::verification::VerificationRepo<'_> {
+        repositories::verification::VerificationRepo::new(&self.pool)
+    }
 }

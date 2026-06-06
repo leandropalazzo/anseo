@@ -129,6 +129,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::mcp::v1_router())
         .merge(routes::entities::v1_router())
         .merge(routes::disputes::v1_router())
+        .merge(routes::verification::v1_router())
         .merge(routes::leaderboard::v1_router())
         .merge(routes::density_check::v1_router())
         .merge(routes::serve_status::v1_router())
@@ -177,7 +178,9 @@ pub fn router(state: AppState) -> Router {
     //   * Story 43.6 — dispute submission (`POST /v1/disputes`) + public reads
     //     (`GET /v1/disputes/:id`, `.../events`) per AC-5. The gated operator
     //     surface (review queue + lifecycle actions) stays in `v1_surface`.
-    let v1_public_surface = routes::badge::v1_router().merge(routes::disputes::public_router());
+    let v1_public_surface = routes::badge::v1_router()
+        .merge(routes::disputes::public_router())
+        .merge(routes::verification::public_router());
 
     let mut base = Router::new()
         .merge(phase_1_at_root_gated)
