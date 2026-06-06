@@ -68,6 +68,29 @@ read_field() {
   printf '%s' "$val"
 }
 
+# Minimal TOML scalar reader scoped to a section:
+# `toml_section_field <file> <section> <key>` returns the value of `key = "..."`
+# within the first `[section]` table. Plugin Cargo.toml files are flat enough that
+# this awk pass (no TOML dep) suffices for reading [package].name / [lib].name.
+toml_section_field() {
+  local file="$1" section="$2" key="$3"
+  awk -v section="$section" -v key="$key" '
+    /^[[:space:]]*\[/ { in_sec = ($0 ~ "^[[:space:]]*\\[" section "\\][[:space:]]*$"); next }
+    in_sec {
+      line = $0
+      sub(/#.*$/, "", line)                       # strip comments
+      if (line ~ "^[[:space:]]*" key "[[:space:]]*=") {
+        sub("^[[:space:]]*" key "[[:space:]]*=[[:space:]]*", "", line)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+        gsub(/^"|"$/, "", line)                   # strip surrounding quotes
+        gsub(/^'\''|'\''$/, "", line)
+        print line
+        exit
+      }
+    }
+  ' "$file"
+}
+
 # Confirm a rustup target is installed; if not, emit a clear instruction and skip
 # (rather than fail the whole run) so the native plugin still materializes.
 have_wasm_target() {
@@ -113,9 +136,32 @@ for entry in "${PLUGINS[@]}"; do
       ;;
     provider)
       # WASM cdylib kind. Build to the WASI target → a real .wasm artifact.
-      # cdylib output name: lib<name with - → _>.wasm
-      lib_name="${name//-/_}"
-      artifact="$src_dir/target/$WASM_TARGET/release/$lib_name.wasm"
+      #
+      # IMPORTANT: Rust's wasm targets do NOT apply the native `lib` prefix to
+      # cdylib output. `rustc --print file-names --crate-type cdylib --target
+      # wasm32-wasip1 --crate-name <crate>` emits `<crate>.wasm` (crate name with
+      # '-' → '_', no `lib`, `.wasm` ext) — unlike a native cdylib which gets
+      # `lib<crate>.so/.dylib/.dll`. So the provider artifact is `<crate>.wasm`.
+      #
+      # Derive the crate name from the plugin's own Cargo.toml ([lib] name if set,
+      # else [package] name) rather than the manifest, since the on-disk artifact
+      # filename is governed by Cargo/rustc, not the registry manifest.
+      cargo_toml="$src_dir/Cargo.toml"
+      [ -f "$cargo_toml" ] || { echo "ERROR: $dir: missing Cargo.toml: $cargo_toml" >&2; exit 1; }
+      crate_name="$(toml_section_field "$cargo_toml" lib name)"
+      [ -n "$crate_name" ] || crate_name="$(toml_section_field "$cargo_toml" package name)"
+      [ -n "$crate_name" ] || { echo "ERROR: $dir: could not read crate name from $cargo_toml" >&2; exit 1; }
+      crate_name_underscored="${crate_name//-/_}"
+      # Prefer rustc's authoritative filename when rustc is on PATH; fall back to
+      # the documented construction otherwise.
+      wasm_filename=""
+      if command -v rustc >/dev/null 2>&1; then
+        wasm_filename="$(printf '' | rustc --print file-names \
+          --crate-type cdylib --target "$WASM_TARGET" \
+          --crate-name "$crate_name_underscored" - 2>/dev/null | head -n1 || true)"
+      fi
+      [ -n "$wasm_filename" ] || wasm_filename="$crate_name_underscored.wasm"
+      artifact="$src_dir/target/$WASM_TARGET/release/$wasm_filename"
       if ! have_wasm_target; then
         heartbeat "$dir: SKIP — wasm target '$WASM_TARGET' is not installed."
         heartbeat "$dir: install it and re-run to materialize this bundle:"
