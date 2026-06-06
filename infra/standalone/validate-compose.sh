@@ -48,22 +48,25 @@ if echo "${CONFIG_OUT}" | grep -Eq '^[[:space:]]*build:'; then
   exit 1
 fi
 
-# AC1: every anseo app image must be pinned to a version (not latest/dev).
-APP_IMAGES="$(echo "${CONFIG_OUT}" | grep -E 'image:.*/(api|worker|web):' || true)"
-if [ -z "${APP_IMAGES}" ]; then
-  echo "FAIL: no anseo api/worker/web image references found" >&2
-  exit 1
-fi
-if echo "${APP_IMAGES}" | grep -Eq ':(latest|dev)[[:space:]]*$'; then
-  echo "FAIL: an anseo app image is pinned to :latest or :dev" >&2
-  echo "${APP_IMAGES}" >&2
-  exit 1
-fi
-if ! echo "${APP_IMAGES}" | grep -Eq ':[0-9]+\.[0-9]+\.[0-9]+'; then
-  echo "FAIL: anseo app images are not pinned to a X.Y.Z version" >&2
-  echo "${APP_IMAGES}" >&2
-  exit 1
-fi
+# AC1: EACH anseo app image (api, worker, web) must be independently pinned to a
+# X.Y.Z tag. Checked per-app — a single versioned image must not mask another
+# that is unpinned (e.g. api:1.2.3 while web:main slips through).
+for app in api worker web; do
+  IMG_LINE="$(echo "${CONFIG_OUT}" | grep -E "image:[[:space:]]*\S*/${app}:" || true)"
+  if [ -z "${IMG_LINE}" ]; then
+    echo "FAIL: no ${app} image reference found in rendered config" >&2
+    exit 1
+  fi
+  # Tag is everything after the final ':'. Require a strict X.Y.Z[-suffix] tag —
+  # rejects :latest, :dev, :main, and bare/unpinned tags.
+  TAG="${IMG_LINE##*:}"
+  TAG="${TAG%%[[:space:]]*}"
+  if ! printf '%s' "${TAG}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([._+-][0-9A-Za-z.]+)?$'; then
+    echo "FAIL: ${app} image is not pinned to an X.Y.Z version (tag='${TAG}')" >&2
+    echo "${IMG_LINE}" >&2
+    exit 1
+  fi
+done
 
 # Datastore pins.
 if ! echo "${CONFIG_OUT}" | grep -Eq 'image:[[:space:]]+postgres:16(\..*)?(-alpine)?'; then
