@@ -183,7 +183,6 @@ pub fn router(state: AppState) -> Router {
         .merge(phase_1_at_root_gated)
         .nest("/v1", v1_public_surface)
         .nest("/v1", v1_operator_surface)
-        .nest("/v1", v1_public_surface)
         .nest("/v1", v1_surface)
         // Story 43.7 — public, unauthenticated comms preference center +
         // one-click unsubscribe. No API key: authority is the opaque token in
