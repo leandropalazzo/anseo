@@ -192,13 +192,19 @@ impl<'a> SiteEventRepo<'a> {
                     CASE
                         -- Reject control chars outright.
                         WHEN path ~ '[\x00-\x1f]' THEN '(other)'
-                        -- Full URL → keep the path component only (strip scheme+host).
+                        -- Full URL → keep the path component only (strip
+                        -- scheme+host, then drop BOTH the query string AND the
+                        -- fragment so a fragment-carried token
+                        -- (`/account#token=abc`) is never made durable.
                         WHEN path ~* '^https?://' THEN
                             COALESCE(
                                 NULLIF(
                                     split_part(
-                                        regexp_replace(path, '^https?://[^/]*', ''),
-                                        '?', 1
+                                        split_part(
+                                            regexp_replace(path, '^https?://[^/]*', ''),
+                                            '?', 1
+                                        ),
+                                        '#', 1
                                     ),
                                     ''
                                 ),
@@ -416,11 +422,20 @@ impl<'a> SiteEventRepo<'a> {
         Ok(rows)
     }
 
-    /// Verify funnel counts grouped by method (`dns` | `email`). Method lives in
-    /// the raw event `properties`, which the rollup drops — so this is the one
-    /// dashboard query that reads raw `site_events`. Still aggregate (GROUP BY),
-    /// still no PII (method is a fixed enum, not identity), and bounded to the
-    /// 30-day raw-retention window. Returns `(event_type, method, count)` rows.
+    /// Verify funnel counts grouped by method (`dns` | `email` | `unknown`).
+    /// Method lives in the raw event `properties`, which the rollup drops — so
+    /// this is the one dashboard query that reads raw `site_events`. Still
+    /// aggregate (GROUP BY), still no PII, and bounded to the 30-day
+    /// raw-retention window. Returns `(event_type, method, count)` rows.
+    ///
+    /// DEFENSE IN DEPTH (Finding 1): `method` rides in the UNAUTHENTICATED
+    /// `/v1/site-events` body. The ingest endpoint now buckets it to the closed
+    /// enum at the trust boundary, but a pre-existing raw row (ingested before
+    /// that fix) could still carry a poisoned arbitrary string. We re-bucket
+    /// HERE in SQL — anything outside the closed `{dns, email}` set (incl. the
+    /// `dns_txt` / `email_magic_link` canonical spellings, normalized to the
+    /// short label) collapses to `unknown` — so a raw value can never surface
+    /// verbatim on `/v1/analytics/funnels`.
     pub async fn verify_counts_by_method(
         &self,
         period_days: i64,
@@ -429,7 +444,13 @@ impl<'a> SiteEventRepo<'a> {
             r#"
             SELECT
                 event_type,
-                COALESCE(properties->>'method', 'unknown') AS method,
+                CASE lower(trim(COALESCE(properties->>'method', '')))
+                    WHEN 'dns'              THEN 'dns'
+                    WHEN 'dns_txt'          THEN 'dns'
+                    WHEN 'email'            THEN 'email'
+                    WHEN 'email_magic_link' THEN 'email'
+                    ELSE 'unknown'
+                END AS method,
                 COUNT(*)::bigint AS count
             FROM site_events
             WHERE event_type IN ('verify_start', 'verify_complete', 'verify_fail')
@@ -777,6 +798,17 @@ mod tests {
         )
         .await
         .unwrap();
+        // Finding 2: a fragment-carried token on a FULL URL must be stripped by
+        // the SQL normalizer, not rolled up as `/settings#token=secret`.
+        repo.insert(
+            "page_view",
+            uuid::Uuid::new_v4(),
+            Some("https://example.com/settings#token=secret"),
+            None,
+            &serde_json::json!({}),
+        )
+        .await
+        .unwrap();
 
         repo.compute_rollups().await.unwrap();
 
@@ -793,6 +825,16 @@ mod tests {
             !labels.iter().any(|l| l.contains("evil.example.com") || l.contains("token=")),
             "no raw URL / query string may be durable: {labels:?}"
         );
+        // Finding 2: the fragment-carried token URL rolls up as bare "/settings"
+        // — the `#token=secret` fragment must be stripped, never durable.
+        assert!(
+            labels.contains(&"/settings"),
+            "full URL with fragment must reduce to its path; got {labels:?}"
+        );
+        assert!(
+            !labels.iter().any(|l| l.contains('#') || l.contains("secret")),
+            "no fragment / fragment-carried token may be durable: {labels:?}"
+        );
 
         // top_referrers: the email-like referrer must be dropped/bucketed — never
         // stored raw (no '@', no raw email value). The clean one is reduced to its
@@ -807,6 +849,79 @@ mod tests {
             rlabels.contains(&"google.com"),
             "clean referrer must reduce to bare domain: {rlabels:?}"
         );
+    }
+
+    /// Finding 1 (defense in depth) — a poisoned `method` in raw `properties`
+    /// (e.g. an email submitted via the unauthenticated ingest before the
+    /// trust-boundary fix) must NEVER be surfaced verbatim by
+    /// `verify_counts_by_method`: it is bucketed to the closed `{dns, email,
+    /// unknown}` enum, with the canonical `dns_txt`/`email_magic_link` spellings
+    /// normalized to the short label.
+    #[sqlx::test(migrations = "./migrations")]
+    async fn verify_method_is_bucketed_to_closed_enum(pool: PgPool) {
+        let repo = SiteEventRepo::new(&pool);
+
+        // A poisoned raw row: method is an email string.
+        repo.insert(
+            "verify_start",
+            uuid::Uuid::new_v4(),
+            None,
+            None,
+            &serde_json::json!({"method": "jane@example.com"}),
+        )
+        .await
+        .unwrap();
+        // Another poisoned row: a long garbage string.
+        repo.insert(
+            "verify_start",
+            uuid::Uuid::new_v4(),
+            None,
+            None,
+            &serde_json::json!({"method": "x".repeat(4096)}),
+        )
+        .await
+        .unwrap();
+        // Canonical long spelling → short label.
+        repo.insert(
+            "verify_complete",
+            uuid::Uuid::new_v4(),
+            None,
+            None,
+            &serde_json::json!({"method": "dns_txt"}),
+        )
+        .await
+        .unwrap();
+        repo.insert(
+            "verify_complete",
+            uuid::Uuid::new_v4(),
+            None,
+            None,
+            &serde_json::json!({"method": "email_magic_link"}),
+        )
+        .await
+        .unwrap();
+
+        let vm = repo.verify_counts_by_method(30).await.unwrap();
+        let methods: std::collections::HashSet<&str> =
+            vm.iter().map(|(_, m, _)| m.as_str()).collect();
+
+        // Only closed-enum labels are ever returned.
+        for m in &methods {
+            assert!(
+                matches!(*m, "dns" | "email" | "unknown"),
+                "method outside closed enum surfaced verbatim: {m:?}"
+            );
+        }
+        // The poisoned email / garbage are never present verbatim.
+        assert!(
+            !vm.iter().any(|(_, m, _)| m.contains('@') || m.contains("jane") || m.len() > 16),
+            "raw poisoned method leaked: {vm:?}"
+        );
+        // Two poisoned verify_start rows → unknown=2.
+        assert!(vm.contains(&("verify_start".to_string(), "unknown".to_string(), 2)));
+        // Canonical spellings normalized to short labels.
+        assert!(vm.contains(&("verify_complete".to_string(), "dns".to_string(), 1)));
+        assert!(vm.contains(&("verify_complete".to_string(), "email".to_string(), 1)));
     }
 
     /// Empty rollups → every dashboard read returns an empty vec (drives the web

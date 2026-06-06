@@ -84,6 +84,57 @@ const DIM_MAX_LEN: usize = 256;
 /// value (e.g. a referrer containing an `@`, or an unparseable path).
 const OTHER_BUCKET: &str = "(other)";
 
+/// Safe sentinel for a `properties.method` value that isn't in the closed verify
+/// method enum (an arbitrary / poisoned string).
+const METHOD_UNKNOWN: &str = "unknown";
+
+/// Bucket a public-submitted verify `method` to the closed, non-PII enum the
+/// dashboard understands.
+///
+/// `method` rides in the UNAUTHENTICATED `/v1/site-events` body, so a client can
+/// submit `{"method":"jane@example.com"}` (or any long/poisoned string) and —
+/// were it stored verbatim — it would surface as a method label on
+/// `/v1/analytics/funnels`, violating the fixed-enum / non-PII contract. So we
+/// reduce it here at the trust boundary to one of the canonical labels and store
+/// ONLY the bucketed value:
+///
+///   * `dns` / `dns_txt`            → `dns`
+///   * `email` / `email_magic_link` → `email`
+///   * anything else                → `unknown`
+///
+/// The canonical verification methods (Story 43.2,
+/// `anseo_storage::repositories::verification::VerificationMethod`) are
+/// `dns_txt` and `email_magic_link`; the dashboard surfaces the short `dns` /
+/// `email` labels, so we accept both spellings and normalize to the short form.
+fn bucket_verify_method(raw: &str) -> &'static str {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "dns" | "dns_txt" => "dns",
+        "email" | "email_magic_link" => "email",
+        _ => METHOD_UNKNOWN,
+    }
+}
+
+/// Rewrite `properties.method` (if present) to the closed verify-method enum
+/// before the event is persisted. Leaves all other properties untouched. A
+/// non-object `properties` (or one without a `method`) is returned unchanged.
+fn sanitize_method_property(mut properties: serde_json::Value) -> serde_json::Value {
+    if let Some(obj) = properties.as_object_mut() {
+        if let Some(method) = obj.get("method") {
+            // Bucket any present `method` — including a non-string value, which
+            // can't be a valid enum, so it collapses to `unknown`.
+            let bucketed = method
+                .as_str()
+                .map(bucket_verify_method)
+                .unwrap_or(METHOD_UNKNOWN);
+            obj.insert(
+                "method".to_string(),
+                serde_json::Value::String(bucketed.to_string()),
+            );
+        }
+    }
+    properties
+}
+
 /// `true` if the string contains an ASCII control char (incl. NUL / newline /
 /// tab) — never allowed in a stored dimension.
 fn has_control_chars(s: &str) -> bool {
@@ -292,6 +343,10 @@ async fn ingest_site_event(
     let properties = body
         .properties
         .unwrap_or_else(|| serde_json::Value::Object(Default::default()));
+    // Bucket `properties.method` to the closed verify-method enum at the trust
+    // boundary so a poisoned/arbitrary string can never surface as a method
+    // label on /v1/analytics/funnels (Finding 1).
+    let properties = sanitize_method_property(properties);
 
     // Normalize the public-submitted dimensions at the trust boundary BEFORE they
     // are persisted. This is the privacy/data-poisoning defense: a full URL,
@@ -391,6 +446,13 @@ mod tests {
             normalize_path("https://evil.example.com/account?token=abc123&user=jane@corp.com"),
             Some("/account".into())
         );
+        // Fragment-carried token on a full URL must be stripped too (Finding 2).
+        assert_eq!(
+            normalize_path("https://example.com/account#token=abc"),
+            Some("/account".into())
+        );
+        // Fragment on a site-relative path is stripped.
+        assert_eq!(normalize_path("/account#token=abc"), Some("/account".into()));
         // Bare host with no path → root.
         assert_eq!(normalize_path("https://evil.example.com"), Some("/".into()));
         // Protocol-relative URL.
@@ -423,6 +485,47 @@ mod tests {
             normalize_referrer("https://user:pass@news.ycombinator.com/item"),
             Some("(other)".into())
         );
+    }
+
+    // ── Verify-method bucketing (trust boundary, Finding 1) ────────────────────
+
+    #[test]
+    fn bucket_verify_method_maps_to_closed_enum() {
+        // Canonical short + long spellings normalize to the short dashboard label.
+        assert_eq!(bucket_verify_method("dns"), "dns");
+        assert_eq!(bucket_verify_method("dns_txt"), "dns");
+        assert_eq!(bucket_verify_method("email"), "email");
+        assert_eq!(bucket_verify_method("email_magic_link"), "email");
+        // Case / whitespace insensitive.
+        assert_eq!(bucket_verify_method("  DNS_TXT "), "dns");
+        // Anything else — incl. a poisoned email / long string — is `unknown`,
+        // never surfaced verbatim.
+        assert_eq!(bucket_verify_method("jane@example.com"), "unknown");
+        assert_eq!(bucket_verify_method(&"x".repeat(5000)), "unknown");
+        assert_eq!(bucket_verify_method(""), "unknown");
+    }
+
+    #[test]
+    fn sanitize_method_property_rewrites_poisoned_method() {
+        // A poisoned email-like method string is bucketed to `unknown` before
+        // the event is persisted — never stored raw.
+        let props = serde_json::json!({"method": "jane@example.com", "step": "consent"});
+        let out = sanitize_method_property(props);
+        assert_eq!(out["method"], serde_json::json!("unknown"));
+        // Unrelated properties are left intact.
+        assert_eq!(out["step"], serde_json::json!("consent"));
+
+        // A canonical method is normalized to its short label.
+        let out = sanitize_method_property(serde_json::json!({"method": "dns_txt"}));
+        assert_eq!(out["method"], serde_json::json!("dns"));
+
+        // A non-string method can't be a valid enum → `unknown`.
+        let out = sanitize_method_property(serde_json::json!({"method": 12345}));
+        assert_eq!(out["method"], serde_json::json!("unknown"));
+
+        // No `method` key → untouched.
+        let out = sanitize_method_property(serde_json::json!({"other": 1}));
+        assert!(out.get("method").is_none());
     }
 
     #[test]
