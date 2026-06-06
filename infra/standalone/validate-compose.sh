@@ -54,8 +54,8 @@ if echo "${APP_IMAGES}" | grep -Eq ':(latest|dev)[[:space:]]*$'; then
   echo "${APP_IMAGES}" >&2
   exit 1
 fi
-if ! echo "${APP_IMAGES}" | grep -Eq ':v[0-9]+\.[0-9]+\.[0-9]+'; then
-  echo "FAIL: anseo app images are not pinned to a vX.Y.Z version" >&2
+if ! echo "${APP_IMAGES}" | grep -Eq ':[0-9]+\.[0-9]+\.[0-9]+'; then
+  echo "FAIL: anseo app images are not pinned to a X.Y.Z version" >&2
   echo "${APP_IMAGES}" >&2
   exit 1
 fi
@@ -109,4 +109,4 @@ for service in api worker; do
   fi
 done
 
-echo "OK: standalone compose validates; no build:, app images pinned to vX.Y.Z, postgres:16, redis:7, all ports bound to 127.0.0.1, project config mounted read-only."
+echo "OK: standalone compose validates; no build:, app images pinned to X.Y.Z, postgres:16, redis:7, all ports bound to 127.0.0.1, project config mounted read-only."

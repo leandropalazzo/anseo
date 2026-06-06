@@ -28,7 +28,7 @@
 # IMAGE REGISTRY / TAG
 #   Images resolve to ${ANSEO_IMAGE_REGISTRY}/{api,worker,web}:${ANSEO_VERSION}.
 #   Both are parameterized via .env so a future registry/repo rename is a
-#   one-line change. ANSEO_VERSION MUST be a pinned vX.Y.Z (never :latest/:dev).
+#   one-line change. ANSEO_VERSION MUST be a pinned X.Y.Z (never :latest/:dev).
 
 name: anseo
 
@@ -71,7 +71,7 @@ services:
 
   api:
     # Published Axum API image (Story 38.15). Pinned by ANSEO_VERSION — no build:.
-    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/api:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned vX.Y.Z in .env}
+    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/api:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned X.Y.Z in .env}
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-anseo}:${POSTGRES_PASSWORD:-anseo}@postgres:5432/${POSTGRES_DB:-anseo}
@@ -125,7 +125,7 @@ services:
 
   worker:
     # Published background worker image (Story 38.15). Pinned — no build:.
-    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/worker:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned vX.Y.Z in .env}
+    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/worker:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned X.Y.Z in .env}
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-anseo}:${POSTGRES_PASSWORD:-anseo}@postgres:5432/${POSTGRES_DB:-anseo}
@@ -150,7 +150,7 @@ services:
 
   web:
     # Published Next.js dashboard image (Story 38.15). Pinned — no build:.
-    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/web:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned vX.Y.Z in .env}
+    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/web:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned X.Y.Z in .env}
     restart: unless-stopped
     environment:
       ANSEO_API_BASE_URL: http://api:8080

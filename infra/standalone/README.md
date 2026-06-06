@@ -11,7 +11,7 @@ These two files are what gets served from the stable public URLs:
 | `https://anseo.ai/compose.yml`  | `infra/standalone/compose.yml` |
 | `https://anseo.ai/.env.example` | `infra/standalone/.env.example` |
 | `https://anseo.ai/anseo.example.yaml` | `infra/standalone/anseo.example.yaml` |
-| `https://anseo.ai/compose/vX.Y.Z.yml` | a pinned snapshot of `compose.yml` |
+| `https://anseo.ai/compose/X.Y.Z.yml` | a pinned snapshot of `compose.yml` |
 
 > This is distinct from `infra/docker/compose.yml`, which is the **dev** stack
 > (it builds images from a local source checkout). Use *this* directory for
@@ -50,7 +50,7 @@ The API serves on `http://127.0.0.1:8080`. Reach it / the dashboard with the
 
 | Var | Purpose | Default |
 | --- | --- | --- |
-| `ANSEO_VERSION` | **Required.** Pinned release tag (`vX.Y.Z`) for the GHCR images. Never `latest`/`dev`. | `v0.5.0` |
+| `ANSEO_VERSION` | **Required.** Pinned release tag (`X.Y.Z`) for the GHCR images. Never `latest`/`dev`. | `0.5.0` |
 | `ANSEO_IMAGE_REGISTRY` | Registry + repo prefix; images resolve to `<prefix>/{api,worker,web}:<ANSEO_VERSION>`. | `ghcr.io/leandropalazzo/opengeo` |
 | `ANSEO_PROJECT_CONFIG` | Host path to the canonical Anseo YAML mounted read-only into api + worker at `/anseo.yaml`. | `./anseo.example.yaml` |
 | `ANSEO_CONFIG` | In-container path the api + worker read. Override only if you also mount a file at that path. | `/anseo.yaml` |
@@ -125,7 +125,7 @@ to the previous tag and repeating.
 ## Validating the artifact
 
 `validate-compose.sh` asserts the production shape (no `build:`, app images
-pinned to `vX.Y.Z`, datastores pinned, all ports `127.0.0.1`, and the default
+pinned to `X.Y.Z`, datastores pinned, all ports `127.0.0.1`, and the default
 project config mounted read-only into api + worker):
 
 ```bash

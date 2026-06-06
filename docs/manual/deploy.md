@@ -73,17 +73,19 @@ docker compose -f infra/docker/compose.yml down  # tear down
 For a production / self-host deploy you don't need to clone the repo at all. A single standalone `compose.yml` pulls the **published, version-pinned** GHCR images and wires the same stack (Postgres + Redis + api + worker + web):
 
 ```bash
-curl -fsSL https://anseo.ai/compose.yml  -o compose.yml
-curl -fsSL https://anseo.ai/.env.example -o .env
+curl -fsSL https://anseo.ai/compose.yml        -o compose.yml
+curl -fsSL https://anseo.ai/.env.example       -o .env
+curl -fsSL https://anseo.ai/anseo.example.yaml -o anseo.example.yaml   # required: bind-mounted into api + worker
 
-# Set ANSEO_VERSION and rotate every "CHANGE THIS" secret before exposing.
-$EDITOR .env
+# Set ANSEO_VERSION, rotate every "CHANGE THIS" secret, and edit
+# anseo.example.yaml (brand, prompts, providers) before exposing.
+$EDITOR .env anseo.example.yaml
 
 docker compose up -d
 docker compose ps        # wait until every service is (healthy)
 ```
 
-Versioned snapshots are served too (e.g. `https://anseo.ai/compose/v0.5.0.yml`) so a deploy can pin an exact bundle. Same localhost-only default (`ANSEO_BIND_HOST`); the artifact source lives at [`infra/standalone/`](../../infra/standalone/README.md). Before exposing to the internet, follow the exposure baseline below.
+Versioned snapshots are served too (e.g. `https://anseo.ai/compose/0.5.0.yml`) so a deploy can pin an exact bundle. Same localhost-only default (`ANSEO_BIND_HOST`); the artifact source lives at [`infra/standalone/`](../../infra/standalone/README.md). Before exposing to the internet, follow the exposure baseline below.
 
 ---
 
