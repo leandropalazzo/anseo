@@ -134,7 +134,7 @@ chain:
 2. The signing key `(namespace, keyid)` is not revoked.
 3. The namespace claim is signed by a compile-pinned `OPENGEO_ROOT_PUBKEY` (or a
    root-signed rotation thereof).
-4. The detached signature verifies over `SHA-256(plugin.toml || entrypoint)`.
+4. The detached signature verifies over `SHA-256(manifest.yaml || entrypoint)` — the shipped manifest is `manifest.yaml` (the architecture's `plugin.toml` name notwithstanding; Anseo ships YAML manifests).
 5. **TOFU:** first sight of a namespace pins its author key; a later key change is
    refused unless the namespace claim carries a root-signed `rotation_of`.
 
