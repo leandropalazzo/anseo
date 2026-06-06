@@ -15,6 +15,7 @@
 pub mod dispatch;
 pub mod etl;
 pub mod run;
+pub mod verification;
 
 /// Default rolling window (days) for an enqueued ETL run, mirroring the CLI's
 /// `migrate-to-clickhouse` default (`apps/cli/src/commands/analytics.rs`).

@@ -37,6 +37,10 @@ tracing-subscriber = { workspace = true }
 tracing-bunyan-formatter = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }
+# Story 43.2 (AC-5): real DNS TXT resolver for the daily re-verification job
+# (revoke dns_txt-verified entities whose challenge TXT record was removed).
+hickory-resolver = "0.24"
+async-trait = "0.1"
 
 [features]
 # Default-on so `cargo build -p anseo-worker` exercises the live ETL path

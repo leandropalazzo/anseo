@@ -20,5 +20,6 @@ pub mod prompt_runs;
 pub mod prompts;
 pub mod recommendations;
 pub mod run_provenance;
+pub mod verification;
 pub mod webhook_deliveries;
 pub mod webhooks;
