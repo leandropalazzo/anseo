@@ -12,12 +12,10 @@
 //! Routes:
 //!   * `GET  /preferences/:token`  — render the preference center (HTML).
 //!   * `POST /preferences/:token`  — apply granular toggles (AC-3).
-//!   * `GET  /u/:token`            — render an unsubscribe CONFIRMATION page
-//!                                    (no side effects — safe for mail-scanner
-//!                                    and link-preview prefetches).
-//!   * `POST /u/:token`            — perform the unsubscribe. RFC 8058
-//!                                    `List-Unsubscribe-Post` one-click target.
-//!                                    Idempotent.
+//!   * `GET  /u/:token`            — render an unsubscribe CONFIRMATION page,
+//!     no side effects (safe for mail-scanner / link-preview prefetches).
+//!   * `POST /u/:token`            — perform the unsubscribe; RFC 8058
+//!     `List-Unsubscribe-Post` one-click target. Idempotent.
 //!
 //! The mutation is POST-only on purpose: a bare `GET` unsubscribe is fetched by
 //! security scanners / link previews and would silently unsubscribe users, and
