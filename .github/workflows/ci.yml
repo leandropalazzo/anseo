@@ -425,22 +425,23 @@ jobs:
         run: echo "::notice::Wire cosign/minisign artifact signing in this step."
 
   # ---------------------------------------------------------------------------
-  # notify-internal — fire repository_dispatch to opengeo-internal so the
+  # NOTE: leandropalazzo/opengeo-internal was renamed to anseo-internal (Story 45.6).
+  # notify-internal — fire repository_dispatch to anseo-internal so the
   # auto-bump workflow picks up the new main commit within minutes rather than
   # waiting for the daily schedule.
   #
   # Requires: INTERNAL_DISPATCH_TOKEN secret in the opengeo repo — a PAT with
-  # `repo` scope on leandropalazzo/opengeo-internal.
+  # `repo` scope on leandropalazzo/anseo-internal.
   # If the secret is absent the step is silently skipped (continue-on-error).
   # Story 38.18 documents this as best-effort; the daily schedule covers the gap.
   # ---------------------------------------------------------------------------
   notify-internal:
-    name: Dispatch bump trigger to opengeo-internal
+    name: Dispatch bump trigger to anseo-internal
     runs-on: ubuntu-latest
     needs: [rust-test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
-      - name: repository_dispatch → opengeo-internal (opengeo-push)
+      - name: repository_dispatch → anseo-internal (opengeo-push)
         continue-on-error: true
         env:
           TOKEN: ${{ secrets.INTERNAL_DISPATCH_TOKEN }}
@@ -453,9 +454,9 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/leandropalazzo/opengeo-internal/dispatches" \
+            "https://api.github.com/repos/leandropalazzo/anseo-internal/dispatches" \
             -d '{"event_type":"opengeo-push","client_payload":{"sha":"${{ github.sha }}"}}'
-          echo "Dispatched opengeo-push event to opengeo-internal."
+          echo "Dispatched opengeo-push event to anseo-internal."
 
   # G-SHRED sentinel scavenger (Story 44.2, CC-NFR1 / ACs 4–6). Sweeps Postgres,
   # ClickHouse, backups, logs, and CDN purge records for a known SENTINEL that

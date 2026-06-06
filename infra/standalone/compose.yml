@@ -111,7 +111,7 @@ services:
 
   api:
     # Published Axum API image (Story 38.15). Pinned by ANSEO_VERSION — no build:.
-    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/api:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned X.Y.Z in .env}
+    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/anseo}/api:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned X.Y.Z in .env}
     restart: unless-stopped
     environment:
       # Built from POSTGRES_* for the trial. If your POSTGRES_PASSWORD contains
@@ -170,7 +170,7 @@ services:
 
   worker:
     # Published background worker image (Story 38.15). Pinned — no build:.
-    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/worker:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned X.Y.Z in .env}
+    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/anseo}/worker:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned X.Y.Z in .env}
     restart: unless-stopped
     environment:
       # Built from POSTGRES_* for the trial. If your POSTGRES_PASSWORD contains
@@ -200,7 +200,7 @@ services:
 
   web:
     # Published Next.js dashboard image (Story 38.15). Pinned — no build:.
-    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/web:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned X.Y.Z in .env}
+    image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/anseo}/web:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned X.Y.Z in .env}
     restart: unless-stopped
     environment:
       ANSEO_API_BASE_URL: http://api:8080

@@ -750,9 +750,9 @@ jobs:
             echo "## Anseo ${TAG}"
             echo
             echo "### Container images (GHCR, pinned \`${VERSION}\`)"
-            echo "- \`ghcr.io/${OWNER}/opengeo/api:${VERSION}\`"
-            echo "- \`ghcr.io/${OWNER}/opengeo/worker:${VERSION}\`"
-            echo "- \`ghcr.io/${OWNER}/opengeo/web:${VERSION}\`"
+            echo "- \`ghcr.io/${OWNER}/anseo/api:${VERSION}\`"
+            echo "- \`ghcr.io/${OWNER}/anseo/worker:${VERSION}\`"
+            echo "- \`ghcr.io/${OWNER}/anseo/web:${VERSION}\`"
             echo
             echo "### Self-host (standalone compose)"
             echo "Pinned snapshot: \`https://anseo.ai/compose/${VERSION}.yml\` (attached below)."
