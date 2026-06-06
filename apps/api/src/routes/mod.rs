@@ -5,6 +5,7 @@ pub mod audit;
 pub mod brand;
 pub mod brands;
 pub mod citations;
+pub mod comms;
 pub mod comparisons;
 pub mod crawlers;
 pub mod density_check;

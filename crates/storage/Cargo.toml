@@ -23,3 +23,6 @@ anyhow = { workspace = true }
 # Story 19.2 dedup test: feed real engine output through the repo. No normal
 # dependency from storage on recommendations, so this is cycle-free.
 anseo-recommendations = { path = "../recommendations" }
+# Story 43.7 comms integration test: exercise the comms repo against the
+# embedded migrations. anseo-comms depends only on core, so this is cycle-free.
+anseo-comms = { path = "../comms" }
