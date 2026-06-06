@@ -50,7 +50,7 @@ The API serves on `http://127.0.0.1:8080`. Reach it / the dashboard with the
 
 | Var | Purpose | Default |
 | --- | --- | --- |
-| `ANSEO_VERSION` | **Required.** Pinned release tag (`X.Y.Z`) for the GHCR images. Never `latest`/`dev`. | `0.5.0` |
+| `ANSEO_VERSION` | **Required, no default.** Pinned release tag (`X.Y.Z`) for the GHCR images — must be a real [published release](https://github.com/leandropalazzo/opengeo/releases). Never `latest`/`dev`. The stack fails fast if unset. | _(unset)_ |
 | `ANSEO_IMAGE_REGISTRY` | Registry + repo prefix; images resolve to `<prefix>/{api,worker,web}:<ANSEO_VERSION>`. | `ghcr.io/leandropalazzo/opengeo` |
 | `ANSEO_PROJECT_CONFIG` | Host path to the canonical Anseo YAML mounted read-only into api + worker at `/anseo.yaml`. | `./anseo.example.yaml` |
 | `ANSEO_CONFIG` | In-container path the api + worker read. Override only if you also mount a file at that path. | `/anseo.yaml` |

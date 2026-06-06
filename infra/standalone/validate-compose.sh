@@ -29,6 +29,11 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 2
 fi
 
+# .env.example ships ANSEO_VERSION empty on purpose (no fake default — the stack
+# must be pinned to a real published tag). Inject a placeholder so this shape
+# gate can still render; it asserts structure, not image existence.
+export ANSEO_VERSION="${ANSEO_VERSION:-0.0.0-validate}"
+
 echo "→ docker compose --env-file ${ENV_FILE} -f ${COMPOSE_FILE} config"
 CONFIG_OUT="$(docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" config)"
 
