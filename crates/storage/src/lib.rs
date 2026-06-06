@@ -144,4 +144,10 @@ impl Storage {
     pub fn entities(&self) -> repositories::entities::EntityRepo<'_> {
         repositories::entities::EntityRepo::new(&self.pool)
     }
+
+    /// Epic 43 / Story 43.6 — Full disputes lifecycle (corrections,
+    /// claim-conflict adjudication, GDPR Art.21, change-of-control, removal).
+    pub fn disputes(&self) -> repositories::disputes::DisputeRepo<'_> {
+        repositories::disputes::DisputeRepo::new(&self.pool)
+    }
 }

@@ -10,6 +10,7 @@ pub mod comms;
 pub mod comparisons;
 pub mod crawlers;
 pub mod density_check;
+pub mod disputes;
 pub mod entities;
 pub mod events;
 pub mod health;
