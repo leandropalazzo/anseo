@@ -77,6 +77,23 @@ if echo "${CONFIG_OUT}" | grep -E 'host_ip:' | grep -vq '127\.0\.0\.1'; then
   exit 1
 fi
 
+# AC6b: datastores must STAY localhost even when the operator opens HTTP to the
+# world. Render with ANSEO_BIND_HOST=0.0.0.0 (shell env wins over .env) and
+# assert that only the api/web ports (8080, 5173) become 0.0.0.0 — postgres
+# (5432) and redis (6379) must remain 127.0.0.1. This is the security boundary:
+# enabling public access for the proxied HTTP services must never expose the
+# unauthenticated datastores off-host.
+PUBLIC_OUT="$(ANSEO_BIND_HOST=0.0.0.0 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" config)"
+if echo "${PUBLIC_OUT}" | grep -B2 -E 'published: "(5432|6379)"' | grep -q 'host_ip: 0\.0\.0\.0'; then
+  echo "FAIL: a datastore port (5432/6379) binds 0.0.0.0 when ANSEO_BIND_HOST=0.0.0.0 — datastores must stay localhost" >&2
+  echo "${PUBLIC_OUT}" | grep -E 'host_ip:|published:' >&2
+  exit 1
+fi
+if ! echo "${PUBLIC_OUT}" | grep -B2 -E 'published: "(8080|5173)"' | grep -q 'host_ip: 0\.0\.0\.0'; then
+  echo "FAIL: api/web ports did not honor ANSEO_BIND_HOST=0.0.0.0 (proxied deploy would be unreachable)" >&2
+  exit 1
+fi
+
 CONFIG_MOUNT_COUNT="$(echo "${CONFIG_OUT}" | grep -Ec "source: .*anseo\\.example\\.yaml")"
 CONFIG_TARGET_COUNT="$(echo "${CONFIG_OUT}" | grep -Ec 'target: /anseo\.yaml')"
 CONFIG_READONLY_COUNT="$(echo "${CONFIG_OUT}" | grep -Ec 'read_only: true')"

@@ -14,8 +14,14 @@
 #   https://anseo.ai/docs/deploy   (also docs/manual/deploy.md in the repo)
 #
 # SECURITY DEFAULTS
-#   - Every published port binds 127.0.0.1 by default (localhost-only). Set
-#     ANSEO_BIND_HOST=0.0.0.0 only behind a reverse proxy you control.
+#   - The HTTP services (api, web) publish on ANSEO_BIND_HOST, which defaults to
+#     127.0.0.1 (localhost-only). Set ANSEO_BIND_HOST=0.0.0.0 only behind a
+#     reverse proxy you control — it affects the api/web ports ONLY.
+#   - The datastores (postgres, redis) ALWAYS publish on 127.0.0.1 regardless of
+#     ANSEO_BIND_HOST. Services reach them over the internal compose network
+#     (postgres:5432 / redis:6379); the localhost publication is for operator
+#     debugging only and is never widened to the public interface. Redis has no
+#     auth configured, so it must never be reachable off-host.
 #   - All secrets live in .env. The shipped .env.example carries DEV defaults
 #     marked "CHANGE THIS before exposing" — rotate them before any exposure.
 #
@@ -35,7 +41,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-anseo}
       POSTGRES_DB: ${POSTGRES_DB:-anseo}
     ports:
-      - "${ANSEO_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+      # Datastore ports are pinned to localhost — never ANSEO_BIND_HOST — so
+      # enabling public access for api/web cannot expose Postgres off-host.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -50,7 +58,8 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "${ANSEO_BIND_HOST:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
+      # Redis has no auth — pin to localhost, never ANSEO_BIND_HOST.
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     healthcheck:
