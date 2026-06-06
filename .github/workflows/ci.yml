@@ -370,6 +370,48 @@ jobs:
             -d '{"event_type":"opengeo-push","client_payload":{"sha":"${{ github.sha }}"}}'
           echo "Dispatched opengeo-push event to opengeo-internal."
 
+  # G-SHRED sentinel scavenger (Story 44.2, CC-NFR1 / ACs 4–6). Sweeps Postgres,
+  # ClickHouse, backups, logs, and CDN purge records for a known SENTINEL that
+  # must NOT survive a KEK crypto-shred. This is an OPS verification tool meant
+  # to run against a real staging environment (where ClickHouse/CDN/backups/
+  # replicas actually exist) — it is therefore `workflow_dispatch`-ONLY and is
+  # NOT part of the blocking ci-summary gate. The automated shred/resolution
+  # correctness assertions for PR/push CI live in the Rust integration test
+  # `crates/storage/tests/identified_contribution_pipeline.rs` (run by rust-test).
+  # Promote this to a blocking gate once a seed→plant→shred→sweep harness +
+  # staging stores are wired.
+  g-shred-scavenger:
+    name: G-SHRED — sentinel scavenger (manual/staging)
+    runs-on: ubuntu-latest
+    needs: paths-filter
+    if: github.event_name == 'workflow_dispatch'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: opengeo
+          POSTGRES_PASSWORD: opengeo
+          POSTGRES_DB: opengeo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U opengeo"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://opengeo:opengeo@localhost:5432/opengeo_test
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - name: run sentinel scavenger (must find nothing post-shred)
+        run: bash scripts/g-shred-scavenger.sh
+      - name: upload scavenger report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: g-shred-report
+          path: /tmp/g-shred-report.txt
+          if-no-files-found: ignore
+
   ci-summary:
     name: CI summary
     runs-on: ubuntu-latest
@@ -391,7 +433,8 @@ jobs:
             "${{ needs.rust-lint.result }}" "${{ needs.rust-test.result }}" \
             "${{ needs.rust-managed-pg.result }}" \
             "${{ needs.rust-coverage.result }}" "${{ needs.web-lint-unit.result }}" \
-            "${{ needs.web-e2e.result }}" "${{ needs.compose-smoke.result }}"; do
+            "${{ needs.web-e2e.result }}" "${{ needs.compose-smoke.result }}" \
+            "${{ needs.g-shred-scavenger.result }}"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
               echo "::error::A job failed or was cancelled."; exit 1
             fi
