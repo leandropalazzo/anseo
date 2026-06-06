@@ -14,6 +14,7 @@ dependencies = []
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
+dev = ["pytest>=7", "ruff>=0.5", "mypy>=1.8"]
 
 [project.urls]
 Homepage = "https://anseo.ai"
@@ -25,3 +26,21 @@ include = ["anseo_observe*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B"]
+# The package floor is Python 3.9, so keep `Optional[...]` / `tuple[...]`
+# spellings rather than the `X | None` PEP 604 upgrades ruff's UP rules push.
+ignore = ["UP006", "UP007", "UP045", "UP035"]
+
+[tool.mypy]
+# Floor for the package is 3.9, but mypy's checker requires >=3.10; the source
+# stays 3.9-compatible (Optional/tuple spellings, no PEP 604 at runtime).
+python_version = "3.10"
+strict = true
+# Tests use duck-typed fakes; strict typing is enforced on the package source.
+files = ["anseo_observe"]
