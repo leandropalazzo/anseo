@@ -198,7 +198,7 @@ jobs:
           set -euo pipefail
           payload="$(jq -n --arg v "$VERSION" --rawfile yml "dist/compose/${VERSION}.yml" \
             '{event_type:"compose-snapshot", client_payload:{version:$v, compose_yml:$yml}}')"
-          printf '%s' "$payload" | gh api "repos/${SITE_REPO}/dispatches" --input -
+          printf '%s' "$payload" | gh api --method POST "repos/${SITE_REPO}/dispatches" --input -
           echo "dispatched compose snapshot ${VERSION} → ${SITE_REPO}"
 
   # ---------------------------------------------------------------------------
@@ -337,7 +337,7 @@ jobs:
           set -euo pipefail
           jq -n --arg d "$SIGN_DIR" --arg ns "$SIGN_NS" \
             '{event_type:"plugin-sign", client_payload:{version_dir:$d, namespace:$ns, keyid:"root"}}' \
-            | gh api "repos/${GITHUB_REPOSITORY}/dispatches" --input -
+            | gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" --input -
           echo "dispatched plugin-sign for ${SIGN_NS} (${SIGN_DIR})"
 
   # ---------------------------------------------------------------------------
@@ -375,7 +375,7 @@ jobs:
           set -euo pipefail
           jq -n --arg tag "$TAG" \
             '{event_type:"submodule-bump", client_payload:{tag:$tag}}' \
-            | gh api "repos/${OVERLAY_REPO}/dispatches" --input -
+            | gh api --method POST "repos/${OVERLAY_REPO}/dispatches" --input -
           echo "dispatched submodule-bump ${TAG} → ${OVERLAY_REPO}"
 
   # ---------------------------------------------------------------------------
@@ -412,7 +412,7 @@ jobs:
           set -euo pipefail
           jq -n --arg tag "$TAG" \
             '{event_type:"site-rebuild", client_payload:{tag:$tag}}' \
-            | gh api "repos/${SITE_REPO}/dispatches" --input -
+            | gh api --method POST "repos/${SITE_REPO}/dispatches" --input -
           echo "dispatched site-rebuild ${TAG} → ${SITE_REPO}"
 
   # ---------------------------------------------------------------------------
