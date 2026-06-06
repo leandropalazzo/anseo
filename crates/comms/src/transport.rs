@@ -27,6 +27,15 @@ pub const TLS_SUBMISSION_PORTS: &[u16] = &[465, 587];
 pub enum TransportError {
     #[error("transport send failed: {0}")]
     Send(String),
+    /// The production SMTP wire client (lettre/SES) is not compiled/wired into
+    /// this build. Returned by [`SmtpTransport::send`] so a misconfigured
+    /// deployment FAILS LOUD instead of silently dropping mail while the audit
+    /// log falsely records `sent`.
+    #[error(
+        "SMTP wire transport is not configured in this build; \
+         wire a real client (lettre/SES) before sending production mail"
+    )]
+    NotConfigured,
 }
 
 /// Errors raised when constructing an [`SmtpTransport`] with a bad config.
@@ -76,11 +85,12 @@ impl SmtpTransport {
 #[async_trait]
 impl Transport for SmtpTransport {
     async fn send(&self, _message: &Message) -> Result<(), TransportError> {
-        // The wire implementation (lettre/SMTP) is wired in deployment; the
-        // construction-time TLS guard above is the security-critical part this
-        // story owns. Returning Ok here keeps the seam honest without sending
-        // real mail from a unit build.
-        Ok(())
+        // The construction-time TLS guard above is the security-critical part
+        // this story owns. The actual wire client (lettre/SMTP/SES) is a
+        // deployment follow-up — until it is wired we FAIL LOUD rather than
+        // return Ok, so the dispatcher records `failed` (not a false `sent`)
+        // and no caller silently loses transactional or marketing mail.
+        Err(TransportError::NotConfigured)
     }
 }
 

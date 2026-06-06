@@ -107,6 +107,10 @@ impl<'a> CommsRepo<'a> {
             VALUES ($1, $2, $3)
             ON CONFLICT (recipient_hash) DO UPDATE
                 SET email = EXCLUDED.email,
+                    -- Refresh the compliance-critical residency flag on conflict:
+                    -- a recipient first seen as non-EU who is later re-upserted as
+                    -- EU-resident MUST flip, or the marketing consent gate leaks.
+                    is_eu_resident = EXCLUDED.is_eu_resident,
                     updated_at = now()
             RETURNING recipient_hash, email, rank_change_enabled, digest_frequency,
                       all_marketing_off, marketing_consent, is_eu_resident
@@ -259,6 +263,64 @@ impl<'a> CommsRepo<'a> {
     // -------------------------------------------------------------------------
     // Send log (audit + idempotency)
     // -------------------------------------------------------------------------
+
+    /// Atomically reserve a magic-link send for `dedup_key` BEFORE the network
+    /// send (AC-5 no-double-send under concurrency). Inserts the `sent`-outcome
+    /// audit row; the partial unique index `uq_comms_send_log_dedup`
+    /// (`dedup_key IS NOT NULL AND outcome = 'sent'`) makes this a single-winner
+    /// gate: the first caller inserts and returns `true`; a concurrent caller
+    /// hits the unique violation (SQLSTATE 23505) and returns `false`
+    /// (→ `AlreadySent`) WITHOUT calling the transport. If the subsequent send
+    /// fails, downgrade the row via [`Self::mark_dedup_failed`] so it leaves the
+    /// index and a retry within the token window is possible.
+    ///
+    /// Trade-off: the row records `sent` before delivery confirmation, so a
+    /// crash between reserve and send under-sends (caller re-requests a link)
+    /// rather than double-sends — the correct bias for security tokens.
+    pub async fn reserve_dedup(
+        &self,
+        recipient_hash: &str,
+        stream: &str,
+        email_type: &str,
+        dedup_key: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let res = sqlx::query(
+            r#"
+            INSERT INTO comms_send_log
+                (recipient_hash, stream, email_type, outcome, dedup_key)
+            VALUES ($1, $2, $3, 'sent', $4)
+            RETURNING id
+            "#,
+        )
+        .bind(recipient_hash)
+        .bind(stream)
+        .bind(email_type)
+        .bind(dedup_key)
+        .fetch_one(self.pool)
+        .await;
+        match res {
+            Ok(_) => Ok(true),
+            Err(sqlx::Error::Database(db)) if db.code().as_deref() == Some("23505") => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Downgrade a dedup reservation to `failed` after a send error, removing it
+    /// from the partial unique index so a retry within the window can re-reserve.
+    pub async fn mark_dedup_failed(&self, dedup_key: &str, error: &str) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            UPDATE comms_send_log
+               SET outcome = 'failed', error = $2
+             WHERE dedup_key = $1 AND outcome = 'sent'
+            "#,
+        )
+        .bind(dedup_key)
+        .bind(error)
+        .execute(self.pool)
+        .await?;
+        Ok(())
+    }
 
     /// Append a send-log row (AC-5). `recipient_hash` is hashed; `error` is
     /// populated on failure. `dedup_key` set for magic-link idempotency.

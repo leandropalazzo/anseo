@@ -205,12 +205,29 @@ impl<'a, T: Transport> Dispatcher<'a, T> {
     ) -> Result<DispatchResult, sqlx::Error> {
         let stream = message.stream.as_str();
 
+        // Magic-link path: reserve the dedup key ATOMICALLY before sending so
+        // two concurrent requests can never both reach the transport (AC-5).
+        // The reservation row already records the `sent` outcome; on send
+        // failure we downgrade it so a retry within the window can re-reserve.
         if let Some(key) = dedup_key {
-            if self.repo.already_sent_dedup(key).await? {
+            if !self
+                .repo
+                .reserve_dedup(recipient_hash, stream, email_type, key)
+                .await?
+            {
                 return Ok(DispatchResult::AlreadySent);
             }
+            return match self.transport.send(message).await {
+                Ok(()) => Ok(DispatchResult::Sent),
+                Err(e) => {
+                    let err = e.to_string();
+                    self.repo.mark_dedup_failed(key, &err).await?;
+                    Ok(DispatchResult::Failed(err))
+                }
+            };
         }
 
+        // Non-deduplicated transactional path: send, then audit the outcome.
         match self.transport.send(message).await {
             Ok(()) => {
                 self.repo
@@ -220,7 +237,7 @@ impl<'a, T: Transport> Dispatcher<'a, T> {
                         email_type,
                         SendOutcome::Sent,
                         None,
-                        dedup_key,
+                        None,
                     )
                     .await?;
                 Ok(DispatchResult::Sent)
@@ -234,7 +251,7 @@ impl<'a, T: Transport> Dispatcher<'a, T> {
                         email_type,
                         SendOutcome::Failed,
                         Some(&err),
-                        dedup_key,
+                        None,
                     )
                     .await?;
                 Ok(DispatchResult::Failed(err))
