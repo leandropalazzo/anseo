@@ -163,19 +163,57 @@ impl<'a> SiteEventRepo<'a> {
         // Same finalize/monotonic guard as the event rollup above: once a day is
         // complete (strictly before the current UTC date) its dimension counts
         // are frozen so a post-prune recompute from a partial raw subset cannot
-        // reduce them. `path` / `referrer` are non-PII (47.1 contract).
+        // reduce them.
+        //
+        // DEFENSE IN DEPTH (Finding 1): the public ingest endpoint already
+        // normalizes `path`/`referrer` at the trust boundary, but pre-existing
+        // raw rows (or any future ingest bug) could still carry a full URL, query
+        // string, or email-like value. We re-normalize HERE before the value
+        // becomes durable in the aggregate so raw PII can never poison the
+        // dashboard:
+        //   * path  — keep only the site-relative path: strip scheme+host from a
+        //             full URL, drop the query string and fragment; anything that
+        //             isn't a recognizable path is bucketed to '(other)'.
+        //   * referrer — reduce to the bare host: strip scheme/userinfo/path/
+        //             query/fragment, lowercase; an `@` (email-like) or a value
+        //             with no dot is bucketed to '(other)'.
         sqlx::query(
             r#"
             INSERT INTO site_page_rollups (path, day, views, finalized, computed_at)
             SELECT
-                path,
-                (ts AT TIME ZONE 'UTC')::date AS day,
+                norm_path,
+                day,
                 COUNT(*)                      AS views,
-                ((ts AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'UTC')::date) AS finalized,
+                (day < (now() AT TIME ZONE 'UTC')::date) AS finalized,
                 now()                         AS computed_at
-            FROM site_events
-            WHERE event_type = 'page_view' AND path IS NOT NULL
-            GROUP BY path, (ts AT TIME ZONE 'UTC')::date
+            FROM (
+                SELECT
+                    (ts AT TIME ZONE 'UTC')::date AS day,
+                    CASE
+                        -- Reject control chars outright.
+                        WHEN path ~ '[\x00-\x1f]' THEN '(other)'
+                        -- Full URL → keep the path component only (strip scheme+host).
+                        WHEN path ~* '^https?://' THEN
+                            COALESCE(
+                                NULLIF(
+                                    split_part(
+                                        regexp_replace(path, '^https?://[^/]*', ''),
+                                        '?', 1
+                                    ),
+                                    ''
+                                ),
+                                '/'
+                            )
+                        -- Already a site-relative path → drop query string + fragment.
+                        WHEN path LIKE '/%' THEN
+                            split_part(split_part(path, '?', 1), '#', 1)
+                        ELSE '(other)'
+                    END AS norm_path
+                FROM site_events
+                WHERE event_type = 'page_view' AND path IS NOT NULL AND path <> ''
+            ) AS normalized
+            WHERE norm_path <> ''
+            GROUP BY norm_path, day
             ON CONFLICT (path, day) DO UPDATE SET
                 views       = EXCLUDED.views,
                 finalized   = EXCLUDED.finalized,
@@ -190,14 +228,50 @@ impl<'a> SiteEventRepo<'a> {
             r#"
             INSERT INTO site_referrer_rollups (referrer, day, visits, finalized, computed_at)
             SELECT
-                referrer,
-                (ts AT TIME ZONE 'UTC')::date AS day,
+                norm_ref,
+                day,
                 COUNT(*)                      AS visits,
-                ((ts AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'UTC')::date) AS finalized,
+                (day < (now() AT TIME ZONE 'UTC')::date) AS finalized,
                 now()                         AS computed_at
-            FROM site_events
-            WHERE event_type = 'page_view' AND referrer IS NOT NULL AND referrer <> ''
-            GROUP BY referrer, (ts AT TIME ZONE 'UTC')::date
+            FROM (
+                SELECT
+                    (ts AT TIME ZONE 'UTC')::date AS day,
+                    CASE
+                        WHEN host ~ '^[a-z0-9.-]+$' AND host LIKE '%.%'
+                            THEN host
+                        ELSE '(other)'
+                    END AS norm_ref
+                FROM (
+                    SELECT
+                        ts,
+                        -- Strip scheme, userinfo, port, path/query/fragment →
+                        -- bare lowercased host. An email-like value keeps its `@`
+                        -- ... no: userinfo strip removes up to the LAST '@', so an
+                        -- email 'a@b.com' becomes 'b.com'; guard below still
+                        -- accepts only clean hosts, and the trust-boundary
+                        -- normalizer already bucketed emails. We additionally drop
+                        -- anything with a remaining '@'.
+                        lower(
+                            split_part(
+                                split_part(
+                                    regexp_replace(
+                                        regexp_replace(referrer, '^(https?:)?//', ''),
+                                        '^[^/@?#]*@', ''
+                                    ),
+                                    '/', 1
+                                ),
+                                ':', 1
+                            )
+                        ) AS host
+                    FROM site_events
+                    WHERE event_type = 'page_view'
+                      AND referrer IS NOT NULL AND referrer <> ''
+                      AND referrer !~ '[\x00-\x1f]'
+                      AND position('@' in referrer) = 0
+                ) AS hosts
+            ) AS normalized
+            WHERE norm_ref <> ''
+            GROUP BY norm_ref, day
             ON CONFLICT (referrer, day) DO UPDATE SET
                 visits      = EXCLUDED.visits,
                 finalized   = EXCLUDED.finalized,
@@ -217,6 +291,12 @@ impl<'a> SiteEventRepo<'a> {
     // All read from the *aggregate* rollup tables (never raw events), so they are
     // privacy-safe by construction and survive the 30-day raw-retention prune.
     // `period_days` is clamped by the caller to the supported {7, 30} window.
+    //
+    // WINDOW SEMANTICS: an N-day window means today + (N-1) previous calendar
+    // days. For DATE-bucketed rollup tables that is `day >= current_date -
+    // (N-1)`. We subtract one so 7d = 7 calendar days (not 8), keeping these
+    // rollup-backed queries in agreement with the timestamp-backed verify query
+    // (`ts >= now() - N days`).
     // ─────────────────────────────────────────────────────────────────────────
 
     /// Unique sessions per day over the trailing `period_days`, oldest day first.
@@ -233,7 +313,10 @@ impl<'a> SiteEventRepo<'a> {
             SELECT day, MAX(unique_sessions) AS count
             FROM site_event_rollups
             WHERE event_type = 'page_view'
-              AND day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => $1::int)
+              -- N-day window = today + (N-1) previous calendar days. Subtract one
+              -- so 7d covers 7 days (not 8), matching the timestamp-backed verify
+              -- query's `ts >= now() - N days`.
+              AND day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => ($1::int - 1))
             GROUP BY day
             ORDER BY day ASC
             "#,
@@ -254,7 +337,7 @@ impl<'a> SiteEventRepo<'a> {
             r#"
             SELECT path AS label, SUM(views)::bigint AS count
             FROM site_page_rollups
-            WHERE day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => $1::int)
+            WHERE day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => ($1::int - 1))
             GROUP BY path
             ORDER BY count DESC, label ASC
             LIMIT $2
@@ -277,7 +360,7 @@ impl<'a> SiteEventRepo<'a> {
             r#"
             SELECT referrer AS label, SUM(visits)::bigint AS count
             FROM site_referrer_rollups
-            WHERE day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => $1::int)
+            WHERE day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => ($1::int - 1))
             GROUP BY referrer
             ORDER BY count DESC, label ASC
             LIMIT $2
@@ -301,7 +384,7 @@ impl<'a> SiteEventRepo<'a> {
             r#"
             SELECT event_type, SUM(event_count)::bigint AS count
             FROM site_event_rollups
-            WHERE day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => $1::int)
+            WHERE day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => ($1::int - 1))
             GROUP BY event_type
             "#,
         )
@@ -322,7 +405,7 @@ impl<'a> SiteEventRepo<'a> {
             SELECT day, SUM(event_count)::bigint AS count
             FROM site_event_rollups
             WHERE event_type = 'badge_embed_view'
-              AND day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => $1::int)
+              AND day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => ($1::int - 1))
             GROUP BY day
             ORDER BY day ASC
             "#,
@@ -616,6 +699,114 @@ mod tests {
         let vm = repo.verify_counts_by_method(30).await.unwrap();
         assert!(vm.contains(&("verify_start".to_string(), "dns".to_string(), 1)));
         assert!(vm.contains(&("verify_complete".to_string(), "dns".to_string(), 1)));
+    }
+
+    /// Finding 2 — N-day window size. An N-day window must cover exactly N
+    /// calendar days (today + N-1 previous), NOT N+1. We seed page_view rollups
+    /// on a span of distinct days and assert the 7d read returns exactly the 7
+    /// days ending today — the day at offset -7 (the 8th) must be excluded.
+    #[sqlx::test(migrations = "./migrations")]
+    async fn dashboard_window_covers_exactly_n_days(pool: PgPool) {
+        let repo = SiteEventRepo::new(&pool);
+
+        // Insert one page_view per day for offsets 0..=8 days ago (9 distinct
+        // days). Each gets a unique session so unique_sessions = 1/day.
+        for offset in 0..=8 {
+            let sid = uuid::Uuid::new_v4();
+            repo.insert("page_view", sid, Some("/"), None, &serde_json::json!({}))
+                .await
+                .unwrap();
+            sqlx::query(
+                "UPDATE site_events SET ts = now() - make_interval(days => $1::int) \
+                 WHERE session_id = $2",
+            )
+            .bind(offset)
+            .bind(sid)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+
+        repo.compute_rollups().await.unwrap();
+
+        // 7-day window = today + 6 previous = exactly 7 distinct days. The day at
+        // offset -7 and -8 must be excluded (NOT 8 days).
+        let spd = repo.sessions_per_day(7).await.unwrap();
+        assert_eq!(
+            spd.len(),
+            7,
+            "7d window must cover exactly 7 calendar days, not 8 (off-by-one)"
+        );
+
+        // top_pages over the same window: "/" appears on each of the 7 in-window
+        // days → 7 views (not 8).
+        let pages = repo.top_pages(7, 5).await.unwrap();
+        assert_eq!(pages[0].label, "/");
+        assert_eq!(pages[0].count, 7, "7d window over-counted (off-by-one)");
+
+        // 30-day window covers all 9 seeded days.
+        assert_eq!(repo.sessions_per_day(30).await.unwrap().len(), 9);
+    }
+
+    /// Finding 1 (defense in depth) — even if raw `site_events` rows carry a full
+    /// URL with a query string or an email-like referrer (e.g. a pre-existing row
+    /// or a future ingest bug), the rollup must NOT make them durable raw: the
+    /// page is reduced to its site-relative path and the email-like referrer is
+    /// bucketed to the safe sentinel — never surfaced raw on the dashboard.
+    #[sqlx::test(migrations = "./migrations")]
+    async fn rollup_normalizes_raw_url_and_email_referrer(pool: PgPool) {
+        let repo = SiteEventRepo::new(&pool);
+
+        // A poisoned raw row: full URL path with a query string + email referrer.
+        repo.insert(
+            "page_view",
+            uuid::Uuid::new_v4(),
+            Some("https://evil.example.com/account?token=abc123&email=jane@corp.com"),
+            Some("jane.doe@corp.com"),
+            &serde_json::json!({}),
+        )
+        .await
+        .unwrap();
+        // A clean baseline row.
+        repo.insert(
+            "page_view",
+            uuid::Uuid::new_v4(),
+            Some("/leaderboard"),
+            Some("https://google.com/search?q=x"),
+            &serde_json::json!({}),
+        )
+        .await
+        .unwrap();
+
+        repo.compute_rollups().await.unwrap();
+
+        // top_pages: the full URL is reduced to "/account" (no scheme, host, or
+        // query string); the raw URL must NOT appear.
+        let pages = repo.top_pages(7, 10).await.unwrap();
+        let labels: Vec<&str> = pages.iter().map(|p| p.label.as_str()).collect();
+        assert!(
+            labels.contains(&"/account"),
+            "full URL must be reduced to its site-relative path; got {labels:?}"
+        );
+        assert!(labels.contains(&"/leaderboard"));
+        assert!(
+            !labels.iter().any(|l| l.contains("evil.example.com") || l.contains("token=")),
+            "no raw URL / query string may be durable: {labels:?}"
+        );
+
+        // top_referrers: the email-like referrer must be dropped/bucketed — never
+        // stored raw (no '@', no raw email value). The clean one is reduced to its
+        // bare domain.
+        let refs = repo.top_referrers(7, 10).await.unwrap();
+        let rlabels: Vec<&str> = refs.iter().map(|r| r.label.as_str()).collect();
+        assert!(
+            !rlabels.iter().any(|l| l.contains('@') || l.contains("jane")),
+            "no email-like referrer may be stored raw: {rlabels:?}"
+        );
+        assert!(
+            rlabels.contains(&"google.com"),
+            "clean referrer must reduce to bare domain: {rlabels:?}"
+        );
     }
 
     /// Empty rollups → every dashboard read returns an empty vec (drives the web

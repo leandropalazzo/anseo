@@ -64,6 +64,150 @@ pub struct SiteEventBody {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Dimension normalization (trust boundary — privacy / data-poisoning defense)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// `path` and `referrer` are copied verbatim into the durable aggregate rollup
+// tables (`site_page_rollups` / `site_referrer_rollups`) and surfaced on the
+// operator dashboard. This is an UNAUTHENTICATED public endpoint, so a malicious
+// or buggy client can submit a full URL, query string, email, or arbitrary
+// string. Epic 47 is privacy-SAFE analytics: we must never let raw, PII-bearing
+// values become durable. So we normalize here, at the trust boundary, before the
+// value is ever persisted. Anything that can't be reduced to a safe canonical
+// form is bucketed to the `OTHER_BUCKET` sentinel rather than stored raw.
+
+/// Max stored length for a normalized path or referrer. Bounds storage and
+/// strips pathological long inputs.
+const DIM_MAX_LEN: usize = 256;
+
+/// Safe sentinel for inputs that can't be reduced to a privacy-safe canonical
+/// value (e.g. a referrer containing an `@`, or an unparseable path).
+const OTHER_BUCKET: &str = "(other)";
+
+/// `true` if the string contains an ASCII control char (incl. NUL / newline /
+/// tab) — never allowed in a stored dimension.
+fn has_control_chars(s: &str) -> bool {
+    s.chars().any(|c| c.is_control())
+}
+
+/// Normalize a submitted `path` to a privacy-safe, site-relative path.
+///
+/// * Strips a scheme+host if a full URL was sent (`https://x.com/a?b=c` → `/a`).
+/// * Drops the query string and fragment (no PII / no full URLs in aggregates).
+/// * Rejects control chars; caps length.
+/// * Returns `None` for an empty/blank input (nothing to store); returns the
+///   `OTHER_BUCKET` sentinel for anything that can't be normalized to a path.
+fn normalize_path(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    if has_control_chars(raw) {
+        return Some(OTHER_BUCKET.to_string());
+    }
+
+    // If a full/absolute URL was submitted, keep only the path component.
+    let path_part: &str = if let Some(rest) = raw
+        .strip_prefix("http://")
+        .or_else(|| raw.strip_prefix("https://"))
+    {
+        // `rest` is `host[:port]/path?query#frag` — take from the first `/`.
+        match rest.find('/') {
+            Some(i) => &rest[i..],
+            None => "/", // bare host, no path
+        }
+    } else if let Some(rest) = raw.strip_prefix("//") {
+        // Protocol-relative URL (`//host/path`) — keep the path component.
+        match rest.find('/') {
+            Some(i) => &rest[i..],
+            None => return Some(OTHER_BUCKET.to_string()), // bare host, no path
+        }
+    } else if raw.starts_with('/') {
+        raw
+    } else {
+        // A bare token that isn't a site-relative path → not a path we trust.
+        return Some(OTHER_BUCKET.to_string());
+    };
+
+    // Drop query string and fragment.
+    let path_only = path_part
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("/");
+    let path_only = if path_only.is_empty() { "/" } else { path_only };
+
+    let mut out = path_only.to_string();
+    if out.len() > DIM_MAX_LEN {
+        out.truncate(DIM_MAX_LEN);
+    }
+    Some(out)
+}
+
+/// Normalize a submitted `referrer` to a bare registrable host/origin.
+///
+/// * Strips scheme, path, query, and fragment
+///   (`https://news.ycombinator.com/x?y` → `news.ycombinator.com`).
+/// * Drops anything that looks like an email / contains userinfo (any `@`) or is
+///   an arbitrary string (no dot) → `OTHER_BUCKET`.
+/// * Lowercases; rejects control chars; caps length.
+/// * Returns `None` for empty/blank (direct visit — store nothing).
+fn normalize_referrer(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    if has_control_chars(raw) {
+        return Some(OTHER_BUCKET.to_string());
+    }
+
+    // Any `@` means email-like or carries userinfo. A privacy-safe referrer is a
+    // bare domain/origin and never contains userinfo, so we refuse to try to
+    // salvage a host out of it — bucket the whole thing. This is what stops an
+    // email (`jane@corp.com`) from being stored as `corp.com`.
+    if raw.contains('@') {
+        return Some(OTHER_BUCKET.to_string());
+    }
+
+    // Strip scheme.
+    let after_scheme = raw
+        .strip_prefix("http://")
+        .or_else(|| raw.strip_prefix("https://"))
+        .or_else(|| raw.strip_prefix("//"))
+        .unwrap_or(raw);
+
+    // Cut at the first path / query / fragment separator → authority only.
+    let authority = after_scheme
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or("");
+
+    let host_port = authority;
+
+    // Drop the port.
+    let host = host_port.split(':').next().unwrap_or("");
+    let host = host.trim();
+
+    // Reject anything that still isn't a plausible bare domain: must be
+    // non-empty, contain a dot, contain no `@` (email-like), and only
+    // host-legal characters. Otherwise bucket it.
+    let looks_like_domain = !host.is_empty()
+        && host.contains('.')
+        && !host.contains('@')
+        && host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-');
+    if !looks_like_domain {
+        return Some(OTHER_BUCKET.to_string());
+    }
+
+    let mut out = host.to_ascii_lowercase();
+    if out.len() > DIM_MAX_LEN {
+        out.truncate(DIM_MAX_LEN);
+    }
+    Some(out)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // In-memory per-IP sliding-window rate limiter
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -149,14 +293,21 @@ async fn ingest_site_event(
         .properties
         .unwrap_or_else(|| serde_json::Value::Object(Default::default()));
 
+    // Normalize the public-submitted dimensions at the trust boundary BEFORE they
+    // are persisted. This is the privacy/data-poisoning defense: a full URL,
+    // query string, email-like referrer, or arbitrary string never becomes
+    // durable in the aggregate tables (Epic 47 = privacy-safe analytics).
+    let path = body.path.as_deref().and_then(normalize_path);
+    let referrer = body.referrer.as_deref().and_then(normalize_referrer);
+
     match state
         .storage
         .site_events()
         .insert(
             &body.event_type,
             body.session_id,
-            body.path.as_deref(),
-            body.referrer.as_deref(),
+            path.as_deref(),
+            referrer.as_deref(),
             &properties,
         )
         .await
@@ -217,5 +368,74 @@ mod tests {
     #[test]
     fn ip_key_falls_back_to_zero_without_ip() {
         assert_eq!(ip_key(&HeaderMap::new(), None), 0);
+    }
+
+    // ── Dimension normalization (trust boundary, Finding 1) ────────────────────
+
+    #[test]
+    fn normalize_path_keeps_site_relative_drops_query_and_fragment() {
+        assert_eq!(normalize_path("/leaderboard"), Some("/leaderboard".into()));
+        assert_eq!(normalize_path("/"), Some("/".into()));
+        // Query string + fragment are dropped (no PII / no query strings stored).
+        assert_eq!(
+            normalize_path("/search?q=secret&email=a@b.com#frag"),
+            Some("/search".into())
+        );
+    }
+
+    #[test]
+    fn normalize_path_strips_scheme_and_host_from_full_url() {
+        // A submitted FULL URL with a query string must reduce to the bare path,
+        // never stored raw. (Finding 1 required case.)
+        assert_eq!(
+            normalize_path("https://evil.example.com/account?token=abc123&user=jane@corp.com"),
+            Some("/account".into())
+        );
+        // Bare host with no path → root.
+        assert_eq!(normalize_path("https://evil.example.com"), Some("/".into()));
+        // Protocol-relative URL.
+        assert_eq!(normalize_path("//cdn.example.com/a/b?x=1"), Some("/a/b".into()));
+    }
+
+    #[test]
+    fn normalize_path_buckets_arbitrary_or_unsafe_input() {
+        // Arbitrary non-path token → sentinel, never stored raw.
+        assert_eq!(normalize_path("javascript:alert(1)"), Some("(other)".into()));
+        assert_eq!(normalize_path("just some text"), Some("(other)".into()));
+        // Control chars → sentinel.
+        assert_eq!(normalize_path("/a\nb"), Some("(other)".into()));
+        // Empty/blank → nothing to store.
+        assert_eq!(normalize_path("   "), None);
+        assert_eq!(normalize_path(""), None);
+    }
+
+    #[test]
+    fn normalize_referrer_reduces_to_bare_domain() {
+        assert_eq!(normalize_referrer("https://www.google.com/search?q=x"), Some("www.google.com".into()));
+        assert_eq!(normalize_referrer("google.com"), Some("google.com".into()));
+        // Port, path, query, fragment all stripped; lowercased.
+        assert_eq!(
+            normalize_referrer("https://News.YCombinator.com:443/item?id=1#c"),
+            Some("news.ycombinator.com".into())
+        );
+        // Any userinfo (`@`) is refused outright (not salvaged into a host).
+        assert_eq!(
+            normalize_referrer("https://user:pass@news.ycombinator.com/item"),
+            Some("(other)".into())
+        );
+    }
+
+    #[test]
+    fn normalize_referrer_drops_email_like_and_arbitrary_strings() {
+        // An email-like referrer must NOT be stored raw — bucketed to sentinel.
+        // (Finding 1 required case.)
+        assert_eq!(normalize_referrer("jane.doe@corp.com"), Some("(other)".into()));
+        // Arbitrary string with no dot → sentinel.
+        assert_eq!(normalize_referrer("not a url"), Some("(other)".into()));
+        // Control chars → sentinel.
+        assert_eq!(normalize_referrer("evil\u{0000}.com"), Some("(other)".into()));
+        // Empty (direct visit) → store nothing.
+        assert_eq!(normalize_referrer(""), None);
+        assert_eq!(normalize_referrer("   "), None);
     }
 }
