@@ -30,16 +30,26 @@
 #            (38.16)     https://anseo.ai/compose/<X.Y.Z>.yml     [needs: images]
 #   sdk-publish        → npm (@anseo/observe) + PyPI (anseo-observe)
 #                        token-gated; skips cleanly when no token (public repo).
-#   plugin-sign(41.4)  → repository_dispatch → plugin-sign.yml (real key lives
-#                        only in opengeo-internal; public repo no-ops).
-#   overlay-bump(38.18)→ repository_dispatch → opengeo-internal bumps its
-#                        submodule to the tag + green-gates. token-gated.
-#   docs-site (38.21)  → repository_dispatch → rebuild marketing+docs site
-#                        against the tag. token-gated.
+#   plugin-sign(41.4)  → BEST-EFFORT repository_dispatch → plugin-sign.yml (real
+#                        key lives only in opengeo-internal; public repo no-ops).
+#   overlay-bump(38.18)→ BEST-EFFORT repository_dispatch → opengeo-internal bumps
+#                        its submodule to the tag + green-gates. token-gated.
+#   docs-site (38.21)  → BEST-EFFORT repository_dispatch → rebuild marketing+docs
+#                        site against the tag. token-gated.
 #   github-release     → create the GitHub Release w/ notes [needs: images,
 #                        compose-snapshot] — the user-facing release object.
 #   release-summary    → always() — one job that reports every leg's status and
-#                        FAILS the train if any leg failed (no silent partial).
+#                        FAILS the train if any VERIFIED leg failed (no silent
+#                        partial). The cross-repo BEST-EFFORT dispatch legs only
+#                        confirm the event was ACCEPTED (not that the downstream
+#                        ran), so they are reported as "dispatched (not verified)"
+#                        and are EXCLUDED from the red/green completeness gate —
+#                        a fire-and-forget dispatch is never counted as a done leg.
+#
+# ── VERIFIED vs BEST-EFFORT LEGS ────────────────────────────────────────────
+# Gating (success truly reflects the artifact exists): images, compose-snapshot,
+# sdk-publish, github-release. Non-gating fire-and-forget dispatches: plugin-sign,
+# overlay-bump, docs-site — verify their downstream runs in the target repos.
 #
 # Independent legs (sdk/plugin/overlay/docs) run in parallel off `resolve`;
 # images→compose-snapshot→github-release form the artifact spine. No cycles.
@@ -130,6 +140,12 @@ jobs:
       # Dry-run rehearses the multi-arch build but does NOT push images,
       # tags, or attestations to GHCR (no registry mutation on a dry-run).
       push: ${{ needs.resolve.outputs.dry_run != 'true' }}
+      # Move `latest` ONLY on the normal top-of-tree tag-push release path
+      # (github.event_name == 'push' on the v* tag), and never on a dry-run.
+      # A manual workflow_dispatch republish (event_name == 'workflow_dispatch'),
+      # which may target an OLD tag, leaves this false so it cannot drag `latest`
+      # backwards onto a stale release.
+      tag_latest: ${{ github.event_name == 'push' && needs.resolve.outputs.dry_run != 'true' }}
     permissions:
       contents: read
       packages: write
@@ -188,7 +204,12 @@ jobs:
 
       # Fire a repository_dispatch to the site repo with the rendered snapshot so
       # it deploys it under /compose/<X.Y.Z>.yml. The site repo owns the bucket.
-      - name: Dispatch compose snapshot to docs-site
+      # BEST-EFFORT TRIGGER ONLY — succeeds when GitHub accepts the event, NOT
+      # when the snapshot is live at the URL. The VERIFIED part of this job is the
+      # rendered+uploaded run artifact (above), which IS retained regardless; that
+      # is what makes compose-snapshot a legitimate gate leg. The publish-to-URL
+      # is fire-and-forget on top of that guaranteed artifact.
+      - name: Dispatch compose snapshot to docs-site (best-effort — does not wait for downstream)
         if: ${{ steps.site.outputs.enabled == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.DOCS_SITE_DISPATCH_TOKEN }}
@@ -307,7 +328,7 @@ jobs:
   # Token-gated; independent leg.
   # ---------------------------------------------------------------------------
   plugin-sign:
-    name: Trigger plugin signing/publish
+    name: Trigger plugin signing/publish (best-effort, does not wait for downstream)
     needs: resolve
     if: ${{ needs.resolve.outputs.dry_run != 'true' }}
     runs-on: ubuntu-latest
@@ -327,7 +348,13 @@ jobs:
             echo "plugin-sign dispatch not configured (token/dir/namespace) — skipping (public repo path)"
           fi
 
-      - name: Dispatch plugin-sign
+      # BEST-EFFORT TRIGGER ONLY. `gh api .../dispatches` succeeds the instant
+      # GitHub ACCEPTS the repository_dispatch event — NOT when plugin-sign.yml
+      # starts or finishes. So this step's success means "dispatch accepted", not
+      # "plugin signed/published". The downstream signing run is observed in its
+      # OWN repo; this leg is deliberately excluded from release-summary's
+      # red/green completeness gate (see release-summary).
+      - name: Dispatch plugin-sign (best-effort — does not wait for downstream)
         if: ${{ steps.tok.outputs.enabled == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.PLUGIN_SIGN_DISPATCH_TOKEN }}
@@ -346,7 +373,7 @@ jobs:
   # Token-gated; the public repo has no overlay token, so it no-ops.
   # ---------------------------------------------------------------------------
   overlay-bump:
-    name: Bump internal overlay submodule
+    name: Bump internal overlay submodule (best-effort, does not wait for downstream)
     needs: resolve
     if: ${{ needs.resolve.outputs.dry_run != 'true' }}
     runs-on: ubuntu-latest
@@ -365,7 +392,11 @@ jobs:
             echo "no OVERLAY_DISPATCH_TOKEN/OVERLAY_REPO — skipping overlay bump (public repo path)"
           fi
 
-      - name: Dispatch overlay submodule bump
+      # BEST-EFFORT TRIGGER ONLY. The dispatch succeeds as soon as GitHub accepts
+      # the event — NOT when opengeo-internal finishes bumping its submodule and
+      # green-gating. Downstream success is observed in opengeo-internal; this leg
+      # is excluded from release-summary's completeness gate (see release-summary).
+      - name: Dispatch overlay submodule bump (best-effort — does not wait for downstream)
         if: ${{ steps.tok.outputs.enabled == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.OVERLAY_DISPATCH_TOKEN }}
@@ -383,7 +414,7 @@ jobs:
   # Token-gated; independent leg.
   # ---------------------------------------------------------------------------
   docs-site:
-    name: Rebuild docs/marketing site
+    name: Rebuild docs/marketing site (best-effort, does not wait for downstream)
     needs: resolve
     if: ${{ needs.resolve.outputs.dry_run != 'true' }}
     runs-on: ubuntu-latest
@@ -402,7 +433,11 @@ jobs:
             echo "no DOCS_SITE_DISPATCH_TOKEN/DOCS_SITE_REPO — skipping site rebuild (public repo path)"
           fi
 
-      - name: Dispatch site rebuild
+      # BEST-EFFORT TRIGGER ONLY. The dispatch succeeds when GitHub accepts the
+      # event — NOT when the site repo finishes rebuilding against the tag.
+      # Downstream success is observed in the site repo; this leg is excluded
+      # from release-summary's completeness gate (see release-summary).
+      - name: Dispatch site rebuild (best-effort — does not wait for downstream)
         if: ${{ steps.tok.outputs.enabled == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.DOCS_SITE_DISPATCH_TOKEN }}
@@ -481,9 +516,28 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Release summary — runs ALWAYS. One job that reports every leg's status and
-  # FAILS the train if any leg failed, so there is never a silent partial
-  # release (AC2). Token-skipped legs report as their result (skipped) and do
-  # not fail the train.
+  # FAILS the train if any VERIFIED leg failed, so there is never a silent
+  # partial release (AC2).
+  #
+  # The gate distinguishes two classes of leg, because their `result` means very
+  # different things:
+  #
+  #   VERIFIED (gating) — in-repo, synchronous legs whose job success truly
+  #   reflects that the release artifact was produced: images, compose-snapshot
+  #   (renders+uploads the artifact), sdk-publish, github-release. A failure here
+  #   means the release really is broken, so it turns the summary red.
+  #
+  #   BEST-EFFORT DISPATCH (non-gating) — plugin-sign / overlay-bump / docs-site
+  #   only POST a repository_dispatch; the job goes green the instant GitHub
+  #   ACCEPTS the event, NOT when the downstream signing/overlay/docs workflow
+  #   runs or succeeds. Counting these toward the gate would let the summary go
+  #   GREEN even though we have NOT verified the downstream actually ran — the
+  #   exact silent partial release this summary exists to prevent — and would
+  #   also let a downstream we cannot see make the train red on someone else's
+  #   failure. So they are reported as "dispatched (not verified)" and EXCLUDED
+  #   from red/green. Downstream success is observed in the target repos.
+  #
+  # Token-skipped VERIFIED legs report as their result (skipped) and do not fail.
   # ---------------------------------------------------------------------------
   release-summary:
     name: Release summary
@@ -496,37 +550,54 @@ jobs:
           R_IMAGES: ${{ needs.images.result }}
           R_SNAPSHOT: ${{ needs.compose-snapshot.result }}
           R_SDK: ${{ needs.sdk-publish.result }}
+          R_RELEASE: ${{ needs.github-release.result }}
+          # Best-effort dispatch legs — reported, NOT gated.
           R_PLUGIN: ${{ needs.plugin-sign.result }}
           R_OVERLAY: ${{ needs.overlay-bump.result }}
           R_DOCS: ${{ needs.docs-site.result }}
-          R_RELEASE: ${{ needs.github-release.result }}
           TAG: ${{ needs.resolve.outputs.tag }}
         run: |
           set -euo pipefail
           {
             echo "## Release train — ${TAG}"
             echo
+            echo "### Verified legs (these determine release success)"
+            echo
             echo "| Leg | Story | Result |"
             echo "| --- | ----- | ------ |"
             echo "| GHCR images | 38.15 | ${R_IMAGES} |"
             echo "| Compose snapshot | 38.16 | ${R_SNAPSHOT} |"
             echo "| SDK publish (npm/PyPI) | 40.x | ${R_SDK} |"
-            echo "| Plugin sign/publish | 41.4 | ${R_PLUGIN} |"
-            echo "| Overlay submodule bump | 38.18 | ${R_OVERLAY} |"
-            echo "| Docs/marketing site | 38.21 | ${R_DOCS} |"
             echo "| GitHub Release | 38.19 | ${R_RELEASE} |"
+            echo
+            echo "### Best-effort cross-repo dispatches (NOT verified, do not gate)"
+            echo
+            echo "_These legs only confirm the dispatch was accepted by GitHub — the"
+            echo "downstream workflow may not have run yet. Verify success in the"
+            echo "target repo; a value below does NOT mean the downstream completed._"
+            echo
+            echo "| Leg | Story | Dispatch | Target repo |"
+            echo "| --- | ----- | -------- | ----------- |"
+            echo "| Plugin sign/publish | 41.4 | ${R_PLUGIN} (not verified) | this repo (plugin-sign.yml) |"
+            echo "| Overlay submodule bump | 38.18 | ${R_OVERLAY} (not verified) | opengeo-internal |"
+            echo "| Docs/marketing site | 38.21 | ${R_DOCS} (not verified) | docs-site |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # Fail the train if any leg ended in failure or was cancelled. A
-          # 'skipped' leg (no token, or dry-run) is acceptable and does NOT fail.
+          # GATE: fail the train ONLY if a VERIFIED in-repo leg failed/was
+          # cancelled. A 'skipped' leg (no token, or dry-run) is acceptable and
+          # does NOT fail. The best-effort dispatch legs are intentionally NOT in
+          # this loop: their result reflects "dispatch accepted", not downstream
+          # completion, so they can neither falsely-green nor falsely-red the
+          # release. We do not pretend a fire-and-forget dispatch is a completed
+          # release leg.
           fail=0
-          for r in "$R_IMAGES" "$R_SNAPSHOT" "$R_SDK" "$R_PLUGIN" "$R_OVERLAY" "$R_DOCS" "$R_RELEASE"; do
+          for r in "$R_IMAGES" "$R_SNAPSHOT" "$R_SDK" "$R_RELEASE"; do
             case "$r" in
               failure|cancelled) fail=1 ;;
             esac
           done
           if [ "$fail" != 0 ]; then
-            echo "::error::release ${TAG} is INCOMPLETE — at least one leg failed (see table above)." >&2
+            echo "::error::release ${TAG} is INCOMPLETE — at least one VERIFIED leg failed (see table above)." >&2
             exit 1
           fi
-          echo "release ${TAG}: all legs succeeded or cleanly skipped."
+          echo "release ${TAG}: all verified legs succeeded or cleanly skipped; cross-repo dispatches fired best-effort (verify downstream separately)."

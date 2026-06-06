@@ -36,6 +36,14 @@ on:
         required: false
         default: true
         type: boolean
+      tag_latest:
+        description: >-
+          Move the `latest` tag to THIS build. Must be true ONLY for a normal
+          top-of-tree tag-push release. Defaults to false so a manual republish
+          or a rebuild of an OLD tag never overwrites `latest` with a stale image.
+        required: false
+        default: false
+        type: boolean
     outputs:
       version:
         description: "The resolved X.Y.Z version (leading v stripped) the images were published under."
@@ -50,6 +58,14 @@ on:
         description: "Publish to GHCR. Uncheck for a dry-run build (no registry mutation)."
         required: false
         default: true
+        type: boolean
+      tag_latest:
+        description: >-
+          Move `latest` to this build. Leave UNCHECKED for a manual republish or
+          a rebuild of an old tag — only a normal top-of-tree release should move
+          `latest`. Defaults to false to protect `latest` from stale republishes.
+        required: false
+        default: false
         type: boolean
 
 permissions:
@@ -115,6 +131,15 @@ jobs:
       # The leading `v` is re-applied here only so docker/metadata-action's semver
       # parser sees a tag-shaped value; {{version}}/{{major}}/{{minor}} strip it
       # back to the bare X.Y.Z that ANSEO_VERSION + the compose snapshot expect.
+      #
+      # `latest` is gated on the explicit `tag_latest` INPUT — i.e. the RESOLVED
+      # build ref, decided by the caller — NOT on docker/metadata-action's
+      # {{is_default_branch}}, which reads the workflow EVENT ref. {{is_default_branch}}
+      # is true for ANY run dispatched from the default branch (incl. a manual
+      # republish with `ref: <old tag>`), so it would let a rerun overwrite
+      # `latest` with an arbitrary/old release. release.yml passes tag_latest=true
+      # ONLY on the normal top-of-tree tag-push path; manual republish / dry-run /
+      # old-tag rebuilds leave it false, so `latest` never moves to a stale image.
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -124,7 +149,7 @@ jobs:
             type=semver,pattern={{version}},value=v${{ steps.version.outputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=v${{ steps.version.outputs.version }}
             type=semver,pattern={{major}},value=v${{ steps.version.outputs.version }}
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ inputs.tag_latest }}
 
       # Build for amd64 + arm64 and push both manifests atomically
       - name: Build and push
