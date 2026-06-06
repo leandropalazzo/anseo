@@ -127,6 +127,7 @@ async fn boot() -> Option<Harness> {
         configured_project: Arc::new(project_a.clone()),
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info: None,
+        loaded_plugins: Arc::new(Vec::new()),
     };
 
     // Bind the real router to an OS-assigned port, then serve in the background.
