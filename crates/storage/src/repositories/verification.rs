@@ -248,11 +248,11 @@ impl<'a> VerificationRepo<'a> {
         sqlx::query(
             r#"
             UPDATE verification_attempts
-            SET state = 'expired'
+            SET status = 'expired'
             WHERE domain = $1
               AND method = $2
-              AND state = 'pending'
-              AND consumed_at IS NULL
+              AND status = 'pending'
+              AND used_at IS NULL
             "#,
         )
         .bind(domain)
@@ -267,13 +267,14 @@ impl<'a> VerificationRepo<'a> {
     /// raw token (caller embeds it in the TXT record / magic-link URL).
     ///
     /// The caller MUST have checked the rate limit and expired live challenges
-    /// first. `email_address` is set for the magic-link method.
+    /// first. `claimant_email` is set for the magic-link method (reuses the
+    /// 43.3-owned `claimant_email` column).
     pub async fn create_challenge(
         &self,
         domain: &str,
         method: VerificationMethod,
         claimant_session: Option<&str>,
-        email_address: Option<&str>,
+        claimant_email: Option<&str>,
     ) -> Result<MintedChallenge, Error> {
         let raw = generate_token();
         let token_hash = hash_token(&raw);
@@ -284,8 +285,8 @@ impl<'a> VerificationRepo<'a> {
         sqlx::query(
             r#"
             INSERT INTO verification_attempts
-                (id, domain, method, token_hash, claimant_session, email_address,
-                 state, attestation_version, attested_at, expires_at)
+                (id, domain, method, token_hash, claimant_session, claimant_email,
+                 status, attestation_version, attested_at, expires_at)
             VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, now(), $8)
             "#,
         )
@@ -294,7 +295,7 @@ impl<'a> VerificationRepo<'a> {
         .bind(method.as_str())
         .bind(&token_hash)
         .bind(claimant_session)
-        .bind(email_address)
+        .bind(claimant_email)
         .bind(ATTESTATION_VERSION)
         .bind(expires_at)
         .execute(self.pool)
@@ -315,7 +316,8 @@ impl<'a> VerificationRepo<'a> {
         let token_hash = hash_token(raw_token);
         let row = sqlx::query(
             r#"
-            SELECT id, domain, method, token_hash, state, expires_at, consumed_at
+            SELECT id, domain, method, token_hash,
+                   status AS state, expires_at, used_at AS consumed_at
             FROM verification_attempts
             WHERE token_hash = $1
             "#,
@@ -342,10 +344,10 @@ impl<'a> VerificationRepo<'a> {
         let res = sqlx::query(
             r#"
             UPDATE verification_attempts
-            SET state = 'verified', consumed_at = now()
+            SET status = 'verified', used_at = now()
             WHERE id = $1
-              AND state = 'pending'
-              AND consumed_at IS NULL
+              AND status = 'pending'
+              AND used_at IS NULL
               AND expires_at > now()
             "#,
         )
@@ -362,8 +364,8 @@ impl<'a> VerificationRepo<'a> {
         sqlx::query(
             r#"
             UPDATE verification_attempts
-            SET state = 'failed'
-            WHERE id = $1 AND state = 'pending'
+            SET status = 'failed'
+            WHERE id = $1 AND status = 'pending'
             "#,
         )
         .bind(id)
@@ -379,7 +381,7 @@ impl<'a> VerificationRepo<'a> {
         sqlx::query(
             r#"
             INSERT INTO verification_attempts
-                (domain, method, token_hash, state, attestation_version, expires_at)
+                (domain, method, token_hash, status, attestation_version, expires_at)
             VALUES ($1, 'dns_txt', '', 'revoked', $2, now())
             "#,
         )
@@ -401,10 +403,10 @@ impl<'a> VerificationRepo<'a> {
             FROM verification_attempts va
             JOIN entities e ON e.domain = va.domain
             WHERE va.method = 'dns_txt'
-              AND va.state = 'verified'
+              AND va.status = 'verified'
               AND e.claim_status = 'verified'
               AND e.verification_method = 'dns_txt'
-            ORDER BY va.domain, va.consumed_at DESC
+            ORDER BY va.domain, va.used_at DESC
             "#,
         )
         .fetch_all(self.pool)
