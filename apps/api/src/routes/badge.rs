@@ -294,6 +294,24 @@ async fn serve_badge(
         .map(|e| is_badge_active(&e.claim_status) && role_matches_variant(&e.role, variant))
         .unwrap_or(false);
 
+    // Story 47.1 — server-side `badge_embed_view` analytics event. The SVG is
+    // embedded via `<img>` on third-party sites which can't fire a client-side
+    // beacon, so the serve itself is the signal. Best-effort: a failure here
+    // must never break badge delivery, and no raw domain / IP is stored (the
+    // raw domain goes only in the ephemeral session_id-less event row's
+    // `properties` is omitted; see A3 — `badge_embed_view` has no properties).
+    let _ = state
+        .storage
+        .site_events()
+        .insert(
+            "badge_embed_view",
+            uuid::Uuid::new_v4(),
+            None,
+            None,
+            &serde_json::json!({}),
+        )
+        .await;
+
     if active {
         svg_response(StatusCode::OK, render_verified_svg(&domain, variant, size))
     } else {

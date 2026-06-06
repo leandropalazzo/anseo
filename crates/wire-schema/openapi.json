@@ -2887,6 +2887,59 @@
         "summary": "Roadmap Epic 30 — sentiment aggregate under the existing visibility resource."
       }
     },
+    "/v1/site-events": {
+      "post": {
+        "operationId": "ingestSiteEvent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "event_type": {
+                    "description": "Must be one of the 10-event taxonomy: page_view, leaderboard_view, brand_profile_view, contribute_start, contribute_step, contribute_complete, verify_start, verify_complete, verify_fail, badge_embed_view. Unknown values are silently dropped (204).",
+                    "type": "string"
+                  },
+                  "path": {
+                    "description": "Site-relative path.",
+                    "type": "string"
+                  },
+                  "properties": {
+                    "description": "Event-specific properties per the taxonomy.",
+                    "type": "object"
+                  },
+                  "referrer": {
+                    "description": "Referrer domain only (never a full URL).",
+                    "type": "string"
+                  },
+                  "session_id": {
+                    "description": "Ephemeral per-visit UUID generated client-side; not linked to identity.",
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "event_type",
+                  "session_id"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Accepted, or silently dropped (unknown event_type). No body either way."
+          },
+          "429": {
+            "description": "Per-IP rate limit (60/min) exceeded. The IP is not written to any DB table."
+          }
+        },
+        "security": [],
+        "summary": "Story 47.1 — public, unauthenticated privacy-safe site-event ingest. No API key required (the public site posts directly). No PII stored: no IP column, no user IDs; session_id is an ephemeral per-visit UUID. Unknown event_type values are silently dropped with 204 to prevent allowlist enumeration. Rate-limited 60/min per IP at the edge (IP never persisted).",
+        "x-anseo-public": true
+      }
+    },
     "/v1/visibility/trend": {
       "get": {
         "operationId": "visibilityTrend",

@@ -323,6 +323,35 @@ fn build_spec() -> serde_json::Value {
             }
         },
         "paths": {
+            "/v1/site-events": {
+                "post": {
+                    "operationId": "ingestSiteEvent",
+                    "summary": "Story 47.1 — public, unauthenticated privacy-safe site-event ingest. No API key required (the public site posts directly). No PII stored: no IP column, no user IDs; session_id is an ephemeral per-visit UUID. Unknown event_type values are silently dropped with 204 to prevent allowlist enumeration. Rate-limited 60/min per IP at the edge (IP never persisted).",
+                    "x-anseo-public": true,
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["event_type", "session_id"],
+                                    "properties": {
+                                        "event_type": { "type": "string", "description": "Must be one of the 10-event taxonomy: page_view, leaderboard_view, brand_profile_view, contribute_start, contribute_step, contribute_complete, verify_start, verify_complete, verify_fail, badge_embed_view. Unknown values are silently dropped (204)." },
+                                        "session_id": { "type": "string", "format": "uuid", "description": "Ephemeral per-visit UUID generated client-side; not linked to identity." },
+                                        "path": { "type": "string", "description": "Site-relative path." },
+                                        "referrer": { "type": "string", "description": "Referrer domain only (never a full URL)." },
+                                        "properties": { "type": "object", "description": "Event-specific properties per the taxonomy." }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "204": { "description": "Accepted, or silently dropped (unknown event_type). No body either way." },
+                        "429": { "description": "Per-IP rate limit (60/min) exceeded. The IP is not written to any DB table." }
+                    }
+                }
+            },
             "/v1/comparisons": {
                 "get": {
                     "operationId": "comparisons",

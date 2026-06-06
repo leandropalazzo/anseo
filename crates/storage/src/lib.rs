@@ -162,4 +162,10 @@ impl Storage {
     pub fn contributions(&self) -> repositories::contributions::ContributionRepo<'_> {
         repositories::contributions::ContributionRepo::new(&self.pool)
     }
+
+    /// Epic 47 / Story 47.1 — Privacy-safe public site-event ingest (no PII),
+    /// nightly rollups, and 30-day raw retention.
+    pub fn site_events(&self) -> repositories::site_events::SiteEventRepo<'_> {
+        repositories::site_events::SiteEventRepo::new(&self.pool)
+    }
 }
