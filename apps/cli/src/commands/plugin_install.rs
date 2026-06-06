@@ -40,6 +40,8 @@ pub enum PluginError {
     NotFound { id: String, version: String },
     #[error("unsigned plugin {0} refuses to install without --allow-unsigned")]
     UnsignedRefused(String),
+    #[error("first-party plugin must be signed: {0}")]
+    FirstPartyMustBeSigned(String),
     #[error("signature verification failed: {0}")]
     Verify(String),
     #[error("malformed registry key/signature: {0}")]
@@ -133,7 +135,24 @@ pub async fn install_plugin(
     let version = entry.version;
     let art = registry.fetch(id, &version)?;
 
-    let (status, publisher_fp, trust_root, namespace) = if opts.allow_unsigned {
+    // Story 41.4 — first-party plugins (publisher = "anseo.ai") are
+    // signature-REQUIRED. There is no `--allow-unsigned` escape hatch for them:
+    // a missing signature/claim is a hard error, and an invalid signature is
+    // caught by `verify_signed_plugin` below.
+    let is_first_party = art.manifest.is_first_party();
+    if is_first_party && (art.signature.is_none() || art.claim.is_none()) {
+        return Err(PluginError::FirstPartyMustBeSigned(id.to_string()));
+    }
+
+    // For community plugins with no signature, `--allow-unsigned` records an
+    // unsigned install with a warning (the worker still gates load separately).
+    let community_unsigned = opts.allow_unsigned && !is_first_party;
+
+    let (status, publisher_fp, trust_root, namespace) = if community_unsigned {
+        eprintln!(
+            "[UNSIGNED PLUGIN] {id}: installing without a verified signature \
+             (--allow-unsigned). Anseo cannot attest this plugin's authenticity."
+        );
         (
             "unsigned",
             "unsigned".to_string(),

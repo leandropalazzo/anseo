@@ -17,6 +17,7 @@ fn good_manifest() -> PluginManifest {
         version: "0.3.1".into(),
         description: "Higher-recall citation extraction.".into(),
         author: "Priya".into(),
+        publisher: String::new(),
         homepage: "https://example.com".into(),
         capabilities: vec![
             Capability::Network {

@@ -192,6 +192,13 @@ pub enum PluginSub {
     Remove(commands::plugin::RemoveArgs),
     /// Upgrade an installed plugin to a new version.
     Upgrade(commands::plugin::UpgradeArgs),
+    /// Generate an Ed25519 signing keypair (Story 41.4). Public key → pin as
+    /// `ANSEO_ROOT_PUBKEY`; secret → store as the `ANSEO_PLUGIN_SIGNING_KEY`
+    /// CI secret.
+    Keygen(commands::plugin_sign::KeygenArgs),
+    /// Sign a plugin bundle and emit its namespace claim (Story 41.4). Produces
+    /// `signature.bin` + `claim.toml` that verify under the install path.
+    Sign(commands::plugin_sign::SignArgs),
 }
 
 #[derive(Debug, Subcommand)]

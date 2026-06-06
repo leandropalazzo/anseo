@@ -78,6 +78,8 @@ fn main() {
             PluginSub::List(args) => run_async(commands::plugin::run_list(args)),
             PluginSub::Remove(args) => run_async(commands::plugin::run_remove(args)),
             PluginSub::Upgrade(args) => run_async(commands::plugin::run_upgrade(args)),
+            PluginSub::Keygen(args) => commands::plugin_sign::run_keygen(args),
+            PluginSub::Sign(args) => commands::plugin_sign::run_sign(args),
         },
         Command::Mcp { sub } => match sub {
             McpSub::Serve(args) => commands::mcp::run_serve(args),

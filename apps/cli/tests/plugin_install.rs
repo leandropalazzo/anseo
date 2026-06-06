@@ -183,3 +183,78 @@ async fn plg_6_allow_unsigned_audits_unsigned_status(pool: PgPool) {
     assert!(!rows[0].signature_verified, "unsigned → not verified");
     assert_eq!(rows[0].signing_trust_root, "unsigned");
 }
+
+// ---------------------------------------------------------------------------
+// Story 41.4 — first-party (publisher = "anseo.ai") plugins are
+// signature-REQUIRED. An unsigned first-party plugin must refuse to install
+// even with --allow-unsigned (AC2).
+// ---------------------------------------------------------------------------
+
+const FIRST_PARTY_ID: &str = "anseo.core-extractor";
+const FIRST_PARTY_VERSION: &str = "1.0.0";
+const FIRST_PARTY_MANIFEST: &str = "\
+name: anseo.core-extractor
+version: 1.0.0
+description: First-party extractor
+author: anseo
+publisher: anseo.ai
+homepage: https://anseo.ai
+capabilities:
+  - kind: network
+    allowlist: [\"api.anseo.ai\"]
+plugin_type: extractor
+entry_point: entrypoint.wasm
+";
+
+/// Build an UNSIGNED first-party registry fixture (publisher = anseo.ai, no
+/// signature.bin / claim.toml).
+fn build_unsigned_first_party_registry(root: &Path) {
+    let dir = root
+        .join("plugins")
+        .join(FIRST_PARTY_ID)
+        .join(FIRST_PARTY_VERSION);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        root.join("index.toml"),
+        format!(
+            "[[plugin]]\nid = \"{FIRST_PARTY_ID}\"\nversion = \"{FIRST_PARTY_VERSION}\"\ndescription = \"First-party extractor\"\n"
+        ),
+    )
+    .unwrap();
+    std::fs::write(dir.join("manifest.yaml"), FIRST_PARTY_MANIFEST).unwrap();
+    std::fs::write(dir.join("entrypoint.wasm"), ENTRYPOINT).unwrap();
+}
+
+#[sqlx::test(migrations = "../../crates/storage/migrations")]
+async fn plg_41_4_first_party_unsigned_refuses_even_with_allow_unsigned(pool: PgPool) {
+    let tmp = tempfile::tempdir().unwrap();
+    let registry_root = tmp.path().join("registry");
+    let home = tmp.path().join("home");
+    build_unsigned_first_party_registry(&registry_root);
+    let registry = FsRegistry::new(&registry_root);
+
+    // --allow-unsigned does NOT bypass the first-party signature requirement.
+    let opts = InstallOptions {
+        allow_unsigned: true,
+        ..Default::default()
+    };
+    let result = install_plugin(
+        &pool,
+        &registry,
+        &home,
+        FIRST_PARTY_ID,
+        FIRST_PARTY_VERSION,
+        &opts,
+        &[[0u8; 32]],
+    )
+    .await;
+    let err = result.expect_err("first-party unsigned plugin must refuse to install");
+    assert!(
+        err.to_string()
+            .contains("first-party plugin must be signed"),
+        "expected first-party-must-be-signed error, got: {err}"
+    );
+
+    // Nothing was installed.
+    assert!(list_installed(&pool).await.unwrap().is_empty());
+}

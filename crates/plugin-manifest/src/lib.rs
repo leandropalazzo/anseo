@@ -31,7 +31,7 @@ pub mod validation;
 
 pub use capability::{Capability, CapabilityParseError};
 pub use install_record::{NewInstallRecord, UNSIGNED_SUBSTRATE_TRUST_ROOT};
-pub use manifest::{ManifestLoadError, PluginManifest};
+pub use manifest::{ManifestLoadError, PluginManifest, FIRST_PARTY_PUBLISHER};
 pub use plugin_type::{PluginType, PluginTypeParseError};
 pub use validation::ValidationError;
 

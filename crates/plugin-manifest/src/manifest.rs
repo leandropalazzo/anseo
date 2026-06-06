@@ -9,6 +9,11 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+/// The `publisher` value that marks a plugin as first-party (Story 41.4). A
+/// first-party plugin must be signed; install hard-errors if its signature is
+/// missing or invalid, ignoring `--allow-unsigned`.
+pub const FIRST_PARTY_PUBLISHER: &str = "anseo.ai";
+
 /// Plugin manifest as declared in `plugin.yaml` on disk.
 ///
 /// Arch §2.5 names the file `plugin.toml`; we ship YAML here per the brief
@@ -24,6 +29,13 @@ pub struct PluginManifest {
     pub description: String,
     #[serde(default)]
     pub author: String,
+    /// Optional publisher identity (Story 41.4). When this equals
+    /// [`FIRST_PARTY_PUBLISHER`] the plugin is treated as **first-party** and a
+    /// valid signature is *required* at install time (no `--allow-unsigned`
+    /// escape hatch); community plugins (any other / empty value) may install
+    /// unsigned with a warning.
+    #[serde(default)]
+    pub publisher: String,
     #[serde(default)]
     pub homepage: String,
     /// Closed catalog; see [`Capability`].
@@ -73,6 +85,12 @@ impl PluginManifest {
                 source,
             })?;
         Ok(manifest)
+    }
+
+    /// Whether this manifest declares a first-party publisher (Story 41.4).
+    /// First-party plugins are signature-required at install time.
+    pub fn is_first_party(&self) -> bool {
+        self.publisher == FIRST_PARTY_PUBLISHER
     }
 
     /// Strict-parse a manifest from in-memory YAML bytes. Same parse pass as
