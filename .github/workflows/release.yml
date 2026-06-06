@@ -213,13 +213,17 @@ jobs:
             echo "publish_ok=${ok} tag_latest=${latest} (event=${EVENT_NAME}, tag=${TAG})"
           }
 
+          # SINGLE EXIT DISCIPLINE: do NOT early-`exit 0` on a refused ref. Every
+          # path below sets ok/latest, falls through to emit_outputs, and THEN
+          # reaches the fail-fast — so a refused REAL release (e.g. a non-strict
+          # tag like v1.2.3-rc1, or a tag not reachable from the default branch)
+          # always turns the train RED instead of finishing green with nothing
+          # published. A non-strict tag simply leaves ok=false and skips the
+          # ancestry block; the fail-fast (or, for dry-run, the no-op contract)
+          # then decides the outcome.
           if ! printf '%s' "$TAG" | grep -Eq "$semver"; then
             echo "::warning::ref '$TAG' is not a strict release tag (vX.Y.Z) — publish legs will be skipped (fail-closed)."
-            emit_outputs
-            exit 0
-          fi
-
-          if [ "$EVENT_NAME" = "push" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+          elif [ "$EVENT_NAME" = "push" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             # BOTH the push and dispatch paths require the SAME proof: the ref must
             # be a strict-semver TAG whose commit is reachable from the default
             # branch. A tag push can point at an unmerged/unreviewed commit, so a
@@ -275,9 +279,15 @@ jobs:
           # (publish_ok=false, but we do NOT fail) — rehearsals may legitimately
           # point at any ref. A normal default-branch-reachable vX.Y.Z release has
           # ok=true and passes through untouched.
+          #
+          # This block is now reached on EVERY non-dry-run path (including the
+          # non-strict / prerelease-suffix tag case, which previously short-
+          # circuited with `exit 0` before getting here and finished GREEN without
+          # publishing — a silent no-op release). There is intentionally NO other
+          # `exit 0` or early return between guard start and here.
           if [ "${ok}" != "true" ] && [ "${DRY_RUN}" != "true" ]; then
             if [ "$EVENT_NAME" = "push" ] || [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-              echo "::error::release refused: ref '${TAG}' is not a default-branch-reachable vX.Y.Z tag; nothing will be published." >&2
+              echo "::error::release refused: '${TAG}' is not a strict vX.Y.Z tag reachable from the default branch; nothing published. Prerelease/suffixed tags are not publishable by the release train." >&2
               exit 1
             fi
           fi

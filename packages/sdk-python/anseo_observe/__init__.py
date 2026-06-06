@@ -45,4 +45,16 @@ __all__ = [
     "observe_run",
 ]
 
-__version__ = "0.1.0"
+# Resolve the runtime version from the INSTALLED package metadata so it can
+# never drift from the wheel the release train publishes (the release pins
+# [project].version in pyproject.toml; importlib reads that same value at
+# runtime). Falls back to the in-tree literal for editable/uninstalled dev use.
+try:  # pragma: no cover - trivial metadata lookup
+    from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+    try:
+        __version__ = _pkg_version("anseo-observe")
+    except PackageNotFoundError:
+        __version__ = "0.1.0"
+except ImportError:  # pragma: no cover - importlib.metadata always present on 3.8+
+    __version__ = "0.1.0"
