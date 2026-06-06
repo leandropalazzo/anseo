@@ -84,6 +84,24 @@ const DIM_MAX_LEN: usize = 256;
 /// value (e.g. a referrer containing an `@`, or an unparseable path).
 const OTHER_BUCKET: &str = "(other)";
 
+/// Truncate `s` to at most `max_bytes`, landing on a UTF-8 char boundary.
+///
+/// `String::truncate` panics if the byte index is not a char boundary, so a
+/// public request carrying a long multi-byte string (e.g. a path of repeated
+/// `é`) could otherwise crash the handler task (unauthenticated DoS). We instead
+/// pick the largest byte index `<= max_bytes` that is a valid boundary and slice
+/// there — never splitting a code point and never exceeding the byte cap.
+fn truncate_on_char_boundary(s: &mut String, max_bytes: usize) {
+    if s.len() <= max_bytes {
+        return;
+    }
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    s.truncate(end);
+}
+
 /// Safe sentinel for a `properties.method` value that isn't in the closed verify
 /// method enum (an arbitrary / poisoned string).
 const METHOD_UNKNOWN: &str = "unknown";
@@ -188,9 +206,7 @@ fn normalize_path(raw: &str) -> Option<String> {
     let path_only = if path_only.is_empty() { "/" } else { path_only };
 
     let mut out = path_only.to_string();
-    if out.len() > DIM_MAX_LEN {
-        out.truncate(DIM_MAX_LEN);
-    }
+    truncate_on_char_boundary(&mut out, DIM_MAX_LEN);
     Some(out)
 }
 
@@ -252,9 +268,7 @@ fn normalize_referrer(raw: &str) -> Option<String> {
     }
 
     let mut out = host.to_ascii_lowercase();
-    if out.len() > DIM_MAX_LEN {
-        out.truncate(DIM_MAX_LEN);
-    }
+    truncate_on_char_boundary(&mut out, DIM_MAX_LEN);
     Some(out)
 }
 
@@ -540,5 +554,49 @@ mod tests {
         // Empty (direct visit) → store nothing.
         assert_eq!(normalize_referrer(""), None);
         assert_eq!(normalize_referrer("   "), None);
+    }
+
+    /// Finding 2 — a public request carrying a long multi-byte path/referrer must
+    /// NOT panic. `String::truncate` panics on a non-char-boundary byte index, so
+    /// truncating a string of repeated `é` (2 bytes each) at DIM_MAX_LEN=256 would
+    /// land mid-character. The safe truncation must instead return a valid UTF-8
+    /// string whose byte length is <= DIM_MAX_LEN and never split a code point.
+    #[test]
+    fn normalize_handles_long_non_ascii_without_panic() {
+        // 257 bytes: "/" (1 byte) + 128 × "é" (2 bytes each = 256 bytes).
+        let long_path = format!("/{}", "é".repeat(128));
+        assert_eq!(long_path.len(), 257);
+        let out = normalize_path(&long_path).expect("non-empty path normalizes");
+        // No panic; result is valid UTF-8, within the byte cap, and on a boundary.
+        assert!(out.len() <= DIM_MAX_LEN, "byte length must respect cap: {}", out.len());
+        assert!(std::str::from_utf8(out.as_bytes()).is_ok());
+        assert!(out.starts_with('/'));
+        // 256 is odd-vs-the-2-byte boundary after the leading '/', so the safe
+        // truncation backs off to 255 bytes (1 + 127 × 2).
+        assert_eq!(out.len(), 255);
+        assert_eq!(out.chars().filter(|c| *c == 'é').count(), 127);
+
+        // A long multi-byte referrer host must also not panic. Referrer hosts are
+        // ASCII-only after validation, so a non-ASCII referrer buckets safely.
+        let long_ref = format!("{}.com", "é".repeat(200));
+        let rout = normalize_referrer(&long_ref).expect("non-empty referrer normalizes");
+        assert!(rout.len() <= DIM_MAX_LEN);
+        assert!(std::str::from_utf8(rout.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn truncate_on_char_boundary_never_splits_code_point() {
+        // Exactly at cap → unchanged.
+        let mut s = "a".repeat(DIM_MAX_LEN);
+        truncate_on_char_boundary(&mut s, DIM_MAX_LEN);
+        assert_eq!(s.len(), DIM_MAX_LEN);
+
+        // Multi-byte string just over the cap backs off to a boundary.
+        let mut s = "é".repeat(200); // 400 bytes
+        truncate_on_char_boundary(&mut s, DIM_MAX_LEN);
+        assert!(s.len() <= DIM_MAX_LEN);
+        assert!(std::str::from_utf8(s.as_bytes()).is_ok());
+        // 256 is even and each 'é' is 2 bytes, so 128 chars (256 bytes) fit exactly.
+        assert_eq!(s.len(), 256);
     }
 }

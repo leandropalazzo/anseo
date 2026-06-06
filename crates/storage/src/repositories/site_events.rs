@@ -201,7 +201,7 @@ impl<'a> SiteEventRepo<'a> {
                                 NULLIF(
                                     split_part(
                                         split_part(
-                                            regexp_replace(path, '^https?://[^/]*', ''),
+                                            regexp_replace(path, '^https?://[^/]*', '', 'i'),
                                             '?', 1
                                         ),
                                         '#', 1
@@ -261,7 +261,7 @@ impl<'a> SiteEventRepo<'a> {
                             split_part(
                                 split_part(
                                     regexp_replace(
-                                        regexp_replace(referrer, '^(https?:)?//', ''),
+                                        regexp_replace(referrer, '^(https?:)?//', '', 'i'),
                                         '^[^/@?#]*@', ''
                                     ),
                                     '/', 1
@@ -859,6 +859,19 @@ mod tests {
         )
         .await
         .unwrap();
+        // Finding 1: an UPPERCASE-scheme full URL is accepted by the `~*`
+        // (case-insensitive) predicate, so the scheme+host strip MUST also be
+        // case-insensitive — otherwise `HTTPS://example.com/account?token=abc`
+        // is rolled up (and shown on the dashboard) as the raw full URL.
+        repo.insert(
+            "page_view",
+            uuid::Uuid::new_v4(),
+            Some("HTTPS://example.com/account?token=abc"),
+            None,
+            &serde_json::json!({}),
+        )
+        .await
+        .unwrap();
 
         repo.compute_rollups().await.unwrap();
 
@@ -874,6 +887,17 @@ mod tests {
         assert!(
             !labels.iter().any(|l| l.contains("evil.example.com") || l.contains("token=")),
             "no raw URL / query string may be durable: {labels:?}"
+        );
+        // Finding 1: the UPPERCASE-scheme URL must reduce to "/account" — the
+        // scheme+host strip is case-insensitive, so neither the raw `HTTPS://...`
+        // nor the `?token=abc` query may be durable.
+        assert!(
+            labels.contains(&"/account"),
+            "UPPERCASE-scheme full URL must reduce to its path; got {labels:?}"
+        );
+        assert!(
+            !labels.iter().any(|l| l.to_ascii_lowercase().contains("https://")),
+            "no raw (upper- or lower-case scheme) URL may be durable: {labels:?}"
         );
         // Finding 2: the fragment-carried token URL rolls up as bare "/settings"
         // — the `#token=secret` fragment must be stripped, never durable.
