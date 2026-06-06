@@ -14,9 +14,10 @@
 #     push=true ONLY after its tag/reachability guard (publish_ok) passes.
 #   * workflow_dispatch (below)     — BUILD-ONLY validation of a single ref for
 #     operators. A DIRECT manual dispatch can NEVER publish to GHCR or move
-#     `latest`, regardless of any dispatch-supplied input: the build step's
-#     effective push/tag_latest are forced false unless the run arrived via
-#     `workflow_call` from the guarded release train. This closes the
+#     `latest`: the `push`/`tag_latest` inputs are defined ONLY under
+#     `workflow_call`, so on a direct dispatch they don't exist and evaluate
+#     falsy — publishing requires a guarded `workflow_call` from the release
+#     train, which is the only trigger that supplies those inputs. This closes the
 #     supply-chain hole where a direct dispatch of an arbitrary/unproven ref
 #     (e.g. v9.9.9) could push official ghcr.io/.../opengeo/{api,worker,web}
 #     tags while bypassing the release train's tag/reachability validation.
@@ -110,33 +111,17 @@ jobs:
           echo "version=${ver}" >> "$GITHUB_OUTPUT"
           echo "resolved version: ${ver}"
 
-      # SUPPLY-CHAIN GUARD: compute the EFFECTIVE publish flags. Publishing to
-      # GHCR (and moving `latest`) is allowed ONLY when this workflow was invoked
-      # via `workflow_call` from the guarded release train — and even then only
-      # when the caller explicitly requested it. A DIRECT `workflow_dispatch`
-      # resolves both flags to false no matter what, so a manual run of an
-      # arbitrary/unproven ref (e.g. v9.9.9) can only validate the build; it can
-      # never mutate the registry or overwrite `latest`. This is what prevents a
-      # direct dispatch from bypassing the release train's tag/reachability guard.
-      - name: Resolve effective publish flags
-        id: flags
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          CALLER_PUSH: ${{ inputs.push }}
-          CALLER_TAG_LATEST: ${{ inputs.tag_latest }}
-        run: |
-          set -euo pipefail
-          if [ "${EVENT_NAME}" = "workflow_call" ]; then
-            push="${CALLER_PUSH:-false}"
-            tag_latest="${CALLER_TAG_LATEST:-false}"
-          else
-            # Direct workflow_dispatch (or any non-call trigger): build-only.
-            push="false"
-            tag_latest="false"
-          fi
-          echo "push=${push}" >> "$GITHUB_OUTPUT"
-          echo "tag_latest=${tag_latest}" >> "$GITHUB_OUTPUT"
-          echo "effective push=${push} tag_latest=${tag_latest} (event=${EVENT_NAME})"
+      # SUPPLY-CHAIN GUARD — STRUCTURAL, via the trigger's input surface.
+      # Publishing to GHCR (and moving `latest`) is driven by `inputs.push` /
+      # `inputs.tag_latest`, which are defined ONLY under `workflow_call`. On a
+      # DIRECT `workflow_dispatch` those inputs do not exist and evaluate falsy,
+      # so a manual run of an arbitrary/unproven ref (e.g. v9.9.9) can only
+      # validate the build — it can never mutate the registry or overwrite
+      # `latest`. On a `workflow_call` from the guarded release train the real
+      # values flow straight through. We deliberately do NOT key off
+      # `github.event_name`: in a reusable workflow that is always the CALLER's
+      # original trigger (e.g. `push`/`workflow_dispatch`), NEVER `workflow_call`,
+      # so testing it would force build-only even on a real guarded release.
 
       # Multi-arch emulation (arm64 via QEMU)
       - name: Set up QEMU
@@ -163,7 +148,7 @@ jobs:
       # parser sees a tag-shaped value; {{version}}/{{major}}/{{minor}} strip it
       # back to the bare X.Y.Z that ANSEO_VERSION + the compose snapshot expect.
       #
-      # `latest` is gated on the explicit `tag_latest` INPUT — i.e. the RESOLVED
+      # `latest` is gated on the explicit `tag_latest` input — i.e. the RESOLVED
       # build ref, decided by the caller — NOT on docker/metadata-action's
       # {{is_default_branch}}, which reads the workflow EVENT ref. {{is_default_branch}}
       # is true for ANY run dispatched from the default branch (incl. a manual
@@ -180,7 +165,7 @@ jobs:
             type=semver,pattern={{version}},value=v${{ steps.version.outputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=v${{ steps.version.outputs.version }}
             type=semver,pattern={{major}},value=v${{ steps.version.outputs.version }}
-            type=raw,value=latest,enable=${{ steps.flags.outputs.tag_latest }}
+            type=raw,value=latest,enable=${{ inputs.tag_latest }}
 
       # Build for amd64 + arm64 and push both manifests atomically
       - name: Build and push
@@ -192,10 +177,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           # Dry-run (push=false) builds both arches for validation but does NOT
           # push manifests/tags to GHCR — no registry mutation on a rehearsal.
-          # Effective push (steps.flags) is false for a direct workflow_dispatch,
-          # so a manual run is always build-only; true only when the guarded
-          # release train calls in via workflow_call with push=true.
-          push: ${{ steps.flags.outputs.push == 'true' }}
+          # `inputs.push` is undefined (falsy) on a direct workflow_dispatch, so
+          # a manual run is always build-only; true only when the guarded release
+          # train calls in via workflow_call with push=true.
+          push: ${{ inputs.push == true }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.app }}
@@ -205,7 +190,7 @@ jobs:
       # (push=false): with no pushed image there is no digest to attest, and
       # push-to-registry would mutate GHCR — exactly what a rehearsal avoids.
       - name: Attest build provenance
-        if: ${{ steps.flags.outputs.push == 'true' }}
+        if: ${{ inputs.push }}
         uses: actions/attest-build-provenance@v1
         with:
           subject-name: ghcr.io/${{ github.repository_owner }}/opengeo/${{ matrix.app }}
