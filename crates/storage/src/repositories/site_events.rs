@@ -53,6 +53,30 @@ pub struct SiteEventRollup {
     pub computed_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// A `(label, count)` aggregate row used by the operator dashboard for top-pages
+/// and top-referrers (Story 47.4). `label` is a site-relative path or a bare
+/// referrer domain — both non-PII by the 47.1 privacy contract.
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct LabeledCount {
+    pub label: String,
+    pub count: i64,
+}
+
+/// A `(day, count)` aggregate row used by the operator dashboard for the
+/// sessions-per-day sparkline (Story 47.4).
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct DailyCount {
+    pub day: chrono::NaiveDate,
+    pub count: i64,
+}
+
+/// A `(event_type, count)` aggregate row — funnel step counts (Story 47.4).
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
+pub struct EventTypeCount {
+    pub event_type: String,
+    pub count: i64,
+}
+
 /// Borrowing repository over a shared pool.
 pub struct SiteEventRepo<'a> {
     pool: &'a PgPool,
@@ -134,7 +158,215 @@ impl<'a> SiteEventRepo<'a> {
         )
         .execute(self.pool)
         .await?;
+
+        // Story 47.4 — dimension rollups for the operator Site Overview panel.
+        // Same finalize/monotonic guard as the event rollup above: once a day is
+        // complete (strictly before the current UTC date) its dimension counts
+        // are frozen so a post-prune recompute from a partial raw subset cannot
+        // reduce them. `path` / `referrer` are non-PII (47.1 contract).
+        sqlx::query(
+            r#"
+            INSERT INTO site_page_rollups (path, day, views, finalized, computed_at)
+            SELECT
+                path,
+                (ts AT TIME ZONE 'UTC')::date AS day,
+                COUNT(*)                      AS views,
+                ((ts AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'UTC')::date) AS finalized,
+                now()                         AS computed_at
+            FROM site_events
+            WHERE event_type = 'page_view' AND path IS NOT NULL
+            GROUP BY path, (ts AT TIME ZONE 'UTC')::date
+            ON CONFLICT (path, day) DO UPDATE SET
+                views       = EXCLUDED.views,
+                finalized   = EXCLUDED.finalized,
+                computed_at = EXCLUDED.computed_at
+            WHERE NOT site_page_rollups.finalized
+            "#,
+        )
+        .execute(self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO site_referrer_rollups (referrer, day, visits, finalized, computed_at)
+            SELECT
+                referrer,
+                (ts AT TIME ZONE 'UTC')::date AS day,
+                COUNT(*)                      AS visits,
+                ((ts AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'UTC')::date) AS finalized,
+                now()                         AS computed_at
+            FROM site_events
+            WHERE event_type = 'page_view' AND referrer IS NOT NULL AND referrer <> ''
+            GROUP BY referrer, (ts AT TIME ZONE 'UTC')::date
+            ON CONFLICT (referrer, day) DO UPDATE SET
+                visits      = EXCLUDED.visits,
+                finalized   = EXCLUDED.finalized,
+                computed_at = EXCLUDED.computed_at
+            WHERE NOT site_referrer_rollups.finalized
+            "#,
+        )
+        .execute(self.pool)
+        .await?;
+
         Ok(result.rows_affected())
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Story 47.4 — operator analytics dashboard read queries.
+    //
+    // All read from the *aggregate* rollup tables (never raw events), so they are
+    // privacy-safe by construction and survive the 30-day raw-retention prune.
+    // `period_days` is clamped by the caller to the supported {7, 30} window.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Unique sessions per day over the trailing `period_days`, oldest day first.
+    /// Sums `unique_sessions` across all event types for each day (a session that
+    /// fired any event that day is counted once per event type it touched; this
+    /// is the best aggregate available without a per-day session dimension, and
+    /// `page_view` dominates so it tracks real unique visits closely).
+    pub async fn sessions_per_day(
+        &self,
+        period_days: i64,
+    ) -> Result<Vec<DailyCount>, Error> {
+        let rows = sqlx::query_as::<_, DailyCount>(
+            r#"
+            SELECT day, MAX(unique_sessions) AS count
+            FROM site_event_rollups
+            WHERE event_type = 'page_view'
+              AND day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => $1::int)
+            GROUP BY day
+            ORDER BY day ASC
+            "#,
+        )
+        .bind(period_days)
+        .fetch_all(self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// Top `limit` pages by total views over the trailing `period_days`.
+    pub async fn top_pages(
+        &self,
+        period_days: i64,
+        limit: i64,
+    ) -> Result<Vec<LabeledCount>, Error> {
+        let rows = sqlx::query_as::<_, LabeledCount>(
+            r#"
+            SELECT path AS label, SUM(views)::bigint AS count
+            FROM site_page_rollups
+            WHERE day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => $1::int)
+            GROUP BY path
+            ORDER BY count DESC, label ASC
+            LIMIT $2
+            "#,
+        )
+        .bind(period_days)
+        .bind(limit)
+        .fetch_all(self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// Top `limit` referrer domains by total visits over the trailing window.
+    pub async fn top_referrers(
+        &self,
+        period_days: i64,
+        limit: i64,
+    ) -> Result<Vec<LabeledCount>, Error> {
+        let rows = sqlx::query_as::<_, LabeledCount>(
+            r#"
+            SELECT referrer AS label, SUM(visits)::bigint AS count
+            FROM site_referrer_rollups
+            WHERE day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => $1::int)
+            GROUP BY referrer
+            ORDER BY count DESC, label ASC
+            LIMIT $2
+            "#,
+        )
+        .bind(period_days)
+        .bind(limit)
+        .fetch_all(self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// Total `event_count` per event type over the trailing `period_days`.
+    /// Backs both funnel panels (contribute + verify) and the badge-embed chart.
+    /// Returns one row per event type that has any events in the window.
+    pub async fn event_type_totals(
+        &self,
+        period_days: i64,
+    ) -> Result<Vec<EventTypeCount>, Error> {
+        let rows = sqlx::query_as::<_, EventTypeCount>(
+            r#"
+            SELECT event_type, SUM(event_count)::bigint AS count
+            FROM site_event_rollups
+            WHERE day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => $1::int)
+            GROUP BY event_type
+            "#,
+        )
+        .bind(period_days)
+        .fetch_all(self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// Daily badge-embed serve counts over the trailing `period_days`, oldest
+    /// first. Backs the Badge Embeds bar chart.
+    pub async fn badge_embeds_per_day(
+        &self,
+        period_days: i64,
+    ) -> Result<Vec<DailyCount>, Error> {
+        let rows = sqlx::query_as::<_, DailyCount>(
+            r#"
+            SELECT day, SUM(event_count)::bigint AS count
+            FROM site_event_rollups
+            WHERE event_type = 'badge_embed_view'
+              AND day >= (now() AT TIME ZONE 'UTC')::date - make_interval(days => $1::int)
+            GROUP BY day
+            ORDER BY day ASC
+            "#,
+        )
+        .bind(period_days)
+        .fetch_all(self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    /// Verify funnel counts grouped by method (`dns` | `email`). Method lives in
+    /// the raw event `properties`, which the rollup drops — so this is the one
+    /// dashboard query that reads raw `site_events`. Still aggregate (GROUP BY),
+    /// still no PII (method is a fixed enum, not identity), and bounded to the
+    /// 30-day raw-retention window. Returns `(event_type, method, count)` rows.
+    pub async fn verify_counts_by_method(
+        &self,
+        period_days: i64,
+    ) -> Result<Vec<(String, String, i64)>, Error> {
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                event_type,
+                COALESCE(properties->>'method', 'unknown') AS method,
+                COUNT(*)::bigint AS count
+            FROM site_events
+            WHERE event_type IN ('verify_start', 'verify_complete', 'verify_fail')
+              AND ts >= now() - make_interval(days => $1::int)
+            GROUP BY event_type, method
+            "#,
+        )
+        .bind(period_days)
+        .fetch_all(self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                (
+                    r.get::<String, _>("event_type"),
+                    r.get::<String, _>("method"),
+                    r.get::<i64, _>("count"),
+                )
+            })
+            .collect())
     }
 
     /// Retention: delete raw `site_events` rows older than `retention_days`.
@@ -319,5 +551,83 @@ mod tests {
         );
         assert_eq!(after.unique_sessions, 3);
         assert!(after.finalized);
+    }
+
+    /// Story 47.4 — dashboard read queries over the aggregate rollups.
+    #[sqlx::test(migrations = "./migrations")]
+    async fn dashboard_reads_aggregate_from_rollups(pool: PgPool) {
+        let repo = SiteEventRepo::new(&pool);
+
+        // Three page_views across two paths + one referrer; one verify_start(dns)
+        // and one verify_complete(dns); two badge embeds. All today.
+        let s1 = uuid::Uuid::new_v4();
+        let s2 = uuid::Uuid::new_v4();
+        repo.insert("page_view", s1, Some("/"), Some("google.com"), &serde_json::json!({}))
+            .await
+            .unwrap();
+        repo.insert("page_view", s1, Some("/leaderboard"), Some("google.com"), &serde_json::json!({}))
+            .await
+            .unwrap();
+        repo.insert("page_view", s2, Some("/"), None, &serde_json::json!({}))
+            .await
+            .unwrap();
+        repo.insert("verify_start", s1, None, None, &serde_json::json!({"method": "dns"}))
+            .await
+            .unwrap();
+        repo.insert("verify_complete", s1, None, None, &serde_json::json!({"method": "dns"}))
+            .await
+            .unwrap();
+        repo.insert("badge_embed_view", s2, None, None, &serde_json::json!({}))
+            .await
+            .unwrap();
+        repo.insert("badge_embed_view", s2, None, None, &serde_json::json!({}))
+            .await
+            .unwrap();
+
+        repo.compute_rollups().await.unwrap();
+
+        // sessions_per_day: today has 2 unique sessions for page_view.
+        let spd = repo.sessions_per_day(7).await.unwrap();
+        assert_eq!(spd.len(), 1);
+        assert_eq!(spd[0].count, 2);
+
+        // top_pages: "/" has 2 views, "/leaderboard" 1.
+        let pages = repo.top_pages(7, 5).await.unwrap();
+        assert_eq!(pages[0].label, "/");
+        assert_eq!(pages[0].count, 2);
+        assert_eq!(pages[1].label, "/leaderboard");
+        assert_eq!(pages[1].count, 1);
+
+        // top_referrers: google.com has 2 visits.
+        let refs = repo.top_referrers(7, 5).await.unwrap();
+        assert_eq!(refs[0].label, "google.com");
+        assert_eq!(refs[0].count, 2);
+
+        // event_type_totals includes verify + badge counts.
+        let totals = repo.event_type_totals(7).await.unwrap();
+        let badge = totals.iter().find(|t| t.event_type == "badge_embed_view").unwrap();
+        assert_eq!(badge.count, 2);
+
+        // badge_embeds_per_day: today = 2.
+        let badges = repo.badge_embeds_per_day(30).await.unwrap();
+        assert_eq!(badges.iter().map(|d| d.count).sum::<i64>(), 2);
+
+        // verify_counts_by_method: dns start=1, complete=1.
+        let vm = repo.verify_counts_by_method(30).await.unwrap();
+        assert!(vm.contains(&("verify_start".to_string(), "dns".to_string(), 1)));
+        assert!(vm.contains(&("verify_complete".to_string(), "dns".to_string(), 1)));
+    }
+
+    /// Empty rollups → every dashboard read returns an empty vec (drives the web
+    /// empty-state; no crash, no synthetic zeroes).
+    #[sqlx::test(migrations = "./migrations")]
+    async fn dashboard_reads_are_empty_when_no_data(pool: PgPool) {
+        let repo = SiteEventRepo::new(&pool);
+        assert!(repo.sessions_per_day(7).await.unwrap().is_empty());
+        assert!(repo.top_pages(7, 5).await.unwrap().is_empty());
+        assert!(repo.top_referrers(7, 5).await.unwrap().is_empty());
+        assert!(repo.event_type_totals(7).await.unwrap().is_empty());
+        assert!(repo.badge_embeds_per_day(30).await.unwrap().is_empty());
+        assert!(repo.verify_counts_by_method(30).await.unwrap().is_empty());
     }
 }
