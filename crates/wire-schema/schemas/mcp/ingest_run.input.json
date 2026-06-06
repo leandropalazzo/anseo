@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ingest_run.input",
+  "description": "Record an externally-executed prompt run (a run the caller executed against a provider outside Anseo's own orchestrator) so it feeds the same extraction -> redaction -> contribution path as a native run.",
+  "type": "object",
+  "properties": {
+    "prompt_slug": {
+      "type": "string",
+      "description": "Slug-safe identifier of a prompt already declared in the resolved project."
+    },
+    "provider": {
+      "type": "string",
+      "description": "Provider the external run was executed against (a first-party name or plugin:<id>)."
+    },
+    "model": {
+      "type": "string",
+      "description": "Provider model/version string the external run used."
+    },
+    "response_text": {
+      "type": "string",
+      "description": "Raw provider response text. Optional when citation_domains is supplied directly."
+    },
+    "citation_domains": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Source domains observed in citations. When omitted, extracted from response_text."
+    },
+    "observed_rank": {
+      "type": "integer",
+      "description": "The brand's observed rank in this run, if computed by the caller."
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the external run was observed. Defaults to now."
+    },
+    "contribute": {
+      "type": "boolean",
+      "default": false,
+      "description": "Opt this run into the anonymous benchmark. Defaults to false. A true value with no per-project KEK is rejected. Note: full contribute enforcement requires Story 40.4."
+    }
+  },
+  "required": ["prompt_slug", "provider", "model"],
+  "additionalProperties": false
+}
