@@ -332,6 +332,15 @@ async fn start_verification(
             });
         }
         VerificationMethod::EmailMagicLink => {
+            // DEPLOYMENT NOTE (Story 43.2 / 43.7): DNS-TXT is the FUNCTIONAL
+            // PRIMARY verification method. Email magic-link is the ALTERNATE,
+            // lower-trust path and depends on the `anseo-comms` ESP/SMTP wire
+            // client, which is an explicit deployment follow-up shared with
+            // Story 43.7. Until that client is wired, the production transport
+            // returns `NotConfigured`, so this path correctly returns a 502
+            // (below) rather than a FALSE success — it must never report an
+            // email as sent when none was. This is intentional fail-loud
+            // behaviour, not a bug.
             let email = req.email.clone().unwrap_or_default();
             match send_magic_link(&state, &email, &challenge.raw_token).await? {
                 MagicLinkOutcome::Sent | MagicLinkOutcome::AlreadySent => {
@@ -748,63 +757,21 @@ async fn verify_magic_link(
 // Daily re-verification job (AC-5) — revoke on TXT record removal.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Re-check every dns_txt-verified domain. When the challenge TXT record is no
-/// longer present, transition the entity to `revoked` (starting the grace
-/// period) and append a revocation row to the ledger. The registered-email
-/// notification uses `anseo-comms` once available; until then we log (per AC-5).
-///
-/// Parameterised on the resolver + a `Storage` handle so it can be driven by a
-/// scheduler tick AND unit-tested with a mock resolver and no network.
+/// Re-check every dns_txt-verified domain and revoke those whose challenge TXT
+/// record is gone. The canonical implementation lives in `anseo-storage`
+/// (`run_reverification_job`) so the background **worker** can drive it on a
+/// daily cadence without depending on this HTTP crate — see
+/// `apps/worker/src/run.rs` (`maybe_run_reverification`). This thin wrapper is
+/// kept so API-side callers can reuse the same job behind the crate's
+/// `ApiError`. Parameterised on the resolver so production passes the real
+/// hickory client and tests inject a mock (no network).
 pub async fn run_reverification_job(
     storage: &Arc<anseo_storage::Storage>,
     resolver: &dyn TxtResolver,
 ) -> Result<usize, ApiError> {
-    let verification = storage.verification();
-    let entities = storage.entities();
-    let domains = verification
-        .dns_verified_domains()
+    anseo_storage::repositories::verification::run_reverification_job(storage, resolver)
         .await
-        .map_err(storage_err)?;
-    let mut revoked = 0usize;
-
-    for (domain, token_hash) in domains {
-        let record_name = MintedChallenge::dns_record_name(&domain);
-        let txt = match resolver.lookup_txt(&record_name).await {
-            Ok(v) => v,
-            // Transient errors are NOT treated as removal — skip this domain so
-            // a flaky resolver never falsely revokes a legitimate verification.
-            Err(ResolveError::Transient(_)) => continue,
-            Err(ResolveError::NotFound(_)) => Vec::new(),
-        };
-
-        // Still present if any resolved TXT value hashes to the stored token.
-        let still_present = txt.iter().any(|v| {
-            let v = v.trim().trim_matches('"');
-            v.strip_prefix("anseo-verify=")
-                .map(|raw| anseo_storage::repositories::verification::hash_token(raw) == token_hash)
-                .unwrap_or(false)
-        });
-
-        if !still_present {
-            entities
-                .set_grace_period_start(&domain)
-                .await
-                .map_err(storage_err)?;
-            verification
-                .record_revocation(&domain)
-                .await
-                .map_err(storage_err)?;
-            revoked += 1;
-            // AC-5: notify the registered email via anseo-comms once wired.
-            tracing::warn!(
-                event = "verification.revoked",
-                domain = %domain,
-                "DNS-TXT record removed; entity revoked + grace period started. \
-                 Revocation notification pending comms wire."
-            );
-        }
-    }
-    Ok(revoked)
+        .map_err(storage_err)
 }
 
 #[cfg(test)]

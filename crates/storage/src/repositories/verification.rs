@@ -421,6 +421,65 @@ impl<'a> VerificationRepo<'a> {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Daily re-verification job (AC-5) — revoke on TXT record removal.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Re-check every dns_txt-verified domain. When the challenge TXT record is no
+/// longer present, transition the entity to `revoked` (starting the grace
+/// period) and append a revocation row to the ledger. The registered-email
+/// notification uses `anseo-comms` once available; until then we log (per AC-5).
+///
+/// Lives in `anseo-storage` (not `anseo-api`) so the background **worker** can
+/// drive it on a daily cadence without depending on the HTTP crate — it only
+/// needs a [`Storage`] handle and a [`TxtResolver`]. The API layer re-exports a
+/// thin wrapper. Parameterised on the resolver so production passes the real
+/// hickory client and unit tests inject [`MockTxtResolver`] (no network).
+///
+/// Returns the number of entities revoked this sweep.
+pub async fn run_reverification_job(
+    storage: &crate::Storage,
+    resolver: &dyn TxtResolver,
+) -> Result<usize, Error> {
+    let verification = storage.verification();
+    let entities = storage.entities();
+    let domains = verification.dns_verified_domains().await?;
+    let mut revoked = 0usize;
+
+    for (domain, token_hash) in domains {
+        let record_name = MintedChallenge::dns_record_name(&domain);
+        let txt = match resolver.lookup_txt(&record_name).await {
+            Ok(v) => v,
+            // Transient errors are NOT treated as removal — skip this domain so
+            // a flaky resolver never falsely revokes a legitimate verification.
+            Err(ResolveError::Transient(_)) => continue,
+            Err(ResolveError::NotFound(_)) => Vec::new(),
+        };
+
+        // Still present if any resolved TXT value hashes to the stored token.
+        let still_present = txt.iter().any(|v| {
+            let v = v.trim().trim_matches('"');
+            v.strip_prefix("anseo-verify=")
+                .map(|raw| hash_token(raw) == token_hash)
+                .unwrap_or(false)
+        });
+
+        if !still_present {
+            entities.set_grace_period_start(&domain).await?;
+            verification.record_revocation(&domain).await?;
+            revoked += 1;
+            // AC-5: notify the registered email via anseo-comms once wired.
+            tracing::warn!(
+                event = "verification.revoked",
+                domain = %domain,
+                "DNS-TXT record removed; entity revoked + grace period started. \
+                 Revocation notification pending comms wire."
+            );
+        }
+    }
+    Ok(revoked)
+}
+
 /// Pure helper: classify why a presented token is invalid, given the stored
 /// row (or absence). Returns `Ok(())` when the token may be consumed, else the
 /// reason. Extracted so it is unit-testable without a DB (AC-4).
@@ -499,7 +558,10 @@ mod tests {
     fn txt_match_handles_quotes_and_whitespace() {
         let token = "abc123";
         let want = format!("anseo-verify={token}");
-        assert!(txt_records_contain_token(std::slice::from_ref(&want), token));
+        assert!(txt_records_contain_token(
+            std::slice::from_ref(&want),
+            token
+        ));
         // Quoted form as some resolvers return it.
         assert!(txt_records_contain_token(&[format!("\"{want}\"")], token));
         // Trailing whitespace tolerated.

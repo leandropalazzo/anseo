@@ -9,7 +9,7 @@
 //! implementation instead of duplicating the dispatch/reaper/webhook/ETL sweep.
 
 use std::future::Future;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anseo_scheduler::events::{LifecycleEvent, SchedulePayload};
 use anseo_scheduler::transport::publish;
@@ -21,6 +21,7 @@ use anseo_storage::Storage;
 use uuid::Uuid;
 
 use crate::etl::{drain_etl_jobs, run_migration};
+use crate::verification::{HickoryTxtResolver, REVERIFY_INTERVAL};
 use crate::{DEFAULT_ETL_CITATION_LIMIT, DEFAULT_ETL_DAYS, DEFAULT_ETL_MAX_JOBS_PER_SWEEP};
 
 /// Seconds between poll sweeps. Mirrors the legacy binary constant.
@@ -57,6 +58,13 @@ pub async fn run_poll_loop(
         .user_agent("opengeo-webhook-dispatcher/0.1")
         .build()?;
 
+    // Story 43.2 (AC-5): production DNS resolver for the daily re-verification
+    // sweep. Built once (system resolver config) and reused across ticks. The
+    // sweep itself is gated to at most once per [`REVERIFY_INTERVAL`] via the
+    // `last_reverify` instant below — a simple in-process daily cadence.
+    let reverify_resolver = HickoryTxtResolver::new();
+    let mut last_reverify: Option<Instant> = None;
+
     tokio::pin!(shutdown);
 
     let mut poll = tokio::time::interval(Duration::from_secs(POLL_INTERVAL_SECONDS));
@@ -73,11 +81,53 @@ pub async fn run_poll_loop(
             }
             _ = poll.tick() => {
                 run_tick(storage, &pool, dispatch, &http_client).await;
+                maybe_run_reverification(storage, &reverify_resolver, &mut last_reverify).await;
             }
         }
     }
 
     Ok(())
+}
+
+/// Daily DNS re-verification cadence (Story 43.2 AC-5). Runs the storage job
+/// [`anseo_storage::repositories::verification::run_reverification_job`] at most
+/// once per [`REVERIFY_INTERVAL`], revoking any dns_txt-verified entity whose
+/// challenge TXT record has been removed. Gated by an in-process "last run"
+/// instant rather than a separate scheduler so it adds no infrastructure; the
+/// first poll tick after boot runs one sweep, then daily thereafter. Errors are
+/// logged and retried on the next due tick — a failed sweep never wedges the
+/// poll loop.
+async fn maybe_run_reverification(
+    storage: &Storage,
+    resolver: &HickoryTxtResolver,
+    last_reverify: &mut Option<Instant>,
+) {
+    let due = match last_reverify {
+        Some(last) => last.elapsed() >= REVERIFY_INTERVAL,
+        None => true,
+    };
+    if !due {
+        return;
+    }
+    *last_reverify = Some(Instant::now());
+
+    match anseo_storage::repositories::verification::run_reverification_job(storage, resolver).await
+    {
+        Ok(revoked) => {
+            if revoked > 0 {
+                tracing::info!(
+                    event = "verification.reverify_swept",
+                    revoked,
+                    "daily DNS re-verification revoked entities with removed TXT records"
+                );
+            }
+        }
+        Err(err) => tracing::warn!(
+            event = "verification.reverify_failed",
+            error = %err,
+            "daily DNS re-verification sweep failed; will retry next due tick"
+        ),
+    }
 }
 
 /// Body of one poll sweep, extracted so the loop above stays readable. All
