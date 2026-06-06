@@ -50,12 +50,19 @@ async fn verified_token_resolves_and_stores_with_fk(pool: PgPool) {
         .await
         .unwrap();
 
-    // Mint a verification token bound to that domain.
+    // Mint a verification token bound to that domain, then CONSUME it (the
+    // attempt row becomes the spent proof: status='verified', used_at set).
+    // Resolution binds to this consumed proof — a merely-pending token must not
+    // resolve (see `pending_token_for_verified_domain_does_not_resolve`).
     let minted = storage
         .verification()
         .create_challenge(&domain, VerificationMethod::DnsTxt, Some("sess"), None)
         .await
         .unwrap();
+    assert!(
+        storage.verification().consume(minted.id).await.unwrap(),
+        "minting + consuming the challenge should succeed"
+    );
 
     // Brand-visibility consent (the provenance FK).
     let consent_id = storage
@@ -152,17 +159,21 @@ async fn unverified_domain_token_is_refused(pool: PgPool) {
     let domain = EntityRepo::normalize_domain("https://pendingco.example");
 
     let entities = storage.entities();
-    // Registered but left `pending` (not verified).
+    // Registered but left `pending` (not verified) in the registry — e.g. the
+    // challenge was consumed once but the claim was later revoked.
     entities
         .upsert(&domain, "Pending Co", "brand")
         .await
         .unwrap();
 
+    // A consumed proof exists (so we bind to a real verified attempt) but the
+    // entity's CURRENT claim_status is not 'verified' → still refused (AC-3).
     let minted = storage
         .verification()
         .create_challenge(&domain, VerificationMethod::DnsTxt, Some("sess"), None)
         .await
         .unwrap();
+    assert!(storage.verification().consume(minted.id).await.unwrap());
 
     let outcome = storage
         .contributions()
@@ -191,4 +202,85 @@ async fn unknown_token_resolves_to_nothing(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(outcome, ResolutionOutcome::UnknownToken);
+}
+
+/// SECURITY (brand-attribution bypass): an authenticated caller starts a fresh
+/// DNS-TXT challenge for an ALREADY-verified victim domain and gets a brand-new
+/// **pending** token — without ever proving control. That pending token MUST NOT
+/// resolve, even though the victim's entity is `claim_status = 'verified'`.
+/// Resolution binds to the attempt that actually CONSUMED a token
+/// (`status = 'verified'`, `used_at IS NOT NULL`), so the pending token resolves
+/// to nothing while the genuinely-consumed token still resolves.
+#[sqlx::test(migrations = "./migrations")]
+async fn pending_token_for_verified_domain_does_not_resolve(pool: PgPool) {
+    let storage = Storage::from_pool(pool.clone());
+    let _project = storage
+        .projects()
+        .create_project(&brand("victim"))
+        .await
+        .unwrap();
+    let domain = EntityRepo::normalize_domain("https://victim.example");
+
+    // The victim domain is legitimately verified in the registry.
+    let entities = storage.entities();
+    entities.upsert(&domain, "Victim", "brand").await.unwrap();
+    entities
+        .set_claim_status(&domain, "verified", Some("dns_txt"))
+        .await
+        .unwrap();
+
+    // The legitimate owner's challenge: minted AND consumed (the real proof).
+    let legit = storage
+        .verification()
+        .create_challenge(
+            &domain,
+            VerificationMethod::DnsTxt,
+            Some("owner-sess"),
+            None,
+        )
+        .await
+        .unwrap();
+    assert!(storage.verification().consume(legit.id).await.unwrap());
+
+    // The attacker starts a NEW challenge for the same already-verified domain
+    // and receives a fresh *pending* token — no DNS-TXT proof was ever submitted.
+    // (The live-challenge unique index only blocks a second *pending* row, so the
+    // attacker must expire the prior pending one; here the owner's is already
+    // consumed, leaving room for this fresh pending challenge.)
+    let attacker = storage
+        .verification()
+        .create_challenge(
+            &domain,
+            VerificationMethod::DnsTxt,
+            Some("attacker-sess"),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_ne!(attacker.raw_token, legit.raw_token);
+
+    // The attacker's pending token must NOT resolve — no consumed proof backs it.
+    let attacker_outcome = storage
+        .contributions()
+        .resolve_verified_domain(&attacker.raw_token)
+        .await
+        .unwrap();
+    assert_eq!(
+        attacker_outcome,
+        ResolutionOutcome::UnknownToken,
+        "a fresh pending token for a verified domain must not resolve"
+    );
+
+    // The legitimately-consumed token still resolves (no regression).
+    let legit_outcome = storage
+        .contributions()
+        .resolve_verified_domain(&legit.raw_token)
+        .await
+        .unwrap();
+    assert_eq!(
+        legit_outcome,
+        ResolutionOutcome::Verified {
+            domain: domain.clone()
+        }
+    );
 }

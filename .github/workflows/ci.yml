@@ -402,6 +402,19 @@ jobs:
       CI: "true"
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: Swatinem/rust-cache@v2
+      - name: install sqlx-cli
+        uses: taiki-e/install-action@v2
+        with:
+          tool: sqlx-cli
+      - name: apply migrations to the service DB
+        # The fresh `postgres:` service starts empty. The scavenger's first query
+        # reads `contributions`; without the schema it hits
+        # `relation "contributions" does not exist` → inconclusive → fail-closed
+        # (CI=true). Run the SAME embedded migrations the Rust tests use so a
+        # manual workflow_dispatch run sweeps a clean (migrated, no-sentinel) DB.
+        run: sqlx migrate run --source crates/storage/migrations
       - name: run sentinel scavenger (must find nothing post-shred)
         run: bash scripts/g-shred-scavenger.sh
       - name: upload scavenger report

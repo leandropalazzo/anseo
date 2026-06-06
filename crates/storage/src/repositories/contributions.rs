@@ -6,8 +6,10 @@
 //! NEVER a raw brand name. The server:
 //!
 //!   1. resolves the token → the verified domain via the entity registry
-//!      ([`resolve_verified_domain`]), refusing anything that is not currently
-//!      `claim_status = 'verified'` (AC-3);
+//!      ([`resolve_verified_domain`]), binding to the `verification_attempts`
+//!      row that actually CONSUMED the token (`status = 'verified'`,
+//!      `used_at IS NOT NULL`) and refusing anything whose entity is not
+//!      currently `claim_status = 'verified'` (AC-3);
 //!   2. persists the identified contribution linked to that domain via the
 //!      registry FK (`contributions.entity_domain`) — the raw domain is never a
 //!      free-text body field, linkage is the FK only (AC-1);
@@ -107,26 +109,37 @@ impl<'a> ContributionRepo<'a> {
     /// Resolve a presented verification token to a currently-verified brand.
     ///
     /// The token is hashed (never compared raw) and matched against the
-    /// most-recent `verification_attempts` row. If that row's domain has an
-    /// entity with `claim_status = 'verified'`, the token resolves; otherwise it
-    /// is refused. This is the server-side brand resolution: the client transmits
-    /// only the token, the brand is derived here against authoritative state.
+    /// `verification_attempts` row that **consumed** it — i.e. the attempt whose
+    /// `status = 'verified'` AND `used_at IS NOT NULL`. This is the proof row that
+    /// actually established control of the domain; a merely `pending` token
+    /// (handed out by `/verification/start` before any DNS-TXT proof) must NOT
+    /// resolve, otherwise an authenticated caller could mint a fresh pending
+    /// challenge for an already-verified victim domain and attribute
+    /// contributions to it without ever proving control (brand-attribution
+    /// bypass). Once bound to the consumed proof we additionally require the
+    /// entity's CURRENT `claim_status = 'verified'` (so a revoked claim still
+    /// refuses). The client transmits only the token; the brand is derived here
+    /// against authoritative state.
     pub async fn resolve_verified_domain(
         &self,
         verification_token: &str,
     ) -> Result<ResolutionOutcome, Error> {
         let token_hash = hash_token(verification_token);
 
-        // Most-recent attempt for this token hash → its domain. We do NOT require
-        // the attempt itself to be 'verified' (a token may have been minted and
-        // the domain verified out-of-band); the authoritative gate is the
-        // entity's CURRENT claim_status, checked next.
+        // Bind to the attempt that actually CONSUMED this token: the matching
+        // ledger row must itself be the successful, spent proof
+        // (`status = 'verified'` AND `used_at IS NOT NULL`). A `pending` /
+        // `expired` / `replayed` / `failed` / `revoked` row — including a brand
+        // new pending challenge minted for an already-verified domain — does NOT
+        // qualify and resolves to UnknownToken (no proof ⇒ no attribution).
         let domain_row = sqlx::query(
             r#"
             SELECT domain
             FROM verification_attempts
             WHERE token_hash = $1
-            ORDER BY created_at DESC
+              AND status = 'verified'
+              AND used_at IS NOT NULL
+            ORDER BY used_at DESC
             LIMIT 1
             "#,
         )
