@@ -39,6 +39,25 @@
 //! can only be produced by [`Redactor::redact`] (private fields, no public
 //! constructor) and can only be sealed by [`ProjectKek::seal`] (no KEK ⇒ no
 //! contribution). This module never hand-builds either.
+//!
+//! # Compile-time parity invariant (Story 40.4, AC-4)
+//!
+//! The ingest path has the SAME compile-time redaction guarantee as a native
+//! run: there is no way to manufacture a benchmark contribution without first
+//! passing a [`RawPromptRun`] through [`Redactor::redact`] and then through
+//! [`ProjectKek::seal`]. A would-be ingest job cannot hand-roll a
+//! [`BenchmarkPayload`] (no public constructor / no public fields):
+//!
+//! ```compile_fail
+//! use anseo_benchmark::BenchmarkPayload;
+//! // The ingest path could only contribute by building one of these — but the
+//! // struct has private fields and no constructor, so this never compiles. The
+//! // only door is `Redactor::redact`, which requires a loaded `ProjectKek`.
+//! let _payload = BenchmarkPayload {
+//!     prompt_slug: "vector-db".into(),
+//!     provider: "openai".into(),
+//! };
+//! ```
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -79,11 +98,12 @@ pub struct IngestRunRequest {
     /// Opt this specific run into the anonymous benchmark contribution path.
     ///
     /// Defaults to `false`. Ships in the schema from day one (Story 40.1) so
-    /// the SDK clients (40.2/40.3) don't need a breaking update when 40.4 wires
-    /// the full consent/redaction enforcement. Until 40.4, `contribute: true`
-    /// is honoured only as far as the KEK hard gate (a `true` request with no
-    /// per-project KEK is rejected `403 kek_missing`); the actual sealing
-    /// remains gated on the project's durable benchmark opt-in.
+    /// the SDK clients (40.2/40.3) don't need a breaking update. As of Story
+    /// 40.4 the flag is fully enforced: a `true` request with no per-project KEK
+    /// is rejected `403 kek_missing` (hard gate), and the run is redacted +
+    /// envelope-sealed only when it set `contribute: true` AND the project has
+    /// an active benchmark opt-in on the current terms (the narrower-of-two
+    /// gates). `false` (the default) is recorded/extracted locally only.
     #[serde(default)]
     pub contribute: bool,
 }
@@ -302,9 +322,9 @@ async fn ingest_run(
     //     and proceeds regardless of KEK state. Load once and reuse below so the
     //     contribution leg doesn't re-load.
     //
-    //     NOTE: until Story 40.4 wires full consent/redaction enforcement,
-    //     `contribute: true` is honoured only as far as this gate — the actual
-    //     sealing still hangs off the project's durable benchmark opt-in.
+    //     As of Story 40.4 the full consent/redaction enforcement is wired: past
+    //     this gate the run is redacted + sealed iff it BOTH set `contribute:
+    //     true` AND the project carries an active benchmark opt-in (below).
     let project_id_str = project_id.to_string();
     let kek = if req.contribute {
         let pid = project_id_str.clone();
@@ -634,5 +654,51 @@ mod tests {
     fn kek_missing_status_serializes_explicitly() {
         let v = serde_json::to_value(ContributionStatus::KekMissing).unwrap();
         assert_eq!(v["status"], "kek_missing");
+    }
+
+    /// Story 40.4 AC-2 / "narrower-of-two-gates": the per-run `contribute` flag
+    /// is ANDed with the project's durable opt-in. `contribute: false` short-
+    /// circuits to a clean skip even when the project IS opted in and a KEK is
+    /// present — the run is recorded, but no contribution is sealed. This mirrors
+    /// the handler's `contribute_this_run = req.contribute && opted_in` gate.
+    #[test]
+    fn contribute_false_never_seals_even_when_opted_in_with_kek() {
+        let kek = test_kek();
+        let req_contribute = false;
+        let opted_in = true;
+        let contribute_this_run = req_contribute && opted_in;
+        let (status, sealed) =
+            decide_contribution(contribute_this_run, TERMS_VERSION, Some(&kek), raw());
+        assert_eq!(status, ContributionStatus::SkippedNotOptedIn);
+        assert!(
+            sealed.is_none(),
+            "contribute=false must NEVER produce a sealed contribution"
+        );
+    }
+
+    /// Story 40.4 AC-1 redaction parity: a contribution sealed from the ingest
+    /// path is byte-for-byte the SAME projection a native run would produce
+    /// through the identical `Redactor` — confidential fields (brand, raw text,
+    /// secrets, IP) are dropped and the timestamp is k-anonymized to the hour.
+    /// This pins that ingest reuses, rather than re-implements, the redactor.
+    #[test]
+    fn ingest_seal_matches_native_redactor_projection() {
+        let kek = test_kek();
+        // The native redaction of the same RawPromptRun.
+        let native = Redactor::new(&kek, TERMS_VERSION)
+            .redact(raw())
+            .expect("native redact");
+        // The ingest contribution path.
+        let (status, sealed) = decide_contribution(true, TERMS_VERSION, Some(&kek), raw());
+        assert_eq!(status, ContributionStatus::Sealed);
+        let opened = kek.open(&sealed.expect("sealed")).unwrap();
+        // Same narrow public projection (no brand_name / raw text accessor even
+        // exists), incl. the hour-rounded observation time.
+        assert_eq!(opened.prompt_slug(), native.prompt_slug());
+        assert_eq!(opened.provider(), native.provider());
+        assert_eq!(opened.model(), native.model());
+        assert_eq!(opened.observed_at_hour(), native.observed_at_hour());
+        assert_eq!(opened.citation_domains(), native.citation_domains());
+        assert_eq!(opened.terms_version(), native.terms_version());
     }
 }

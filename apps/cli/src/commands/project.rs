@@ -28,10 +28,15 @@
 //! CLI has no header tier, so the `use` marker / working-dir YAML occupies the
 //! ambient slot the header fills on the API.
 
+use std::io::{self, BufRead, Write};
+
+use chrono::Utc;
 use clap::Args;
 
+use anseo_benchmark::{ProjectKek, TERMS_VERSION};
 use anseo_core::{project_id_for_name, BrandConfig, Config, OpenGeoError, ProjectId};
 use anseo_storage::models::ProjectRow;
+use anseo_storage::repositories::benchmark_consent::BenchmarkConsentRepo;
 use anseo_storage::Storage;
 
 /// Marker directory written by `ogeo project use`, relative to the working dir.
@@ -66,6 +71,24 @@ pub struct CreateArgs {
 pub struct UseArgs {
     /// Project id (ULID) or brand name to select for this working directory.
     pub project: String,
+}
+
+#[derive(Debug, Args)]
+pub struct ShredArgs {
+    /// Project id (ULID) or brand name whose benchmark key to destroy. Defaults
+    /// to the working-dir selection / sole project when omitted.
+    #[arg(long)]
+    pub project: Option<String>,
+    /// Skip the interactive confirmation. Because the shred is an IRREVERSIBLE
+    /// cryptographic erasure, confirmation is required unless you pass this flag.
+    #[arg(long)]
+    pub yes: bool,
+    /// Operator-facing actor identifier recorded in the audit log.
+    #[arg(long)]
+    pub actor: Option<String>,
+    /// Free-form note recorded alongside the shred (opt-out) audit event.
+    #[arg(long)]
+    pub note: Option<String>,
 }
 
 // ---- list ---------------------------------------------------------------
@@ -165,6 +188,98 @@ pub async fn run_use(args: UseArgs) -> Result<(), OpenGeoError> {
         row.id,
     )?;
     println!("Selected project '{}' ({})", row.name, row.id);
+    Ok(())
+}
+
+// ---- shred ---------------------------------------------------------------
+
+/// `ogeo project shred` (Story 40.4, AC-3) — crypto-shred the project's
+/// benchmark KEK.
+///
+/// This is the operator-facing "right to erasure" lever for a whole project's
+/// benchmark footprint, ingested or native alike. Destroying the single
+/// per-project KEK (Story 39.1) makes every wrapped DEK — and therefore every
+/// benchmark contribution this project ever sealed, INCLUDING those sealed from
+/// `POST /v1/ingest/run` (Story 40.4) — permanently undecryptable. It is the
+/// same `ProjectKek::destroy` mechanism `ogeo benchmark optout` uses; this verb
+/// exposes it directly under the project namespace so an operator can shred
+/// without first reasoning about consent tiers.
+///
+/// Order of operations mirrors the benchmark opt-out: record the audit (opt-out)
+/// event FIRST so the intent is captured even if the key-destruction backend
+/// errors, then destroy the key across every SecretStore leg.
+pub async fn run_shred(args: ShredArgs) -> Result<(), OpenGeoError> {
+    let storage = connect_storage().await?;
+    let cwd = std::env::current_dir()
+        .map_err(|e| OpenGeoError::Config(format!("could not read current directory: {e}")))?;
+    let project_id = resolve_project_id(&storage, &cwd, args.project.as_deref()).await?;
+    let project_str = project_id.to_string();
+
+    eprintln!("⚠  IRREVERSIBLE DESTRUCTIVE ACTION — benchmark key crypto-shred");
+    eprintln!(
+        "    This destroys the per-project benchmark key for `{project_str}`. Every benchmark"
+    );
+    eprintln!(
+        "    contribution this project ever sealed — native AND ingested (POST /v1/ingest/run)"
+    );
+    eprintln!("    — becomes permanently undecryptable. There is no recovery.");
+
+    if !args.yes {
+        print!("To confirm, type the project id `{project_str}` exactly: ");
+        io::stdout().flush().ok();
+        let mut answer = String::new();
+        io::stdin()
+            .lock()
+            .read_line(&mut answer)
+            .map_err(|e| OpenGeoError::Config(format!("failed to read confirmation: {e}")))?;
+        if answer.trim() != project_str {
+            return Err(OpenGeoError::Config(
+                "shred cancelled — the project id was not entered exactly. Nothing was \
+                 destroyed; the benchmark key and contributions are untouched. (Re-run with \
+                 `--yes` to skip this prompt.)"
+                    .into(),
+            ));
+        }
+    }
+
+    // Record the audit event FIRST (append-only opt-out on the anonymous tier),
+    // so the erasure intent is durable even if key destruction surfaces an error.
+    let actor = args
+        .actor
+        .or_else(|| std::env::var("USER").ok())
+        .unwrap_or_else(|| "cli".to_string());
+    let repo = BenchmarkConsentRepo::new(storage.pool());
+    let id = repo
+        .record_optout(
+            project_id,
+            TERMS_VERSION,
+            Some(&actor),
+            args.note.as_deref(),
+        )
+        .await
+        .map_err(|e| OpenGeoError::Config(format!("failed to record shred audit event: {e}")))?;
+
+    // CRYPTO-SHRED: destroy the per-project KEK across every SecretStore leg.
+    // Idempotent — a project that never sealed a contribution simply has no KEK,
+    // and that is still a successful, complete shred.
+    let store = anseo_core::default_chain();
+    ProjectKek::destroy(&store, &project_str).map_err(|e| {
+        OpenGeoError::Config(format!(
+            "shred audit recorded (event id {id}) but crypto-shred of the benchmark key FAILED: \
+             {e}. The contributions are NOT yet cryptographically erased. Resolve the \
+             secret-store backend error and re-run `ogeo project shred` to complete the erasure."
+        ))
+    })?;
+
+    println!(
+        "✓ Crypto-shredded benchmark key for project `{project_str}` (audit event id {id}, terms \
+         version {TERMS_VERSION}, at {}).",
+        Utc::now().to_rfc3339()
+    );
+    println!(
+        "  Every benchmark contribution this project sealed — native and ingested — is now \
+         permanently undecryptable."
+    );
     Ok(())
 }
 
