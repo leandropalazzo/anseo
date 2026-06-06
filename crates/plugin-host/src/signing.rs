@@ -20,6 +20,9 @@ use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+#[cfg(feature = "signing-tools")]
+use ed25519_dalek::{Signer, SigningKey};
+
 /// `SHA-256(plugin.toml || entrypoint_artifact_bytes)` — the message the
 /// author's detached signature covers (§5.4.3).
 pub fn signing_digest(manifest_bytes: &[u8], entrypoint_bytes: &[u8]) -> [u8; 32] {
@@ -208,6 +211,281 @@ pub fn verify_signed_plugin(
     }
 
     Ok((SignatureStatus::Signed, plugin.claim.author_pubkey))
+}
+
+// ---------------------------------------------------------------------------
+// Story 41.4 — signing producers (operationalize signing).
+//
+// These are the *inverse* of the verification chain above and deliberately live
+// in the same module, so a change to a signed-byte layout (e.g.
+// `signing_digest` or `NamespaceClaim::canonical_bytes`) updates both the
+// producer and the verifier in one place — they can never drift apart. The
+// `signing-tools` feature keeps `SigningKey` / `rand` out of the verify-only
+// build (the worker / install path only ever *verifies*).
+// ---------------------------------------------------------------------------
+
+/// Errors from the signing producers (keygen / sign).
+#[cfg(feature = "signing-tools")]
+#[derive(Debug, Error)]
+pub enum SignError {
+    #[error("malformed key material: {0}")]
+    Malformed(String),
+}
+
+/// A freshly generated or loaded Ed25519 signing keypair, as raw bytes.
+///
+/// `secret` is the 32-byte Ed25519 seed (NOT the expanded 64-byte form); this
+/// is what `ed25519_dalek::SigningKey::from_bytes` consumes and what we persist
+/// to the GitHub Actions secret. `public` is the 32-byte verifying key, ready to
+/// be pinned as `ANSEO_ROOT_PUBKEY` (hex) or written into a `claim.toml`.
+#[cfg(feature = "signing-tools")]
+#[derive(Clone)]
+pub struct Keypair {
+    pub secret: [u8; 32],
+    pub public: [u8; 32],
+}
+
+#[cfg(feature = "signing-tools")]
+impl Keypair {
+    /// Generate a new random keypair from a CSPRNG.
+    pub fn generate() -> Self {
+        let sk = SigningKey::generate(&mut rand::rngs::OsRng);
+        Keypair {
+            secret: sk.to_bytes(),
+            public: sk.verifying_key().to_bytes(),
+        }
+    }
+
+    /// Reconstruct a keypair from a 32-byte secret seed (hex-decoded by the
+    /// caller). The public key is derived, so a stored secret is sufficient.
+    pub fn from_secret_bytes(secret: [u8; 32]) -> Self {
+        let sk = SigningKey::from_bytes(&secret);
+        Keypair {
+            secret,
+            public: sk.verifying_key().to_bytes(),
+        }
+    }
+
+    fn signing_key(&self) -> SigningKey {
+        SigningKey::from_bytes(&self.secret)
+    }
+
+    /// Hex of the public key — the value pinned as `ANSEO_ROOT_PUBKEY`.
+    pub fn public_hex(&self) -> String {
+        hex::encode(self.public)
+    }
+
+    /// Hex of the secret seed — the value stored as the
+    /// `ANSEO_PLUGIN_SIGNING_KEY` GitHub Actions secret. NEVER commit this.
+    pub fn secret_hex(&self) -> String {
+        hex::encode(self.secret)
+    }
+}
+
+/// Sign the author's detached plugin signature over
+/// `SHA-256(manifest_bytes || entrypoint_bytes)` — the exact message
+/// [`verify_signed_plugin`] step (4) checks. Returns the raw 64-byte signature
+/// that the registry stores as `signature.bin`.
+#[cfg(feature = "signing-tools")]
+pub fn sign_plugin(
+    author: &Keypair,
+    manifest_bytes: &[u8],
+    entrypoint_bytes: &[u8],
+) -> [u8; 64] {
+    let digest = signing_digest(manifest_bytes, entrypoint_bytes);
+    author.signing_key().sign(&digest).to_bytes()
+}
+
+/// Sign a namespace claim with the root key, over [`NamespaceClaim::canonical_bytes`]
+/// — the exact message [`verify_signed_plugin`] step (3) checks against the
+/// pinned roots. Returns the raw 64-byte signature stored (hex-encoded) as the
+/// `signature` field of `claim.toml`.
+#[cfg(feature = "signing-tools")]
+pub fn sign_namespace_claim(root: &Keypair, claim: &NamespaceClaim) -> [u8; 64] {
+    root.signing_key().sign(&claim.canonical_bytes()).to_bytes()
+}
+
+#[cfg(all(test, feature = "signing-tools"))]
+mod sign_roundtrip_tests {
+    use super::*;
+
+    /// A plugin signed by `sign_plugin` + a claim root-signed by
+    /// `sign_namespace_claim` must pass the full `verify_signed_plugin` chain.
+    /// This is the load-bearing guarantee for 41.4: bundles the CI produces
+    /// verify under the same code the worker / install path runs.
+    #[test]
+    fn sign_then_verify_roundtrips() {
+        let root = Keypair::generate();
+        let author = Keypair::generate();
+
+        let manifest = b"name: anseo/demo\nversion: 1.0.0\n";
+        let entrypoint = b"\0asm\x01\0\0\0fake-wasm-bytes";
+
+        let claim = NamespaceClaim {
+            namespace: "anseo".into(),
+            keyid: "root-2026".into(),
+            author_pubkey: author.public,
+            rotation_of: None,
+        };
+        let claim_sig = sign_namespace_claim(&root, &claim);
+        let plugin_sig = sign_plugin(&author, manifest, entrypoint);
+
+        let signed = SignedPlugin {
+            plugin_id: "anseo/demo",
+            version: "1.0.0",
+            manifest_bytes: manifest,
+            entrypoint_bytes: entrypoint,
+            signature: &plugin_sig,
+            claim: &claim,
+            claim_signature: &claim_sig,
+        };
+
+        // First install (no pin yet) verifies and returns the key to pin.
+        let (status, pin) =
+            verify_signed_plugin(&signed, &[root.public], &RevocationList::default(), None)
+                .expect("freshly signed bundle must verify");
+        assert_eq!(status, SignatureStatus::Signed);
+        assert_eq!(pin, author.public);
+
+        // A second install with the pinned key still verifies.
+        verify_signed_plugin(
+            &signed,
+            &[root.public],
+            &RevocationList::default(),
+            Some(author.public),
+        )
+        .expect("pinned re-install of the same key must verify");
+    }
+
+    /// A bit-flip in the plugin signature is rejected (AC4: integrity check).
+    #[test]
+    fn tampered_signature_is_rejected() {
+        let root = Keypair::generate();
+        let author = Keypair::generate();
+        let manifest = b"name: anseo/demo\nversion: 1.0.0\n";
+        let entrypoint = b"wasm";
+        let claim = NamespaceClaim {
+            namespace: "anseo".into(),
+            keyid: "root-2026".into(),
+            author_pubkey: author.public,
+            rotation_of: None,
+        };
+        let claim_sig = sign_namespace_claim(&root, &claim);
+        let mut plugin_sig = sign_plugin(&author, manifest, entrypoint);
+        plugin_sig[0] ^= 0x01; // flip a bit
+
+        let signed = SignedPlugin {
+            plugin_id: "anseo/demo",
+            version: "1.0.0",
+            manifest_bytes: manifest,
+            entrypoint_bytes: entrypoint,
+            signature: &plugin_sig,
+            claim: &claim,
+            claim_signature: &claim_sig,
+        };
+        let err = verify_signed_plugin(&signed, &[root.public], &RevocationList::default(), None)
+            .expect_err("bit-flipped signature must not verify");
+        assert_eq!(err, SigningError::BadSignature);
+    }
+
+    /// A manifest changed after signing breaks the digest, so the signature no
+    /// longer verifies (AC4: tampered manifest).
+    #[test]
+    fn tampered_manifest_is_rejected() {
+        let root = Keypair::generate();
+        let author = Keypair::generate();
+        let manifest = b"name: anseo/demo\nversion: 1.0.0\n";
+        let entrypoint = b"wasm";
+        let claim = NamespaceClaim {
+            namespace: "anseo".into(),
+            keyid: "root-2026".into(),
+            author_pubkey: author.public,
+            rotation_of: None,
+        };
+        let claim_sig = sign_namespace_claim(&root, &claim);
+        let plugin_sig = sign_plugin(&author, manifest, entrypoint);
+
+        let tampered = b"name: anseo/demo\nversion: 9.9.9\n"; // edited after signing
+        let signed = SignedPlugin {
+            plugin_id: "anseo/demo",
+            version: "1.0.0",
+            manifest_bytes: tampered,
+            entrypoint_bytes: entrypoint,
+            signature: &plugin_sig,
+            claim: &claim,
+            claim_signature: &claim_sig,
+        };
+        let err = verify_signed_plugin(&signed, &[root.public], &RevocationList::default(), None)
+            .expect_err("tampered manifest must not verify");
+        assert_eq!(err, SigningError::BadSignature);
+    }
+
+    /// A claim signed by a non-root key is untrusted (the root attestation is
+    /// what gates first-party trust). TODO(key-rotation): rotation test vectors
+    /// when the rotation story lands.
+    #[test]
+    fn claim_not_signed_by_root_is_untrusted() {
+        let real_root = Keypair::generate();
+        let impostor = Keypair::generate();
+        let author = Keypair::generate();
+        let manifest = b"name: anseo/demo\nversion: 1.0.0\n";
+        let entrypoint = b"wasm";
+        let claim = NamespaceClaim {
+            namespace: "anseo".into(),
+            keyid: "root-2026".into(),
+            author_pubkey: author.public,
+            rotation_of: None,
+        };
+        // Signed by the impostor, not the pinned real root.
+        let claim_sig = sign_namespace_claim(&impostor, &claim);
+        let plugin_sig = sign_plugin(&author, manifest, entrypoint);
+        let signed = SignedPlugin {
+            plugin_id: "anseo/demo",
+            version: "1.0.0",
+            manifest_bytes: manifest,
+            entrypoint_bytes: entrypoint,
+            signature: &plugin_sig,
+            claim: &claim,
+            claim_signature: &claim_sig,
+        };
+        let err =
+            verify_signed_plugin(&signed, &[real_root.public], &RevocationList::default(), None)
+                .expect_err("claim not root-signed must be untrusted");
+        assert!(matches!(err, SigningError::UntrustedNamespaceClaim(_)));
+    }
+
+    /// `from_secret_bytes` round-trips: a key reconstructed from its stored seed
+    /// produces signatures that verify (this is what CI does — loads the secret
+    /// from the GitHub Actions secret and signs).
+    #[test]
+    fn keypair_from_stored_secret_signs_verifiably() {
+        let original = Keypair::generate();
+        let reloaded = Keypair::from_secret_bytes(original.secret);
+        assert_eq!(original.public, reloaded.public);
+
+        let author = Keypair::generate();
+        let claim = NamespaceClaim {
+            namespace: "anseo".into(),
+            keyid: "root-2026".into(),
+            author_pubkey: author.public,
+            rotation_of: None,
+        };
+        let claim_sig = sign_namespace_claim(&reloaded, &claim);
+        let manifest = b"m";
+        let entrypoint = b"e";
+        let plugin_sig = sign_plugin(&author, manifest, entrypoint);
+        let signed = SignedPlugin {
+            plugin_id: "anseo/demo",
+            version: "1.0.0",
+            manifest_bytes: manifest,
+            entrypoint_bytes: entrypoint,
+            signature: &plugin_sig,
+            claim: &claim,
+            claim_signature: &claim_sig,
+        };
+        verify_signed_plugin(&signed, &[original.public], &RevocationList::default(), None)
+            .expect("reloaded-secret signature must verify against the original public key");
+    }
 }
 
 /// The compile-pinned first-party root public keys (§5.4.2). Set

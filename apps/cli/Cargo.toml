@@ -32,7 +32,10 @@ anseo-benchmark = { path = "../../crates/benchmark" }
 anseo-core = { path = "../../crates/core", features = ["sqlx"] }
 anseo-crawler-ingest = { path = "../../crates/crawler-ingest" }
 anseo-plugin-manifest = { path = "../../crates/plugin-manifest" }
-anseo-plugin-host = { path = "../../crates/plugin-host" }
+# Story 41.4: the CLI is the signing *producer* (keygen + sign), so it enables
+# the plugin-host `signing-tools` feature. The worker / install path keeps the
+# verify-only default.
+anseo-plugin-host = { path = "../../crates/plugin-host", features = ["signing-tools"] }
 anseo-providers = { path = "../../crates/providers" }
 anseo-recommendations = { path = "../../crates/recommendations" }
 anseo-scheduler = { path = "../../crates/scheduler" }

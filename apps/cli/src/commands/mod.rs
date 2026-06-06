@@ -17,6 +17,7 @@ pub mod mcp;
 pub mod plugin;
 pub mod plugin_install;
 pub mod plugin_registry;
+pub mod plugin_sign;
 pub mod project;
 pub mod prompt;
 pub mod recommend;

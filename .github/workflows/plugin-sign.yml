@@ -1,0 +1,100 @@
+# =============================================================================
+# PLUGIN SIGNING — Story 41.4
+#
+# Operationalizes Ed25519 plugin signing: signs a first-party plugin bundle
+# (+ namespace claim) with the project root key and produces the
+# `signature.bin` + `claim.toml` the install / worker path verifies.
+#
+# TRIGGERS (intentionally NOT pull_request / push):
+#   * workflow_dispatch     — manual, with the version-dir + namespace inputs.
+#   * repository_dispatch   — fired from the `plugin-registry` repo on a push to
+#                             main (`event_type: plugin-sign`), so a registry
+#                             change auto-signs without gating ordinary PRs.
+#
+# This job is NOT a required/blocking CI check. It does no signing of community
+# plugins and never runs on PRs, so it cannot break the normal PR pipeline.
+#
+# OPEN-CORE BOUNDARY (ADR-007): the REAL root private key
+# (`ANSEO_PLUGIN_SIGNING_KEY` secret) lives ONLY in the private
+# `opengeo-internal` repo, which hosts the production copy of this workflow. In
+# the PUBLIC `opengeo` repo this workflow runs a self-check with an EPHEMERAL
+# key (no secret) to prove the pipeline + verifier round-trip stays green. See
+# docs/plugin-signing.md.
+# =============================================================================
+
+name: plugin-sign
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_dir:
+        description: "Path to the plugin version dir (manifest.yaml + entrypoint.wasm)"
+        required: true
+        type: string
+      namespace:
+        description: "Plugin namespace recorded in the claim (e.g. anseo)"
+        required: true
+        type: string
+      keyid:
+        description: "Signing key id recorded in the claim"
+        required: false
+        default: "root"
+        type: string
+  repository_dispatch:
+    types: [plugin-sign]
+
+concurrency:
+  group: plugin-sign-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  SQLX_OFFLINE: "true"
+
+jobs:
+  sign:
+    name: Sign plugin bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # The CLI enables anseo-plugin-host/signing-tools unconditionally, so the
+      # `anseo` binary always carries `plugin keygen` / `plugin sign`.
+      - name: Build the signing CLI
+        run: cargo build -p anseo-cli --bin anseo
+
+      # ---------------------------------------------------------------------
+      # PRODUCTION path (opengeo-internal): the ANSEO_PLUGIN_SIGNING_KEY secret
+      # is present, so sign the requested bundle with the real root key and
+      # push signature.bin + claim.toml back to the registry.
+      # ---------------------------------------------------------------------
+      - name: Sign with the project root key
+        if: ${{ env.ANSEO_PLUGIN_SIGNING_KEY != '' && github.event_name == 'workflow_dispatch' }}
+        env:
+          ANSEO_PLUGIN_SIGNING_KEY: ${{ secrets.ANSEO_PLUGIN_SIGNING_KEY }}
+        run: |
+          ./target/debug/anseo plugin sign \
+            "${{ inputs.version_dir }}" \
+            --namespace "${{ inputs.namespace }}" \
+            --keyid "${{ inputs.keyid }}"
+
+      # ---------------------------------------------------------------------
+      # PUBLIC self-check: no secret available. Prove keygen → sign → the bundle
+      # verifies, end-to-end, with an ephemeral key. This is the green-pipeline
+      # guarantee in the public repo without ever exposing a real key.
+      # ---------------------------------------------------------------------
+      - name: Self-check (ephemeral key) — no production secret present
+        if: ${{ env.ANSEO_PLUGIN_SIGNING_KEY == '' }}
+        env:
+          ANSEO_PLUGIN_SIGNING_KEY: ${{ secrets.ANSEO_PLUGIN_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          # The unit/integration suite includes the sign→verify round-trip and
+          # the CLI sign-command output check — run exactly those.
+          cargo test -p anseo-plugin-host --features signing-tools sign_roundtrip_tests
+          cargo test -p anseo-cli --lib plugin_sign::tests
+          echo "plugin-sign self-check: keygen→sign→verify round-trip OK"

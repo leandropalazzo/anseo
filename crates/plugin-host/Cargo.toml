@@ -6,6 +6,12 @@ rust-version.workspace = true
 license.workspace = true
 publish = false
 
+[features]
+# Story 41.4: opt-in signing *producers* (keygen + sign). Off by default so the
+# verify-only build (worker / install path) never pulls in `SigningKey` / `rand`.
+# The CLI's `anseo plugin {keygen,sign}` and the CI signing job enable this.
+signing-tools = ["dep:rand", "ed25519-dalek/rand_core"]
+
 [dependencies]
 anseo-plugin-manifest = { path = "../plugin-manifest" }
 ed25519-dalek = { workspace = true }
@@ -18,6 +24,8 @@ serde_yaml = { workspace = true }
 tracing = { workspace = true }
 toml = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+# Optional: only compiled in when `signing-tools` is enabled (keygen RNG).
+rand = { version = "0.8", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
