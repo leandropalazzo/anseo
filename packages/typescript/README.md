@@ -1,4 +1,4 @@
-# @opengeo/sdk
+# @anseo/sdk
 
 TypeScript client for the Anseo REST API. Auto-generated from
 `crates/wire-schema/openapi.json` by orval; do not edit
@@ -7,20 +7,20 @@ TypeScript client for the Anseo REST API. Auto-generated from
 ## Install
 
 ```bash
-npm install @opengeo/sdk
+npm install @anseo/sdk
 ```
 
-(Or `pnpm add @opengeo/sdk` / `yarn add @opengeo/sdk`.)
+(Or `pnpm add @anseo/sdk` / `yarn add @anseo/sdk`.)
 
 ## Usage
 
 ```ts
-import { configure } from "@opengeo/sdk/runtime";
-import { listRuns, createPromptRun } from "@opengeo/sdk";
+import { configure } from "@anseo/sdk/runtime";
+import { listRuns, createPromptRun } from "@anseo/sdk";
 
 configure({
   baseUrl: "http://127.0.0.1:8080",
-  apiKey: process.env.OPENGEO_API_KEY,
+  apiKey: process.env.ANSEO_API_KEY,
 });
 
 const runs = await listRuns({ limit: 25 });
@@ -31,17 +31,17 @@ const created = await createPromptRun({
 });
 ```
 
-The runtime mutator (`@opengeo/sdk/runtime`) wires:
+The runtime mutator (`@anseo/sdk/runtime`) wires:
 
 - **Base URL** — set once via `configure({ baseUrl })`.
-- **Auth** — the configured `apiKey` is sent in the `X-OpenGEO-API-Key`
+- **Auth** — the configured `apiKey` is sent in the `X-Anseo-API-Key`
   header on every request (architecture §5.1). The Anseo API does
   not accept `Authorization: Bearer`.
 - **JSON content negotiation** — sets `Accept` and `Content-Type`
   defaults; skips the `Content-Type` default when sending FormData,
   Blob, URLSearchParams, ArrayBuffer, or a ReadableStream.
 - **Error translation** — non-2xx responses throw
-  `OpenGeoApiError(message, status, body)`; network errors throw the
+  `AnseoApiError(message, status, body)`; network errors throw the
   same type with `status=0`.
 
 ## Regenerating

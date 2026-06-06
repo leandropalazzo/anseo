@@ -27,15 +27,18 @@ ts:
 		exit 1; \
 	fi
 	@echo "Regenerating TypeScript SDK with orval@$(ORVAL_VERSION)…"
-	cd .. && npx -y orval@$(ORVAL_VERSION) --config infra/codegen/orval.config.cjs
+	npx -y orval@$(ORVAL_VERSION) --config ./orval.config.cjs
 
 py:
-	@if ! command -v openapi-python-client >/dev/null 2>&1; then \
-		echo "warning: openapi-python-client not available; install with: pipx install openapi-python-client==$(OPENAPI_PYTHON_VERSION)"; \
+	@echo "Regenerating Python SDK with openapi-python-client@$(OPENAPI_PYTHON_VERSION)…"
+	@if command -v uvx >/dev/null 2>&1; then \
+		uvx openapi-python-client@$(OPENAPI_PYTHON_VERSION) generate --path $(SPEC) --config ./openapi-python.yaml --meta none --output-path $(PY_DIR)/anseo --overwrite; \
+	elif command -v openapi-python-client >/dev/null 2>&1; then \
+		openapi-python-client generate --path $(SPEC) --config ./openapi-python.yaml --meta none --output-path $(PY_DIR)/anseo --overwrite; \
+	else \
+		echo "warning: neither uvx nor openapi-python-client available; install with: pipx install openapi-python-client==$(OPENAPI_PYTHON_VERSION)"; \
 		exit 1; \
 	fi
-	@echo "Regenerating Python SDK with openapi-python-client@$(OPENAPI_PYTHON_VERSION)…"
-	cd .. && openapi-python-client generate --path $(SPEC) --config infra/codegen/openapi-python.yaml --meta none --output-path $(PY_DIR) --overwrite
 
 drift:
 	@bash tests/drift.sh

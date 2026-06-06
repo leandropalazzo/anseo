@@ -4,7 +4,7 @@
       "ProjectHeader": {
         "description": "Story 0.11 substrate (Phase 3 decision L2). Identifies the target project. Phase 2 single-project deployments accept the header for forward-compatibility: the value must equal the configured project name (case-insensitive after trim) or the reserved sentinel `default`. Mismatching values return 403 `project_not_found`. Absent header is accepted in Phase 2 (with a one-time per-process WARN log) and will become required in Phase 4 multi-project mode.",
         "in": "header",
-        "name": "X-OpenGEO-Project",
+        "name": "X-Anseo-Project",
         "required": false,
         "schema": {
           "type": "string"
@@ -20,7 +20,7 @@
             }
           }
         },
-        "description": "Missing, malformed, or revoked X-OpenGEO-API-Key. The body shape is intentionally opaque so an unauthenticated caller cannot distinguish 'wrong key' from 'auth backend down'."
+        "description": "Missing, malformed, or revoked X-Anseo-API-Key. The body shape is intentionally opaque so an unauthenticated caller cannot distinguish 'wrong key' from 'auth backend down'."
       }
     },
     "schemas": {
@@ -796,7 +796,7 @@
       "CreatePromptRunRequest": {
         "properties": {
           "prompt_name": {
-            "description": "Slug-safe prompt identifier declared in opengeo.yaml.",
+            "description": "Slug-safe prompt identifier declared in anseo.yaml.",
             "type": "string"
           },
           "provider": {
@@ -1665,14 +1665,14 @@
     "securitySchemes": {
       "ApiKeyAuth": {
         "in": "header",
-        "name": "X-OpenGEO-API-Key",
+        "name": "X-Anseo-API-Key",
         "type": "apiKey"
       }
     }
   },
   "info": {
-    "description": "Phase 2 v1 surface — read endpoints, prompt run submission, and the SSE event stream. Auth: X-OpenGEO-API-Key header carrying an `ogeo_<32 chars>` key. Story 0.11 (Phase 3 substrate) adds the optional X-OpenGEO-Project header — Phase 2 accepts it for forward compatibility; Phase 4 will require it. Story 15.1 adds three `/v1/setup/*` endpoints (deployment UX substrate).",
-    "title": "OpenGEO Public REST API",
+    "description": "Phase 2 v1 surface — read endpoints, prompt run submission, and the SSE event stream. Auth: X-Anseo-API-Key header carrying an `ogeo_<32 chars>` key. Story 0.11 (Phase 3 substrate) adds the optional X-Anseo-Project header — Phase 2 accepts it for forward compatibility; Phase 4 will require it. Story 15.1 adds three `/v1/setup/*` endpoints (deployment UX substrate).",
+    "title": "Anseo Public REST API",
     "version": "0.3.1"
   },
   "openapi": "3.0.3",
@@ -2173,7 +2173,7 @@
       "post": {
         "operationId": "ingestExternalRun",
         "summary": "Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-sealed-contribution path as native runs.",
-        "description": "Records a prompt run executed against a provider OUTSIDE OpenGEO's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-OpenGEO-Project header and returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).",
+        "description": "Records a prompt run executed against a provider OUTSIDE Anseo's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-Anseo-Project header and returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProjectHeader"
@@ -2421,7 +2421,7 @@
     "/v1/projects": {
       "get": {
         "operationId": "listProjects",
-        "summary": "List active (non-archived) projects. Operator-scoped; not gated by X-OpenGEO-Project.",
+        "summary": "List active (non-archived) projects. Operator-scoped; not gated by X-Anseo-Project.",
         "responses": {
           "200": {
             "description": "OK",
@@ -2736,7 +2736,7 @@
                 }
               }
             },
-            "description": "No opengeo.yaml loaded; cannot assemble recommendation inputs."
+            "description": "No anseo.yaml loaded; cannot assemble recommendation inputs."
           }
         },
         "summary": "Story 19.6 — assemble an EngineInput from the project's live prompts/runs/citations, run the in-process engine, and persist the result. Returns 202 + a status_url per the Phase 2 async-write pattern."
@@ -3272,7 +3272,7 @@
   "servers": [
     {
       "description": "Hosted production",
-      "url": "https://api.opengeo.dev"
+      "url": "https://api.anseo.ai"
     },
     {
       "description": "Local Compose stack",

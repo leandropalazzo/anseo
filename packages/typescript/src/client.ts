@@ -3,6 +3,10 @@
  * DO NOT EDIT BY HAND. Regenerate with `make -C infra/codegen ts`.
  */
 import type {
+  AnalyticsFunnels200,
+  AnalyticsFunnelsParams,
+  AnalyticsSiteOverview200,
+  AnalyticsSiteOverviewParams,
   AuditReport,
   AuditRequest,
   AuditRunList,
@@ -56,6 +60,74 @@ import type {
   VisibilityTrendResponse
 } from './schemas'
 import { fetchClient } from './runtime';
+
+/**
+ * @summary Story 47.4 — operator analytics: contribute funnel step counts + per-step drop-off (start → step → complete), verify funnel start/complete/fail counts by method (dns | email) with success rate, and daily badge-embed serves (last 30 d). Read entirely from the aggregate site-event rollups (privacy-safe by construction). Operator-scoped; not gated by X-Anseo-Project. No MCP parity (operator-internal, not agent-facing).
+ */
+export type analyticsFunnelsResponse = {
+  data: AnalyticsFunnels200;
+  status: number;
+}
+
+export const getAnalyticsFunnelsUrl = (params?: AnalyticsFunnelsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  return normalizedParams.size ? `/v1/analytics/funnels?${normalizedParams.toString()}` : `/v1/analytics/funnels`
+}
+
+export const analyticsFunnels = async (params?: AnalyticsFunnelsParams, options?: RequestInit): Promise<analyticsFunnelsResponse> => {
+  
+  return fetchClient<Promise<analyticsFunnelsResponse>>(getAnalyticsFunnelsUrl(params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+/**
+ * @summary Story 47.4 — operator analytics: public-site overview from the aggregate rollups — unique sessions per day, top-5 pages, and top-5 referrer domains over the selected window. Privacy-safe (no raw per-visitor rows). Operator-scoped; not gated by X-Anseo-Project. No MCP parity (operator-internal, not agent-facing).
+ */
+export type analyticsSiteOverviewResponse = {
+  data: AnalyticsSiteOverview200;
+  status: number;
+}
+
+export const getAnalyticsSiteOverviewUrl = (params?: AnalyticsSiteOverviewParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  return normalizedParams.size ? `/v1/analytics/site-overview?${normalizedParams.toString()}` : `/v1/analytics/site-overview`
+}
+
+export const analyticsSiteOverview = async (params?: AnalyticsSiteOverviewParams, options?: RequestInit): Promise<analyticsSiteOverviewResponse> => {
+  
+  return fetchClient<Promise<analyticsSiteOverviewResponse>>(getAnalyticsSiteOverviewUrl(params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
 
 /**
  * @summary Roadmap Epic 32 — crawl a URL/sitemap and score citation-readiness against in-tree heuristics (Identity, Extractability, Corroboration). Optional CI-gate thresholds.
@@ -336,7 +408,7 @@ export const healthz = async ( options?: RequestInit): Promise<healthzResponse> 
 
 
 /**
- * Records a prompt run executed against a provider OUTSIDE OpenGEO's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-OpenGEO-Project header and returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped.
+ * Records a prompt run executed against a provider OUTSIDE Anseo's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-Anseo-Project header and returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).
  * @summary Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-sealed-contribution path as native runs.
  */
 export type ingestExternalRunResponse = {
@@ -501,7 +573,7 @@ export const upgradePlugin = async (id: string, options?: RequestInit): Promise<
 
 
 /**
- * @summary List active (non-archived) projects. Operator-scoped; not gated by X-OpenGEO-Project.
+ * @summary List active (non-archived) projects. Operator-scoped; not gated by X-Anseo-Project.
  */
 export type listProjectsResponse = {
   data: ProjectListResponse;

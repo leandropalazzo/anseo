@@ -12,7 +12,7 @@ export interface IngestRunRequest {
    * @nullable
    */
   citation_domains?: string[] | null;
-  /** Opt this run into the anonymous benchmark. Defaults to false. A true value with no per-project KEK is rejected 403 kek_missing. Note: full contribute enforcement requires Story 40.4; until then a true request is honoured only as far as the KEK gate. */
+  /** Opt this run into the anonymous benchmark. Defaults to false. A true value with no per-project KEK is rejected 403 kek_missing. When the project also has an active benchmark opt-in on the current terms, a true run is redacted and envelope-sealed under the project KEK (Story 40.4); otherwise the run is recorded but the contribution is reported as skipped/blocked, never silently dropped. */
   contribute?: boolean;
   /** Provider model/version string the external run used. */
   model: string;

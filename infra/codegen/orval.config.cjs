@@ -1,4 +1,4 @@
-// OpenGEO TypeScript SDK — orval config (Story 12.3).
+// Anseo TypeScript SDK — orval config (Story 12.3).
 //
 // Generates a Promise-based client into packages/typescript/src/ from
 // the canonical OpenAPI artifact. Pinned to orval 7.1.0 in the
@@ -6,7 +6,7 @@
 // diff so the drift gate stays green.
 
 module.exports = {
-  opengeo: {
+  anseo: {
     input: {
       target: "../../crates/wire-schema/openapi.json",
     },
