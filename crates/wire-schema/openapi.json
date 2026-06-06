@@ -2112,6 +2112,16 @@
               }
             }
           },
+          "404": {
+            "description": "No project resolved for this request (project_not_found).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "422": {
             "description": "The prompt slug is not declared in the project (prompt_not_found) or the provider does not resolve (provider_not_supported).",
             "content": {
