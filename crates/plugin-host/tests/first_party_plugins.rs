@@ -141,12 +141,12 @@ fn build_subprocess_plugin(dir: &str, bin_name: &str) -> PathBuf {
         .current_dir(&plugin_dir)
         .status()
         .unwrap_or_else(|e| panic!("{dir}: failed to spawn cargo build: {e}"));
-    assert!(status.success(), "{dir}: cargo build --release must succeed");
+    assert!(
+        status.success(),
+        "{dir}: cargo build --release must succeed"
+    );
 
-    let bin = plugin_dir
-        .join("target")
-        .join("release")
-        .join(bin_name);
+    let bin = plugin_dir.join("target").join("release").join(bin_name);
     assert!(
         bin.exists(),
         "{dir}: built binary must exist at {}",
@@ -185,8 +185,7 @@ fn trend_analytics_plugin_executes_and_emits_trend_result() {
         return;
     }
     let bin = build_subprocess_plugin("anseo-trend-analytics", "anseo-trend-analytics");
-    let request =
-        r#"{"window":"30d","metric":"citation_share","points":[0.10,0.12,0.15,0.19]}"#;
+    let request = r#"{"window":"30d","metric":"citation_share","points":[0.10,0.12,0.15,0.19]}"#;
     let stdout = run_through_sandbox(&bin, request);
 
     let v: serde_json::Value =
