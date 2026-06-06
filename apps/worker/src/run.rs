@@ -27,6 +27,14 @@ use crate::{DEFAULT_ETL_CITATION_LIMIT, DEFAULT_ETL_DAYS, DEFAULT_ETL_MAX_JOBS_P
 /// Seconds between poll sweeps. Mirrors the legacy binary constant.
 pub const POLL_INTERVAL_SECONDS: u64 = 5;
 
+/// Story 47.1 — minimum interval between site-analytics maintenance runs
+/// (nightly rollup + retention). Daily cadence, same as re-verification.
+pub const SITE_MAINT_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// Story 47.1 — raw `site_events` rows older than this are deleted by the
+/// retention job (the aggregate rollup table is preserved).
+pub const SITE_EVENT_RETENTION_DAYS: i64 = 30;
+
 /// Deployment-wide substrate the per-tick fan-out clones per project: the base
 /// `Config` (provider keys + concurrency) and the live `ProviderRegistry`.
 /// When `None`, schedule dispatch is inert (reaper + webhooks + ETL still run),
@@ -65,6 +73,10 @@ pub async fn run_poll_loop(
     let reverify_resolver = HickoryTxtResolver::new();
     let mut last_reverify: Option<Instant> = None;
 
+    // Story 47.1 — nightly site-event rollup + 30-day raw retention. Same
+    // in-process daily cadence as re-verification; gated by `last_site_maint`.
+    let mut last_site_maint: Option<Instant> = None;
+
     tokio::pin!(shutdown);
 
     let mut poll = tokio::time::interval(Duration::from_secs(POLL_INTERVAL_SECONDS));
@@ -82,6 +94,7 @@ pub async fn run_poll_loop(
             _ = poll.tick() => {
                 run_tick(storage, &pool, dispatch, &http_client).await;
                 maybe_run_reverification(storage, &reverify_resolver, &mut last_reverify).await;
+                maybe_run_site_event_maintenance(storage, &mut last_site_maint).await;
             }
         }
     }
@@ -126,6 +139,61 @@ async fn maybe_run_reverification(
             event = "verification.reverify_failed",
             error = %err,
             "daily DNS re-verification sweep failed; will retry next due tick"
+        ),
+    }
+}
+
+/// Daily site-analytics maintenance cadence (Story 47.1). Runs at most once per
+/// [`SITE_MAINT_INTERVAL`]: (1) aggregate raw `site_events` into
+/// `site_event_rollups` by `(event_type, day)`, then (2) delete raw rows older
+/// than [`SITE_EVENT_RETENTION_DAYS`] (the rollup table is preserved — A2:
+/// aggregate-only survives retention). Same no-infrastructure in-process pattern
+/// as [`maybe_run_reverification`]: the first poll tick after boot runs once,
+/// then daily. Errors are logged and retried next due tick — a failed sweep
+/// never wedges the poll loop, and rollup runs before retention so we never
+/// delete raw rows that haven't been aggregated yet.
+async fn maybe_run_site_event_maintenance(storage: &Storage, last_run: &mut Option<Instant>) {
+    let due = match last_run {
+        Some(last) => last.elapsed() >= SITE_MAINT_INTERVAL,
+        None => true,
+    };
+    if !due {
+        return;
+    }
+    *last_run = Some(Instant::now());
+
+    let repo = storage.site_events();
+    match repo.compute_rollups().await {
+        Ok(buckets) => tracing::info!(
+            event = "site_events.rollup_computed",
+            buckets,
+            "nightly site-event rollup computed"
+        ),
+        Err(err) => {
+            tracing::warn!(
+                event = "site_events.rollup_failed",
+                error = %err,
+                "site-event rollup failed; skipping retention this cycle to avoid losing un-aggregated rows"
+            );
+            return;
+        }
+    }
+
+    match repo.prune_raw_older_than(SITE_EVENT_RETENTION_DAYS).await {
+        Ok(deleted) => {
+            if deleted > 0 {
+                tracing::info!(
+                    event = "site_events.retention_pruned",
+                    deleted,
+                    retention_days = SITE_EVENT_RETENTION_DAYS,
+                    "pruned raw site-events past retention window"
+                );
+            }
+        }
+        Err(err) => tracing::warn!(
+            event = "site_events.retention_failed",
+            error = %err,
+            "site-event retention prune failed; will retry next due tick"
         ),
     }
 }

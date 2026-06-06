@@ -29,6 +29,7 @@ pub mod runs;
 pub mod schedules;
 pub mod serve_status;
 pub mod setup;
+pub mod site_events;
 pub mod test_seed;
 pub mod verification;
 pub mod visibility;

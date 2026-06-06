@@ -181,7 +181,8 @@ pub fn router(state: AppState) -> Router {
     //     surface (review queue + lifecycle actions) stays in `v1_surface`.
     let v1_public_surface = routes::badge::v1_router()
         .merge(routes::disputes::public_router())
-        .merge(routes::verification::public_router());
+        .merge(routes::verification::public_router())
+        .merge(routes::site_events::v1_router());
 
     let mut base = Router::new()
         .merge(phase_1_at_root_gated)

@@ -39,6 +39,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!(event = "service.boot", service = "anseo-api", bind = %booted.socket);
     let listener = tokio::net::TcpListener::bind(booted.socket).await?;
-    axum::serve(listener, booted.app).await?;
+    // `into_make_service_with_connect_info` so the public site-events ingest
+    // (Story 47.1) can read the peer socket IP for its in-memory rate limiter
+    // when no `X-Forwarded-For` is present (local dev). The IP is never stored.
+    axum::serve(
+        listener,
+        booted
+            .app
+            .into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }
