@@ -526,11 +526,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn cache_ttl_is_within_five_minute_revocation_bound() {
-        // CC-NFR6: revocation must propagate within 5 minutes.
-        assert!(BADGE_CACHE_MAX_AGE_SECS <= 300);
-    }
+    // CC-NFR6: revocation must propagate within 5 minutes. This is a property
+    // of a compile-time constant, so enforce it as a compile-time assertion
+    // (a runtime `assert!` on a const trips clippy::assertions_on_constants).
+    const _: () = assert!(BADGE_CACHE_MAX_AGE_SECS <= 300);
 
     #[test]
     fn badge_base_url_default_and_override() {
