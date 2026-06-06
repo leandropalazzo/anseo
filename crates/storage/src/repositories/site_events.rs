@@ -311,10 +311,7 @@ impl<'a> SiteEventRepo<'a> {
     /// fired any event that day is counted once per event type it touched; this
     /// is the best aggregate available without a per-day session dimension, and
     /// `page_view` dominates so it tracks real unique visits closely).
-    pub async fn sessions_per_day(
-        &self,
-        period_days: i64,
-    ) -> Result<Vec<DailyCount>, Error> {
+    pub async fn sessions_per_day(&self, period_days: i64) -> Result<Vec<DailyCount>, Error> {
         let rows = sqlx::query_as::<_, DailyCount>(
             r#"
             SELECT day, MAX(unique_sessions) AS count
@@ -383,10 +380,7 @@ impl<'a> SiteEventRepo<'a> {
     /// Total `event_count` per event type over the trailing `period_days`.
     /// Backs both funnel panels (contribute + verify) and the badge-embed chart.
     /// Returns one row per event type that has any events in the window.
-    pub async fn event_type_totals(
-        &self,
-        period_days: i64,
-    ) -> Result<Vec<EventTypeCount>, Error> {
+    pub async fn event_type_totals(&self, period_days: i64) -> Result<Vec<EventTypeCount>, Error> {
         let rows = sqlx::query_as::<_, EventTypeCount>(
             r#"
             SELECT event_type, SUM(event_count)::bigint AS count
@@ -403,10 +397,7 @@ impl<'a> SiteEventRepo<'a> {
 
     /// Daily badge-embed serve counts over the trailing `period_days`, oldest
     /// first. Backs the Badge Embeds bar chart.
-    pub async fn badge_embeds_per_day(
-        &self,
-        period_days: i64,
-    ) -> Result<Vec<DailyCount>, Error> {
+    pub async fn badge_embeds_per_day(&self, period_days: i64) -> Result<Vec<DailyCount>, Error> {
         let rows = sqlx::query_as::<_, DailyCount>(
             r#"
             SELECT day, SUM(event_count)::bigint AS count
@@ -671,21 +662,45 @@ mod tests {
         // and one verify_complete(dns); two badge embeds. All today.
         let s1 = uuid::Uuid::new_v4();
         let s2 = uuid::Uuid::new_v4();
-        repo.insert("page_view", s1, Some("/"), Some("google.com"), &serde_json::json!({}))
-            .await
-            .unwrap();
-        repo.insert("page_view", s1, Some("/leaderboard"), Some("google.com"), &serde_json::json!({}))
-            .await
-            .unwrap();
+        repo.insert(
+            "page_view",
+            s1,
+            Some("/"),
+            Some("google.com"),
+            &serde_json::json!({}),
+        )
+        .await
+        .unwrap();
+        repo.insert(
+            "page_view",
+            s1,
+            Some("/leaderboard"),
+            Some("google.com"),
+            &serde_json::json!({}),
+        )
+        .await
+        .unwrap();
         repo.insert("page_view", s2, Some("/"), None, &serde_json::json!({}))
             .await
             .unwrap();
-        repo.insert("verify_start", s1, None, None, &serde_json::json!({"method": "dns"}))
-            .await
-            .unwrap();
-        repo.insert("verify_complete", s1, None, None, &serde_json::json!({"method": "dns"}))
-            .await
-            .unwrap();
+        repo.insert(
+            "verify_start",
+            s1,
+            None,
+            None,
+            &serde_json::json!({"method": "dns"}),
+        )
+        .await
+        .unwrap();
+        repo.insert(
+            "verify_complete",
+            s1,
+            None,
+            None,
+            &serde_json::json!({"method": "dns"}),
+        )
+        .await
+        .unwrap();
         repo.insert("badge_embed_view", s2, None, None, &serde_json::json!({}))
             .await
             .unwrap();
@@ -714,7 +729,10 @@ mod tests {
 
         // event_type_totals includes verify + badge counts.
         let totals = repo.event_type_totals(7).await.unwrap();
-        let badge = totals.iter().find(|t| t.event_type == "badge_embed_view").unwrap();
+        let badge = totals
+            .iter()
+            .find(|t| t.event_type == "badge_embed_view")
+            .unwrap();
         assert_eq!(badge.count, 2);
 
         // badge_embeds_per_day: today = 2.
@@ -885,7 +903,9 @@ mod tests {
         );
         assert!(labels.contains(&"/leaderboard"));
         assert!(
-            !labels.iter().any(|l| l.contains("evil.example.com") || l.contains("token=")),
+            !labels
+                .iter()
+                .any(|l| l.contains("evil.example.com") || l.contains("token=")),
             "no raw URL / query string may be durable: {labels:?}"
         );
         // Finding 1: the UPPERCASE-scheme URL must reduce to "/account" — the
@@ -896,7 +916,9 @@ mod tests {
             "UPPERCASE-scheme full URL must reduce to its path; got {labels:?}"
         );
         assert!(
-            !labels.iter().any(|l| l.to_ascii_lowercase().contains("https://")),
+            !labels
+                .iter()
+                .any(|l| l.to_ascii_lowercase().contains("https://")),
             "no raw (upper- or lower-case scheme) URL may be durable: {labels:?}"
         );
         // Finding 2: the fragment-carried token URL rolls up as bare "/settings"
@@ -906,7 +928,9 @@ mod tests {
             "full URL with fragment must reduce to its path; got {labels:?}"
         );
         assert!(
-            !labels.iter().any(|l| l.contains('#') || l.contains("secret")),
+            !labels
+                .iter()
+                .any(|l| l.contains('#') || l.contains("secret")),
             "no fragment / fragment-carried token may be durable: {labels:?}"
         );
 
@@ -916,7 +940,9 @@ mod tests {
         let refs = repo.top_referrers(7, 10).await.unwrap();
         let rlabels: Vec<&str> = refs.iter().map(|r| r.label.as_str()).collect();
         assert!(
-            !rlabels.iter().any(|l| l.contains('@') || l.contains("jane")),
+            !rlabels
+                .iter()
+                .any(|l| l.contains('@') || l.contains("jane")),
             "no email-like referrer may be stored raw: {rlabels:?}"
         );
         assert!(
@@ -988,7 +1014,8 @@ mod tests {
         }
         // The poisoned email / garbage are never present verbatim.
         assert!(
-            !vm.iter().any(|(_, m, _)| m.contains('@') || m.contains("jane") || m.len() > 16),
+            !vm.iter()
+                .any(|(_, m, _)| m.contains('@') || m.contains("jane") || m.len() > 16),
             "raw poisoned method leaked: {vm:?}"
         );
         // Two poisoned verify_start rows → unknown=2.

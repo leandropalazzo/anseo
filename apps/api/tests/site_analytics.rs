@@ -17,9 +17,9 @@ use std::sync::Arc;
 use anseo_api::{router, AppState};
 use anseo_core::api_key::{generate as gen_key, API_KEY_HEADER};
 use anseo_core::ProjectId;
+use anseo_storage::models::ProjectRow;
 use anseo_storage::repositories::api_keys::ApiKeyRepo;
 use anseo_storage::repositories::projects::ProjectRepo;
-use anseo_storage::models::ProjectRow;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use chrono::Utc;
@@ -27,9 +27,10 @@ use sqlx::PgPool;
 use tower::ServiceExt;
 
 fn lazy_state() -> AppState {
-    let lazy_pool =
-        sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__site_analytics_test__")
-            .expect("connect_lazy never IOs synchronously");
+    let lazy_pool = sqlx::PgPool::connect_lazy(
+        "postgres://opengeo:opengeo@127.0.0.1:1/__site_analytics_test__",
+    )
+    .expect("connect_lazy never IOs synchronously");
     let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
     let (events, _rx) = anseo_scheduler::worker::event_channel();
     AppState {
@@ -104,23 +105,55 @@ async fn seed_and_route() -> (axum::Router, String, PgPool) {
     let s1 = uuid::Uuid::new_v4();
     let s2 = uuid::Uuid::new_v4();
     for (et, path, referrer, props) in [
-        ("page_view", Some("/"), Some("google.com"), serde_json::json!({})),
-        ("page_view", Some("/leaderboard"), None, serde_json::json!({})),
+        (
+            "page_view",
+            Some("/"),
+            Some("google.com"),
+            serde_json::json!({}),
+        ),
+        (
+            "page_view",
+            Some("/leaderboard"),
+            None,
+            serde_json::json!({}),
+        ),
         ("contribute_start", None, None, serde_json::json!({})),
-        ("contribute_step", None, None, serde_json::json!({"step": "consent"})),
+        (
+            "contribute_step",
+            None,
+            None,
+            serde_json::json!({"step": "consent"}),
+        ),
         ("contribute_complete", None, None, serde_json::json!({})),
-        ("verify_start", None, None, serde_json::json!({"method": "dns"})),
-        ("verify_complete", None, None, serde_json::json!({"method": "dns"})),
+        (
+            "verify_start",
+            None,
+            None,
+            serde_json::json!({"method": "dns"}),
+        ),
+        (
+            "verify_complete",
+            None,
+            None,
+            serde_json::json!({"method": "dns"}),
+        ),
         ("badge_embed_view", None, None, serde_json::json!({})),
     ] {
         let sid = if et == "page_view" { s1 } else { s2 };
-        repo.insert(et, sid, path, referrer, &props).await.expect("insert");
+        repo.insert(et, sid, path, referrer, &props)
+            .await
+            .expect("insert");
     }
     repo.compute_rollups().await.expect("rollup");
 
     let key = gen_key();
     ApiKeyRepo::new(&pool)
-        .insert(project_id, "fixture-key", &key.sha256_hash, &key.display_prefix)
+        .insert(
+            project_id,
+            "fixture-key",
+            &key.sha256_hash,
+            &key.display_prefix,
+        )
         .await
         .expect("seed api key");
 
@@ -152,7 +185,9 @@ async fn get_json(app: &axum::Router, uri: &str, key: &str) -> (StatusCode, serd
         .await
         .unwrap();
     let status = resp.status();
-    let bytes = axum::body::to_bytes(resp.into_body(), 256 * 1024).await.unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), 256 * 1024)
+        .await
+        .unwrap();
     let json = if bytes.is_empty() {
         serde_json::Value::Null
     } else {
@@ -185,7 +220,9 @@ async fn site_overview_and_funnels_aggregate_correctly() {
     assert_eq!(contribute[0]["count"], 1);
     // verify dns method present with start+complete.
     let verify = funnels["verify"].as_array().unwrap();
-    assert!(verify.iter().any(|v| v["method"] == "dns" && v["start"] == 1 && v["complete"] == 1));
+    assert!(verify
+        .iter()
+        .any(|v| v["method"] == "dns" && v["start"] == 1 && v["complete"] == 1));
     // badge embeds today = 1.
     assert_eq!(
         funnels["badge_embeds_per_day"]

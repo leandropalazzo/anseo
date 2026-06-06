@@ -116,7 +116,10 @@ async fn site_overview(
 
     let sessions = repo.sessions_per_day(days).await.map_err(internal_error)?;
     let pages = repo.top_pages(days, TOP_N).await.map_err(internal_error)?;
-    let referrers = repo.top_referrers(days, TOP_N).await.map_err(internal_error)?;
+    let referrers = repo
+        .top_referrers(days, TOP_N)
+        .await
+        .map_err(internal_error)?;
 
     Ok(Json(SiteOverview {
         period_days: days,
@@ -230,13 +233,18 @@ async fn funnels(
 
     // Verify funnel grouped by method (dns | email). Reads non-PII `method` enum
     // from raw events within the retention window.
-    let by_method = repo.verify_counts_by_method(days).await.map_err(internal_error)?;
+    let by_method = repo
+        .verify_counts_by_method(days)
+        .await
+        .map_err(internal_error)?;
     let mut methods: std::collections::BTreeMap<String, VerifyMethod> = Default::default();
     for (event_type, method, count) in by_method {
-        let m = methods.entry(method.clone()).or_insert_with(|| VerifyMethod {
-            method,
-            ..Default::default()
-        });
+        let m = methods
+            .entry(method.clone())
+            .or_insert_with(|| VerifyMethod {
+                method,
+                ..Default::default()
+            });
         match event_type.as_str() {
             "verify_start" => m.start = count,
             "verify_complete" => m.complete = count,
@@ -257,7 +265,10 @@ async fn funnels(
         .collect();
 
     // Badge embeds — always last 30 d per spec, independent of the period param.
-    let badges = repo.badge_embeds_per_day(30).await.map_err(internal_error)?;
+    let badges = repo
+        .badge_embeds_per_day(30)
+        .await
+        .map_err(internal_error)?;
 
     Ok(Json(Funnels {
         period_days: days,
@@ -298,7 +309,10 @@ mod tests {
     fn funnel_later_step_growth_renders_na_not_negative() {
         // Tracking deployed mid-funnel: a later step has MORE events.
         let f = build_funnel(&[("start", 10), ("step", 25), ("complete", 5)]);
-        assert_eq!(f[1].drop_off_pct, None, "growth must be N/A, never negative");
+        assert_eq!(
+            f[1].drop_off_pct, None,
+            "growth must be N/A, never negative"
+        );
         // 25 → 5 is a normal 80% drop.
         assert!((f[2].drop_off_pct.unwrap() - 80.0).abs() < 1e-9);
     }

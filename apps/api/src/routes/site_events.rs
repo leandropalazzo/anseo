@@ -199,10 +199,7 @@ fn normalize_path(raw: &str) -> Option<String> {
     };
 
     // Drop query string and fragment.
-    let path_only = path_part
-        .split(['?', '#'])
-        .next()
-        .unwrap_or("/");
+    let path_only = path_part.split(['?', '#']).next().unwrap_or("/");
     let path_only = if path_only.is_empty() { "/" } else { path_only };
 
     let mut out = path_only.to_string();
@@ -243,10 +240,7 @@ fn normalize_referrer(raw: &str) -> Option<String> {
         .unwrap_or(raw);
 
     // Cut at the first path / query / fragment separator → authority only.
-    let authority = after_scheme
-        .split(['/', '?', '#'])
-        .next()
-        .unwrap_or("");
+    let authority = after_scheme.split(['/', '?', '#']).next().unwrap_or("");
 
     let host_port = authority;
 
@@ -466,17 +460,26 @@ mod tests {
             Some("/account".into())
         );
         // Fragment on a site-relative path is stripped.
-        assert_eq!(normalize_path("/account#token=abc"), Some("/account".into()));
+        assert_eq!(
+            normalize_path("/account#token=abc"),
+            Some("/account".into())
+        );
         // Bare host with no path → root.
         assert_eq!(normalize_path("https://evil.example.com"), Some("/".into()));
         // Protocol-relative URL.
-        assert_eq!(normalize_path("//cdn.example.com/a/b?x=1"), Some("/a/b".into()));
+        assert_eq!(
+            normalize_path("//cdn.example.com/a/b?x=1"),
+            Some("/a/b".into())
+        );
     }
 
     #[test]
     fn normalize_path_buckets_arbitrary_or_unsafe_input() {
         // Arbitrary non-path token → sentinel, never stored raw.
-        assert_eq!(normalize_path("javascript:alert(1)"), Some("(other)".into()));
+        assert_eq!(
+            normalize_path("javascript:alert(1)"),
+            Some("(other)".into())
+        );
         assert_eq!(normalize_path("just some text"), Some("(other)".into()));
         // Control chars → sentinel.
         assert_eq!(normalize_path("/a\nb"), Some("(other)".into()));
@@ -487,7 +490,10 @@ mod tests {
 
     #[test]
     fn normalize_referrer_reduces_to_bare_domain() {
-        assert_eq!(normalize_referrer("https://www.google.com/search?q=x"), Some("www.google.com".into()));
+        assert_eq!(
+            normalize_referrer("https://www.google.com/search?q=x"),
+            Some("www.google.com".into())
+        );
         assert_eq!(normalize_referrer("google.com"), Some("google.com".into()));
         // Port, path, query, fragment all stripped; lowercased.
         assert_eq!(
@@ -546,11 +552,17 @@ mod tests {
     fn normalize_referrer_drops_email_like_and_arbitrary_strings() {
         // An email-like referrer must NOT be stored raw — bucketed to sentinel.
         // (Finding 1 required case.)
-        assert_eq!(normalize_referrer("jane.doe@corp.com"), Some("(other)".into()));
+        assert_eq!(
+            normalize_referrer("jane.doe@corp.com"),
+            Some("(other)".into())
+        );
         // Arbitrary string with no dot → sentinel.
         assert_eq!(normalize_referrer("not a url"), Some("(other)".into()));
         // Control chars → sentinel.
-        assert_eq!(normalize_referrer("evil\u{0000}.com"), Some("(other)".into()));
+        assert_eq!(
+            normalize_referrer("evil\u{0000}.com"),
+            Some("(other)".into())
+        );
         // Empty (direct visit) → store nothing.
         assert_eq!(normalize_referrer(""), None);
         assert_eq!(normalize_referrer("   "), None);
@@ -568,7 +580,11 @@ mod tests {
         assert_eq!(long_path.len(), 257);
         let out = normalize_path(&long_path).expect("non-empty path normalizes");
         // No panic; result is valid UTF-8, within the byte cap, and on a boundary.
-        assert!(out.len() <= DIM_MAX_LEN, "byte length must respect cap: {}", out.len());
+        assert!(
+            out.len() <= DIM_MAX_LEN,
+            "byte length must respect cap: {}",
+            out.len()
+        );
         assert!(std::str::from_utf8(out.as_bytes()).is_ok());
         assert!(out.starts_with('/'));
         // 256 is odd-vs-the-2-byte boundary after the leading '/', so the safe
