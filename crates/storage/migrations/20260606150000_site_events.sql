@@ -34,11 +34,17 @@ CREATE INDEX IF NOT EXISTS site_events_ts      ON site_events (ts DESC);
 -- `unique_sessions` is the distinct ephemeral session_id count for that bucket.
 -- The rollup is the only surface exposed after raw rows are pruned (A2:
 -- aggregate-only after retention).
+-- `finalized` makes a rollup row durable/monotonic: once a day is complete
+-- (past midnight UTC) its rollup is computed from the full set of raw rows and
+-- frozen. A later recompute — e.g. after the 30-day retention prune starts
+-- removing that day's raw rows — must NOT overwrite a finalized row with a
+-- smaller, partial count. See `compute_rollups` for the ON CONFLICT guard.
 CREATE TABLE IF NOT EXISTS site_event_rollups (
     event_type      TEXT NOT NULL,
     day             DATE NOT NULL,
     event_count     BIGINT NOT NULL DEFAULT 0,
     unique_sessions BIGINT NOT NULL DEFAULT 0,
+    finalized       BOOLEAN NOT NULL DEFAULT FALSE,
     computed_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (event_type, day)
 );

@@ -47,6 +47,9 @@ pub struct SiteEventRollup {
     pub day: chrono::NaiveDate,
     pub event_count: i64,
     pub unique_sessions: i64,
+    /// `true` once the day is complete (past midnight UTC) and the rollup is
+    /// frozen — a later prune-driven recompute cannot reduce it.
+    pub finalized: bool,
     pub computed_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -88,25 +91,45 @@ impl<'a> SiteEventRepo<'a> {
     }
 
     /// Nightly rollup: aggregate raw `site_events` into `site_event_rollups`,
-    /// grouped by `(event_type, date)`. Idempotent — re-running upserts the same
-    /// buckets (an interrupted/retried job is safe). Returns the number of
-    /// `(event_type, day)` buckets written.
+    /// grouped by `(event_type, date)`.
+    ///
+    /// **Durable / monotonic (Story 47.1 fix).** A rollup row is `finalized` the
+    /// moment its day is complete — i.e. the day is strictly before the current
+    /// UTC date, so no more raw rows can land in it. Once finalized, a later
+    /// recompute can never overwrite it. This is what makes the rollup safe in
+    /// the face of the 30-day raw-retention prune: after retention starts
+    /// deleting a day's raw rows, recomputing that day from the surviving subset
+    /// would yield a smaller, partial count — the `WHERE NOT ... finalized`
+    /// guard rejects that clobber. Today's (still-open) row keeps updating until
+    /// it too rolls over past midnight and gets frozen.
+    ///
+    /// Idempotent — re-running upserts the same buckets (an interrupted/retried
+    /// job is safe). Returns the number of `(event_type, day)` buckets written.
     pub async fn compute_rollups(&self) -> Result<u64, Error> {
         let result = sqlx::query(
             r#"
-            INSERT INTO site_event_rollups (event_type, day, event_count, unique_sessions, computed_at)
+            INSERT INTO site_event_rollups
+                (event_type, day, event_count, unique_sessions, finalized, computed_at)
             SELECT
                 event_type,
-                (ts AT TIME ZONE 'UTC')::date AS day,
-                COUNT(*)                       AS event_count,
-                COUNT(DISTINCT session_id)     AS unique_sessions,
-                now()                          AS computed_at
+                (ts AT TIME ZONE 'UTC')::date           AS day,
+                COUNT(*)                                AS event_count,
+                COUNT(DISTINCT session_id)              AS unique_sessions,
+                -- A day is complete (and thus finalized) once it is strictly
+                -- before the current UTC date: no further raw rows can arrive.
+                ((ts AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'UTC')::date) AS finalized,
+                now()                                   AS computed_at
             FROM site_events
             GROUP BY event_type, (ts AT TIME ZONE 'UTC')::date
             ON CONFLICT (event_type, day) DO UPDATE SET
                 event_count     = EXCLUDED.event_count,
                 unique_sessions = EXCLUDED.unique_sessions,
+                finalized       = EXCLUDED.finalized,
                 computed_at     = EXCLUDED.computed_at
+            -- Never overwrite an already-finalized (complete) day. A prune-driven
+            -- recompute from a partial set of surviving raw rows cannot reduce a
+            -- frozen count.
+            WHERE NOT site_event_rollups.finalized
             "#,
         )
         .execute(self.pool)
@@ -134,7 +157,7 @@ impl<'a> SiteEventRepo<'a> {
     pub async fn list_rollups(&self) -> Result<Vec<SiteEventRollup>, Error> {
         let rows = sqlx::query_as::<_, SiteEventRollup>(
             r#"
-            SELECT event_type, day, event_count, unique_sessions, computed_at
+            SELECT event_type, day, event_count, unique_sessions, finalized, computed_at
             FROM site_event_rollups
             ORDER BY day DESC, event_type ASC
             "#,
@@ -231,5 +254,70 @@ mod tests {
         assert_eq!(repo.count_raw().await.unwrap(), 0);
         // Rollup table untouched by retention.
         assert!(!repo.list_rollups().await.unwrap().is_empty());
+    }
+
+    /// Regression for the rollup-undercount finding: once a day is complete and
+    /// its rollup is finalized, a later recompute — after the retention prune has
+    /// removed some of that day's raw rows — must NOT clobber the frozen count
+    /// with a smaller, partial one. Rollups are durable/monotonic.
+    #[sqlx::test(migrations = "./migrations")]
+    async fn finalized_rollup_is_not_reduced_by_recompute_after_prune(pool: PgPool) {
+        let repo = SiteEventRepo::new(&pool);
+
+        // Three events for the same type, all dated *two days ago* (a complete,
+        // past UTC day) so the first rollup will finalize them.
+        for _ in 0..3 {
+            repo.insert(
+                "page_view",
+                uuid::Uuid::new_v4(),
+                Some("/"),
+                None,
+                &serde_json::json!({}),
+            )
+            .await
+            .unwrap();
+        }
+        sqlx::query("UPDATE site_events SET ts = now() - interval '2 days'")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // First rollup: day is in the past → row is finalized with the full count.
+        repo.compute_rollups().await.unwrap();
+        let first = repo
+            .list_rollups()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|r| r.event_type == "page_view")
+            .expect("page_view rollup");
+        assert_eq!(first.event_count, 3);
+        assert_eq!(first.unique_sessions, 3);
+        assert!(first.finalized, "a complete past day must be finalized");
+
+        // Retention prunes most of that day's raw rows (simulating mid-window
+        // pruning). Only a partial subset of the day's raw events survives.
+        sqlx::query("DELETE FROM site_events WHERE id IN (SELECT id FROM site_events LIMIT 2)")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(repo.count_raw().await.unwrap(), 1);
+
+        // Re-run the rollup. A naive recompute would write event_count = 1 from
+        // the single surviving raw row. The finalize guard must reject it.
+        repo.compute_rollups().await.unwrap();
+        let after = repo
+            .list_rollups()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|r| r.event_type == "page_view")
+            .expect("page_view rollup");
+        assert_eq!(
+            after.event_count, 3,
+            "finalized rollup must not be reduced by a post-prune recompute"
+        );
+        assert_eq!(after.unique_sessions, 3);
+        assert!(after.finalized);
     }
 }

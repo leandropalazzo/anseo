@@ -328,6 +328,7 @@ fn build_spec() -> serde_json::Value {
                     "operationId": "ingestSiteEvent",
                     "summary": "Story 47.1 — public, unauthenticated privacy-safe site-event ingest. No API key required (the public site posts directly). No PII stored: no IP column, no user IDs; session_id is an ephemeral per-visit UUID. Unknown event_type values are silently dropped with 204 to prevent allowlist enumeration. Rate-limited 60/min per IP at the edge (IP never persisted).",
                     "x-anseo-public": true,
+                    "security": [],
                     "requestBody": {
                         "required": true,
                         "content": {
