@@ -177,7 +177,11 @@ fn build_subprocess_plugin(dir: &str, bin_name: &str) -> PathBuf {
         "{dir}: cargo build --release must succeed"
     );
 
-    let bin = plugin_dir.join("target").join("release").join(bin_name);
+    // Cargo appends the platform executable suffix (e.g. `.exe` on Windows).
+    let bin = plugin_dir
+        .join("target")
+        .join("release")
+        .join(format!("{bin_name}{}", std::env::consts::EXE_SUFFIX));
     assert!(
         bin.exists(),
         "{dir}: built binary must exist at {}",
@@ -224,17 +228,22 @@ fn build_native_cdylib(dir: &str) -> PathBuf {
         "{dir}: cargo build --release must succeed"
     );
 
-    // cdylib output name: lib<name with - → _>.<dylib|so|dll>.
-    let lib_stem = format!("lib{}", dir.replace('-', "_"));
+    // cdylib output name follows the host's platform conventions:
+    // DLL_PREFIX is "lib" on unix and "" on Windows; DLL_SUFFIX is
+    // ".so"/".dylib"/".dll". The crate name has `-` normalized to `_`.
+    let lib_name = format!(
+        "{}{}{}",
+        std::env::consts::DLL_PREFIX,
+        dir.replace('-', "_"),
+        std::env::consts::DLL_SUFFIX,
+    );
     let release = plugin_dir.join("target").join("release");
-    for ext in ["dylib", "so", "dll"] {
-        let candidate = release.join(format!("{lib_stem}.{ext}"));
-        if candidate.is_file() {
-            return candidate;
-        }
+    let candidate = release.join(&lib_name);
+    if candidate.is_file() {
+        return candidate;
     }
     panic!(
-        "{dir}: expected a cdylib ({lib_stem}.[dylib|so|dll]) under {}",
+        "{dir}: expected a cdylib ({lib_name}) under {}",
         release.display()
     );
 }
