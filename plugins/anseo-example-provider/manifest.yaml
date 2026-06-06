@@ -1,0 +1,22 @@
+# Anseo first-party plugin — minimal example Provider (SDK author template).
+#
+# Provider plugin (WASM): calls a public echo API and returns a deterministic
+# response. It exists primarily as documentation — the canonical starting point
+# for plugin authors building their own Provider. Reaches users through the
+# existing provider surface via the
+# plugin:anseo/anseo-example-provider:provider namespace.
+#
+# Registry id: anseo/anseo-example-provider
+name: anseo-example-provider
+version: "0.1.0"
+description: "Minimal example Provider plugin (SDK author template; calls a public echo API)."
+author: "anseo.ai"
+homepage: "https://anseo.ai/plugins/anseo-example-provider"
+plugin_type: provider
+# WASM module built from src/lib.rs by the 41.4 CI signing pipeline.
+entry_point: entrypoint.wasm
+capabilities:
+  # The single host the example provider is allowed to reach.
+  - kind: network
+    allowlist:
+      - "postman-echo.com"

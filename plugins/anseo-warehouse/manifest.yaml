@@ -1,0 +1,33 @@
+# Anseo first-party plugin — ClickHouse warehouse / ETL (ADR-006 Tier-2+).
+#
+# Analytics plugin: wraps the existing feature-gated ClickHouse ETL logic as a
+# subprocess-sandboxed Analytics plugin so operators get warehouse-backed
+# analytics without forking the core binary. Reaches users through the existing
+# analytics surface via the plugin:anseo/anseo-warehouse:analytics namespace.
+#
+# Registry id: anseo/anseo-warehouse  (name below is the bare DNS-safe name)
+name: anseo-warehouse
+version: "0.1.0"
+description: "ClickHouse-backed warehouse + ETL analytics (ADR-006 Tier-2+)."
+author: "anseo.ai"
+homepage: "https://anseo.ai/plugins/anseo-warehouse"
+plugin_type: analytics
+# Subprocess binary built by the 41.4 CI signing pipeline.
+entry_point: bin/anseo-warehouse
+capabilities:
+  # ClickHouse endpoint the ETL writes to / queries. Host mediates every
+  # outbound fetch against this allowlist.
+  - kind: network
+    allowlist:
+      - "clickhouse.internal"
+      - "localhost"
+  # Declared maximum analytics windows carried through to the audit row.
+  - kind: analytics-window
+    windows:
+      - "30d"
+      - "90d"
+      - "365d"
+  # Warehouse ETL emits rollup-completion audit events.
+  - kind: emit-event
+    kinds:
+      - "analytics.rollup.completed"

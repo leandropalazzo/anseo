@@ -1,0 +1,31 @@
+# Anseo first-party plugin — connect-your-data sink to Google BigQuery.
+#
+# Output-format plugin: streams run results to a BigQuery dataset. Demonstrates
+# the Output plugin interface and the connect-your-data pattern. Reaches users
+# through the existing output surface via the
+# plugin:anseo/anseo-connect-bigquery:output-format namespace — no new routes.
+#
+# Network capability is scoped to the BigQuery API host and is enforced by the
+# capability catalog from Story 17.4.
+#
+# Registry id: anseo/anseo-connect-bigquery
+name: anseo-connect-bigquery
+version: "0.1.0"
+description: "Stream run results to Google BigQuery (connect-your-data sink)."
+author: "anseo.ai"
+homepage: "https://anseo.ai/plugins/anseo-connect-bigquery"
+plugin_type: output-format
+entry_point: bin/anseo-connect-bigquery
+capabilities:
+  # network:bigquery.googleapis.com — the only host this sink may reach.
+  - kind: network
+    allowlist:
+      - "bigquery.googleapis.com"
+  # Reads the configured BigQuery service-account credential.
+  - kind: read-secret
+    keys:
+      - "plugin:anseo/anseo-connect-bigquery:service-account"
+  # Emits a sink-completion audit event per export.
+  - kind: emit-event
+    kinds:
+      - "output.export.completed"
