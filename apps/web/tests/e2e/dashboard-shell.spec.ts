@@ -56,7 +56,7 @@ test("@P1 sidebar groups monitor, analyse, and operate surfaces", async ({ page 
     "MonitorOverviewG ORunsG RVisibilityG VCitationsG CCompetitorsG KRecommendationsG DAlertsG A",
   );
   await expect(analyse).toContainText(
-    "AnalyseSentimentG TAccuracyG YAuditG UCrawlersG W",
+    "AnalyseSentimentG TAccuracyG YAuditG USite AnalyticsG ZCrawlersG W",
   );
   await expect(operate).toContainText(
     "OperatePromptsG PSchedulesG HMCPG MMarketplaceG BSettingsG S",
