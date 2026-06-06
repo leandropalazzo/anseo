@@ -7,6 +7,7 @@
 #
 #   curl -fsSL https://anseo.ai/compose.yml -o compose.yml
 #   curl -fsSL https://anseo.ai/.env.example -o .env   # then edit secrets
+#   curl -fsSL https://anseo.ai/anseo.example.yaml -o anseo.example.yaml
 #   docker compose up -d
 #
 # Deploy guidance (exposure baseline, reverse proxy/TLS, backups):
@@ -74,9 +75,8 @@ services:
       ANSEO_BOOTSTRAP_API_KEY: ${ANSEO_BOOTSTRAP_API_KEY:-ogeo_DevComposeBootstrapKeyDoNotUse01}
       RUST_LOG: ${RUST_LOG:-info}
       # Path to the canonical project YAML inside the container. The API derives
-      # its project_id from this file's brand.name. The standalone bundle ships
-      # no fixture; the DB is authoritative after first run, so a built-in
-      # default config is sufficient. Override ANSEO_CONFIG only if you mount one.
+      # its project_id from this file's brand.name; the bind mount below must
+      # provide the same file at this path for live prompt dispatch to work.
       ANSEO_CONFIG: ${ANSEO_CONFIG:-/anseo.yaml}
       # Durable provider-secret store: the OS keyring is unavailable in a
       # headless container, so secrets persist in an age-encrypted file that
@@ -90,6 +90,10 @@ services:
       # survive `docker compose down && up`.
       XDG_CONFIG_HOME: /data/config
     volumes:
+      # Canonical project config, mounted read-only so api + worker load the
+      # same prompts/providers. Copy anseo.example.yaml to anseo.yaml and edit
+      # it for your deployment; override ANSEO_PROJECT_CONFIG for another path.
+      - ${ANSEO_PROJECT_CONFIG:-./anseo.example.yaml}:/anseo.yaml:ro
       # Durable home for the age-encrypted provider-secrets file
       # (<XDG_CONFIG_HOME>/anseo/secrets.age).
       - api-secrets:/data/config
@@ -125,6 +129,8 @@ services:
       ANSEO_DISABLE_KEYRING: "1"
       XDG_CONFIG_HOME: /data/config
     volumes:
+      # Same canonical project config the api mounts (read-only).
+      - ${ANSEO_PROJECT_CONFIG:-./anseo.example.yaml}:/anseo.yaml:ro
       # Shared age-secrets home so the worker reads dashboard-set provider keys.
       - api-secrets:/data/config
     depends_on:

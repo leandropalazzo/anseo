@@ -1,0 +1,27 @@
+# Anseo project config for the standalone production compose bundle.
+#
+# Replace the brand, prompts, competitors, and provider list with the project
+# you want Anseo to monitor. Provider API keys are not stored here; set them in
+# the dashboard or through the supported provider secret-store flow.
+schema_version: '0.1'
+
+brand:
+  name: "Example Brand"
+  variants:
+    - example
+
+competitors:
+  - name: "Example Competitor"
+    variants:
+      - competitor
+
+prompts:
+  - name: category-recommendations
+    text: "Which products or companies do you recommend for this category?"
+    description: Baseline prompt for category visibility monitoring.
+
+providers:
+  - name: openai
+  - name: anthropic
+
+concurrency: 4
