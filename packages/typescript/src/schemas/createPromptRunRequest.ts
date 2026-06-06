@@ -5,7 +5,7 @@
 import type { CreatePromptRunRequestProvider } from './createPromptRunRequestProvider';
 
 export interface CreatePromptRunRequest {
-  /** Slug-safe prompt identifier declared in opengeo.yaml. */
+  /** Slug-safe prompt identifier declared in anseo.yaml. */
   prompt_name: string;
   provider: CreatePromptRunRequestProvider;
   /** @nullable */

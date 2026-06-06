@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "opengeo"
+name = "anseo"
 version = "0.0.0"
-description = "OpenGEO REST client — auto-generated from the canonical OpenAPI artifact."
+description = "Anseo REST client — auto-generated from the canonical OpenAPI artifact."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
@@ -16,10 +16,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://opengeo.dev"
-Source = "https://github.com/opengeo/opengeo"
+Homepage = "https://anseo.ai"
+Source = "https://github.com/anseo/anseo"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["opengeo*"]
-exclude = ["opengeo.*.__pycache__*"]
+include = ["anseo*"]
+exclude = ["anseo.*.__pycache__*"]

@@ -3,6 +3,12 @@
  * DO NOT EDIT BY HAND. Regenerate with `make -C infra/codegen ts`.
  */
 
+export * from './analyticsFunnels200';
+export * from './analyticsFunnelsParams';
+export * from './analyticsFunnelsPeriod';
+export * from './analyticsSiteOverview200';
+export * from './analyticsSiteOverviewParams';
+export * from './analyticsSiteOverviewPeriod';
 export * from './auditFinding';
 export * from './auditFindingCategory';
 export * from './auditFindingSeverity';

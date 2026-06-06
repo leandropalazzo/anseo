@@ -1,28 +1,28 @@
-# opengeo (Python)
+# anseo (Python)
 
 Python client for the Anseo REST API. Auto-generated from
 `crates/wire-schema/openapi.json` by
-`openapi-python-client@0.24.0` (everything under `opengeo/api/`,
-`opengeo/models/`, `opengeo/client.py`, `opengeo/types.py`, and
-`opengeo/errors.py`). `opengeo/auth.py` is hand-written and survives
+`openapi-python-client@0.24.0` (everything under `anseo/api/`,
+`anseo/models/`, `anseo/client.py`, `anseo/types.py`, and
+`anseo/errors.py`). `anseo/auth.py` is hand-written and survives
 regeneration.
 
 ## Install
 
 ```bash
-pip install opengeo
+pip install anseo
 ```
 
 ## Usage
 
 ```python
-from opengeo.auth import OpenGeoClient
-from opengeo.api.default import list_runs, create_prompt_run
-from opengeo.models import CreatePromptRunRequest, CreatePromptRunRequestProvider
+from anseo.auth import AnseoClient
+from anseo.api.default import list_runs, create_prompt_run
+from anseo.models import CreatePromptRunRequest, CreatePromptRunRequestProvider
 
-client = OpenGeoClient(
+client = AnseoClient(
     base_url="http://127.0.0.1:8080",
-    api_key=os.environ["OPENGEO_API_KEY"],
+    api_key=os.environ["ANSEO_API_KEY"],
 )
 
 # List recent runs.
@@ -38,8 +38,8 @@ created = create_prompt_run.sync(
 )
 ```
 
-`OpenGeoClient` is a thin factory over `AuthenticatedClient` that pins
-the `X-OpenGEO-API-Key` header and an empty token prefix — the
+`AnseoClient` is a thin factory over `AuthenticatedClient` that pins
+the `X-Anseo-API-Key` header and an empty token prefix — the
 architecture-mandated auth shape (§5.1). Any other keyword
 (`timeout`, `verify_ssl`, `httpx_args`, …) is forwarded to
 `AuthenticatedClient`.

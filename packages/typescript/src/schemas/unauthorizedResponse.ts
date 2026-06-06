@@ -5,6 +5,6 @@
 import type { Error } from './error';
 
 /**
- * Missing, malformed, or revoked X-OpenGEO-API-Key. The body shape is intentionally opaque so an unauthenticated caller cannot distinguish 'wrong key' from 'auth backend down'.
+ * Missing, malformed, or revoked X-Anseo-API-Key. The body shape is intentionally opaque so an unauthenticated caller cannot distinguish 'wrong key' from 'auth backend down'.
  */
 export type UnauthorizedResponse = Error;

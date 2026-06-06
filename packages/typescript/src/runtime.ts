@@ -1,4 +1,4 @@
-// OpenGEO TypeScript SDK — runtime mutator referenced by orval (Story 12.3).
+// Anseo TypeScript SDK — runtime mutator referenced by orval (Story 12.3).
 //
 // orval's fetch client invokes the mutator as `fetchClient(url, init)`,
 // where `url` is a complete relative path (e.g. "/v1/runs?limit=10")
@@ -6,34 +6,34 @@
 // module wraps that into base-URL composition, API-key injection, and
 // error translation so callers only need to call `configure(...)` once.
 //
-// The API authenticates with `X-OpenGEO-API-Key` (architecture §5.1),
+// The API authenticates with `X-Anseo-API-Key` (architecture §5.1),
 // not `Authorization: Bearer`.
 
-export type OpenGeoConfig = {
+export type AnseoConfig = {
   baseUrl: string;
   apiKey?: string;
   fetch?: typeof globalThis.fetch;
 };
 
-let config: OpenGeoConfig = {
+let config: AnseoConfig = {
   baseUrl: "http://127.0.0.1:8080",
 };
 
-export function configure(next: Partial<OpenGeoConfig>): void {
+export function configure(next: Partial<AnseoConfig>): void {
   config = { ...config, ...next };
 }
 
-export function currentConfig(): Readonly<OpenGeoConfig> {
+export function currentConfig(): Readonly<AnseoConfig> {
   return config;
 }
 
-export class OpenGeoApiError extends Error {
+export class AnseoApiError extends Error {
   readonly status: number;
   readonly body: unknown;
 
   constructor(message: string, status: number, body: unknown) {
     super(message);
-    this.name = "OpenGeoApiError";
+    this.name = "AnseoApiError";
     this.status = status;
     this.body = body;
   }
@@ -84,7 +84,7 @@ export async function fetchClient<T>(
     headers["Content-Type"] ??= "application/json";
   }
   if (config.apiKey) {
-    headers["X-OpenGEO-API-Key"] ??= config.apiKey;
+    headers["X-Anseo-API-Key"] ??= config.apiKey;
   }
 
   let response: Response;
@@ -92,9 +92,9 @@ export async function fetchClient<T>(
     response = await fetchImpl(absoluteUrl, { ...init, headers });
   } catch (cause) {
     // Network errors (DNS, TLS, abort, offline) bypass the HTTP layer
-    // entirely. Wrap them in OpenGeoApiError(status=0) so consumers can
+    // entirely. Wrap them in AnseoApiError(status=0) so consumers can
     // pattern-match on a single exception type for all failure modes.
-    throw new OpenGeoApiError(
+    throw new AnseoApiError(
       `network error: ${cause instanceof Error ? cause.message : String(cause)}`,
       0,
       cause,
@@ -103,8 +103,8 @@ export async function fetchClient<T>(
   const text = await response.text();
   const parsed = text.length === 0 ? undefined : safeParseJson(text);
   if (!response.ok) {
-    throw new OpenGeoApiError(
-      `OpenGEO API ${init.method ?? "GET"} ${url} failed: ${response.status}`,
+    throw new AnseoApiError(
+      `Anseo API ${init.method ?? "GET"} ${url} failed: ${response.status}`,
       response.status,
       parsed,
     );
