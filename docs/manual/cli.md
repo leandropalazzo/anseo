@@ -145,6 +145,7 @@ Migrate Postgres analytics into ClickHouse pre-aggregated tables (idempotent).
 | `ogeo plugin upgrade <ns/name[@ver]>` | Upgrade | `--registry` `--allow-unsigned` `--accept-new-capabilities` |
 
 - **Use case:** extend the platform (providers, trend kinds) via the plugin SDK / registry. Capability widening on upgrade requires explicit `--accept-new-capabilities`.
+- **Surface boundary:** plugins reach users through *existing* surfaces only (the `plugin:<id>:<kind>` namespace) — they cannot mint new MCP tools, Web routes, or CLI verbs. See the [Plugin Surface Boundary](../plugin-surface-boundary.md) for the load-path gates, signing requirements, and the one accepted parity exception.
 
 ---
 

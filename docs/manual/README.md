@@ -45,3 +45,7 @@ Anseo is open-source AI-search-visibility **observability infrastructure** — "
 ## Open-core boundary
 
 The **MIT OSS core** covers: data collection, extraction, analytics, crawler ingestion, audit heuristics, recommendations, multi-project support, `ogeo serve`, the plugin host and marketplace OSS parts, and all SDKs. This manual set documents only OSS-canonical surfaces.
+
+## Plugins
+
+Plugins extend the engine (providers, extractors, trend kinds, output formats), but they reach users through *existing* surfaces only — they cannot mint new MCP tools, Web routes, or CLI verbs. The [**Plugin Surface Boundary**](../plugin-surface-boundary.md) documents exactly what plugins can and cannot do, the load-path gates, signing and capability sandbox limits, and the **one accepted parity exception** (`plugin_namespaced_passthrough`).
