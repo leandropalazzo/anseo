@@ -16,7 +16,7 @@ interface ProjectView {
  * `GET /v1/projects` (via the same-origin `/api/projects` proxy). Selecting a
  * project POSTs to `/api/projects/select`, which sets the `anseo_project`
  * cookie; we then `router.refresh()` so every SSR fetch re-runs with the new
- * `X-OpenGEO-Project` header and the dashboard reflects the switch.
+ * `X-Anseo-Project` header and the dashboard reflects the switch.
  *
  * The visual treatment matches the prototype's `ProjectSwitcher`: a bordered
  * trigger on `--bg-elev-2` with the deployment glyph + chevron.

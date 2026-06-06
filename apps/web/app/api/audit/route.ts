@@ -1,5 +1,5 @@
 // Server-side proxy for POST /v1/audit. Runs on the Next server so the
-// X-OpenGEO-API-Key header can be attached from server env, keeping the
+// X-Anseo-API-Key header can be attached from server env, keeping the
 // site-audit surface at CLI/MCP parity (Epic 32 Story 5).
 
 import { NextResponse } from "next/server";

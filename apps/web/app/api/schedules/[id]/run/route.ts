@@ -1,5 +1,5 @@
 // Server-side proxy for POST /v1/schedules/{id}/run (manual "run now").
-// Runs on the Next server so the X-OpenGEO-API-Key header can be attached from
+// Runs on the Next server so the X-Anseo-API-Key header can be attached from
 // server env; the browser never sees the operator key.
 
 import { NextResponse } from "next/server";

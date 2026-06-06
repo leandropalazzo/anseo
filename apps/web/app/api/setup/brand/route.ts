@@ -1,5 +1,5 @@
 // Server-side proxy for GET/PUT /v1/setup/brand (DB-authoritative brand
-// config). Client components cannot attach the server-only X-OpenGEO-API-Key
+// config). Client components cannot attach the server-only X-Anseo-API-Key
 // header, so they call this same-origin route and we forward to the backend.
 
 import { NextResponse } from "next/server";

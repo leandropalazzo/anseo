@@ -2,7 +2,7 @@
 //
 // The operator-selected project is persisted in an HTTP cookie so it survives
 // reloads and is readable on the server during SSR. Per the Epic-36 contract
-// (apps/api/src/extractors/project.rs) the `X-OpenGEO-Project` header is
+// (apps/api/src/extractors/project.rs) the `X-Anseo-Project` header is
 // resolved *by brand name*, so the cookie stores the project NAME — the same
 // value the switcher shows and the API resolves against the `projects` table.
 

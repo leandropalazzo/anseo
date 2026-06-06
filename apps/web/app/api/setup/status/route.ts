@@ -1,6 +1,6 @@
 // Server-side proxy for GET /v1/setup/status. Client components (e.g. the
 // Settings → Providers key manager) cannot attach the server-only
-// X-OpenGEO-API-Key header, so they call this same-origin route instead and
+// X-Anseo-API-Key header, so they call this same-origin route instead and
 // we forward to the backend with the key read from server env.
 
 import { NextResponse } from "next/server";

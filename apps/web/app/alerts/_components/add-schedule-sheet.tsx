@@ -49,7 +49,7 @@ type Submit = {
 };
 
 async function createSchedule(payload: Submit) {
-  // Same-origin proxy attaches the server-only X-OpenGEO-API-Key header; the
+  // Same-origin proxy attaches the server-only X-Anseo-API-Key header; the
   // browser never sees the operator key.
   const r = await fetch(`/api/schedules`, {
     method: "POST",
