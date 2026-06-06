@@ -20,6 +20,11 @@
 # the PUBLIC `opengeo` repo this workflow runs a self-check with an EPHEMERAL
 # key (no secret) to prove the pipeline + verifier round-trip stays green. See
 # docs/plugin-signing.md.
+#
+# SUPPLY-CHAIN: the `sign` job declares `environment: release`. The real signing
+# key + registry token are exposed only after a maintainer approves the `release`
+# deployment; configure that environment with required reviewers in the repo that
+# holds the secret (opengeo-internal). See docs/release-train.md.
 # =============================================================================
 
 name: plugin-sign
@@ -55,6 +60,17 @@ env:
 jobs:
   sign:
     name: Sign plugin bundle
+    # SUPPLY-CHAIN: this job materializes the real root signing key
+    # (ANSEO_PLUGIN_SIGNING_KEY) and, when publishing, the registry token
+    # (PLUGIN_REGISTRY_TOKEN). Both live ONLY in opengeo-internal. Gate the job
+    # behind the protected `release` environment so a maintainer must approve the
+    # deployment before either secret is exposed, even on a repository_dispatch.
+    # In opengeo-internal the `release` environment MUST be configured with
+    # required reviewers (and, ideally, a branch/tag deployment-protection rule),
+    # so the real key is never materialized without a maintainer approval. The
+    # public repo holds no signing secret and (configures the environment with no
+    # reviewers, so) its EPHEMERAL-key self-check still runs unblocked and green.
+    environment: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

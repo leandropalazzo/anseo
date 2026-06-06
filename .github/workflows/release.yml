@@ -54,11 +54,34 @@
 # Independent legs (sdk/plugin/overlay/docs) run in parallel off `resolve`;
 # images→compose-snapshot→github-release form the artifact spine. No cycles.
 #
-# ── SECRETS ─────────────────────────────────────────────────────────────────
+# ── SECRETS & SUPPLY-CHAIN HARDENING ────────────────────────────────────────
 # All tokens come from GitHub secrets, never inlined. Each cross-repo /
 # publish leg derives a non-secret "enabled" boolean from its token's PRESENCE
 # (never its value) and gates on that, so the public repo skips publish legs it
 # has no token for instead of failing red.
+#
+# Two independent layers protect the publish/signing tokens (NPM_TOKEN,
+# PYPI_API_TOKEN, plugin-sign / overlay / docs-site / registry tokens):
+#
+#  1. PROTECTED ENVIRONMENT GATE. Every job that can expose a publish/signing
+#     secret declares `environment: release`. The `release` GitHub environment
+#     MUST be configured (Settings → Environments → release) with REQUIRED
+#     REVIEWERS and, ideally, a deployment-protection rule restricting it to
+#     `v*` tags / the default branch. A maintainer must APPROVE the deployment
+#     before the runner for those jobs starts and the secrets are materialized —
+#     even on a tag push or a workflow_dispatch. Jobs that need no publish secret
+#     (resolve, images via GITHUB_TOKEN, github-release via GITHUB_TOKEN,
+#     release-summary) are NOT in the environment and run without approval.
+#
+#  2. REF RESTRICTION (resolve.publish_ok). Before any secret-bearing leg runs,
+#     `resolve` proves the ref is a REAL release tag reachable from the default
+#     branch: on `push` the event must be a tag matching ^v[0-9]+\.[0-9]+\.[0-9]+$;
+#     on `workflow_dispatch` the input must resolve to such a tag AND that tag's
+#     commit must be an ancestor of origin/<default>. A non-tag, a non-semver
+#     tag, or a tag not reachable from the default branch yields publish_ok=false
+#     and every publish leg is `if:`-skipped (fails closed). This stops a dispatch
+#     pointed at an arbitrary branch/SHA from running npm/Python lifecycle scripts
+#     or a build backend with the publish tokens in scope.
 # =============================================================================
 
 name: release
@@ -102,7 +125,19 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       tag: ${{ steps.v.outputs.tag }}
       dry_run: ${{ steps.v.outputs.dry_run }}
+      # SUPPLY-CHAIN GATE: 'true' only when the ref is a real, default-branch-
+      # reachable release tag (see guard step). Every secret-bearing publish leg
+      # gates its `if:` on this so a dispatch at an arbitrary branch/SHA, a
+      # non-semver tag, or a tag not reachable from the default branch cannot
+      # expose a publish token. Fail-closed: anything unproven => 'false'.
+      publish_ok: ${{ steps.guard.outputs.publish_ok }}
     steps:
+      # Full history + tags so the guard can verify a dispatch-supplied tag is
+      # reachable from the default branch (ancestry check).
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Resolve version + flags
         id: v
         env:
@@ -126,6 +161,70 @@ jobs:
             echo "dry_run=${INPUT_DRY:-false}"
           } >> "$GITHUB_OUTPUT"
           echo "resolved tag=${tag} version=${ver} dry_run=${INPUT_DRY:-false}"
+
+      # -----------------------------------------------------------------------
+      # REF-RESTRICTION GUARD (supply-chain). Prove the resolved ref is a REAL
+      # release TAG that is reachable from the default branch before ANY publish
+      # token is exposed. Emits publish_ok=true/false; never throws (fail-closed):
+      # an unproven ref simply yields publish_ok=false and the publish legs skip.
+      #
+      #   * push           — github.ref must be refs/tags/vX.Y.Z (strict semver,
+      #                      no prerelease suffix). A push to a branch (which this
+      #                      workflow doesn't even trigger on) or a non-semver tag
+      #                      => false.
+      #   * workflow_dispatch — the supplied ref must (a) be strict semver vX.Y.Z,
+      #                      (b) exist as an actual git tag, and (c) the tag's
+      #                      commit must be an ancestor of origin/<default branch>.
+      #                      An arbitrary branch/SHA, a tag that doesn't exist, or
+      #                      a tag living only on an unmerged branch => false.
+      # -----------------------------------------------------------------------
+      - name: Restrict publishing to default-branch-reachable release tags
+        id: guard
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_REF: ${{ github.ref }}
+          TAG: ${{ steps.v.outputs.tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          # Strict release-tag shape — no prerelease/build suffix may publish.
+          semver='^v[0-9]+\.[0-9]+\.[0-9]+$'
+          ok=false
+
+          if ! printf '%s' "$TAG" | grep -Eq "$semver"; then
+            echo "::warning::ref '$TAG' is not a strict release tag (vX.Y.Z) — publish legs will be skipped (fail-closed)."
+            echo "publish_ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$EVENT_NAME" = "push" ]; then
+            # Only a real tag push may publish. The trigger is `tags: v*`, so a
+            # push here is already a tag ref; re-assert it is refs/tags/<semver>.
+            if [ "$GH_REF" = "refs/tags/${TAG}" ]; then
+              ok=true
+            else
+              echo "::warning::push ref '$GH_REF' is not a release tag — publish skipped."
+            fi
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            def="${DEFAULT_BRANCH:-main}"
+            # Make sure we have the default branch + the tag object locally.
+            git fetch --no-tags origin "+refs/heads/${def}:refs/remotes/origin/${def}" || true
+            git fetch origin "+refs/tags/${TAG}:refs/tags/${TAG}" || true
+            if ! tag_sha="$(git rev-parse -q --verify "refs/tags/${TAG}^{commit}")"; then
+              echo "::warning::dispatch ref '${TAG}' does not resolve to an existing git TAG — publish skipped (fail-closed)."
+            elif ! git rev-parse -q --verify "refs/remotes/origin/${def}" >/dev/null; then
+              echo "::warning::could not resolve default branch origin/${def} to verify tag reachability — publish skipped (fail-closed)."
+            elif git merge-base --is-ancestor "$tag_sha" "refs/remotes/origin/${def}"; then
+              ok=true
+            else
+              echo "::warning::tag '${TAG}' (${tag_sha}) is NOT reachable from default branch origin/${def} — refusing to publish (fail-closed)."
+            fi
+          else
+            echo "::warning::unexpected event '${EVENT_NAME}' — publish skipped (fail-closed)."
+          fi
+
+          echo "publish_ok=${ok}" >> "$GITHUB_OUTPUT"
+          echo "publish_ok=${ok} (event=${EVENT_NAME}, tag=${TAG})"
 
   # ---------------------------------------------------------------------------
   # (38.15) Images — the SOLE image publish path. Reuses release-images.yml so
@@ -160,6 +259,10 @@ jobs:
   compose-snapshot:
     name: Publish standalone compose snapshot
     needs: [resolve, images]
+    # Carries DOCS_SITE_DISPATCH_TOKEN in its site-dispatch step → protected
+    # environment gate. A maintainer approves the `release` deployment before this
+    # job's runner starts and the token is materialized.
+    environment: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -192,9 +295,12 @@ jobs:
           SITE_TOKEN: ${{ secrets.DOCS_SITE_DISPATCH_TOKEN }}
           SITE_REPO: ${{ vars.DOCS_SITE_REPO }}
           DRY_RUN: ${{ needs.resolve.outputs.dry_run }}
+          PUBLISH_OK: ${{ needs.resolve.outputs.publish_ok }}
         run: |
           set -euo pipefail
           if [ "${DRY_RUN}" = "true" ]; then echo "enabled=false" >> "$GITHUB_OUTPUT"; echo "dry-run: skipping site publish"; exit 0; fi
+          # Supply-chain: never dispatch (token in scope) for a non-release ref.
+          if [ "${PUBLISH_OK}" != "true" ]; then echo "enabled=false" >> "$GITHUB_OUTPUT"; echo "ref is not a default-branch-reachable release tag — skipping site publish (fail-closed)"; exit 0; fi
           if [ -n "${SITE_TOKEN}" ] && [ -n "${SITE_REPO}" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
@@ -230,7 +336,14 @@ jobs:
   sdk-publish:
     name: Publish SDKs (npm + PyPI)
     needs: resolve
-    if: ${{ needs.resolve.outputs.dry_run != 'true' }}
+    # Token-bearing (NPM_TOKEN + PYPI_API_TOKEN) and runs npm/Python lifecycle
+    # scripts → BOTH hardening layers apply:
+    #   • protected environment gate (maintainer must approve the `release`
+    #     deployment before the runner starts and the tokens are exposed);
+    #   • ref restriction (publish_ok) so the build/publish only ever runs on a
+    #     default-branch-reachable release tag, never an arbitrary dispatch ref.
+    if: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+    environment: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -330,7 +443,10 @@ jobs:
   plugin-sign:
     name: Trigger plugin signing/publish (best-effort, does not wait for downstream)
     needs: resolve
-    if: ${{ needs.resolve.outputs.dry_run != 'true' }}
+    # Carries PLUGIN_SIGN_DISPATCH_TOKEN → protected environment gate + ref
+    # restriction. Still fire-and-forget / excluded from the success gate.
+    if: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+    environment: release
     runs-on: ubuntu-latest
     steps:
       - name: Determine availability
@@ -375,7 +491,10 @@ jobs:
   overlay-bump:
     name: Bump internal overlay submodule (best-effort, does not wait for downstream)
     needs: resolve
-    if: ${{ needs.resolve.outputs.dry_run != 'true' }}
+    # Carries OVERLAY_DISPATCH_TOKEN → protected environment gate + ref
+    # restriction. Still fire-and-forget / excluded from the success gate.
+    if: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+    environment: release
     runs-on: ubuntu-latest
     steps:
       - name: Determine availability
@@ -416,7 +535,10 @@ jobs:
   docs-site:
     name: Rebuild docs/marketing site (best-effort, does not wait for downstream)
     needs: resolve
-    if: ${{ needs.resolve.outputs.dry_run != 'true' }}
+    # Carries DOCS_SITE_DISPATCH_TOKEN → protected environment gate + ref
+    # restriction. Still fire-and-forget / excluded from the success gate.
+    if: ${{ needs.resolve.outputs.dry_run != 'true' && needs.resolve.outputs.publish_ok == 'true' }}
+    environment: release
     runs-on: ubuntu-latest
     steps:
       - name: Determine availability

@@ -74,6 +74,59 @@ and the release run is red, with the failing legs named in the job summary table
 A leg that was `skipped` — because its token isn't configured (public repo) or
 because of `dry_run` — is acceptable and does **not** fail the train.
 
+## Supply-chain hardening: protected `release` environment + ref restriction
+
+The publish/signing tokens (`NPM_TOKEN`, `PYPI_API_TOKEN`, the plugin-sign /
+registry / overlay / docs-site dispatch tokens, and the real plugin signing key)
+are protected by **two independent layers**. Either one alone stops an attacker
+who can merely *dispatch* the workflow from exfiltrating a token or publishing an
+unreviewed artifact; together they fail closed.
+
+### 1. Protected `release` environment (maintainer approval)
+
+Every job that can expose a publish/signing secret declares
+`environment: release`:
+
+- `release.yml` → `compose-snapshot`, `sdk-publish`, `plugin-sign`,
+  `overlay-bump`, `docs-site`
+- `plugin-sign.yml` → `sign` (the real root key + registry token)
+
+GitHub does **not** materialize an environment's secrets until the deployment is
+approved, so a maintainer must approve the `release` deployment before any of
+those runners start — even on a tag push or a `workflow_dispatch`. Jobs that need
+no publish secret (`resolve`, `images` and `github-release` use only the built-in
+`GITHUB_TOKEN`, `release-summary`) are **not** in the environment and run without
+approval, so the image build and the release object are never blocked on
+approval-less paths.
+
+> **You must configure the `release` environment** (Settings → Environments →
+> `release`) with **required reviewers**, and ideally a **deployment-protection
+> rule** restricting deployments to `v*` tags / the default branch. Without
+> required reviewers the gate is inert. The repo that holds a given secret is the
+> repo where the environment protection matters (e.g. the real signing key lives
+> in `opengeo-internal`, so configure reviewers there). In the public `opengeo`
+> repo there are no publish secrets, so its `release` environment can be left
+> without reviewers and the ephemeral-key plugin self-check still runs green.
+
+### 2. Ref restriction (default-branch-reachable release tags only)
+
+Before any secret-bearing leg runs, the `resolve` job proves the ref is a **real
+release tag reachable from the default branch** and emits `publish_ok`:
+
+- on **push**: `github.ref` must be `refs/tags/vX.Y.Z` (strict semver, no
+  prerelease/build suffix);
+- on **workflow_dispatch**: the supplied `ref` must be a strict `vX.Y.Z` tag that
+  **exists** as a git tag **and** whose commit is an **ancestor of
+  `origin/<default branch>`** (`git merge-base --is-ancestor`).
+
+Anything else — an arbitrary branch/SHA, a non-semver tag, a tag that doesn't
+exist, or a tag living only on an unmerged branch — yields `publish_ok=false`,
+and every publish leg is `if:`-skipped (**fail closed**: no token is ever
+exposed). This blocks the attack where a dispatch points at an unreviewed
+branch/SHA and npm/Python lifecycle scripts or a build backend run with the
+publish tokens in scope. Dry-run and the build-only paths (`images`,
+`compose-snapshot` rendering, `github-release`) are unaffected.
+
 ## Secrets & the public-repo path
 
 Every cross-repo / publish leg derives a non-secret `enabled` boolean from the
