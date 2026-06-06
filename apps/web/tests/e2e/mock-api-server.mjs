@@ -620,7 +620,7 @@ const PROJECTS = [
 ];
 
 // Per-project visibility so the switcher test can assert the data follows the
-// selection. Keyed by the X-OpenGEO-Project header (brand name). Falls back to
+// selection. Keyed by the X-Anseo-Project header (brand name). Falls back to
 // the default VISIBILITY_OVERALL when the header is absent/unknown.
 const VISIBILITY_BY_PROJECT = {
   Acme: { ...VISIBILITY_OVERALL, brand: "Acme" },
@@ -825,10 +825,14 @@ const server = http.createServer((req, res) => {
 
   const method = (req.method ?? "GET").toUpperCase();
 
+  // Read the canonical X-Anseo-Project header, with the legacy X-OpenGEO-Project
+  // accepted as a fallback (mirrors the backend's back-compat acceptance).
   const projectHeader =
-    req.headers["x-opengeo-project"] !== undefined
-      ? String(req.headers["x-opengeo-project"])
-      : undefined;
+    req.headers["x-anseo-project"] !== undefined
+      ? String(req.headers["x-anseo-project"])
+      : req.headers["x-opengeo-project"] !== undefined
+        ? String(req.headers["x-opengeo-project"])
+        : undefined;
 
   // Buffer the request body so mutations (create project) can read it.
   const chunks = [];
