@@ -17,12 +17,19 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  // The dashboard is a local-first operator tool with no single canonical
+  // public origin, so default to localhost for dev and allow a deployment to
+  // override via env (keeps OG/Twitter image URLs absolute + correct in prod).
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_DASHBOARD_URL ?? "http://localhost:3000",
+  ),
   title: "Anseo Dashboard",
   description:
     "Local dashboard for Anseo — track your brand's visibility in LLM responses.",
-  icons: {
-    icon: "/anseo-mark.svg",
-  },
+  // Favicon / app icons (app/icon.svg, app/icon.png, app/apple-icon.png),
+  // the PWA manifest (app/manifest.ts), and social images
+  // (app/opengraph-image.png, app/twitter-image.png) are auto-detected by the
+  // Next.js app-router metadata file conventions.
 };
 
 export default function RootLayout({
