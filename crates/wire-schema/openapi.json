@@ -1033,8 +1033,7 @@
           "contribute": {
             "type": "boolean",
             "default": false,
-            "description": "Opt this run into the anonymous benchmark. Defaults to false. A true value with no per-project KEK is rejected 403 kek_missing. Note: full contribute enforcement requires Story 40.4; until then a true request is honoured only as far as the KEK gate.",
-            "x-anseo-note": "contribute enforcement requires 40.4"
+            "description": "Opt this run into the anonymous benchmark. Defaults to false. A true value with no per-project KEK is rejected 403 kek_missing. When the project also has an active benchmark opt-in on the current terms, a true run is redacted and envelope-sealed under the project KEK (Story 40.4); otherwise the run is recorded but the contribution is reported as skipped/blocked, never silently dropped."
           }
         },
         "required": [
@@ -2102,8 +2101,7 @@
       "post": {
         "operationId": "ingestExternalRun",
         "summary": "Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-sealed-contribution path as native runs.",
-        "description": "Records a prompt run executed against a provider OUTSIDE OpenGEO's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-OpenGEO-Project header and returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped.",
-        "x-anseo-note": "contribute enforcement requires 40.4",
+        "description": "Records a prompt run executed against a provider OUTSIDE OpenGEO's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-OpenGEO-Project header and returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProjectHeader"

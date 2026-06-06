@@ -123,7 +123,7 @@ async fn ingest_scopes_to_resolved_project_and_persists() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
     let bytes = axum::body::to_bytes(response.into_body(), 64 * 1024)
         .await
         .unwrap();
@@ -147,6 +147,61 @@ async fn ingest_scopes_to_resolved_project_and_persists() {
     assert_eq!(row.provider, "openai");
     assert_eq!(row.provider_model_version, "gpt-4o-2024-08-06");
     assert_eq!(row.status, "ok");
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn ingest_contribute_false_writes_no_contribution() {
+    // Story 40.4 AC-2/AC-6: contribute defaults to false ⇒ the run is recorded
+    // but the contribution leg is an explicit skip, never a sealed row. (No
+    // benchmark opt-in on this fresh project, and no `contribute` field, so the
+    // narrower-of-two-gates is closed.)
+    let (app, _project_id, project_name, api_key) = seeded().await;
+    let body = serde_json::json!({
+        "prompt_slug": "vector-db",
+        "provider": "openai",
+        "model": "gpt-4o-2024-08-06",
+        "response_text": "Pinecone, see https://docs.pinecone.io/guide",
+        "contribute": false,
+    });
+    let response = app
+        .oneshot(post("/v1/ingest/run", &api_key, &project_name, body))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let bytes = axum::body::to_bytes(response.into_body(), 64 * 1024)
+        .await
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    // contribute=false ⇒ skipped, never "sealed".
+    assert_eq!(payload["contribution"]["status"], "skipped_not_opted_in");
+    assert_ne!(payload["contribution"]["status"], "sealed");
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn ingest_contribute_true_without_kek_is_rejected() {
+    // Story 40.4 AC-1 hard gate: a `contribute: true` request on a project with
+    // no per-project benchmark KEK is rejected up-front (403 kek_missing) — the
+    // run is NOT recorded under a false promise of contribution.
+    let (app, _project_id, project_name, api_key) = seeded().await;
+    let body = serde_json::json!({
+        "prompt_slug": "vector-db",
+        "provider": "openai",
+        "model": "gpt-4o-2024-08-06",
+        "response_text": "Pinecone",
+        "contribute": true,
+    });
+    let response = app
+        .oneshot(post("/v1/ingest/run", &api_key, &project_name, body))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let bytes = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(payload["error"], "kek_missing");
 }
 
 #[tokio::test]

@@ -155,6 +155,10 @@ pub enum ProjectSub {
     Create(commands::project::CreateArgs),
     /// Select a project as the working-dir default (persists a marker).
     Use(commands::project::UseArgs),
+    /// Crypto-shred this project's benchmark key (IRREVERSIBLE). Renders every
+    /// sealed contribution — native and ingested — permanently undecryptable
+    /// (Story 40.4, GDPR Art.17 right-to-erasure).
+    Shred(commands::project::ShredArgs),
 }
 
 #[derive(Debug, Subcommand)]
