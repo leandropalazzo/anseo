@@ -18,7 +18,9 @@ fn api_manifest_keeps_hallucination_optional_and_feature_gated() {
     // If the premium crate is referenced at all, it must be optional.
     if manifest.contains("anseo-hallucination") {
         assert!(
-            manifest.contains("anseo-hallucination = { path = \"../../crates/hallucination\", optional = true }"),
+            manifest.contains(
+                "anseo-hallucination = { path = \"../../crates/hallucination\", optional = true }"
+            ),
             "anseo-hallucination must be an OPTIONAL dependency of the OSS API"
         );
         // And only reachable through the `pro` feature.
