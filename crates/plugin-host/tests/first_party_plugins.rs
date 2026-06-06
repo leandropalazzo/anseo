@@ -268,6 +268,9 @@ fn run_through_sandbox(bin: &Path, request: &str) -> String {
             String::from_utf8(stdout).expect("stdout is valid UTF-8")
         }
         RunOutcome::Timeout => panic!("plugin timed out under the sandbox"),
+        RunOutcome::OutputLimitExceeded { captured_bytes, .. } => {
+            panic!("plugin exceeded the stdout capture limit ({captured_bytes} bytes captured)")
+        }
     }
 }
 

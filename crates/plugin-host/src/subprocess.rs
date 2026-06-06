@@ -62,6 +62,10 @@ pub struct AnalyticsSandbox {
     pub network_allowlist: Vec<String>,
     /// The only directory the child may write to.
     pub scratch_dir: PathBuf,
+    /// Max bytes of stdout the host will buffer before rejecting the run as
+    /// [`RunOutcome::OutputLimitExceeded`] (§8.4 DoS guard). Defaults to
+    /// [`STDOUT_CAPTURE_LIMIT`].
+    pub stdout_limit: usize,
 }
 
 impl AnalyticsSandbox {
@@ -73,6 +77,7 @@ impl AnalyticsSandbox {
             max_child_processes: 32,
             network_allowlist: Vec::new(),
             scratch_dir,
+            stdout_limit: STDOUT_CAPTURE_LIMIT,
         }
     }
 
@@ -93,6 +98,13 @@ pub enum SandboxError {
     SandboxExecMissing,
 }
 
+/// Default cap on host-captured stdout (§8.4 DoS guard). Analytics results are
+/// JSON payloads measured in kilobytes; 8 MiB is generous headroom while keeping
+/// host buffering two orders of magnitude below the child's 1 GiB `RLIMIT_AS`,
+/// so a malicious plugin cannot exhaust host memory by streaming output within
+/// the wall-clock window. Overridable per run via [`AnalyticsSandbox::stdout_limit`].
+pub const STDOUT_CAPTURE_LIMIT: usize = 8 * 1024 * 1024;
+
 /// Outcome of a sandboxed run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RunOutcome {
@@ -100,7 +112,17 @@ pub enum RunOutcome {
         code: i32,
         stdout: Vec<u8>,
     },
-    /// Killed by the wall-clock watchdog (§8.4).
+    /// The plugin wrote more than `stdout_limit` bytes (§8.4 DoS guard). The run
+    /// is **rejected**, not parsed: callers must treat this as a failed run and
+    /// never feed `captured_bytes` of truncated stdout into a result parser.
+    /// `code` is the exit status if the child managed to exit, else `None`.
+    OutputLimitExceeded {
+        code: Option<i32>,
+        captured_bytes: usize,
+    },
+    /// Killed by the wall-clock watchdog (§8.4). On timeout the whole process
+    /// **group** is killed, so descendants that inherited the stdout pipe cannot
+    /// keep it open and hang the host.
     Timeout,
 }
 
@@ -136,6 +158,27 @@ fn apply_rlimits(memory_bytes: u64, max_children: u32) {
         libc::setrlimit(libc::RLIMIT_NPROC, &nproc);
     }
 }
+
+/// Kill the child's entire process group, then the child itself.
+///
+/// The child called `setpgid(0, 0)` in its `pre_exec` hook, so its pgid equals
+/// its pid. Killing the group reaps grandchildren (allowed by
+/// `max_child_processes`) that inherited the stdout pipe — killing only the
+/// direct child would let them hold the write end open and hang the host's
+/// reader thread forever. As long as the group has living members the pgid stays
+/// reserved, so targeting `pid` is safe; an empty group yields a harmless ESRCH.
+#[cfg(unix)]
+fn kill_process_group(pid: u32) {
+    // SAFETY: killpg/kill are async-signal-safe; failures (ESRCH on an already
+    // gone group/process) are intentionally ignored.
+    unsafe {
+        libc::killpg(pid as libc::pid_t, libc::SIGKILL);
+        libc::kill(pid as libc::pid_t, libc::SIGKILL);
+    }
+}
+
+#[cfg(not(unix))]
+fn kill_process_group(_pid: u32) {}
 
 /// Build the sandboxed [`Command`] for the current platform without running it.
 /// Returns `UnsupportedPlatform` on Windows so the caller falls back to
@@ -180,6 +223,13 @@ pub fn build_command(
         // SAFETY: the closure only calls async-signal-safe libc fns.
         unsafe {
             cmd.pre_exec(move || {
+                // Put the child in its own process group (pgid == child pid) so
+                // the host can kill the whole tree on timeout / over-limit. The
+                // sandbox allows multiple child processes (max_child_processes)
+                // and a grandchild that inherited the stdout pipe would otherwise
+                // keep it open and hang the host's reader. setpgid is
+                // async-signal-safe and runs after fork, before exec.
+                libc::setpgid(0, 0);
                 apply_rlimits(memory_bytes, max_children);
                 #[cfg(target_os = "linux")]
                 if on_linux {
@@ -204,6 +254,8 @@ pub fn run(
     args: &[&str],
 ) -> Result<RunOutcome, SandboxError> {
     use std::process::Stdio;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
     use std::time::Instant;
 
     let mut cmd = build_command(platform, sandbox, program, args)?;
@@ -212,33 +264,107 @@ pub fn run(
         .spawn()
         .map_err(|e| SandboxError::Spawn(e.to_string()))?;
 
+    let pid = child.id();
+
+    // Fix #1 (deadlock) + #2 (unbounded buffering): drain stdout on a dedicated
+    // thread *concurrently* with the wait loop, so a plugin that writes past the
+    // ~64 KiB OS pipe buffer never blocks the host. The reader caps the buffer at
+    // `stdout_limit`; if the plugin emits more, it stops reading and raises
+    // `over_flag` rather than growing the host buffer without bound.
+    let limit = sandbox.stdout_limit;
+    let over_flag = Arc::new(AtomicBool::new(false));
+    let reader = child.stdout.take().map(|mut out| {
+        let over = Arc::clone(&over_flag);
+        std::thread::spawn(move || {
+            use std::io::{ErrorKind, Read};
+            let mut buf: Vec<u8> = Vec::new();
+            let mut chunk = [0u8; 64 * 1024];
+            let mut total: usize = 0;
+            loop {
+                match out.read(&mut chunk) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        total += n;
+                        if buf.len() < limit {
+                            let take = (limit - buf.len()).min(n);
+                            buf.extend_from_slice(&chunk[..take]);
+                        }
+                        if total > limit {
+                            // Over the cap: signal and stop. The host will kill
+                            // the process group, which closes the write end.
+                            over.store(true, Ordering::SeqCst);
+                            break;
+                        }
+                    }
+                    Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
+                    Err(_) => break,
+                }
+            }
+            buf
+        })
+    });
+
+    enum Wait {
+        Exited(i32),
+        Timeout,
+        OverLimit,
+    }
+
     let start = Instant::now();
-    loop {
+    let end = loop {
+        // Check over-limit first: if the reader stopped, the child may be blocked
+        // writing to a full pipe and will never exit, so we must not wait on it.
+        if over_flag.load(Ordering::SeqCst) {
+            break Wait::OverLimit;
+        }
         match child
             .try_wait()
             .map_err(|e| SandboxError::Spawn(e.to_string()))?
         {
-            Some(status) => {
-                let mut stdout = Vec::new();
-                if let Some(mut out) = child.stdout.take() {
-                    use std::io::Read;
-                    let _ = out.read_to_end(&mut stdout);
-                }
-                return Ok(RunOutcome::Exited {
-                    code: status.code().unwrap_or(-1),
-                    stdout,
-                });
-            }
+            Some(status) => break Wait::Exited(status.code().unwrap_or(-1)),
             None => {
                 if start.elapsed() >= sandbox.wall_clock {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return Ok(RunOutcome::Timeout);
+                    break Wait::Timeout;
                 }
                 std::thread::sleep(Duration::from_millis(20));
             }
         }
+    };
+
+    // Fix #3 (descendant hang) + uniform teardown: kill the whole process group
+    // so any descendant holding the stdout pipe open is reaped and the reader
+    // sees EOF. This is also correct sandbox hygiene on the Exited path — a
+    // one-shot run must not leave descendants alive. Bytes already in the kernel
+    // pipe buffer remain readable, so killing does not lose legitimately written
+    // output. Joining the reader is now guaranteed to terminate.
+    kill_process_group(pid);
+    let _ = child.kill();
+    let _ = child.wait();
+    let stdout = reader.and_then(|r| r.join().ok()).unwrap_or_default();
+
+    // The over-limit flag is authoritative once the reader has joined: even if
+    // the loop broke on `Exited` (a race where the child finished before the
+    // reader tripped the cap), an over-limit run is rejected, never parsed.
+    if over_flag.load(Ordering::SeqCst) {
+        let code = match end {
+            Wait::Exited(c) => Some(c),
+            _ => None,
+        };
+        return Ok(RunOutcome::OutputLimitExceeded {
+            code,
+            captured_bytes: stdout.len(),
+        });
     }
+
+    Ok(match end {
+        Wait::Exited(code) => RunOutcome::Exited { code, stdout },
+        Wait::Timeout => RunOutcome::Timeout,
+        // Covered by the over_flag check above; OverLimit always sets the flag.
+        Wait::OverLimit => RunOutcome::OutputLimitExceeded {
+            code: None,
+            captured_bytes: stdout.len(),
+        },
+    })
 }
 
 /// Linux seccomp-bpf assembly (§4.3). Compiled only on Linux; on other hosts the
