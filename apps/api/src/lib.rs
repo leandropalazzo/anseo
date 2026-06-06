@@ -128,6 +128,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::recommendations::v1_router())
         .merge(routes::mcp::v1_router())
         .merge(routes::entities::v1_router())
+        .merge(routes::disputes::v1_router())
         .merge(routes::leaderboard::v1_router())
         .merge(routes::density_check::v1_router())
         .merge(routes::serve_status::v1_router())
