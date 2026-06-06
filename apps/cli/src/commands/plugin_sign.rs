@@ -75,10 +75,14 @@ pub struct SignArgs {
     #[arg(long, default_value = "root")]
     pub keyid: String,
 
-    /// Hex of the AUTHOR's 32-byte secret seed. When omitted, the author key is
-    /// the same as the root key (first-party single-key model).
-    #[arg(long, value_name = "HEX")]
-    pub author_secret: Option<String>,
+    /// Path to a file containing the hex of the AUTHOR's 32-byte secret seed.
+    /// The author key may also be supplied via the `ANSEO_PLUGIN_AUTHOR_KEY`
+    /// env var (the file takes precedence). Secret material is NEVER accepted on
+    /// the command line — argv is visible in process listings, shell history and
+    /// CI logs. When neither is set, the author key is the same as the root key
+    /// (first-party single-key model).
+    #[arg(long, value_name = "PATH")]
+    pub author_key_file: Option<PathBuf>,
 
     /// Path to a file containing the hex root secret seed. Overrides the
     /// `ANSEO_PLUGIN_SIGNING_KEY` env var.
@@ -88,8 +92,8 @@ pub struct SignArgs {
 
 pub fn run_sign(args: SignArgs) -> Result<(), OpenGeoError> {
     let root = load_root_key(&args)?;
-    let author = match &args.author_secret {
-        Some(hex) => Keypair::from_secret_bytes(decode_seed(hex)?),
+    let author = match load_author_seed(&args)? {
+        Some(seed) => Keypair::from_secret_bytes(seed),
         None => root.clone(),
     };
 
@@ -137,6 +141,23 @@ pub fn run_sign(args: SignArgs) -> Result<(), OpenGeoError> {
 }
 
 const SIGNING_KEY_ENV: &str = "ANSEO_PLUGIN_SIGNING_KEY";
+const AUTHOR_KEY_ENV: &str = "ANSEO_PLUGIN_AUTHOR_KEY";
+
+/// Resolve the AUTHOR seed without ever reading secret material from argv.
+/// Precedence: `--author-key-file` (a 0600 file) > `ANSEO_PLUGIN_AUTHOR_KEY`
+/// env var. Returns `None` when neither is set (single-key model: author == root).
+fn load_author_seed(args: &SignArgs) -> Result<Option<[u8; 32]>, OpenGeoError> {
+    if let Some(path) = &args.author_key_file {
+        let hex = std::fs::read_to_string(path).map_err(|e| {
+            OpenGeoError::Config(format!("read author key file {}: {e}", path.display()))
+        })?;
+        return Ok(Some(decode_seed(hex.trim())?));
+    }
+    match std::env::var(AUTHOR_KEY_ENV) {
+        Ok(hex) => Ok(Some(decode_seed(hex.trim())?)),
+        Err(_) => Ok(None),
+    }
+}
 
 fn load_root_key(args: &SignArgs) -> Result<Keypair, OpenGeoError> {
     let hex = match &args.key_file {
@@ -253,7 +274,7 @@ mod tests {
             dir: vdir.to_path_buf(),
             namespace: "anseo".into(),
             keyid: "root-2026".into(),
-            author_secret: None,
+            author_key_file: None,
             key_file: Some(key_file),
         })
         .expect("sign must succeed");
@@ -312,5 +333,71 @@ mod tests {
         // Sanity: it actually contains a 32-byte hex seed (+ trailing newline).
         let contents = std::fs::read_to_string(&out).unwrap();
         assert_eq!(hex::decode(contents.trim()).unwrap().len(), 32);
+    }
+
+    /// A distinct AUTHOR key supplied via `--author-key-file` (never argv) must
+    /// be used for the bundle signature and still verify under the install-path
+    /// verifier. Guards the Finding-2 input mechanism.
+    #[test]
+    fn author_key_from_file_is_used_and_verifies() {
+        let dir = tempfile::tempdir().unwrap();
+        let vdir = dir.path();
+        let manifest = b"name: anseo/demo\nversion: 1.0.0\npublisher: anseo.ai\n";
+        let entrypoint = b"\0asm\x01\0\0\0";
+        std::fs::write(vdir.join("manifest.yaml"), manifest).unwrap();
+        std::fs::write(vdir.join("entrypoint.wasm"), entrypoint).unwrap();
+
+        let root = Keypair::generate();
+        let author = Keypair::generate();
+        let root_file = vdir.join("root.key");
+        let author_file = vdir.join("author.key");
+        std::fs::write(&root_file, root.secret_hex()).unwrap();
+        std::fs::write(&author_file, author.secret_hex()).unwrap();
+
+        run_sign(SignArgs {
+            dir: vdir.to_path_buf(),
+            namespace: "anseo".into(),
+            keyid: "root-2026".into(),
+            author_key_file: Some(author_file),
+            key_file: Some(root_file),
+        })
+        .expect("sign must succeed");
+
+        // claim.toml must record the AUTHOR pubkey (distinct from root).
+        let claim_raw = std::fs::read_to_string(vdir.join("claim.toml")).unwrap();
+        let author_hex = claim_raw
+            .lines()
+            .find(|l| l.starts_with("author_pubkey"))
+            .and_then(|l| l.split('"').nth(1))
+            .unwrap();
+        let recorded: [u8; 32] = hex::decode(author_hex).unwrap().as_slice().try_into().unwrap();
+        assert_eq!(recorded, author.public, "author key file must drive the signature");
+        assert_ne!(recorded, root.public, "author must be distinct from root here");
+
+        // And the produced bundle verifies under the install-path verifier.
+        let plugin_sig = std::fs::read(vdir.join("signature.bin")).unwrap();
+        let sig_hex = claim_raw
+            .lines()
+            .find(|l| l.starts_with("signature"))
+            .and_then(|l| l.split('"').nth(1))
+            .unwrap();
+        let claim_sig = hex::decode(sig_hex).unwrap();
+        let claim = NamespaceClaim {
+            namespace: "anseo".into(),
+            keyid: "root-2026".into(),
+            author_pubkey: recorded,
+            rotation_of: None,
+        };
+        let signed = SignedPlugin {
+            plugin_id: "anseo/demo",
+            version: "1.0.0",
+            manifest_bytes: manifest,
+            entrypoint_bytes: entrypoint,
+            signature: &plugin_sig,
+            claim: &claim,
+            claim_signature: &claim_sig,
+        };
+        verify_signed_plugin(&signed, &[root.public], &RevocationList::default(), None)
+            .expect("author-key-file bundle must verify");
     }
 }

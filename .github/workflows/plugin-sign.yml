@@ -87,6 +87,35 @@ jobs:
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
+
+          # SECURITY: these values are dispatch-/client_payload-controlled and are
+          # consumed by downstream `run:` scripts. They reach this script ONLY via
+          # the step `env:` block above (never spliced into the script body as a
+          # ${{ }} expression), and are validated against a strict allowlist before
+          # use so a crafted input cannot inject shell or traverse the filesystem.
+          # version_dir/namespace/keyid: letters, digits, dot, underscore, slash,
+          # dash only; no path traversal (`..`); namespace/keyid forbid slashes.
+          validate() {
+            local name="$1" value="$2" pattern="$3"
+            if [ -z "${value}" ]; then
+              echo "::error::${name} is required but empty" >&2
+              exit 1
+            fi
+            if ! printf '%s' "${value}" | grep -Eq "${pattern}"; then
+              echo "::error::${name} contains disallowed characters: ${value}" >&2
+              exit 1
+            fi
+            case "${value}" in
+              *..*)
+                echo "::error::${name} must not contain path traversal (..): ${value}" >&2
+                exit 1
+                ;;
+            esac
+          }
+          validate "version_dir" "${IN_VERSION_DIR}" '^[A-Za-z0-9._/-]+$'
+          validate "namespace" "${IN_NAMESPACE}" '^[A-Za-z0-9._-]+$'
+          validate "keyid" "${IN_KEYID}" '^[A-Za-z0-9._-]+$'
+
           echo "version_dir=${IN_VERSION_DIR}" >> "$GITHUB_OUTPUT"
           echo "namespace=${IN_NAMESPACE}" >> "$GITHUB_OUTPUT"
           echo "keyid=${IN_KEYID}" >> "$GITHUB_OUTPUT"
@@ -107,12 +136,17 @@ jobs:
         if: ${{ steps.signing.outputs.enabled == 'true' }}
         env:
           ANSEO_PLUGIN_SIGNING_KEY: ${{ secrets.ANSEO_PLUGIN_SIGNING_KEY }}
+          # Pass validated inputs via env (quoted shell vars below) — never splice
+          # ${{ }} expressions into the script body.
+          VERSION_DIR: ${{ steps.signing.outputs.version_dir }}
+          NAMESPACE: ${{ steps.signing.outputs.namespace }}
+          KEYID: ${{ steps.signing.outputs.keyid }}
         run: |
           set -euo pipefail
           ./target/debug/anseo plugin sign \
-            "${{ steps.signing.outputs.version_dir }}" \
-            --namespace "${{ steps.signing.outputs.namespace }}" \
-            --keyid "${{ steps.signing.outputs.keyid }}"
+            "$VERSION_DIR" \
+            --namespace "$NAMESPACE" \
+            --keyid "$KEYID"
 
       # Persist the produced artifacts so a successful run actually yields
       # retrievable, signed output (they would otherwise vanish with the runner).
@@ -140,10 +174,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PLUGIN_REGISTRY_TOKEN }}
           REGISTRY_REPO: ${{ vars.PLUGIN_REGISTRY_REPO }}
+          # Validated inputs via env (quoted below) — never spliced into the script.
+          VERSION_DIR: ${{ steps.signing.outputs.version_dir }}
+          NAMESPACE: ${{ steps.signing.outputs.namespace }}
         run: |
           set -euo pipefail
-          version_dir="${{ steps.signing.outputs.version_dir }}"
-          namespace="${{ steps.signing.outputs.namespace }}"
+          version_dir="$VERSION_DIR"
+          namespace="$NAMESPACE"
           work="$(mktemp -d)"
           git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${REGISTRY_REPO}.git" "$work/registry"
           dest="$work/registry/${version_dir}"
