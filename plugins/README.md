@@ -41,28 +41,79 @@ sandbox can actually do: offline computation that reads args and writes stdout.
 The `anseo-example-provider` template shows where a real `network` capability +
 host-mediated fetch *would* go if/when that path is wired.
 
-## On-disk bundle shape
+## What is (and isn't) in git
 
-Every plugin ships exactly the layout the host loader (`crates/plugin-host`)
-and the registry client (`crates/plugin-host/src/registry.rs`) expect:
+This directory holds plugin **SOURCE only**:
 
 ```text
 <plugin>/
   manifest.yaml      # PluginManifest — the on-disk schema (crates/plugin-manifest)
-  <entry_point>      # WASM module (provider) or subprocess binary (analytics / output)
-  src/               # plugin source — built by the 41.4 CI signing pipeline
+  Cargo.toml         # standalone workspace (empty [workspace] table)
+  src/               # plugin source
 ```
 
-The registry/install layout adds the signed-bundle siblings, produced by the
-41.4 CI pipeline — they are NOT checked in here (they are generated + published
-to `github.com/anseo/plugin-registry`):
+The built `entrypoint.wasm` artifacts are **intentionally NOT committed** — no
+binaries in version control. The manifests reference `entrypoint.wasm` because
+that is the install-layout filename the runtime resolves; the artifact is
+produced by the build step below, never stored in git. `plugins/dist/` (the
+default build output) is gitignored.
+
+## Materializing installable bundles
+
+Run the build script to compile each plugin and lay it into the **exact**
+registry / install layout the host reads:
+
+```bash
+plugins/build.sh            # → plugins/dist/ (default), idempotent
+plugins/build.sh /tmp/out   # → custom output dir
+```
+
+It reads `id` + `version` from each `manifest.yaml`, compiles the plugin, and
+stages the artifact + manifest as:
+
+```text
+<out>/plugins/<id>/<version>/manifest.yaml
+<out>/plugins/<id>/<version>/entrypoint.wasm
+```
+
+This is the same shape resolved by the loader, the registry client
+(`crates/plugin-host/src/registry.rs` → `plugins/<id>/<version>/entrypoint.wasm`),
+and the CLI installer (`apps/cli/src/commands/plugin_install.rs`). `<id>` is the
+namespaced registry id (`anseo/<name>`).
+
+Build kinds:
+
+- **`anseo-trend-analytics`** (analytics) — the supported **native subprocess**
+  kind. Built with `cargo build --release`; the release binary is staged as
+  `entrypoint.wasm` (the host's subprocess adapter spawns whatever lives at that
+  path — see `crates/plugin-host/src/subprocess.rs`; the filename is the install
+  convention, not the artifact format).
+- **`anseo-example-provider`** (provider) — the WASM cdylib kind. Built with
+  `cargo build --release --target wasm32-wasip1`. If that rustup target isn't
+  installed the script prints the install command (`rustup target add
+  wasm32-wasip1`) and **skips** that bundle rather than failing the whole run, so
+  the native plugin still materializes.
+
+### Signing → signed, installable bundles
+
+The build script materializes the **unsigned** layout. To produce signed,
+installable bundles, run the **41.4 / 38.19 release+signing pipeline** on top of
+the materialized output. It computes `SHA-256(manifest.yaml || entrypoint.wasm)`,
+signs it with the namespace author key (Ed25519), and emits the signed-bundle
+siblings — these are generated + published to `github.com/anseo/plugin-registry`,
+not checked in here:
 
 ```text
 plugins/<id>/<version>/manifest.yaml
-plugins/<id>/<version>/entrypoint.wasm     # or the subprocess binary
-plugins/<id>/<version>/signature.bin       # 64-byte Ed25519 over SHA-256(manifest.yaml || entrypoint)
+plugins/<id>/<version>/entrypoint.wasm
+plugins/<id>/<version>/signature.bin       # 64-byte Ed25519 over SHA-256(manifest.yaml || entrypoint.wasm)
 plugins/<id>/<version>/claim.toml          # namespace claim + root signature
 ```
+
+See `crates/plugin-host/src/signing.rs` for the Ed25519 + TOFU signing /
+verification chain (`signing_digest`, `NamespaceClaim`) and
+`docs/manual/plugin-authoring.md` for the publisher flow. Unsigned bundles load
+only behind `--allow-unsigned` (CLI) / `LoadPolicy::allow_unsigned`.
 
 ## Parity boundary
 

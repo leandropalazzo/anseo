@@ -1,0 +1,2 @@
+# Build output from plugins/build.sh — materialized bundles are never committed.
+dist/
