@@ -42,6 +42,8 @@ jobs:
       rust: ${{ steps.filter.outputs.rust }}
       web: ${{ steps.filter.outputs.web }}
       sdk_python: ${{ steps.filter.outputs.sdk_python }}
+      sdk_typescript: ${{ steps.filter.outputs.sdk_typescript }}
+      sdk_go: ${{ steps.filter.outputs.sdk_go }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,11 +65,13 @@ jobs:
           fi
           changed="$(git diff --name-only "$base" HEAD)"
           echo "changed files:"; echo "$changed"
-          rust=false; web=false; sdk_python=false
-          if echo "$changed" | grep -qE '^(crates/|apps/(api|cli|worker|mcp)/|packages/sdk-go/|Cargo\.(toml|lock)|rust-toolchain\.toml|\.sqlx/|\.github/workflows/)'; then rust=true; fi
-          if echo "$changed" | grep -qE '^(apps/web/|packages/sdk-(typescript|python)/|\.github/workflows/)'; then web=true; fi
+          rust=false; web=false; sdk_python=false; sdk_typescript=false; sdk_go=false
+          if echo "$changed" | grep -qE '^(crates/|apps/(api|cli|worker|mcp)/|Cargo\.(toml|lock)|rust-toolchain\.toml|\.sqlx/|\.github/workflows/)'; then rust=true; fi
+          if echo "$changed" | grep -qE '^(apps/web/|\.github/workflows/)'; then web=true; fi
           if echo "$changed" | grep -qE '^(packages/sdk-python/|\.github/workflows/)'; then sdk_python=true; fi
-          { echo "rust=$rust"; echo "web=$web"; echo "sdk_python=$sdk_python"; } >> "$GITHUB_OUTPUT"
+          if echo "$changed" | grep -qE '^(packages/sdk-typescript/|\.github/workflows/)'; then sdk_typescript=true; fi
+          if echo "$changed" | grep -qE '^(packages/sdk-go/|\.github/workflows/)'; then sdk_go=true; fi
+          { echo "rust=$rust"; echo "web=$web"; echo "sdk_python=$sdk_python"; echo "sdk_typescript=$sdk_typescript"; echo "sdk_go=$sdk_go"; } >> "$GITHUB_OUTPUT"
 
   rust-lint:
     name: Rust — fmt + clippy
@@ -283,6 +287,63 @@ jobs:
         run: mypy
       - name: pytest
         run: python -m pytest -q
+
+  # Story 40.3 — instrumentation SDK (TypeScript). Zero-runtime-dep package
+  # (global fetch, Node >= 18); the job only needs Node + the dev deps
+  # (typescript/eslint/vitest). Self-contained.
+  sdk-typescript-lint-test:
+    name: SDK — TypeScript (tsc --strict + eslint + vitest)
+    runs-on: ubuntu-latest
+    needs: paths-filter
+    if: needs.paths-filter.outputs.sdk_typescript == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    defaults:
+      run:
+        working-directory: packages/sdk-typescript
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: packages/sdk-typescript/pnpm-lock.yaml
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+      - name: typecheck (tsc --strict)
+        run: pnpm typecheck
+      - name: lint
+        run: pnpm lint
+      - name: vitest
+        run: pnpm test
+
+  # Story 40.3 — instrumentation SDK (Go). Standard-library-only module
+  # (Go 1.22+); the job needs Go + staticcheck. Self-contained.
+  sdk-go-lint-test:
+    name: SDK — Go (go vet + staticcheck + go test)
+    runs-on: ubuntu-latest
+    needs: paths-filter
+    if: needs.paths-filter.outputs.sdk_go == 'true' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    defaults:
+      run:
+        working-directory: packages/sdk-go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: packages/sdk-go/go.mod
+      - name: go build
+        run: go build ./...
+      - name: go vet
+        run: go vet ./...
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          "$(go env GOPATH)/bin/staticcheck" ./...
+      - name: go test
+        run: go test ./...
 
   web-e2e:
     name: Web — Playwright (E2E + axe)

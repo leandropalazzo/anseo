@@ -3,6 +3,7 @@ package observe
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -28,8 +29,8 @@ func TestObserveRun_PostsHeadersAndSnakeCaseBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
 		gotMethod = r.Method
-		gotAPIKey = r.Header.Get("X-OpenGEO-API-Key")
-		gotProject = r.Header.Get("X-OpenGEO-Project")
+		gotAPIKey = r.Header.Get("X-Anseo-API-Key")
+		gotProject = r.Header.Get("X-Anseo-Project")
 		gotContentType = r.Header.Get("Content-Type")
 		raw, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(raw, &gotBody)
@@ -101,7 +102,7 @@ func TestObserveRun_OmitsProjectHeaderAndOptionalFields(t *testing.T) {
 	var gotBody map[string]any
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, hasProject = r.Header["X-Opengeo-Project"]
+		_, hasProject = r.Header["X-Anseo-Project"]
 		raw, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(raw, &gotBody)
 		_, _ = io.WriteString(w, okBody)
@@ -116,7 +117,7 @@ func TestObserveRun_OmitsProjectHeaderAndOptionalFields(t *testing.T) {
 	}
 
 	if hasProject {
-		t.Error("X-OpenGEO-Project header should be absent")
+		t.Error("X-Anseo-Project header should be absent")
 	}
 	if len(gotBody) != 3 {
 		t.Errorf("body should have exactly 3 keys, got %v", gotBody)
@@ -164,10 +165,17 @@ func TestObserveRun_ReturnsAPIErrorOnNon2xx(t *testing.T) {
 }
 
 func TestNew_RequiresBaseURLAndAPIKey(t *testing.T) {
-	if _, err := New(Config{APIKey: "k"}); err == nil {
+	_, err := New(Config{APIKey: "k"})
+	if err == nil {
 		t.Error("expected error for missing BaseURL")
+	}
+	var cfgErr *ConfigError
+	if !errors.As(err, &cfgErr) {
+		t.Errorf("missing BaseURL error = %T, want *ConfigError", err)
 	}
 	if _, err := New(Config{BaseURL: "https://x"}); err == nil {
 		t.Error("expected error for missing APIKey")
+	} else if !errors.As(err, &cfgErr) {
+		t.Errorf("missing APIKey error = %T, want *ConfigError", err)
 	}
 }
