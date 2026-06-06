@@ -365,8 +365,13 @@ async fn get_embed_snippet(
     let badge_url = format!("{base}/v1/badge/{domain}/{}", variant.slug());
     let verification_url = format!("{base}/brand/{domain}");
 
-    let alt_text = format!("{} — {} — verified by Anseo", variant.label(), domain);
-    let aria_label = format!("{} verification on Anseo for {}", variant.label(), domain);
+    // Neutral, state-agnostic accessibility text. The pasted snippet is static
+    // and outlives any verification state, so it must NOT permanently assert
+    // "verified" — after a revocation the live SVG flips to the lapsed body
+    // within one cache TTL, but this alt/aria text stays in the consumer's HTML
+    // forever. Keep it descriptive ("badge for"), not an assertion ("verified").
+    let alt_text = format!("{} badge for {} — Anseo", variant.label(), domain);
+    let aria_label = format!("Anseo {} badge for {}", variant.label(), domain);
 
     // Snippet attributes are XML/HTML-escaped to keep the paste safe.
     let embed_html = build_embed_html(&badge_url, &verification_url, &alt_text, &aria_label);

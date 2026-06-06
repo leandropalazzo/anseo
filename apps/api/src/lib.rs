@@ -129,7 +129,6 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::mcp::v1_router())
         .merge(routes::entities::v1_router())
         .merge(routes::leaderboard::v1_router())
-        .merge(routes::badge::v1_router())
         .merge(routes::density_check::v1_router())
         .merge(routes::serve_status::v1_router())
         .merge(routes::events::router_under_v1_relative());
@@ -169,9 +168,17 @@ pub fn router(state: AppState) -> Router {
         axum::middleware::from_fn_with_state(state.clone(), require_api_key),
     );
 
+    // Story 43.5 — verified-badge embeds are PUBLIC by design: third-party
+    // pages embed `<img src=".../v1/badge/...">` and cannot send an API key or
+    // project header. So the badge router is mounted OUTSIDE the authenticated
+    // `/v1` surface — no `require_api_key`, no project guard, no geo-gate. The
+    // endpoints are read-only, anonymous, and reflect live verification state.
+    let v1_public_surface = routes::badge::v1_router();
+
     let mut base = Router::new()
         .merge(phase_1_at_root_gated)
         .nest("/v1", v1_operator_surface)
+        .nest("/v1", v1_public_surface)
         .nest("/v1", v1_surface)
         // Story 43.7 — public, unauthenticated comms preference center +
         // one-click unsubscribe. No API key: authority is the opaque token in
