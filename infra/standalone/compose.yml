@@ -74,7 +74,10 @@ services:
     image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/api:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned X.Y.Z in .env}
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-anseo}:${POSTGRES_PASSWORD:-anseo}@postgres:5432/${POSTGRES_DB:-anseo}
+      # Built from POSTGRES_* for the trial. If your POSTGRES_PASSWORD contains
+      # URI-reserved characters (@ : / # % ? etc.), set DATABASE_URL directly in
+      # .env with the password percent-encoded — it overrides this default.
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-anseo}:${POSTGRES_PASSWORD:-anseo}@postgres:5432/${POSTGRES_DB:-anseo}}
       REDIS_URL: redis://redis:6379
       ANSEO_BIND_ADDR: 0.0.0.0:8080
       # The api binds 0.0.0.0 inside its container so the sibling `web` container
@@ -128,7 +131,10 @@ services:
     image: ${ANSEO_IMAGE_REGISTRY:-ghcr.io/leandropalazzo/opengeo}/worker:${ANSEO_VERSION:?set ANSEO_VERSION to a pinned X.Y.Z in .env}
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-anseo}:${POSTGRES_PASSWORD:-anseo}@postgres:5432/${POSTGRES_DB:-anseo}
+      # Built from POSTGRES_* for the trial. If your POSTGRES_PASSWORD contains
+      # URI-reserved characters (@ : / # % ? etc.), set DATABASE_URL directly in
+      # .env with the password percent-encoded — it overrides this default.
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-anseo}:${POSTGRES_PASSWORD:-anseo}@postgres:5432/${POSTGRES_DB:-anseo}}
       REDIS_URL: redis://redis:6379
       RUST_LOG: ${RUST_LOG:-info}
       ANSEO_CONFIG: ${ANSEO_CONFIG:-/anseo.yaml}

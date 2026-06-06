@@ -51,6 +51,11 @@ DATABASE_URL=postgres://opengeo:opengeo@db.internal:5432/opengeo ogeo serve
 
 **Binding & safety.** The default bind is `127.0.0.1:8080` (localhost-only). A **non-loopback bind with no API keys configured is refused** — so you can't accidentally expose an unauthenticated instance. Before binding to a public interface: create API keys (`ogeo api key create`) and put the process behind your own TLS / auth / network controls.
 
+> **Standalone exposure baseline (Tier 2).** Before you set `ANSEO_BIND_HOST=0.0.0.0`:
+> 1. **Rotate the bootstrap key — in the database, not just `.env`.** The shipped `ANSEO_BOOTSTRAP_API_KEY` is a well-known dev credential that is seeded into Postgres on first boot (only when zero keys exist). If you already booted the trial with the default, changing the env var does **not** revoke the persisted key. Mint a fresh key and revoke the dev one before exposing: `docker compose exec api ogeo api key create` then `ogeo api key revoke <dev-key-id>` (or rotate the whole project's keys). Setting a strong `ANSEO_BOOTSTRAP_API_KEY` *before the first `up`* avoids this entirely.
+> 2. **Rotate `POSTGRES_PASSWORD` and `ANSEO_KEYRING_PASSPHRASE`.** Keep the password URL-safe, or set a percent-encoded `DATABASE_URL` directly (see `.env.example`).
+> 3. **Datastores stay localhost.** Postgres/Redis publish on `127.0.0.1` regardless of `ANSEO_BIND_HOST`; `0.0.0.0` only opens the api/web ports. Keep it that way — Redis has no auth.
+
 ---
 
 ## Tier 2 — Docker Compose
