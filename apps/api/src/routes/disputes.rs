@@ -32,12 +32,25 @@ use serde::{Deserialize, Serialize};
 
 use crate::AppState;
 
-pub fn v1_router() -> Router<AppState> {
+/// Public surface — mounted on the UNAUTHENTICATED `/v1` nest in `lib.rs`
+/// (no API key, no `X-Anseo-Project` header). AC-5: anyone can submit a
+/// dispute and read its status/audit trail without a user account.
+///
+/// NOTE: `GET /disputes` (the review *queue*) is deliberately NOT here — it is
+/// an operator action and stays behind the auth gate in `v1_router()`.
+pub fn public_router() -> Router<AppState> {
     Router::new()
-        // Public submission + read (AC-5: no user account required).
-        .route("/disputes", post(submit_dispute).get(list_pending))
+        .route("/disputes", post(submit_dispute))
         .route("/disputes/:id", get(get_dispute))
         .route("/disputes/:id/events", get(get_events))
+}
+
+/// Operator surface — kept behind `require_api_key` + `project_header_guard`
+/// in `lib.rs` (`v1_routes`). Review queue + lifecycle actions.
+pub fn v1_router() -> Router<AppState> {
+    Router::new()
+        // Operator review queue (open+under_review).
+        .route("/disputes", get(list_pending))
         // Operator review workflow.
         .route("/disputes/:id/approve", post(approve))
         .route("/disputes/:id/reject", post(reject))

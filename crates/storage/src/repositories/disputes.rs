@@ -273,11 +273,23 @@ impl<'a> DisputeRepo<'a> {
     ) -> Result<DisputeRecord, Error> {
         let mut tx = self.pool.begin().await?;
 
-        let affected = sqlx::query(
+        // A rejected removal/GDPR dispute must NOT keep the domain suppressed —
+        // otherwise `is_suppressed()` would hide it forever after a refused
+        // takedown. Clear the per-dispute suppression flag as part of the same
+        // transaction and emit an `unsuppressed` audit row.
+        let row = sqlx::query(r#"SELECT domain, suppressed FROM disputes WHERE id = $1"#)
+            .bind(dispute_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+        let row = row.ok_or(Error::NotFound)?;
+        let domain: String = row.get("domain");
+        let was_suppressed: bool = row.get("suppressed");
+
+        sqlx::query(
             r#"
             UPDATE disputes
             SET status = 'rejected', resolved_by = $2, resolved_at = now(),
-                resolution_grounds = $3, updated_at = now()
+                resolution_grounds = $3, suppressed = FALSE, updated_at = now()
             WHERE id = $1
             "#,
         )
@@ -285,12 +297,7 @@ impl<'a> DisputeRepo<'a> {
         .bind(operator)
         .bind(grounds)
         .execute(&mut *tx)
-        .await?
-        .rows_affected();
-
-        if affected == 0 {
-            return Err(Error::NotFound);
-        }
+        .await?;
 
         self.insert_event(
             &mut tx,
@@ -301,6 +308,18 @@ impl<'a> DisputeRepo<'a> {
             serde_json::json!({ "appeals_path": "reply to the decision notification to appeal" }),
         )
         .await?;
+
+        if was_suppressed {
+            self.insert_event(
+                &mut tx,
+                dispute_id,
+                "unsuppressed",
+                operator,
+                Some("suppression lifted: takedown rejected"),
+                serde_json::json!({ "domain": domain }),
+            )
+            .await?;
+        }
 
         tx.commit().await?;
         self.get(dispute_id).await?.ok_or(Error::NotFound)

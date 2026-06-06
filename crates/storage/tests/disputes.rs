@@ -234,6 +234,51 @@ async fn removal_request_auto_suppresses_pending_review(pool: PgPool) {
     assert!(events.iter().any(|e| e.event_type == "suppressed"));
 }
 
+// AC-4 (regression): a rejected removal must lift suppression so the domain is
+// no longer hidden — and the unsuppression must be audited.
+#[sqlx::test(migrations = "./migrations")]
+async fn rejected_removal_clears_suppression_and_audits(pool: PgPool) {
+    let storage = Storage::from_pool(pool);
+
+    let d = storage
+        .disputes()
+        .submit("stays.example", "removal", "please remove", None, None)
+        .await
+        .unwrap();
+    assert!(d.suppressed, "removal must suppress on submit (AC-4)");
+    assert!(storage
+        .disputes()
+        .is_suppressed("stays.example")
+        .await
+        .unwrap());
+
+    let rejected = storage
+        .disputes()
+        .reject(d.id, "op", "no valid basis for takedown; reply to appeal")
+        .await
+        .unwrap();
+    assert_eq!(rejected.status, "rejected");
+    assert!(
+        !rejected.suppressed,
+        "rejected removal must clear the dispute suppression flag"
+    );
+
+    assert!(
+        !storage
+            .disputes()
+            .is_suppressed("stays.example")
+            .await
+            .unwrap(),
+        "domain must not stay suppressed after a rejected takedown"
+    );
+
+    let events = storage.disputes().events(d.id).await.unwrap();
+    assert!(
+        events.iter().any(|e| e.event_type == "unsuppressed"),
+        "rejected removal must write an unsuppressed audit event"
+    );
+}
+
 // Change-of-control: new owner takes the verified claim; transfer audited.
 #[sqlx::test(migrations = "./migrations")]
 async fn change_of_control_transfers_and_audits(pool: PgPool) {
