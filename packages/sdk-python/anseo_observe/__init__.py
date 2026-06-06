@@ -25,6 +25,9 @@ See :mod:`anseo_observe.observe` for the decorator form and
 :mod:`anseo_observe.client` for the strict ``observe_run`` API.
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
 from .client import (
     AnseoApiError,
     AnseoConfigError,
@@ -50,11 +53,6 @@ __all__ = [
 # [project].version in pyproject.toml; importlib reads that same value at
 # runtime). Falls back to the in-tree literal for editable/uninstalled dev use.
 try:  # pragma: no cover - trivial metadata lookup
-    from importlib.metadata import PackageNotFoundError, version as _pkg_version
-
-    try:
-        __version__ = _pkg_version("anseo-observe")
-    except PackageNotFoundError:
-        __version__ = "0.1.0"
-except ImportError:  # pragma: no cover - importlib.metadata always present on 3.8+
+    __version__ = _pkg_version("anseo-observe")
+except PackageNotFoundError:  # pragma: no cover - editable/uninstalled dev use
     __version__ = "0.1.0"
