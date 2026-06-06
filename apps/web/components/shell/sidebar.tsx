@@ -52,6 +52,7 @@ export const NAV_GROUPS: ReadonlyArray<NavGroup> = [
       { href: "/sentiment", label: "Sentiment", icon: "Activity", shortcut: "G T" },
       { href: "/hallucination", label: "Accuracy", icon: "Sparkle", shortcut: "G Y" },
       { href: "/audit", label: "Audit", icon: "Network", shortcut: "G U" },
+      { href: "/analytics", label: "Site Analytics", icon: "Chart", shortcut: "G Z" },
       { href: "/crawlers", label: "Crawlers", icon: "Bot", shortcut: "G W" },
     ],
   },

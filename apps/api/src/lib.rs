@@ -177,6 +177,11 @@ pub fn router(state: AppState) -> Router {
     // NOT the `X-Anseo-Project` guard.
     let v1_operator_surface = routes::projects::v1_router()
         .merge(routes::plugins::v1_router())
+        // Story 47.4 — operator site-analytics dashboard reads. Global operator
+        // state (public-site traffic aggregates), not per-project data, so it
+        // rides the operator surface: `require_api_key`, no `X-Anseo-Project`
+        // guard — same scoping as `/v1/plugins`.
+        .merge(routes::site_analytics::v1_router())
         .route_layer(axum::middleware::from_fn_with_state(
             state.clone(),
             require_api_key,

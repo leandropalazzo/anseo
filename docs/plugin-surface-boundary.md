@@ -21,16 +21,30 @@ parity exception** in the whole system.
 
 ---
 
-## The one accepted parity exception
+## The accepted parity exceptions
 
 The parity contract (`crates/wire-schema/tests/parity_contract.rs`) treats every
 registered capability as a row that must be either *covered* on all three
-surfaces (CLI, Web/API, MCP) or carry an explicit, annotated exception. Exactly
-one capability carries such an exception:
+surfaces (CLI, Web/API, MCP) or carry an explicit, annotated exception. Two
+deliberate exceptions exist:
 
-| Capability id | Covered on | Annotated absent from | Decision ref |
-|---|---|---|---|
-| `plugin_namespaced_passthrough` | MCP (existing tool) | CLI, Web/API | `L3 / AD-Phase3-PluginsCannotRegisterMcpTools` |
+| # | Capability / surface | Present on | Deliberately absent from | Decision ref |
+|---|---|---|---|---|
+| 1 | `plugin_namespaced_passthrough` (registered capability) | MCP (existing tool) | CLI, Web/API | `L3 / AD-Phase3-PluginsCannotRegisterMcpTools` |
+| 2 | Operator site-analytics dashboard (`/v1/analytics/site-overview`, `/v1/analytics/funnels`, web `/analytics`) | Web/API + Web dashboard | MCP, CLI | Story 47.4 — operator-internal operational data, not an agent-facing prompt tool |
+
+**Exception 1** is a *registered* capability (`plugin_namespaced_passthrough` in
+`crates/wire-schema/src/parity.rs`) with a machine-checked
+`single_surface_exception`.
+
+**Exception 2 (Story 47.4)** is a different shape: the operator analytics surface
+is intentionally **not** added to the capability `REGISTRY` at all. It is
+operator-internal observability of the public site's GTM funnel — data the
+operator reads in their own dashboard, never a tool an LLM agent invokes — so it
+is dashboard/API-only by design and has no MCP or CLI counterpart. `anseo mcp
+tools` does not list any analytics tool (AC-7). Because it is not a registered
+capability, the parity test does not flag its absence on MCP/CLI; this row is the
+human-readable record of that decision.
 
 This is enforced by the test
 [`plugin_passthrough_is_a_recognized_exception`](../crates/wire-schema/tests/parity_contract.rs)

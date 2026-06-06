@@ -23,3 +23,4 @@ export * from "./api/setup";
 export * from "./api/marketplace";
 export * from "./api/prompts";
 export * from "./api/projects";
+export * from "./api/site-analytics";

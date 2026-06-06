@@ -169,6 +169,8 @@ pub const KNOWN_V1_PATHS: &[&str] = &[
     "/v1/plugins",
     "/v1/plugins/install",
     "/v1/marketplace/plugins",
+    "/v1/analytics/site-overview",
+    "/v1/analytics/funnels",
 ];
 
 /// The v-next capability registry: the single source of truth for which
