@@ -12,10 +12,17 @@
 //! Routes:
 //!   * `GET  /preferences/:token`  — render the preference center (HTML).
 //!   * `POST /preferences/:token`  — apply granular toggles (AC-3).
-//!   * `GET  /u/:token`            — one-click unsubscribe, no login (AC-2/3).
+//!   * `GET  /u/:token`            — render an unsubscribe CONFIRMATION page
+//!                                    (no side effects — safe for mail-scanner
+//!                                    and link-preview prefetches).
+//!   * `POST /u/:token`            — perform the unsubscribe. RFC 8058
+//!                                    `List-Unsubscribe-Post` one-click target.
+//!                                    Idempotent.
 //!
-//! The unsubscribe is a `GET` so it works from a plain link click and as the
-//! `List-Unsubscribe` one-click target. It is idempotent.
+//! The mutation is POST-only on purpose: a bare `GET` unsubscribe is fetched by
+//! security scanners / link previews and would silently unsubscribe users, and
+//! it is not a valid RFC 8058 one-click target (which POSTs). The GET path only
+//! renders a confirm form.
 
 use anseo_comms::repo::{CommsRepo, PreferenceUpdate, SuppressionReason};
 use anseo_comms::token::hash_token;
@@ -34,7 +41,10 @@ pub fn public_router() -> Router<AppState> {
             "/preferences/:token",
             get(render_preferences).post(update_preferences),
         )
-        .route("/u/:token", get(one_click_unsubscribe))
+        .route(
+            "/u/:token",
+            get(unsubscribe_confirm_page).post(one_click_unsubscribe),
+        )
 }
 
 /// Resolve a raw URL token to its recipient hash, or 404.
@@ -201,6 +211,34 @@ struct UnsubscribeAck {
     status: &'static str,
 }
 
+/// `GET /u/:token` — render a confirmation page with NO side effects. Safe for
+/// mail-security scanners and link-preview prefetches that auto-fetch GET links.
+/// The page contains a form that POSTs back to the same URL to actually
+/// unsubscribe (and doubles as the human-visible RFC 8058 fallback).
+async fn unsubscribe_confirm_page(
+    Path(token): Path<String>,
+    State(state): State<AppState>,
+) -> Html<String> {
+    // Resolve only to tailor the copy; never mutate here. An invalid/expired
+    // token still renders the idempotent "already unsubscribed" message.
+    let repo = CommsRepo::new(state.storage.pool());
+    let known = matches!(repo.resolve_token(&hash_token(&token)).await, Ok(Some(_)));
+    if !known {
+        return Html("<h1>You are unsubscribed.</h1>".to_string());
+    }
+    // The form action is the same path (relative), so the POST carries the token.
+    Html(format!(
+        "<!doctype html><html><body>\
+         <h1>Unsubscribe from marketing email?</h1>\
+         <p>Click confirm to stop receiving marketing email. Transactional \
+         messages (e.g. verification links) are unaffected.</p>\
+         <form method=\"post\" action=\"/u/{token}\">\
+         <button type=\"submit\">Confirm unsubscribe</button>\
+         </form></body></html>"
+    ))
+}
+
+/// `POST /u/:token` — perform the unsubscribe (RFC 8058 one-click target).
 async fn one_click_unsubscribe(
     Path(token): Path<String>,
     State(state): State<AppState>,
