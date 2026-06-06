@@ -478,12 +478,29 @@ jobs:
             echo "neither NPM_TOKEN nor PYPI_API_TOKEN configured — skipping SDK publish cleanly (public repo path)"
           fi
 
+      - name: Setup pnpm
+        if: ${{ steps.tok.outputs.npm == 'true' }}
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         if: ${{ steps.tok.outputs.npm == 'true' }}
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
+
+      - name: Build @anseo/observe (emit runnable dist/ JS + types)
+        if: ${{ steps.tok.outputs.npm == 'true' }}
+        working-directory: packages/sdk-typescript
+        run: |
+          set -euo pipefail
+          # The published package ships only `dist/` (built JS + .d.ts), never
+          # raw `src/*.ts`. Build it explicitly here so the artifact is provably
+          # compiled before `npm version`/`npm publish` (prepublishOnly also runs
+          # the build, but doing it up front fails the train loudly on a broken
+          # compile instead of mid-publish).
+          pnpm install --frozen-lockfile
+          pnpm run build
 
       - name: Publish @anseo/observe to npm
         if: ${{ steps.tok.outputs.npm == 'true' }}

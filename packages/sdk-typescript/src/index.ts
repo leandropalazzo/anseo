@@ -46,15 +46,15 @@ export {
   type ObserveRunInput,
   type ObserveRunResult,
   type ContributionStatus,
-} from "./client";
+} from "./client.js";
 
 export {
   observe,
   startRun,
   ObserveRunHandle,
   type ObserveOptions,
-} from "./observe";
+} from "./observe.js";
 
-export { detectProviderModel, extractText } from "./detect";
+export { detectProviderModel, extractText } from "./detect.js";
 
-export { defaultLogger, type AnseoLogger } from "./logger";
+export { defaultLogger, type AnseoLogger } from "./logger.js";

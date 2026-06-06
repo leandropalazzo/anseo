@@ -22,7 +22,7 @@
  * Zero runtime dependencies — uses the global `fetch` (Node >= 18).
  */
 
-import { defaultLogger, type AnseoLogger } from "./logger";
+import { defaultLogger, type AnseoLogger } from "./logger.js";
 
 const INGEST_PATH = "/v1/ingest/run";
 const DEFAULT_TIMEOUT_MS = 30_000;

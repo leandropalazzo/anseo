@@ -12,7 +12,7 @@ import {
   extractText,
   type AnseoLogger,
   type ObserveRunResult,
-} from "./index";
+} from "./index.js";
 
 const OK_BODY: ObserveRunResult = {
   run_id: "run_123",

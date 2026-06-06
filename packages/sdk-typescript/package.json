@@ -4,25 +4,27 @@
   "description": "Thin instrumentation SDK to POST externally-executed LLM runs to the Anseo Run-Ingestion API (POST /v1/ingest/run).",
   "license": "MIT",
   "type": "module",
-  "main": "./src/index.ts",
-  "module": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
   "files": [
-    "src/**/*.ts",
-    "!src/**/*.test.ts",
+    "dist",
     "README.md"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p .",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepack": "pnpm run build",
+    "prepublishOnly": "pnpm run build"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
