@@ -17,12 +17,14 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("http://localhost:3000"),
   title: "Anseo Dashboard",
   description:
     "Local dashboard for Anseo — track your brand's visibility in LLM responses.",
-  icons: {
-    icon: "/anseo-mark.svg",
-  },
+  // Favicon / app icons (app/icon.svg, app/icon.png, app/apple-icon.png),
+  // the PWA manifest (app/manifest.ts), and social images
+  // (app/opengraph-image.png, app/twitter-image.png) are auto-detected by the
+  // Next.js app-router metadata file conventions.
 };
 
 export default function RootLayout({

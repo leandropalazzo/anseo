@@ -1,8 +1,13 @@
 /**
- * Anseo lockup using the canonical Anseo mark (Claude Design bundle, shell.jsx
- * OGMark): a measurement reticle — precise zero-radius frame, reticle ticks, a
- * core node, a tilted orbit, and a sighting node. Reads as instrument /
- * observation, not award. Works at 24px. Inline so the shell inherits tokens.
+ * Anseo lockup using the canonical Anseo mark: a measurement reticle — precise
+ * zero-radius frame, reticle ticks, a core node, a tilted orbit, and a sighting
+ * node. Reads as instrument / observation, not award. Works at 24px.
+ *
+ * Source of truth: the delivered brand asset `public/anseo-mark.svg`. The
+ * geometry below is byte-faithful to that file; it is kept inline (rather than
+ * `<img src>`) so the mark inherits live theme tokens — `var(--accent)` /
+ * `var(--accent-ink)` resolve to `#EBD200` / `#0A0A0A`, matching the asset, and
+ * recolor correctly under light/dark.
  */
 export function Logo({ markOnly = false }: { markOnly?: boolean }) {
   return (

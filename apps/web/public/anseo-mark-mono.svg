@@ -1,14 +1,13 @@
 <svg width="96" height="96" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Anseo">
-  <rect x="0.5" y="0.5" width="23" height="23" fill="#EBD200"></rect>
-  <g stroke="#0A0A0A" stroke-width="1.4">
+  <g fill="none" stroke="currentColor" stroke-width="1.4">
     <line x1="12" y1="1.6" x2="12" y2="4.2"></line>
     <line x1="12" y1="19.8" x2="12" y2="22.4"></line>
     <line x1="1.6" y1="12" x2="4.2" y2="12"></line>
     <line x1="19.8" y1="12" x2="22.4" y2="12"></line>
   </g>
-  <g fill="none" stroke="#0A0A0A" stroke-width="1.5">
-    <circle cx="12" cy="12" r="3.1" fill="#0A0A0A" stroke="none"></circle>
+  <g fill="none" stroke="currentColor" stroke-width="1.5">
+    <circle cx="12" cy="12" r="3.1" fill="currentColor" stroke="none"></circle>
     <ellipse cx="12" cy="12" rx="8.4" ry="4.1" transform="rotate(-30 12 12)"></ellipse>
-    <circle cx="18.7" cy="8.4" r="1.85" fill="#0A0A0A" stroke="none"></circle>
+    <circle cx="18.7" cy="8.4" r="1.85" fill="currentColor" stroke="none"></circle>
   </g>
 </svg>
