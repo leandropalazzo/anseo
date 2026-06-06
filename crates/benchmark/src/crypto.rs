@@ -275,22 +275,62 @@ impl ProjectKek {
         self.key.as_slice()
     }
 
-    /// Envelope-encrypt a redacted payload into a [`SealedContribution`].
+    /// Envelope-encrypt a redacted payload into an **anonymous-tier**
+    /// [`SealedContribution`] (no brand identity attached).
     ///
     /// Generates a fresh random DEK, AEAD-encrypts the serialized payload with
     /// it, then wraps the DEK under this KEK. The plaintext DEK is dropped at
     /// the end of this function and never persisted.
     pub fn seal(&self, payload: &BenchmarkPayload) -> Result<SealedContribution, CryptoError> {
+        self.seal_inner(payload, None)
+    }
+
+    /// Envelope-encrypt a redacted payload into a **brand-visibility
+    /// (identified) tier** [`SealedContribution`] (Story 44.1).
+    ///
+    /// Identical to [`ProjectKek::seal`] except the resulting contribution
+    /// carries a `verification_token` (43.2) that resolves to brand identity
+    /// **server-side** via the entity registry. The token is the ONLY identity
+    /// carried — the brand name is never present in [`BenchmarkPayload`] nor in
+    /// the sealed wire form. APPEARING ≠ CLAIMING.
+    ///
+    /// HARD GATE (Story 39.1a): identity is transmitted only when this method is
+    /// reached, and reaching it requires a live `&self` ([`ProjectKek`]). A
+    /// caller without a KEK cannot construct one (no public constructor), and
+    /// [`ProjectKek::load`] returns [`CryptoError::KekMissing`] when none is
+    /// provisioned — so an identified contribution attempted with no KEK is
+    /// refused, never silently skipped.
+    pub fn seal_identified(
+        &self,
+        payload: &BenchmarkPayload,
+        verification_token: &str,
+    ) -> Result<SealedContribution, CryptoError> {
+        self.seal_inner(payload, Some(verification_token))
+    }
+
+    fn seal_inner(
+        &self,
+        payload: &BenchmarkPayload,
+        verification_token: Option<&str>,
+    ) -> Result<SealedContribution, CryptoError> {
         // Serialized plaintext is confidential redacted data — scrub it on drop.
         let plaintext = Zeroizing::new(
             serde_json::to_vec(payload).map_err(|e| CryptoError::Serialize(e.to_string()))?,
         );
 
-        // Bind both AEAD layers to the project via its linkage HMAC as
-        // associated data. This cryptographically ties a wrapped DEK and its
-        // payload to *this* project, so a ciphertext cannot be grafted into a
-        // different contribution/project context without failing the AEAD tag.
-        let aad = payload.project_hmac().as_hex().as_bytes();
+        // Bind both AEAD layers to the project via its linkage HMAC AND — for
+        // the identified tier — the verification token, as associated data.
+        // Binding the project_hmac ties a wrapped DEK and its payload to *this*
+        // project. Binding the verification_token additionally ties the
+        // ciphertext to *this* identity: because the token travels in cleartext
+        // on `SealedContribution`, an attacker could otherwise swap it for
+        // another verified project's token while the ciphertext still decrypts,
+        // silently re-attributing the contribution. Including it in the AAD
+        // makes any such swap fail the AEAD tag in `open()` (Story 44.1
+        // autoreview SECURITY fix). Anonymous-tier seals carry no token, so the
+        // AAD is the project_hmac alone — identical to the pre-44.1 binding.
+        let aad = aad_bytes(payload.project_hmac().as_hex(), verification_token);
+        let aad: &[u8] = &aad;
 
         // Fresh per-contribution DEK. The `Key` GenericArray itself does not
         // implement `Zeroize`, so copy its bytes into a `Zeroizing` buffer and
@@ -331,6 +371,7 @@ impl ProjectKek {
             dek_nonce: hex::encode(dek_nonce),
             payload_ct: hex::encode(payload_ct),
             payload_nonce: hex::encode(payload_nonce),
+            verification_token: verification_token.map(str::to_string),
         })
     }
 
@@ -339,9 +380,15 @@ impl ProjectKek {
     /// the destroy command (39.2) simply removes the KEK so this can no longer
     /// succeed for any of the project's contributions.
     pub fn open(&self, sealed: &SealedContribution) -> Result<BenchmarkPayload, CryptoError> {
-        // Same project-binding AAD the seal used. A mismatched project_hmac
-        // (ciphertext grafted from another contribution) fails the AEAD tag.
-        let aad = sealed.project_hmac.as_bytes();
+        // Reconstruct the exact AAD the seal used: project_hmac plus, for the
+        // identified tier, the verification token carried in cleartext on the
+        // sealed contribution. If the token has been tampered with (swapped to
+        // re-attribute the contribution), the reconstructed AAD no longer
+        // matches the one under which the DEK was wrapped, so the AEAD tag check
+        // below fails and `open()` rejects the contribution (Story 44.1
+        // autoreview SECURITY fix).
+        let aad = aad_bytes(&sealed.project_hmac, sealed.verification_token.as_deref());
+        let aad: &[u8] = &aad;
 
         let kek_cipher = XChaCha20Poly1305::new(&self.key);
         let dek_nonce = decode_nonce(&sealed.dek_nonce)?;
@@ -382,6 +429,25 @@ impl ProjectKek {
     }
 }
 
+/// Build the AEAD associated data for a contribution.
+///
+/// The AAD is the cleartext linkage HMAC, plus — for the identified tier — a
+/// domain-separated segment carrying the verification token. The separator
+/// byte (`0x1f`, ASCII unit-separator) cannot appear in a hex `project_hmac`,
+/// so there is no ambiguity between "project X, no token" and a crafted
+/// project_hmac that embeds a token. Anonymous-tier contributions (no token)
+/// produce exactly `project_hmac.as_bytes()`, preserving the pre-44.1 binding
+/// so existing anonymous contributions still open unchanged.
+fn aad_bytes(project_hmac: &str, verification_token: Option<&str>) -> Vec<u8> {
+    let mut aad = project_hmac.as_bytes().to_vec();
+    if let Some(token) = verification_token {
+        aad.push(0x1f);
+        aad.extend_from_slice(b"vtok:");
+        aad.extend_from_slice(token.as_bytes());
+    }
+    aad
+}
+
 fn decode_nonce(hex_str: &str) -> Result<XNonce, CryptoError> {
     let bytes = hex::decode(hex_str).map_err(|_| CryptoError::Decrypt)?;
     if bytes.len() != 24 {
@@ -411,6 +477,13 @@ pub struct SealedContribution {
     pub payload_ct: String,
     /// Nonce used to encrypt the payload (hex, 24 bytes).
     pub payload_nonce: String,
+    /// Brand-visibility (identified) tier ONLY (Story 44.1): the verification
+    /// token (43.2) that resolves to brand identity server-side. `None` for
+    /// anonymous-tier contributions. This is the ONLY identity carried — a raw
+    /// brand name is never present here nor in [`BenchmarkPayload`]. APPEARING ≠
+    /// CLAIMING.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verification_token: Option<String>,
 }
 
 #[cfg(test)]
@@ -659,6 +732,107 @@ mod tests {
         // Sibling KEK survives and still opens its own contribution.
         let other_reloaded = ProjectKek::load(&store, OTHER).unwrap();
         assert!(other_reloaded.open(&other_sealed).is_ok());
+    }
+
+    #[test]
+    fn anonymous_seal_carries_no_verification_token() {
+        // Story 44.1 AC2: the anonymous tier never attaches identity.
+        let store = durable_store();
+        let kek = ProjectKek::load_or_create(&store, PROJECT).unwrap();
+        let sealed = kek.seal(&payload(&kek)).unwrap();
+        assert_eq!(sealed.verification_token, None);
+        // And it is omitted from the wire form entirely.
+        let wire = serde_json::to_string(&sealed).unwrap();
+        assert!(
+            !wire.contains("verification_token"),
+            "anonymous wire must not mention verification_token: {wire}"
+        );
+    }
+
+    #[test]
+    fn identified_seal_carries_token_only_no_brand_name() {
+        // Story 44.1 AC2: identity is carried ONLY via the verification token.
+        // The brand name ("Pinecone" in the fixture) must never appear, even
+        // though the identified tier is active.
+        let store = durable_store();
+        let kek = ProjectKek::load_or_create(&store, PROJECT).unwrap();
+        let token = "vtok-43-2-resolves-server-side";
+        let sealed = kek.seal_identified(&payload(&kek), token).unwrap();
+
+        assert_eq!(sealed.verification_token.as_deref(), Some(token));
+        let wire = serde_json::to_string(&sealed).unwrap();
+        assert!(
+            wire.contains(token),
+            "token must travel on the wire: {wire}"
+        );
+        assert!(
+            !wire.contains("Pinecone"),
+            "brand_name leaked into identified contribution: {wire}"
+        );
+        // Round-trips through serde with the token preserved.
+        let back: SealedContribution = serde_json::from_str(&wire).unwrap();
+        assert_eq!(back, sealed);
+        // The sealed payload itself still opens to a BenchmarkPayload with no
+        // brand_name (the redacted shape is unchanged by the identified tier).
+        assert_eq!(kek.open(&sealed).unwrap(), payload(&kek));
+    }
+
+    #[test]
+    fn identified_contribution_refused_when_kek_missing() {
+        // Story 44.1 AC3: with no per-project KEK, an identified contribution is
+        // REFUSED with KekMissing — never silently skipped, never partially
+        // written. The gate is type-level: you cannot reach seal_identified
+        // without a ProjectKek, and load is the only way to get one.
+        let store = durable_store();
+        let err = ProjectKek::load(&store, PROJECT).unwrap_err();
+        assert!(
+            matches!(err, CryptoError::KekMissing { .. }),
+            "expected KekMissing, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn open_fails_when_identified_token_is_tampered() {
+        // Story 44.1 autoreview SECURITY fix: the verification_token rides in
+        // cleartext on SealedContribution. It is bound into the AEAD AAD, so
+        // swapping it (to silently re-attribute the contribution to a different
+        // verified identity) must fail decryption — the wrapped DEK no longer
+        // authenticates under the reconstructed AAD.
+        let store = durable_store();
+        let kek = ProjectKek::load_or_create(&store, PROJECT).unwrap();
+        let mut sealed = kek
+            .seal_identified(&payload(&kek), "vtok-original-identity")
+            .unwrap();
+        // Sanity: opens while the token is intact.
+        assert!(kek.open(&sealed).is_ok());
+
+        // Swap the token to another (e.g. another verified project's) value.
+        sealed.verification_token = Some("vtok-attacker-controlled".to_string());
+        assert!(
+            matches!(kek.open(&sealed), Err(CryptoError::Decrypt)),
+            "tampering the verification_token must fail open()"
+        );
+
+        // Stripping the token entirely (downgrade to anonymous) also fails:
+        // the AAD then omits the token segment the seal bound in.
+        sealed.verification_token = None;
+        assert!(matches!(kek.open(&sealed), Err(CryptoError::Decrypt)));
+    }
+
+    #[test]
+    fn anonymous_seal_aad_is_token_free_and_stable() {
+        // The anonymous-tier AAD must remain exactly the project_hmac bytes so
+        // pre-44.1 anonymous contributions still open. Adding a token to an
+        // anonymous seal's wire form must NOT make it open (the seal bound no
+        // token, so a later-added token diverges the AAD).
+        let store = durable_store();
+        let kek = ProjectKek::load_or_create(&store, PROJECT).unwrap();
+        let mut sealed = kek.seal(&payload(&kek)).unwrap();
+        assert_eq!(sealed.verification_token, None);
+        assert!(kek.open(&sealed).is_ok());
+
+        sealed.verification_token = Some("vtok-injected".to_string());
+        assert!(matches!(kek.open(&sealed), Err(CryptoError::Decrypt)));
     }
 
     #[test]

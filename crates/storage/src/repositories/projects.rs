@@ -289,6 +289,12 @@ impl<'a> ProjectRepo<'a> {
             "webhooks",
             "notification_targets",
             "benchmark_consent",
+            // Story 44.1: identified-tier contributions carry an ON DELETE
+            // RESTRICT FK to projects, so the old project row cannot be deleted
+            // (below) until these rows are re-pointed at the new id. Their
+            // `consent_record_id` FK targets benchmark_consent.id (the row id,
+            // unchanged by a re-key), so it stays valid across the move.
+            "contributions",
             "etl_jobs",
             "alert_rules",
             // No FK to projects, but scoped by project_id (see migration

@@ -6,6 +6,7 @@ import { Check, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { CodeBlock } from "@/components/ui/code-block";
 import { ICON_DEFAULTS } from "@/lib/icons";
+import { isBenchmarkTermsFinalized } from "@/lib/dev-mode";
 
 interface PostureLineProps {
   ok: boolean;
@@ -32,6 +33,52 @@ function PostureLine({ ok, label, detail }: PostureLineProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+// Story 44.1 AC5 — the identified-tier toggle. Disabled with a "terms in
+// review" notice until Epic 39.7 finalizes the brand-visibility terms; enabled
+// once `NEXT_PUBLIC_ANSEO_BENCHMARK_TERMS_FINALIZED=1`. The actual opt-in is
+// driven by the OSS client (`ogeo benchmark optin --brand-visibility`); this
+// surface reflects + gates the state. APPEARING ≠ CLAIMING.
+function BrandVisibilityToggle() {
+  const termsFinalized = isBenchmarkTermsFinalized();
+  return (
+    <Card
+      eyebrow="benchmark · identified tier"
+      title="Brand-visibility (identified) contribution"
+    >
+      <div className="flex items-start justify-between gap-[16px]">
+        <div className="text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
+          <p>
+            Opt in to appear named and ranked in the public visibility
+            leaderboard. Only your verified-domain token is transmitted — never
+            your brand name. Separate from, and revocable independently of,
+            anonymous aggregate contribution. APPEARING ≠ CLAIMING.
+          </p>
+          {!termsFinalized && (
+            <p
+              className="mt-[6px] font-[family-name:var(--font-mono)] text-[length:var(--font-size-xs)]"
+              style={{ color: "var(--text-faint)" }}
+              data-testid="brand-visibility-terms-notice"
+            >
+              terms in review — identified-tier terms are not yet finalized.
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={false}
+          aria-label="Brand-visibility identified tier"
+          disabled={!termsFinalized}
+          data-testid="brand-visibility-toggle"
+          className="shrink-0 rounded-[var(--radius-sm)] border border-[color:var(--hairline)] px-[10px] py-[4px] text-[length:var(--font-size-xs)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {termsFinalized ? "Enable" : "Unavailable"}
+        </button>
+      </div>
+    </Card>
   );
 }
 
@@ -85,6 +132,7 @@ exports:   ./reports/ (markdown, json, csv)
 telemetry: <none>`}
         />
       </Card>
+      <BrandVisibilityToggle />
     </div>
   );
 }
