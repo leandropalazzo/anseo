@@ -170,7 +170,9 @@ pub fn router(state: AppState) -> Router {
     // share the prefix without inheriting the per-request resolution layer.
     //
     // Story 41.2 — `GET /v1/plugins` lists the plugins loaded at serve boot,
-    // which is global/operator state (not project data), so it belongs on the
+    // which is global/operator state (not project data). Story 41.3 adds the
+    // plugin/marketplace surface (browse + install/remove/upgrade). Both are
+    // global, operator-scoped resources (not per-project), so they ride the
     // operator surface alongside the project registry: `require_api_key` but
     // NOT the `X-Anseo-Project` guard.
     let v1_operator_surface = routes::projects::v1_router()

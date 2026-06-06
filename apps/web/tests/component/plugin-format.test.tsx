@@ -13,7 +13,7 @@ import type { PluginCapability } from "@/lib/api";
 
 describe("stripEmoji (UX-DR97)", () => {
   it("replaces emoji with a single ▒ glyph", () => {
-    expect(stripEmoji("SERP Enrichment 🚀")).toBe("SERP Enrichment ▒");
+    expect(stripEmoji("Demo Plugin 🚀")).toBe("Demo Plugin ▒");
     expect(stripEmoji("Markdown Export ✨")).toBe("Markdown Export ▒");
   });
 

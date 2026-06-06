@@ -140,6 +140,7 @@ dependencies = [
  "axum",
  "chrono",
  "futures",
+ "hex",
  "hickory-resolver",
  "reqwest",
  "serde",

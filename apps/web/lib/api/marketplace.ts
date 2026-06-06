@@ -1,13 +1,16 @@
-// Story 17.7 marketplace browse + plugin detail (mock-backed) and
-// Story 17.8 marketplace install Sheet (mock-backed).
+// Story 41.3 — marketplace browse + plugin detail + install, wired to the LIVE
+// registry.
 //
-// Story 17.5 ships the registry as a filesystem/GitHub-backed store with no
-// HTTP surface, so the dashboard reads a mock catalog whose shape mirrors the
-// plugin-manifest crate + IndexEntry + PluginInstallRow. The fetchers probe an
-// expected `/v1/plugins*` route first and fall back to the mock so the live
-// swap is a no-op once the API lands.
+// Epic 17 (17.7/17.8) shipped this surface against a hardcoded mock catalog
+// (`done(mock)`). Story 41.1 landed the live GitHub flat-file registry client
+// and Story 41.3 exposes it over HTTP (`GET /v1/marketplace/plugins`,
+// `GET /v1/plugins`, `POST /v1/plugins/install`, `DELETE /v1/plugins/:id`,
+// `POST /v1/plugins/:id/upgrade`). The mock is GONE: these fetchers read the
+// real registry. Reads run server-side via `getJson` (the API key is attached
+// from server env); the client-triggered install POST goes through the
+// same-origin `/api/plugins/*` proxy so the key is never exposed to the browser.
 
-import { API_BASE_URL, getJson, setupHeaders } from "./_client";
+import { getJson } from "./_client";
 
 export type PluginType =
   | "provider"
@@ -44,38 +47,39 @@ export interface MarketplacePlugin {
   update_available: boolean;
 }
 
+/**
+ * Live registry catalog, merged with installed state. Returns an empty list
+ * (never throws) when the registry is offline/empty so the page renders its
+ * zero-state (Story 41.3 AC4) instead of erroring.
+ */
 export async function fetchMarketplacePlugins(): Promise<MarketplacePlugin[]> {
-  try {
-    const r = await getJson<{ plugins: MarketplacePlugin[] }>("/v1/plugins");
-    return r.plugins;
-  } catch {
-    const { MARKETPLACE_MOCK } = await import("../marketplace-mock");
-    return MARKETPLACE_MOCK;
-  }
+  const r = await getJson<{ plugins: MarketplacePlugin[] }>(
+    "/v1/marketplace/plugins",
+  );
+  return r.plugins ?? [];
 }
 
+/**
+ * Detail for one plugin by slug. The registry exposes no per-slug endpoint
+ * (the catalog is small — Story 41.3 filters client/server-side over the
+ * fetched index), so this resolves against the full marketplace list.
+ */
 export async function fetchMarketplacePlugin(
   slug: string,
 ): Promise<MarketplacePlugin | null> {
-  try {
-    return await getJson<MarketplacePlugin>(
-      `/v1/plugins/${encodeURIComponent(slug)}`,
-    );
-  } catch {
-    const { MARKETPLACE_MOCK } = await import("../marketplace-mock");
-    return MARKETPLACE_MOCK.find((p) => p.slug === slug) ?? null;
-  }
+  const plugins = await fetchMarketplacePlugins();
+  return plugins.find((p) => p.slug === slug) ?? null;
 }
 
-// ─── Story 17.8 marketplace install Sheet (mock-backed) ──────────────────────
+// ─── Install (Story 41.3 — live install via same-origin proxy) ───────────────
 //
-// Installs are performed by the `ogeo` CLI; there's no HTTP install surface
-// yet, so this POST is mock-backed. The Sheet still enforces the real install
-// discipline client-side: permissions acknowledged before [INSTALL →]
-// (UX-DR91), all-or-nothing (OQ-P3-26), explicit unsigned confirmation
-// (UX-DR101), and a structured signing-failure error (UX-DR92). On success the
-// backend records a `plugin_install` Audit Event (UX-DR95/127) — surfaced here
-// as the returned audit_event_id.
+// Installs run server-side through the `/api/plugins/install` proxy, which
+// attaches the operator API key and forwards to `POST /v1/plugins/install`.
+// The API verifies the registry artifact's checksum + Ed25519 signature
+// (Story 41.1 pipeline) and records the install in the audit table. The Sheet
+// still enforces install discipline client-side: permissions acknowledged
+// before [INSTALL →] (UX-DR91), explicit unsigned confirmation (UX-DR101), and
+// a structured signing-failure error (UX-DR92).
 
 export type InstallErrorKind =
   | "signing_failed"
@@ -102,43 +106,22 @@ export async function installPlugin(
   req: InstallRequest,
 ): Promise<InstallResult> {
   try {
-    const r = await fetch(
-      `${API_BASE_URL}/v1/plugins/${encodeURIComponent(slug)}/install`,
-      {
-        method: "POST",
-        headers: await setupHeaders(true),
-        body: JSON.stringify(req),
-        cache: "no-store",
-      },
-    );
+    const r = await fetch("/api/plugins/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: slug,
+        acknowledge_unsigned: req.acknowledge_unsigned,
+      }),
+      cache: "no-store",
+    });
     return (await r.json()) as InstallResult;
   } catch {
-    // Mock fallback: signed plugins install clean; unsigned require the
-    // acknowledgment flag or the install is rejected as a signing failure.
-    const { MARKETPLACE_MOCK } = await import("../marketplace-mock");
-    const plugin = MARKETPLACE_MOCK.find((p) => p.slug === slug);
-    const status = plugin?.signature_status ?? "unsigned";
-    if (status === "revoked") {
-      return {
-        ok: false,
-        signature_status: "revoked",
-        error_kind: "revoked",
-        message: "Publisher key has been revoked; install blocked.",
-      };
-    }
-    if (status === "unsigned" && !req.acknowledge_unsigned) {
-      return {
-        ok: false,
-        signature_status: "unsigned",
-        error_kind: "signing_failed",
-        message: "Unsigned plugin — install not acknowledged.",
-      };
-    }
     return {
-      ok: true,
-      signature_status: status,
-      audit_event_id: `evt_${slug.replace(/\W+/g, "_")}`,
-      message: "Plugin installed.",
+      ok: false,
+      signature_status: "unsigned",
+      error_kind: "network",
+      message: "Couldn't reach the registry to complete the install.",
     };
   }
 }

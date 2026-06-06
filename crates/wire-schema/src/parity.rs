@@ -124,7 +124,7 @@ impl Capability {
 
 /// Read-only mirror of the closed MCP tool catalog
 /// (`apps/mcp/src/tools/mod.rs::registry()`, pinned by its
-/// `registry_is_the_closed_twelve_tool_set` test). Kept here so the parity test
+/// `registry_is_the_closed_tool_set` test). Kept here so the parity test
 /// can cross-check MCP coverage evidence without wire-schema depending on the
 /// `apps/mcp` binary. If the app catalog changes, that crate's own test fails
 /// first; this mirror then has to be updated, which forces a parity re-review.
@@ -141,6 +141,8 @@ pub const CANONICAL_MCP_TOOLS: &[&str] = &[
     "recommend.dismiss",
     "recommend.mark_acted",
     "audit",
+    "list_plugins",
+    "install_plugin",
 ];
 
 /// Read-only mirror of the `/v1` paths declared by the `gen-openapi`
@@ -165,6 +167,8 @@ pub const KNOWN_V1_PATHS: &[&str] = &[
     "/v1/recommendations/{id}/state",
     "/v1/projects/{project_id}/events",
     "/v1/plugins",
+    "/v1/plugins/install",
+    "/v1/marketplace/plugins",
 ];
 
 /// The v-next capability registry: the single source of truth for which
@@ -320,6 +324,27 @@ pub const REGISTRY: &[Capability] = &[
                  verbatim through `list_trends`). This is the one accepted parity \
                  exception (Story 41.6 parity-honesty).",
         }),
+    },
+    Capability {
+        id: "list_plugins",
+        summary: "List currently-installed plugins with version + signature status.",
+        coverage: &[
+            SurfaceCoverage::Cli("ogeo plugin list"),
+            SurfaceCoverage::WebApi("/v1/plugins"),
+            SurfaceCoverage::Mcp("list_plugins"),
+        ],
+        exception: None,
+    },
+    Capability {
+        id: "install_plugin",
+        summary: "Install a plugin from the live registry (checksum + signature \
+             verified) by id.",
+        coverage: &[
+            SurfaceCoverage::Cli("ogeo plugin install"),
+            SurfaceCoverage::WebApi("/v1/plugins/install"),
+            SurfaceCoverage::Mcp("install_plugin"),
+        ],
+        exception: None,
     },
 ];
 

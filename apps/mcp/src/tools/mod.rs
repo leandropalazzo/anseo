@@ -13,6 +13,7 @@ pub mod get_citations;
 pub mod get_visibility;
 pub mod ingest_run;
 pub mod list_trends;
+pub mod plugins;
 pub mod recommend;
 pub mod run_prompt;
 pub mod search_benchmarks;
@@ -57,7 +58,13 @@ pub fn registry() -> Vec<Box<dyn Tool>> {
         Box::new(recommend::RecommendDismiss),
         Box::new(recommend::RecommendMarkActed),
         Box::new(audit::Audit),
+        // Story 40.1 — local run ingestion tool.
         Box::new(ingest_run::IngestRun),
+        // Story 41.3 — plugin install surface (CLI ⇄ Web ⇄ MCP parity). These
+        // are first-party tools compiled into the binary; the registry remains
+        // a closed set with no plugin-registration API.
+        Box::new(plugins::ListPlugins),
+        Box::new(plugins::InstallPlugin),
     ]
 }
 
@@ -93,10 +100,13 @@ mod tests {
     use anseo_wire_schema::mcp::tools::{TrendDelta, TrendRecord};
 
     /// Story 17.6 / AD-Phase3-PluginsCannotRegisterMcpTools: the MCP tool set
-    /// is a closed list. The registry is a fixed function with no registration
-    /// API, so plugins have no surface to add a tool — the only way to add one
-    /// is to edit this binary. This test pins the count and names so a stray
-    /// plugin-tool seam can never sneak in. Story 40.1 adds `ingest_run`.
+    /// is a closed, fixed list. The registry is a fixed function with no
+    /// registration API, so plugins have no surface to add a tool — the only
+    /// way to add one is to edit this binary. This test pins the count and
+    /// names so a stray plugin-tool seam can never sneak in. Story 40.1 adds
+    /// `ingest_run`; Story 41.3 adds the first-party `list_plugins` +
+    /// `install_plugin` tools (operator install parity — still no
+    /// plugin-registration seam).
     #[test]
     fn registry_is_the_closed_tool_set() {
         let names: Vec<&str> = registry().iter().map(|t| t.name()).collect();
@@ -116,6 +126,8 @@ mod tests {
                 "recommend.mark_acted",
                 "audit",
                 "ingest_run",
+                "list_plugins",
+                "install_plugin",
             ]
         );
     }

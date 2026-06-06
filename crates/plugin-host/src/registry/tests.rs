@@ -249,6 +249,31 @@ fn unsigned_artifact_is_rejected() {
     assert!(matches!(err, RegistryError::Unsigned { .. }), "got {err:?}");
 }
 
+/// Story 41.3 install-audit fix: an unsigned artifact requested as `latest`
+/// surfaces the *resolved concrete version* in `RegistryError::Unsigned`, not
+/// the literal `"latest"`. The API install handler records this version in the
+/// audit table, so the audit row must carry the real version that was installed.
+#[test]
+fn unsigned_latest_reports_resolved_version() {
+    let fx = build_fixture(Tamper {
+        omit_signature: true,
+        ..Default::default()
+    });
+    let err = client(&fx)
+        .fetch_verified(ID, "latest", &[fx.root_pub], None)
+        .unwrap_err();
+    match err {
+        RegistryError::Unsigned { id, version } => {
+            assert_eq!(id, ID);
+            assert_eq!(
+                version, VERSION,
+                "unsigned error must carry the resolved concrete version, not `latest`"
+            );
+        }
+        other => panic!("expected Unsigned with resolved version, got {other:?}"),
+    }
+}
+
 #[test]
 fn unknown_plugin_is_rejected() {
     let fx = build_fixture(Tamper::default());

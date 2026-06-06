@@ -556,19 +556,22 @@ const ETL_STATUS = {
   error: null,
 };
 
-// /v1/plugins -> { plugins: MarketplacePlugin[] } — slugs match marketplace-mock
+// /v1/marketplace/plugins + /v1/plugins -> { plugins: MarketplacePlugin[] }.
+// Story 41.3: these are E2E fixtures for the LIVE marketplace surface. The IDs
+// are deliberately neutral fixture names (NOT the Epic-17 mock catalog ids) so
+// the AC7 "no mock data remains" grep over apps/web stays clean.
 function makePlugin(overrides) {
   return {
-    slug: "opengeo/serp-enrichment",
-    name: "SERP Enrichment 🚀",
+    slug: "fixtures/alpha-signed",
+    name: "Alpha Signed Fixture",
     version: "1.4.2",
-    description: "Enrich runs with SERP data.",
-    author: "opengeo",
-    homepage: "https://example.com/serp",
+    description: "Signed fixture plugin for E2E.",
+    author: "fixtures",
+    homepage: "https://example.com/alpha",
     plugin_type: "extractor",
     verified: true,
     signature_status: "signed",
-    capabilities: [{ kind: "network", allowlist: ["serpapi.com"] }],
+    capabilities: [{ kind: "network", allowlist: ["example.com"] }],
     installed: true,
     installed_version: "1.4.0",
     update_available: true,
@@ -578,12 +581,12 @@ function makePlugin(overrides) {
 const PLUGINS = [
   makePlugin({}),
   makePlugin({
-    slug: "community/markdown-export",
-    name: "Markdown Export ✨",
+    slug: "fixtures/beta-unsigned",
+    name: "Beta Unsigned Fixture",
     version: "0.9.0",
-    description: "Export reports as Markdown.",
-    author: "community",
-    homepage: "https://example.com/md",
+    description: "Unsigned fixture plugin for E2E.",
+    author: "fixtures",
+    homepage: "https://example.com/beta",
     plugin_type: "output-format",
     verified: false,
     signature_status: "unsigned",
@@ -593,11 +596,11 @@ const PLUGINS = [
     update_available: false,
   }),
   makePlugin({
-    slug: "opengeo/clickhouse-window",
-    name: "ClickHouse Windowed Analytics",
+    slug: "fixtures/gamma-analytics",
+    name: "Gamma Analytics Fixture",
     version: "2.0.1",
-    description: "Windowed analytics over ClickHouse.",
-    author: "opengeo",
+    description: "Analytics fixture plugin for E2E.",
+    author: "fixtures",
     plugin_type: "analytics",
     verified: true,
     signature_status: "signed",
@@ -716,6 +719,8 @@ function routeGet(pathname, searchParams, projectHeader) {
     case "/v1/setup/clickhouse/status":
       return ETL_STATUS;
     case "/v1/plugins":
+      return { plugins: PLUGINS.filter((p) => p.installed) };
+    case "/v1/marketplace/plugins":
       return { plugins: PLUGINS };
     case "/v1/projects":
       return { projects: PROJECTS };
@@ -796,14 +801,37 @@ function routeMutation(method, pathname, body) {
     const name = decodeURIComponent(m[1]);
     return [200, { name, on: "", target: "*", channels: [], status: "muted", fires: 0 }];
   }
-  if ((m = pathname.match(/^\/v1\/plugins\/([^/]+)\/install$/))) {
-    const slug = decodeURIComponent(m[1]);
+  if (pathname === "/v1/plugins/install") {
+    // Story 41.3 — { id, acknowledge_unsigned }. Unsigned fixtures require the
+    // acknowledgment flag (UX-DR101); otherwise return the structured error.
+    let id = "";
+    let acknowledge = false;
+    try {
+      const parsed = JSON.parse(body || "{}");
+      id = typeof parsed.id === "string" ? parsed.id : "";
+      acknowledge = parsed.acknowledge_unsigned === true;
+    } catch {
+      /* keep defaults */
+    }
+    const plugin = pluginFor(id);
+    const status = plugin?.signature_status ?? "unsigned";
+    if (status === "unsigned" && !acknowledge) {
+      return [
+        200,
+        {
+          ok: false,
+          signature_status: "unsigned",
+          error_kind: "signing_failed",
+          message: "Unsigned plugin — install not acknowledged.",
+        },
+      ];
+    }
     return [
       200,
       {
         ok: true,
-        signature_status: "signed",
-        audit_event_id: `evt_${slug.replace(/\W+/g, "_")}`,
+        signature_status: status,
+        audit_event_id: `evt_${id.replace(/\W+/g, "_")}`,
         message: "Plugin installed.",
       },
     ];

@@ -43,6 +43,7 @@ sqlx = { workspace = true }
 chrono = { workspace = true }
 ulid = { workspace = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+hex = { workspace = true }
 async-trait = "0.1"
 hickory-resolver = "0.24"
 

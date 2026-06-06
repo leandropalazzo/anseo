@@ -105,3 +105,71 @@ describe("app/** mock-import guard", () => {
     expect(stale, stale.join("\n")).toEqual([]);
   });
 });
+
+// ─── Story 41.3 AC7 — no Epic-17 mock plugin catalog remains ─────────────────
+//
+// Epic 17 (17.5/17.7/17.8) shipped the marketplace + CLI against a hardcoded
+// mock plugin catalog (`done(mock)`). Story 41.3 drops it for the live registry.
+// This test enforces that NONE of the known Epic-17 mock plugin ids/names linger
+// anywhere under apps/web (and sdks/, if present) — replacing the prior
+// code-inspection-only check. The scan excludes this test file (which must name
+// the forbidden strings) and node_modules / build output.
+
+/** The Epic-17 mock catalog identifiers that must no longer appear in source. */
+const EPIC17_MOCK_IDS: ReadonlyArray<string> = [
+  "opengeo/serp-enrichment",
+  "community/markdown-export",
+  "opengeo/clickhouse-window",
+  "SERP Enrichment",
+  "MARKETPLACE_MOCK",
+  "marketplace-mock",
+];
+
+function walkAll(dir: string): string[] {
+  const out: string[] = [];
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    if (entry === "node_modules" || entry === ".next" || entry === "dist") {
+      continue;
+    }
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      out.push(...walkAll(full));
+    } else if (/\.(ts|tsx|js|jsx|mjs)$/.test(entry)) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+describe("Story 41.3 AC7 — mock plugin catalog is gone", () => {
+  // apps/web is `<repo>/apps/web`; sdks (if it exists) is `<repo>/sdks`.
+  const repoRoot = join(webRoot, "..", "..");
+  const scanRoots = [join(repoRoot, "apps", "web"), join(repoRoot, "sdks")];
+  const selfPath = fileURLToPath(import.meta.url);
+
+  it("no Epic-17 mock plugin id/name appears anywhere under apps/web or sdks", () => {
+    const offenders: string[] = [];
+    for (const root of scanRoots) {
+      for (const full of walkAll(root)) {
+        if (full === selfPath) continue;
+        const src = readFileSync(full, "utf8");
+        for (const id of EPIC17_MOCK_IDS) {
+          if (src.includes(id)) {
+            offenders.push(`${relative(repoRoot, full)} contains "${id}"`);
+          }
+        }
+      }
+    }
+    expect(
+      offenders,
+      `Epic-17 mock plugin data still present — drop it for the live registry:\n` +
+        offenders.map((o) => `  - ${o}`).join("\n"),
+    ).toEqual([]);
+  });
+});

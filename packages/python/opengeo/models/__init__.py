@@ -51,8 +51,16 @@ from .grafana_crawler_query import GrafanaCrawlerQuery
 from .grafana_crawler_series import GrafanaCrawlerSeries
 from .ingest_run_request import IngestRunRequest
 from .ingest_run_response import IngestRunResponse
+from .ingest_site_event_body import IngestSiteEventBody
+from .ingest_site_event_body_properties import IngestSiteEventBodyProperties
+from .install_plugin_body import InstallPluginBody
+from .install_plugin_response_200 import InstallPluginResponse200
 from .kind_adoption import KindAdoption
+from .list_marketplace_plugins_response_200 import ListMarketplacePluginsResponse200
 from .page_audit import PageAudit
+from .plugin_status import PluginStatus
+from .plugin_status_kind import PluginStatusKind
+from .plugin_status_status import PluginStatusStatus
 from .project_list_response import ProjectListResponse
 from .project_view import ProjectView
 from .recommendation import Recommendation
@@ -79,6 +87,7 @@ from .transition_recommendation_request import TransitionRecommendationRequest
 from .transition_recommendation_request_to import TransitionRecommendationRequestTo
 from .transition_recommendation_response import TransitionRecommendationResponse
 from .transition_recommendation_response_warnings_item import TransitionRecommendationResponseWarningsItem
+from .upgrade_plugin_response_200 import UpgradePluginResponse200
 from .visibility_sentiment_point import VisibilitySentimentPoint
 from .visibility_sentiment_response import VisibilitySentimentResponse
 from .visibility_trend_response import VisibilityTrendResponse
@@ -136,8 +145,16 @@ __all__ = (
     "GrafanaCrawlerSeries",
     "IngestRunRequest",
     "IngestRunResponse",
+    "IngestSiteEventBody",
+    "IngestSiteEventBodyProperties",
+    "InstallPluginBody",
+    "InstallPluginResponse200",
     "KindAdoption",
+    "ListMarketplacePluginsResponse200",
     "PageAudit",
+    "PluginStatus",
+    "PluginStatusKind",
+    "PluginStatusStatus",
     "ProjectListResponse",
     "ProjectView",
     "Recommendation",
@@ -164,6 +181,7 @@ __all__ = (
     "TransitionRecommendationRequestTo",
     "TransitionRecommendationResponse",
     "TransitionRecommendationResponseWarningsItem",
+    "UpgradePluginResponse200",
     "VisibilitySentimentPoint",
     "VisibilitySentimentResponse",
     "VisibilityTrendResponse",
