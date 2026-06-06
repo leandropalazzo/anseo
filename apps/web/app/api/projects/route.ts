@@ -1,5 +1,5 @@
 // Server-side proxy for GET/POST /v1/projects (list + create). Client
-// components cannot attach the server-only X-OpenGEO-API-Key header, so the
+// components cannot attach the server-only X-Anseo-API-Key header, so the
 // project switcher + settings call this same-origin route and we forward to the
 // backend. (Story 36.8 / 36.3.)
 

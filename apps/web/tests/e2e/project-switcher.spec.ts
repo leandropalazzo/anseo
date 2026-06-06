@@ -2,7 +2,7 @@
 //
 // Drives the real switcher against the canned mock API (tests/e2e/mock-api-server.mjs),
 // which serves two seed projects (Acme, Globex) and project-scoped visibility
-// data keyed by the X-OpenGEO-Project header. Switching projects must:
+// data keyed by the X-Anseo-Project header. Switching projects must:
 //   1. update the switcher's active label + the topbar breadcrumb, and
 //   2. re-scope SSR data — the "Overall" visibility view's brand pill follows
 //      the selection, proving the header threads through to the API.

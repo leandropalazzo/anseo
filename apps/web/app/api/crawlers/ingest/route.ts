@@ -1,5 +1,5 @@
 // Server-side proxy for POST /v1/crawlers/ingest. Runs on the Next server so
-// the X-OpenGEO-API-Key header is attached from server env. Powers the
+// the X-Anseo-API-Key header is attached from server env. Powers the
 // "Connect a source" paste-logs flow on /crawlers (Epic 31/33 parity).
 
 import { NextResponse } from "next/server";

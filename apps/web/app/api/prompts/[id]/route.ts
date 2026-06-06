@@ -1,5 +1,5 @@
 // Server-side proxy for PUT/DELETE /v1/prompts/{id} (edit + delete). Runs on
-// the Next server so the X-OpenGEO-API-Key header can be attached from server
+// the Next server so the X-Anseo-API-Key header can be attached from server
 // env; the browser never sees the operator key.
 
 import { NextResponse } from "next/server";

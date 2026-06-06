@@ -1,5 +1,5 @@
 // Server-side proxy for POST /v1/setup/api-keys/{provider} (store a provider
-// key). Runs on the Next server so the X-OpenGEO-API-Key header can be
+// key). Runs on the Next server so the X-Anseo-API-Key header can be
 // attached from server env; the browser never sees the operator key.
 
 import { NextResponse } from "next/server";

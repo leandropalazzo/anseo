@@ -1,5 +1,5 @@
 // Server-side proxy for POST /v1/prompts/suggest. Runs on the Next server so
-// the X-OpenGEO-API-Key header can be attached from server env.
+// the X-Anseo-API-Key header can be attached from server env.
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";

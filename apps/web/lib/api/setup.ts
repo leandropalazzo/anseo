@@ -195,7 +195,7 @@ export async function postClickHouseInstall(): Promise<InstallAccepted> {
 
 /** Consume the install SSE stream, invoking `onEvent` for each `install`
  *  event until the stream closes. Uses fetch + a streaming reader (rather
- *  than EventSource) so the X-OpenGEO-API-Key header can be attached.
+ *  than EventSource) so the X-Anseo-API-Key header can be attached.
  *  `streamPath` is the relative path returned by {@link postClickHouseInstall}. */
 export async function streamClickHouseInstall(
   streamPath: string,
@@ -364,7 +364,7 @@ export async function postWebhookTest(url: string): Promise<WebhookTestResult> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(process.env.ANSEO_API_KEY ? { "X-OpenGEO-API-Key": process.env.ANSEO_API_KEY } : {}),
+        ...(process.env.ANSEO_API_KEY ? { "X-Anseo-API-Key": process.env.ANSEO_API_KEY } : {}),
       },
       body: JSON.stringify({ url }),
       cache: "no-store",

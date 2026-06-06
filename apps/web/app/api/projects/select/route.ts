@@ -2,7 +2,7 @@
 //
 // The switcher POSTs the chosen project name here; we set it as an HTTP cookie
 // so every subsequent SSR fetch and `app/api/*` proxy forwards the matching
-// `X-OpenGEO-Project` header (resolved by name against the projects table).
+// `X-Anseo-Project` header (resolved by name against the projects table).
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
