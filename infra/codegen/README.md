@@ -18,8 +18,8 @@ infra/codegen/
 ```
 
 ```
-packages/typescript/      # published as @opengeo/sdk
-packages/python/          # published as opengeo on PyPI
+packages/typescript/      # published as @anseo/sdk
+packages/python/          # published as anseo on PyPI
 ```
 
 ## Generator versions
@@ -50,7 +50,7 @@ committed `packages/*/`. Non-zero exit → drift → block merge.
 ## Status
 
 Both generators are wired and the SDKs at `packages/typescript/` and
-`packages/python/opengeo/` are now populated from the canonical spec.
+`packages/python/anseo/` are now populated from the canonical spec.
 `make sdks` regenerates them; `make drift` is the CI gate. Run a quick
 local install with `uvx` if you don't want a system-wide install:
 
