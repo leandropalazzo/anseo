@@ -285,7 +285,7 @@ Example Reports:
 ### GitHub Action
 
 ```
-- uses: anseo/check-visibility@v1
+- uses: opengeo/check-visibility@v1
 ```
 
 ### Browser Extension
