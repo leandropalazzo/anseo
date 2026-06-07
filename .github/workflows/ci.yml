@@ -1,16 +1,15 @@
 # =============================================================================
-# PUBLIC CI — the AUTHORITATIVE heavy suite, ships to the public `opengeo` repo
+# PUBLIC CI — the AUTHORITATIVE heavy suite for the canonical public `anseo` repo.
 #
-# Managed by scripts/publish-public.sh (opengeo-workspace); installed as
-# `.github/workflows/ci.yml` in the public `opengeo` repo.
+# This repo IS canonical (Story 38.17 deleted the workspace→public publish
+# pipeline, scripts/publish-public.sh, and the opengeo-workspace mirror). This
+# file lives and is edited HERE; there is no upstream that generates it.
 #
 # WHY HERE (Story 38.13): the public repo is PUBLIC → GitHub Actions are FREE
-# and unlimited. The private `opengeo-workspace` is metered against GitHub Pro,
-# so it runs only a lean gate (fmt/clippy/offline-unit/web-lint). The full,
-# expensive validation — integration tests, coverage, Playwright e2e, compose
-# smoke — runs HERE, where it costs nothing. This inverts Story 38.7.
+# and unlimited, so the full, expensive validation — integration tests,
+# coverage, Playwright e2e, compose smoke — runs HERE, where it costs nothing.
 #
-# Self-contained: the public repo has no `scripts/` dir, so every step is inline.
+# Self-contained: every step is inline (no shared `scripts/` CI helpers).
 # =============================================================================
 
 name: ci
@@ -430,7 +429,7 @@ jobs:
   # auto-bump workflow picks up the new main commit within minutes rather than
   # waiting for the daily schedule.
   #
-  # Requires: INTERNAL_DISPATCH_TOKEN secret in the opengeo repo — a PAT with
+  # Requires: INTERNAL_DISPATCH_TOKEN secret in the anseo repo — a PAT with
   # `repo` scope on leandropalazzo/anseo-internal.
   # If the secret is absent the step is silently skipped (continue-on-error).
   # Story 38.18 documents this as best-effort; the daily schedule covers the gap.
