@@ -618,7 +618,22 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.tag }}
 
+      # Re-running an OLDER reachable tag (pre-rename, when the crate was
+      # `opengeo-cli`) must not fail the train. Detect whether this ref actually
+      # has the renamed `anseo-cli` package; if not, skip the build/upload so the
+      # job succeeds (the CLI-binary leg simply produces nothing for old tags).
+      - name: Detect renamed CLI package
+        id: detect
+        run: |
+          if grep -q 'name = "anseo-cli"' apps/cli/Cargo.toml 2>/dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::anseo-cli not present at $(git rev-parse --short HEAD) (pre-rename tag) — skipping CLI binary build."
+          fi
+
       - name: Install Rust toolchain
+        if: ${{ steps.detect.outputs.present == 'true' }}
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -627,14 +642,17 @@ jobs:
       # cross toolchain) so a plain `cargo build --target <triple>` produces a
       # static binary on the x86_64 runner. ring compiles its C under this.
       - name: Set up cross toolchain
+        if: ${{ steps.detect.outputs.present == 'true' }}
         uses: taiki-e/setup-cross-toolchain-action@v1
         with:
           target: ${{ matrix.target }}
 
       - name: Build anseo CLI
+        if: ${{ steps.detect.outputs.present == 'true' }}
         run: cargo build --release --locked -p anseo-cli --bin anseo --target ${{ matrix.target }}
 
       - name: Stage release asset
+        if: ${{ steps.detect.outputs.present == 'true' }}
         run: |
           set -euo pipefail
           mkdir -p dist/cli
@@ -642,6 +660,7 @@ jobs:
           ./dist/cli/anseo-${{ matrix.target }} --version || true
 
       - name: Upload CLI binary artifact
+        if: ${{ steps.detect.outputs.present == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: anseo-cli-${{ matrix.target }}

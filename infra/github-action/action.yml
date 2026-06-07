@@ -20,11 +20,11 @@ inputs:
     description: "Maximum acceptable ranking (1 = top). The job fails if the observed rank is higher than this."
     required: false
   provider:
-    description: "Restrict the check to a single Provider (openai, anthropic, gemini, perplexity, grok, mistral, openrouter). Omit to check across every declared provider."
+    description: "Reserved for the live visibility implementation (Story 3.2). Will restrict the check to a single Provider (openai, anthropic, gemini, perplexity, grok, mistral, openrouter). Currently surfaced in the run summary only — the CLI's check-visibility does not yet accept it."
     required: false
     default: ""
   api-base:
-    description: "Anseo API base URL. Defaults to https://api.anseo.ai."
+    description: "Reserved for the live visibility implementation (Story 3.2). The Anseo API base URL the live check will target; the current CLI check-visibility is a local/offline stub and does not yet accept it. Defaults to https://api.anseo.ai."
     required: false
     default: "https://api.anseo.ai"
   audit-url:
