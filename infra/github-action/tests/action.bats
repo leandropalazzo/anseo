@@ -113,7 +113,7 @@ EOF
   [[ "$output" == *"observed-rank=null"* ]]
 }
 
-@test "provider filter is forwarded to anseo CLI" {
+@test "visibility invokes the CLI with only its supported flags" {
   cat > "$STUB_BIN/anseo" <<'EOF'
 #!/bin/sh
 # Echo the args we were called with so the test can inspect them.
@@ -124,7 +124,15 @@ EOF
 
   run "$ENTRYPOINT" "vec-db" "Pinecone" "3" "anthropic" "https://api.anseo.ai"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"--provider anthropic"* ]]
+  [[ "$output" == *"check visibility"* ]]
+  [[ "$output" == *"--prompt vec-db"* ]]
+  [[ "$output" == *"--brand Pinecone"* ]]
+  [[ "$output" == *"--expect-rank-lte 3"* ]]
+  # The CLI's check-visibility stub does not accept these yet (ships in Story 3.2),
+  # so the entrypoint must NOT forward them or clap rejects the invocation.
+  [[ "$output" != *"--provider"* ]]
+  [[ "$output" != *"--api-base"* ]]
+  [[ "$output" != *"--json"* ]]
 }
 
 @test "audit mode does not require API key and forwards gate flags" {

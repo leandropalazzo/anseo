@@ -1,4 +1,4 @@
-//! `ogeo check visibility` — FR-15.
+//! `anseo check visibility` — FR-15.
 //!
 //! Phase 1 placeholder: argument parsing + structured "no data" result. Real
 //! ranking-against-threshold logic lands once Story 3.2 ships mention
@@ -48,7 +48,7 @@ pub fn run(args: VisibilityArgs) -> Result<(), OpenGeoError> {
     );
     Err(OpenGeoError::Provider {
         kind: anseo_core::ProviderErrorKind::NetworkError,
-        message: "`ogeo check visibility` requires persisted Prompt Runs; \
+        message: "`anseo check visibility` requires persisted Prompt Runs; \
                   ships fully in Story 3.2 once extraction lands."
             .into(),
     })

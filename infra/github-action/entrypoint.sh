@@ -102,15 +102,17 @@ fi
 # Build argv with `set --` so brand names with spaces ("Acme Corp")
 # and any future quoted arg pass through intact. The CLI receives one
 # proper argv element per flag value — no word-splitting hazards.
+# The CLI's `check visibility` accepts --prompt/--brand/--expect-rank-lte
+# (+ optional --config). It does NOT yet accept --api-base/--json/--provider:
+# it is a fail-closed Phase-1 stub that exits 2 with a "ships in Story 3.2"
+# message until the persisted-run data layer lands. We invoke it with only the
+# flags it supports, so it fails with that meaningful message rather than a clap
+# arg-parse error. API_BASE/PROVIDER stay action inputs (audit mode / reserved
+# for the live visibility implementation) and are still surfaced in the summary.
 set -- check visibility \
     --prompt "$PROMPT" \
     --brand "$BRAND" \
-    --expect-rank-lte "$EXPECT_RANK_LTE" \
-    --api-base "$API_BASE" \
-    --json
-if [ -n "$PROVIDER" ]; then
-  set -- "$@" --provider "$PROVIDER"
-fi
+    --expect-rank-lte "$EXPECT_RANK_LTE"
 
 # Run the CLI; capture stdout (JSON) for parsing + propagate stderr.
 RC=0
