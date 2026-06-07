@@ -104,18 +104,18 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: opengeo
-          POSTGRES_PASSWORD: opengeo
-          POSTGRES_DB: opengeo_test
+          POSTGRES_USER: anseo
+          POSTGRES_PASSWORD: anseo
+          POSTGRES_DB: anseo_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U opengeo -d opengeo_test"
+          --health-cmd "pg_isready -U anseo -d anseo_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgres://opengeo:opengeo@localhost:5432/opengeo_test
+      DATABASE_URL: postgres://anseo:anseo@localhost:5432/anseo_test
     steps:
       - uses: actions/checkout@v4
       - name: install libdbus + pkg-config
@@ -197,18 +197,18 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: opengeo
-          POSTGRES_PASSWORD: opengeo
-          POSTGRES_DB: opengeo_test
+          POSTGRES_USER: anseo
+          POSTGRES_PASSWORD: anseo
+          POSTGRES_DB: anseo_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U opengeo -d opengeo_test"
+          --health-cmd "pg_isready -U anseo -d anseo_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgres://opengeo:opengeo@localhost:5432/opengeo_test
+      DATABASE_URL: postgres://anseo:anseo@localhost:5432/anseo_test
     steps:
       - uses: actions/checkout@v4
       - name: free disk space
@@ -477,16 +477,16 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: opengeo
-          POSTGRES_PASSWORD: opengeo
-          POSTGRES_DB: opengeo_test
+          POSTGRES_USER: anseo
+          POSTGRES_PASSWORD: anseo
+          POSTGRES_DB: anseo_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U opengeo"
+          --health-cmd "pg_isready -U anseo"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgres://opengeo:opengeo@localhost:5432/opengeo_test
+      DATABASE_URL: postgres://anseo:anseo@localhost:5432/anseo_test
       CI: "true"
     steps:
       - uses: actions/checkout@v4

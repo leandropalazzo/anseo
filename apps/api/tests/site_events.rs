@@ -8,7 +8,7 @@
 //! Gated on a live DB and `#[ignore]`'d for the default run (CI runs them):
 //!
 //! ```text
-//! DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo \
+//! DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo \
 //!   cargo test -p anseo-api --test site_events -- --ignored
 //! ```
 //!

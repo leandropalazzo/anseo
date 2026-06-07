@@ -29,7 +29,7 @@ One multi-project core, three ways to run it — pick by how much you want runni
 **Tier 0 — solo CLI.** Just `anseo` against a Postgres you point it at; no long-running services. (`ogeo` remains a deprecated alias for the `anseo` CLI.)
 
 ```bash
-export DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo
+export DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo
 anseo init && anseo login openai
 anseo prompt run
 ```

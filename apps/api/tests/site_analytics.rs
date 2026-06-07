@@ -8,7 +8,7 @@
 //!   * A `#[ignore]`d live-DB test seeds rollup rows and asserts the aggregation
 //!     payloads (AC-1, AC-2). Run with:
 //!     ```text
-//!     DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo \
+//!     DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo \
 //!       cargo test -p anseo-api --test site_analytics -- --ignored
 //!     ```
 
@@ -27,10 +27,9 @@ use sqlx::PgPool;
 use tower::ServiceExt;
 
 fn lazy_state() -> AppState {
-    let lazy_pool = sqlx::PgPool::connect_lazy(
-        "postgres://opengeo:opengeo@127.0.0.1:1/__site_analytics_test__",
-    )
-    .expect("connect_lazy never IOs synchronously");
+    let lazy_pool =
+        sqlx::PgPool::connect_lazy("postgres://anseo:anseo@127.0.0.1:1/__site_analytics_test__")
+            .expect("connect_lazy never IOs synchronously");
     let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
     let (events, _rx) = anseo_scheduler::worker::event_channel();
     AppState {

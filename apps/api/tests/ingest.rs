@@ -10,7 +10,7 @@
 //! Gated on a live DB and `#[ignore]`'d for the default run. Invoke with:
 //!
 //! ```text
-//! DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo \
+//! DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo \
 //!   cargo test -p opengeo-api --test ingest -- --ignored
 //! ```
 

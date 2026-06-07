@@ -26,6 +26,15 @@ docker compose ps          # confirm postgres + redis are healthy
 docker compose down        # tear down
 ```
 
+> **Upgrading from a pre-rename stack.** The Postgres role/database default
+> changed from `opengeo`/`opengeo_test` to `anseo`/`anseo_test`. Postgres only
+> applies `POSTGRES_USER`/`POSTGRES_DB` when the data volume is first
+> initialized, so an existing `postgres-data` volume created before this change
+> still holds the old `opengeo` role and the api/worker will fail to connect.
+> Local dev data is disposable — recreate the volume to pick up the new
+> defaults: `docker compose down -v && docker compose up -d` (or rename the role
+> + db inside the existing volume if you need to keep the data).
+
 For day-to-day local deployment from the workspace root, prefer the deploy
 helper:
 
@@ -56,9 +65,9 @@ All published ports bind to `127.0.0.1` (Story 1.4 AC). Override with the `OGEO_
 | `REDIS_PORT`            | `6379`       | Host port for Redis.                             |
 | `OGEO_API_PORT`         | `8080`       | Host port for the API.                           |
 | `OGEO_WEB_PORT`         | `5173`       | Host port for the web dashboard.                 |
-| `POSTGRES_USER`         | `opengeo`    | Postgres role and component of `DATABASE_URL`.   |
-| `POSTGRES_PASSWORD`     | `opengeo`    | Postgres password and component of `DATABASE_URL`.|
-| `POSTGRES_DB`           | `opengeo`    | Postgres database name.                          |
+| `POSTGRES_USER`         | `anseo`      | Postgres role and component of `DATABASE_URL`.   |
+| `POSTGRES_PASSWORD`     | `anseo`      | Postgres password and component of `DATABASE_URL`.|
+| `POSTGRES_DB`           | `anseo`      | Postgres database name.                          |
 | `RUST_LOG`              | `info`       | Tracing level for api/worker placeholders.       |
 | `OPENGEO_API_IMAGE`     | `busybox:1.36` | Override when a real image exists.             |
 | `OPENGEO_WORKER_IMAGE`  | `busybox:1.36` | Override when a real image exists.             |

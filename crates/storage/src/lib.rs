@@ -9,7 +9,7 @@
 //! `sqlx` CLI:
 //!
 //! ```text
-//! DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo_test \
+//! DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo_test \
 //!   sqlx migrate run --source crates/storage/migrations
 //! ```
 //!

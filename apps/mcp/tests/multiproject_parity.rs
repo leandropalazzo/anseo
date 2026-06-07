@@ -37,7 +37,7 @@
 //! the sibling `*_live_db` suites:
 //!
 //! ```text
-//! DATABASE_URL=postgres://opengeo:opengeo@localhost:5445/opengeo_test \
+//! DATABASE_URL=postgres://anseo:anseo@localhost:5445/anseo_test \
 //!   cargo test -p opengeo-mcp --test multiproject_parity -- --ignored
 //! ```
 

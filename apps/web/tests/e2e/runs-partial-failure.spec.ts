@@ -23,7 +23,7 @@ const PROJECT_ID = "demo";
 // PLAYWRIGHT_SKIP_WEBSERVER=1 disables it for `playwright test --list` runs in CI.
 
 test.beforeEach(async ({ request }) => {
-  // POST /test/seed will live in apps/api behind OPENGEO_TEST_MODE=1.
+  // POST /test/seed will live in apps/api behind ANSEO_TEST_MODE=1.
   // Seeds 2 OK runs (openai) + 2 failed runs (anthropic, provider_rate_limited).
   const response = await request.post(`/test/seed`, {
     data: {

@@ -127,7 +127,7 @@ export function PrivacySection() {
         <CodeBlock
           lang="text"
           code={`secrets:   $XDG_CONFIG_HOME/opengeo/secrets.age (0600)
-database:  postgres://opengeo@localhost:5432/opengeo_test
+database:  postgres://anseo@localhost:5432/anseo_test
 exports:   ./reports/ (markdown, json, csv)
 telemetry: <none>`}
         />
