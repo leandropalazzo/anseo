@@ -833,10 +833,24 @@ jobs:
           name: compose-snapshot-${{ needs.resolve.outputs.version }}
           path: dist/compose
 
+      # Re-running an OLDER reachable tag (pre-rename) produces no anseo-cli-*
+      # artifacts (the cli-binaries job skips the build), so the download below
+      # must be conditional or download-artifact@v4 fails on an empty match.
+      - name: Detect renamed CLI package
+        id: clidetect
+        run: |
+          if grep -q 'name = "anseo-cli"' apps/cli/Cargo.toml 2>/dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::pre-rename tag — no anseo-cli artifacts to download/attach."
+          fi
+
       # Pull every CLI binary artifact (anseo-cli-<triple>) into one dir so the
       # release step can attach them as `anseo-<triple>` assets — the exact names
       # the check-visibility action downloads.
       - name: Download CLI binaries
+        if: ${{ steps.clidetect.outputs.present == 'true' }}
         uses: actions/download-artifact@v4
         with:
           pattern: anseo-cli-*
