@@ -1,6 +1,6 @@
-name: "Anseo CI Gate"
-description: "Run an Anseo visibility or site-audit gate inside CI."
-author: "Anseo"
+name: "OpenGEO CI Gate"
+description: "Run an OpenGEO visibility or site-audit gate inside CI."
+author: "OpenGEO"
 branding:
   icon: "trending-up"
   color: "purple"
@@ -11,10 +11,10 @@ inputs:
     required: false
     default: "visibility"
   prompt:
-    description: "Declared Prompt slug (must already exist in the project's anseo.yaml)."
+    description: "Declared Prompt slug (must already exist in the project's opengeo.yaml)."
     required: false
   brand:
-    description: "Brand name to check, as declared in anseo.yaml."
+    description: "Brand name to check, as declared in opengeo.yaml."
     required: false
   expect-rank-lte:
     description: "Maximum acceptable ranking (1 = top). The job fails if the observed rank is higher than this."
@@ -24,9 +24,9 @@ inputs:
     required: false
     default: ""
   api-base:
-    description: "Anseo API base URL. Defaults to https://api.anseo.ai."
+    description: "OpenGEO API base URL. Defaults to https://api.opengeo.dev."
     required: false
-    default: "https://api.anseo.ai"
+    default: "https://api.opengeo.dev"
   audit-url:
     description: "URL or sitemap URL to crawl when mode=audit."
     required: false

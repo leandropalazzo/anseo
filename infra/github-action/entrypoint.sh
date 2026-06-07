@@ -1,5 +1,5 @@
 #!/bin/sh
-# Anseo check-visibility GitHub Action entrypoint.
+# OpenGEO check-visibility GitHub Action entrypoint.
 #
 # Invoked by the runner with the action.yml `args` array:
 #   $1 = prompt slug

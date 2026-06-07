@@ -6,21 +6,21 @@ Run an Anseo visibility check inside CI; fail the build if a Brand's ranking is 
 
 ```yaml
 - name: Check brand visibility
-  uses: anseo/check-visibility@v1
+  uses: opengeo/check-visibility@v1
   with:
     prompt: "best vector database"
     brand: "Pinecone"
     expect-rank-lte: 3
   env:
-    ANSEO_API_KEY: ${{ secrets.ANSEO_API_KEY }}
+    OPENGEO_API_KEY: ${{ secrets.OPENGEO_API_KEY }}
 ```
 
 ## Inputs
 
 | Input             | Required | Default                       | Notes                                                                               |
 | ----------------- | -------- | ----------------------------- | ----------------------------------------------------------------------------------- |
-| `prompt`          | yes      | —                             | Declared Prompt slug (must exist in your `anseo.yaml`).                           |
-| `brand`           | yes      | —                             | Brand name to check, as declared in `anseo.yaml`.                                 |
+| `prompt`          | yes      | —                             | Declared Prompt slug (must exist in your `opengeo.yaml`).                           |
+| `brand`           | yes      | —                             | Brand name to check, as declared in `opengeo.yaml`.                                 |
 | `expect-rank-lte` | yes      | —                             | Maximum acceptable ranking (1 = top). Build fails if the observed rank is higher.   |
 | `provider`        | no       | empty (all declared)          | Restrict to one Provider: `openai`, `anthropic`, `gemini`, `perplexity`, `grok`, `mistral`, `openrouter`. |
 | `api-base`        | no       | `https://api.anseo.ai`     | Override for self-hosted deployments.                                               |
@@ -37,7 +37,7 @@ Run an Anseo visibility check inside CI; fail the build if a Brand's ranking is 
 - `0` — within threshold.
 - `1` — ranking worse than `expect-rank-lte`. Standard CI failure.
 - `2` — provider returned an error (auth, rate-limit, 5xx). Distinct from a regression so consumer workflows can branch.
-- `64` — missing required input (no `ANSEO_API_KEY`, missing arg).
+- `64` — missing required input (no `OPENGEO_API_KEY`, missing arg).
 
 ## Step summary
 
