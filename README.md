@@ -129,7 +129,7 @@ A ClickHouse analytics backend with a Postgres↔ClickHouse parity test and live
 
 ## MCP server
 
-`apps/mcp` is a Model Context Protocol server (stdio + HTTP/SSE) that lets an LLM client (Claude Desktop, Cursor, Zed) query and drive a project. Seven tools: `run_prompt`, `get_visibility`, `get_citations`, `list_trends`, `compare_brands`, `search_benchmarks`, `recommend`.
+`apps/mcp` is a Model Context Protocol server (stdio + HTTP/SSE) that lets an LLM client (Claude Desktop, Cursor, Zed) query and drive a project. It exposes a closed set of 15 tools: read/analyze (`run_prompt`, `get_visibility`, `compare_brands`, `get_citations`, `list_trends`, `search_benchmarks`), act (`audit`, `ingest_run`), the recommendation lifecycle (`recommend.list`, `recommend.show`, `recommend.ack`, `recommend.dismiss`, `recommend.mark_acted`), and plugins (`list_plugins`, `install_plugin`). Every tool proxies over loopback to the `/v1` API except `search_benchmarks`, which hits the public benchmark service with no key/project (privacy floor).
 
 ```bash
 anseo mcp serve

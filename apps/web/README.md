@@ -1,47 +1,69 @@
-# Anseo Web
+# Anseo Dashboard (`apps/web`)
 
-This is the Phase 1 dashboard scaffold for Anseo. It is a Next.js TypeScript app with Tailwind CSS, App Router, ESLint, Vitest, React Testing Library, Playwright, and axe integration.
+The canonical Anseo web dashboard — a Next.js (App Router) + React + Tailwind app
+that renders the analytics, reproducibility, and control-plane surfaces for a
+project. It is **server-rendered**: every page fetches the Anseo `/v1` REST API on
+each request (`cache: no-store`), so it needs a reachable API to show real data.
 
-## shadcn/ui
+This is distinct from the public marketing/benchmark site, which lives in the
+separate [`anseo-web`](https://github.com/leandropalazzo/anseo-web) repo.
 
-shadcn/ui has been initialized for this scaffold. The baseline config lives in `components.json`; no reusable UI components are generated yet because the first story is limited to repository shape and buildability.
+## Toolchain
 
-Future UI stories can add components from this directory:
+- Node: LTS pinned in `.nvmrc`
+- Package manager: `pnpm`
+
+## Configuration
+
+The dashboard reads two environment variables at runtime:
+
+| Variable               | Default                  | Purpose                                              |
+|------------------------|--------------------------|-----------------------------------------------------|
+| `ANSEO_API_BASE_URL`   | `http://localhost:8080`  | Base URL of the Anseo `/v1` REST API.               |
+| `ANSEO_API_KEY`        | _(none)_                 | Per-project API key sent as `X-Anseo-API-Key` on SSR fetches. |
+
+## Run it against a backend
+
+Pick one backend, then start the dev server.
+
+**A. Against `anseo serve` (Tier 1, simplest).** In one terminal run the API
+(`anseo serve` brings up `/v1` on `127.0.0.1:8080` with a managed Postgres); then:
 
 ```bash
-pnpm dlx shadcn@latest add button
+pnpm install
+ANSEO_API_BASE_URL=http://127.0.0.1:8080 \
+ANSEO_API_KEY=<your-key> \
+pnpm dev          # http://localhost:3000
 ```
 
-Keep generated components under the shadcn aliases in `components.json`.
+Mint a key with `anseo api key create --name dashboard` (printed once).
 
-## Getting Started
+**B. Against the Docker stack (Tier 2).** The full stack already runs this
+dashboard as the `web` service on `127.0.0.1:5173` — see
+[`infra/docker/`](../../infra/docker/). Use that when you want the whole stack.
 
-First, run the development server:
+**C. Against the mock API (no backend, for UI work).** The Playwright harness
+boots a mock API; you can reproduce it by hand:
 
 ```bash
-pnpm dev
+node tests/e2e/mock-api-server.mjs          # serves 127.0.0.1:8787
+# in another terminal:
+ANSEO_API_BASE_URL=http://127.0.0.1:8787 ANSEO_API_KEY=e2e-test-key pnpm dev
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 ## Verification
 
 ```bash
 pnpm build
 pnpm lint
-pnpm test
+pnpm test          # vitest (unit/component)
+pnpm test:e2e      # Playwright (boots the mock API + dev server itself)
 ```
 
 ## Notes
 
-The dashboard remains read-only in Phase 1. YAML is the source of truth for project configuration.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- YAML (`anseo.yaml`) is the source of truth for project configuration; the
+  dashboard reads it through the API.
+- The dashboard has no built-in auth — never expose it on a public interface
+  without a reverse proxy + auth in front. See the root
+  [`docs/production-deployment.md`](../../docs/production-deployment.md).

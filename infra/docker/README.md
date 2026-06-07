@@ -1,20 +1,26 @@
-# Docker Infrastructure
+# Docker Infrastructure (Tier 2, dev)
 
-Phase 1 target: local Docker Compose for the Anseo stack.
+Local Docker Compose for the full Anseo stack, built from source. For a
+production, no-clone install with published images, see
+[`infra/standalone/`](../standalone/) and [`docs/manual/deploy.md`](../../docs/manual/deploy.md).
 
 ## Services
 
 `compose.yml` brings up five services:
 
-| Service    | Image                | Phase 1 status                                        |
-|------------|----------------------|-------------------------------------------------------|
-| `postgres` | `postgres:16-alpine` | Real. Healthcheck via `pg_isready`.                   |
-| `redis`    | `redis:7-alpine`     | Real. Healthcheck via `redis-cli ping`.               |
-| `api`      | `busybox` placeholder | Replaced by `apps/api` image in Story 4.5.            |
-| `worker`   | `busybox` placeholder | Replaced by `apps/worker` image when scheduling lands.|
-| `web`      | `busybox` placeholder | Replaced by `apps/web` image in Story 4.1 / 4.5.      |
+| Service    | Image (default)      | Role                                                          |
+|------------|----------------------|--------------------------------------------------------------|
+| `postgres` | `postgres:16-alpine` | Primary datastore. Healthcheck via `pg_isready`.             |
+| `redis`    | `redis:7-alpine`     | Queue/cache. Healthcheck via `redis-cli ping`.              |
+| `api`      | `anseo/api:dev`      | Axum REST `/v1` API. Runs DB migrations on boot. Port 8080. |
+| `worker`   | `anseo/worker:dev`   | Background worker (scheduled runs, alert/webhook delivery).  |
+| `web`      | `anseo/web:dev`      | Next.js dashboard. Port 5173.                               |
 
-The app services are intentionally placeholders until the corresponding stories build them (Story 1.4 AC: "healthcheck placeholders where app endpoints are not yet implemented"). This keeps stack topology, env wiring, and the FR-22 boot-time test verifiable before app behaviour exists.
+The `api`, `worker`, and `web` services build from source by default (their
+`build:` stanzas point at `apps/{api,worker,web}`); override `ANSEO_*_IMAGE` to
+pull a published image instead. The `api` container owns schema migration — it
+calls the migrator before binding its HTTP listener, so a fresh volume is
+migrated automatically on first boot.
 
 ## Quick start
 
@@ -52,28 +58,28 @@ waits for service health checks. Its fingerprint state lives under
 
 ## Localhost-only by default
 
-All published ports bind to `127.0.0.1` (Story 1.4 AC). Override with the `OGEO_BIND_HOST` env var only after reading the privacy posture in the root `README.md`.
+All published ports bind to `127.0.0.1` (Story 1.4 AC). Override with the `ANSEO_BIND_HOST` env var only after reading the privacy posture in the root `README.md`.
 
 ## Environment variables
 
 `compose.yml` reads the following from `.env` (or the shell). All have sensible defaults baked into the compose file, so an empty `.env` boots the stack.
 
-| Variable                | Default      | Purpose                                          |
-|-------------------------|--------------|--------------------------------------------------|
-| `OGEO_BIND_HOST`        | `127.0.0.1`  | Host interface for every published port.         |
-| `POSTGRES_PORT`         | `5432`       | Host port for Postgres.                          |
-| `REDIS_PORT`            | `6379`       | Host port for Redis.                             |
-| `OGEO_API_PORT`         | `8080`       | Host port for the API.                           |
-| `OGEO_WEB_PORT`         | `5173`       | Host port for the web dashboard.                 |
-| `POSTGRES_USER`         | `anseo`      | Postgres role and component of `DATABASE_URL`.   |
-| `POSTGRES_PASSWORD`     | `anseo`      | Postgres password and component of `DATABASE_URL`.|
-| `POSTGRES_DB`           | `anseo`      | Postgres database name.                          |
-| `RUST_LOG`              | `info`       | Tracing level for api/worker placeholders.       |
-| `OPENGEO_API_IMAGE`     | `busybox:1.36` | Override when a real image exists.             |
-| `OPENGEO_WORKER_IMAGE`  | `busybox:1.36` | Override when a real image exists.             |
-| `OPENGEO_WEB_IMAGE`     | `busybox:1.36` | Override when a real image exists.             |
+| Variable                | Default          | Purpose                                          |
+|-------------------------|------------------|--------------------------------------------------|
+| `ANSEO_BIND_HOST`       | `127.0.0.1`      | Host interface for every published port.         |
+| `POSTGRES_PORT`         | `5432`           | Host port for Postgres.                          |
+| `REDIS_PORT`            | `6379`           | Host port for Redis.                             |
+| `ANSEO_API_PORT`        | `8080`           | Host port for the API.                           |
+| `ANSEO_WEB_PORT`        | `5173`           | Host port for the web dashboard.                 |
+| `POSTGRES_USER`         | `anseo`          | Postgres role and component of `DATABASE_URL`.   |
+| `POSTGRES_PASSWORD`     | `anseo`          | Postgres password and component of `DATABASE_URL`.|
+| `POSTGRES_DB`           | `anseo`          | Postgres database name.                          |
+| `RUST_LOG`              | `info`           | Tracing level for api + worker.                  |
+| `ANSEO_API_IMAGE`       | `anseo/api:dev`  | Override to pull a published api image.          |
+| `ANSEO_WORKER_IMAGE`    | `anseo/worker:dev` | Override to pull a published worker image.     |
+| `ANSEO_WEB_IMAGE`       | `anseo/web:dev`  | Override to pull a published web image.          |
 
-The `api` and `worker` services compose their `DATABASE_URL` and `REDIS_URL` from the variables above. The `web` service receives `OGEO_API_BASE_URL=http://api:8080` for in-cluster API calls.
+The `api` and `worker` services compose their `DATABASE_URL` and `REDIS_URL` from the variables above. The `web` service receives `ANSEO_API_BASE_URL=http://api:8080` for in-cluster API calls.
 
 ## Migration auto-run path (documented, lands later)
 
