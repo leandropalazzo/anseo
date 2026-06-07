@@ -9,7 +9,7 @@
 # (Story 1.4 AC: "Dashboard and API bindings are localhost-only by default").
 # Override via ANSEO_BIND_HOST for non-default deployments.
 
-name: opengeo
+name: anseo
 
 services:
   postgres:
@@ -66,7 +66,7 @@ services:
       # non-local deployment. Must match the `ogeo_<32 base62>` wire shape.
       ANSEO_BOOTSTRAP_API_KEY: ${ANSEO_BOOTSTRAP_API_KEY:-ogeo_DevComposeBootstrapKeyDoNotUse01}
       RUST_LOG: ${RUST_LOG:-info}
-      # Path to opengeo.yaml inside the container. The API derives its
+      # Path to anseo.yaml inside the container. The API derives its
       # project_id from this file's brand.name (Story 2.1's stable-ID hash),
       # so it must match the YAML the CLI used when seeding data.
       ANSEO_CONFIG: /anseo.yaml
@@ -88,7 +88,7 @@ services:
       # survive `docker compose up --build` recreations.
       XDG_CONFIG_HOME: /data/config
     volumes:
-      # Mount the project's opengeo.yaml read-only so api + future cli sidecars
+      # Mount the project's anseo.yaml read-only so api + future cli sidecars
       # see the same canonical declaration. Path is overridable via the
       # ANSEO_PROJECT_CONFIG env var on the host; default points at the
       # screenshot/demo fixture.
