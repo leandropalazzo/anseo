@@ -1,3 +1,3 @@
-module github.com/opengeo/opengeo/packages/sdk-go
+module github.com/leandropalazzo/anseo/packages/sdk-go
 
 go 1.22

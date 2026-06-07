@@ -18,13 +18,13 @@ implementing the same language-agnostic spec in `docs/sdk-spec.md`.
 ## Install
 
 ```bash
-go get github.com/opengeo/opengeo/packages/sdk-go
+go get github.com/leandropalazzo/anseo/packages/sdk-go
 ```
 
 ## Strict client (read each contribution status)
 
 ```go
-import observe "github.com/opengeo/opengeo/packages/sdk-go"
+import observe "github.com/leandropalazzo/anseo/packages/sdk-go"
 
 observer, _ := observe.New(observe.Config{
     BaseURL: "https://anseo.internal",
