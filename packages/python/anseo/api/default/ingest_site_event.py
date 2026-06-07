@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -20,9 +20,8 @@ def _get_kwargs(
         "url": "/v1/site-events",
     }
 
-    _body = body.to_dict()
+    _kwargs["json"] = body.to_dict()
 
-    _kwargs["json"] = _body
     headers["Content-Type"] = "application/json"
 
     _kwargs["headers"] = headers
@@ -30,12 +29,14 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Any]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Any | None:
     if response.status_code == 204:
         return None
+
     if response.status_code == 429:
         return None
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -43,7 +44,7 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
+    *, client: AuthenticatedClient | Client, response: httpx.Response
 ) -> Response[Any]:
     return Response(
         status_code=HTTPStatus(response.status_code),
@@ -55,7 +56,7 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: IngestSiteEventBody,
 ) -> Response[Any]:
     """Story 47.1 — public, unauthenticated privacy-safe site-event ingest. No API key required (the public
@@ -87,7 +88,7 @@ def sync_detailed(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: IngestSiteEventBody,
 ) -> Response[Any]:
     """Story 47.1 — public, unauthenticated privacy-safe site-event ingest. No API key required (the public

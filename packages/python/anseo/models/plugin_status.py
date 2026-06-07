@@ -1,4 +1,7 @@
-from typing import Any, TypeVar, Union
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -20,14 +23,14 @@ class PluginStatus:
             kind (PluginStatusKind):
             status (PluginStatusStatus):
             version (str):
-            reason (Union[Unset, str]): Human-readable reason for a `skipped` / `load_error` outcome; absent when `loaded`.
+            reason (str | Unset): Human-readable reason for a `skipped` / `load_error` outcome; absent when `loaded`.
     """
 
     id: str
     kind: PluginStatusKind
     status: PluginStatusStatus
     version: str
-    reason: Union[Unset, str] = UNSET
+    reason: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -57,8 +60,8 @@ class PluginStatus:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
-        d = src_dict.copy()
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
         id = d.pop("id")
 
         kind = PluginStatusKind(d.pop("kind"))

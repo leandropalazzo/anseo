@@ -1,4 +1,7 @@
-from typing import TYPE_CHECKING, Any, TypeVar, Union
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import UUID
 
 from attrs import define as _attrs_define
@@ -21,16 +24,16 @@ class IngestSiteEventBody:
             contribute_start, contribute_step, contribute_complete, verify_start, verify_complete, verify_fail,
             badge_embed_view. Unknown values are silently dropped (204).
         session_id (UUID): Ephemeral per-visit UUID generated client-side; not linked to identity.
-        path (Union[Unset, str]): Site-relative path.
-        properties (Union[Unset, IngestSiteEventBodyProperties]): Event-specific properties per the taxonomy.
-        referrer (Union[Unset, str]): Referrer domain only (never a full URL).
+        path (str | Unset): Site-relative path.
+        properties (IngestSiteEventBodyProperties | Unset): Event-specific properties per the taxonomy.
+        referrer (str | Unset): Referrer domain only (never a full URL).
     """
 
     event_type: str
     session_id: UUID
-    path: Union[Unset, str] = UNSET
-    properties: Union[Unset, "IngestSiteEventBodyProperties"] = UNSET
-    referrer: Union[Unset, str] = UNSET
+    path: str | Unset = UNSET
+    properties: IngestSiteEventBodyProperties | Unset = UNSET
+    referrer: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -40,7 +43,7 @@ class IngestSiteEventBody:
 
         path = self.path
 
-        properties: Union[Unset, dict[str, Any]] = UNSET
+        properties: dict[str, Any] | Unset = UNSET
         if not isinstance(self.properties, Unset):
             properties = self.properties.to_dict()
 
@@ -64,12 +67,12 @@ class IngestSiteEventBody:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.ingest_site_event_body_properties import (
             IngestSiteEventBodyProperties,
         )
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         event_type = d.pop("event_type")
 
         session_id = UUID(d.pop("session_id"))
@@ -77,7 +80,7 @@ class IngestSiteEventBody:
         path = d.pop("path", UNSET)
 
         _properties = d.pop("properties", UNSET)
-        properties: Union[Unset, IngestSiteEventBodyProperties]
+        properties: IngestSiteEventBodyProperties | Unset
         if isinstance(_properties, Unset):
             properties = UNSET
         else:

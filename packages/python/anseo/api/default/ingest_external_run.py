@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -14,7 +14,7 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     *,
     body: IngestRunRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
+    x_anseo_project: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(x_anseo_project, Unset):
@@ -25,9 +25,8 @@ def _get_kwargs(
         "url": "/v1/ingest/run",
     }
 
-    _body = body.to_dict()
+    _kwargs["json"] = body.to_dict()
 
-    _kwargs["json"] = _body
     headers["Content-Type"] = "application/json"
 
     _kwargs["headers"] = headers
@@ -35,32 +34,38 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[Error, IngestRunResponse]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Error | IngestRunResponse | None:
     if response.status_code == 202:
         response_202 = IngestRunResponse.from_dict(response.json())
 
         return response_202
+
     if response.status_code == 400:
         response_400 = Error.from_dict(response.json())
 
         return response_400
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
         return response_401
+
     if response.status_code == 403:
         response_403 = Error.from_dict(response.json())
 
         return response_403
+
     if response.status_code == 404:
         response_404 = Error.from_dict(response.json())
 
         return response_404
+
     if response.status_code == 422:
         response_422 = Error.from_dict(response.json())
 
         return response_422
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -68,8 +73,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[Error, IngestRunResponse]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Error | IngestRunResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -80,10 +85,10 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: IngestRunRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[Error, IngestRunResponse]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[Error | IngestRunResponse]:
     """Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-
     sealed-contribution path as native runs.
 
@@ -97,7 +102,7 @@ def sync_detailed(
     data is never silently dropped (Story 40.4).
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (IngestRunRequest): One externally-executed prompt run submitted for ingestion.
 
     Raises:
@@ -105,7 +110,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[Error, IngestRunResponse]]
+        Response[Error | IngestRunResponse]
     """
 
     kwargs = _get_kwargs(
@@ -122,10 +127,10 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: IngestRunRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[Error, IngestRunResponse]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> Error | IngestRunResponse | None:
     """Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-
     sealed-contribution path as native runs.
 
@@ -139,7 +144,7 @@ def sync(
     data is never silently dropped (Story 40.4).
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (IngestRunRequest): One externally-executed prompt run submitted for ingestion.
 
     Raises:
@@ -147,7 +152,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[Error, IngestRunResponse]
+        Error | IngestRunResponse
     """
 
     return sync_detailed(
@@ -159,10 +164,10 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: IngestRunRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[Error, IngestRunResponse]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[Error | IngestRunResponse]:
     """Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-
     sealed-contribution path as native runs.
 
@@ -176,7 +181,7 @@ async def asyncio_detailed(
     data is never silently dropped (Story 40.4).
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (IngestRunRequest): One externally-executed prompt run submitted for ingestion.
 
     Raises:
@@ -184,7 +189,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[Error, IngestRunResponse]]
+        Response[Error | IngestRunResponse]
     """
 
     kwargs = _get_kwargs(
@@ -199,10 +204,10 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: IngestRunRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[Error, IngestRunResponse]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> Error | IngestRunResponse | None:
     """Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-
     sealed-contribution path as native runs.
 
@@ -216,7 +221,7 @@ async def asyncio(
     data is never silently dropped (Story 40.4).
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (IngestRunRequest): One externally-executed prompt run submitted for ingestion.
 
     Raises:
@@ -224,7 +229,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[Error, IngestRunResponse]
+        Error | IngestRunResponse
     """
 
     return (

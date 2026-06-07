@@ -4,7 +4,7 @@
  */
 
 export interface ProjectView {
-  created_at: string;
-  name: string;
   project_id: string;
+  name: string;
+  created_at: string;
 }

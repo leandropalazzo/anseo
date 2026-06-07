@@ -39,7 +39,7 @@ fi
 TS_OK=0
 if command -v npx >/dev/null 2>&1; then
   ( cd "$ROOT/infra/codegen" && \
-    npx -y orval@7.1.0 --config orval.config.cjs >/dev/null 2>&1 ) \
+    npx -y orval@8.15.0 --config orval.config.cjs >/dev/null 2>&1 ) \
     && TS_OK=1 \
     || echo "::warning::orval invocation failed; treating as drift = true"
 else
@@ -49,12 +49,12 @@ fi
 # Python: regen in place. The generator's --overwrite only touches the
 # files it emits, so auth.py and any hand-written sibling files in
 # anseo/ are preserved automatically. We pin to openapi-python-client
-# 0.24.0 via uvx so the output is deterministic regardless of any
+# 0.29.0 via uvx so the output is deterministic regardless of any
 # unpinned system install; fall back to a system binary only if uvx is
 # unavailable.
 PY_OK=0
 if command -v uvx >/dev/null 2>&1; then
-  uvx openapi-python-client@0.24.0 generate --path "$SPEC" \
+  uvx openapi-python-client@0.29.0 generate --path "$SPEC" \
     --config "$ROOT/infra/codegen/openapi-python.yaml" \
     --meta none --output-path "$PY_DIR/anseo" --overwrite >/dev/null 2>&1 \
     && PY_OK=1 \

@@ -5,10 +5,10 @@
 import type { BrandCompetitor } from './brandCompetitor';
 
 export interface BrandView {
-  competitors: BrandCompetitor[];
-  name: string;
   project_id: string;
+  name: string;
+  variants: string[];
+  competitors: BrandCompetitor[];
   /** @nullable */
   site_url?: string | null;
-  variants: string[];
 }

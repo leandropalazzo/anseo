@@ -1,4 +1,7 @@
-from typing import TYPE_CHECKING, Any, TypeVar, Union
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -18,14 +21,14 @@ T = TypeVar("T", bound="VisibilityTrendResponse")
 class VisibilityTrendResponse:
     """
     Attributes:
-        points (Union[Unset, list['VisibilityTrendResponsePointsItem']]):
+        points (list[VisibilityTrendResponsePointsItem] | Unset):
     """
 
-    points: Union[Unset, list["VisibilityTrendResponsePointsItem"]] = UNSET
+    points: list[VisibilityTrendResponsePointsItem] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        points: Union[Unset, list[dict[str, Any]]] = UNSET
+        points: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.points, Unset):
             points = []
             for points_item_data in self.points:
@@ -41,18 +44,22 @@ class VisibilityTrendResponse:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.visibility_trend_response_points_item import (
             VisibilityTrendResponsePointsItem,
         )
 
-        d = src_dict.copy()
-        points = []
+        d = dict(src_dict)
         _points = d.pop("points", UNSET)
-        for points_item_data in _points or []:
-            points_item = VisibilityTrendResponsePointsItem.from_dict(points_item_data)
+        points: list[VisibilityTrendResponsePointsItem] | Unset = UNSET
+        if _points is not UNSET:
+            points = []
+            for points_item_data in _points:
+                points_item = VisibilityTrendResponsePointsItem.from_dict(
+                    points_item_data
+                )
 
-            points.append(points_item)
+                points.append(points_item)
 
         visibility_trend_response = cls(
             points=points,

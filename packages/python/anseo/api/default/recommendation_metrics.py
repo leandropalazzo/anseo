@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -12,7 +12,7 @@ from ...types import UNSET, Response, Unset
 
 def _get_kwargs(
     *,
-    x_anseo_project: Union[Unset, str] = UNSET,
+    x_anseo_project: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(x_anseo_project, Unset):
@@ -28,16 +28,18 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[Error, Sm14MetricResponse]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Error | Sm14MetricResponse | None:
     if response.status_code == 200:
         response_200 = Sm14MetricResponse.from_dict(response.json())
 
         return response_200
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
         return response_401
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -45,8 +47,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[Error, Sm14MetricResponse]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Error | Sm14MetricResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -57,21 +59,21 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[Error, Sm14MetricResponse]]:
+    client: AuthenticatedClient | Client,
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[Error | Sm14MetricResponse]:
     """Story 19.5 — SM-14 adoption metric for the project (Acted∨Measured / Surfaced∨later, first-party
     Kinds only).
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[Error, Sm14MetricResponse]]
+        Response[Error | Sm14MetricResponse]
     """
 
     kwargs = _get_kwargs(
@@ -87,21 +89,21 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[Error, Sm14MetricResponse]]:
+    client: AuthenticatedClient | Client,
+    x_anseo_project: str | Unset = UNSET,
+) -> Error | Sm14MetricResponse | None:
     """Story 19.5 — SM-14 adoption metric for the project (Acted∨Measured / Surfaced∨later, first-party
     Kinds only).
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[Error, Sm14MetricResponse]
+        Error | Sm14MetricResponse
     """
 
     return sync_detailed(
@@ -112,21 +114,21 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[Error, Sm14MetricResponse]]:
+    client: AuthenticatedClient | Client,
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[Error | Sm14MetricResponse]:
     """Story 19.5 — SM-14 adoption metric for the project (Acted∨Measured / Surfaced∨later, first-party
     Kinds only).
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[Error, Sm14MetricResponse]]
+        Response[Error | Sm14MetricResponse]
     """
 
     kwargs = _get_kwargs(
@@ -140,21 +142,21 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[Error, Sm14MetricResponse]]:
+    client: AuthenticatedClient | Client,
+    x_anseo_project: str | Unset = UNSET,
+) -> Error | Sm14MetricResponse | None:
     """Story 19.5 — SM-14 adoption metric for the project (Acted∨Measured / Surfaced∨later, first-party
     Kinds only).
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[Error, Sm14MetricResponse]
+        Error | Sm14MetricResponse
     """
 
     return (

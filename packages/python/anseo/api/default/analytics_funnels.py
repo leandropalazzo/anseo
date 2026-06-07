@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -13,11 +13,12 @@ from ...types import UNSET, Response, Unset
 
 def _get_kwargs(
     *,
-    period: Union[Unset, AnalyticsFunnelsPeriod] = UNSET,
+    period: AnalyticsFunnelsPeriod | Unset = UNSET,
 ) -> dict[str, Any]:
+
     params: dict[str, Any] = {}
 
-    json_period: Union[Unset, str] = UNSET
+    json_period: str | Unset = UNSET
     if not isinstance(period, Unset):
         json_period = period.value
 
@@ -35,16 +36,18 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[AnalyticsFunnelsResponse200, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> AnalyticsFunnelsResponse200 | Error | None:
     if response.status_code == 200:
         response_200 = AnalyticsFunnelsResponse200.from_dict(response.json())
 
         return response_200
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
         return response_401
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -52,8 +55,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[AnalyticsFunnelsResponse200, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[AnalyticsFunnelsResponse200 | Error]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -64,9 +67,9 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
-    period: Union[Unset, AnalyticsFunnelsPeriod] = UNSET,
-) -> Response[Union[AnalyticsFunnelsResponse200, Error]]:
+    client: AuthenticatedClient | Client,
+    period: AnalyticsFunnelsPeriod | Unset = UNSET,
+) -> Response[AnalyticsFunnelsResponse200 | Error]:
     """Story 47.4 — operator analytics: contribute funnel step counts + per-step drop-off (start → step →
     complete), verify funnel start/complete/fail counts by method (dns | email) with success rate, and
     daily badge-embed serves (last 30 d). Read entirely from the aggregate site-event rollups (privacy-
@@ -74,14 +77,14 @@ def sync_detailed(
     internal, not agent-facing).
 
     Args:
-        period (Union[Unset, AnalyticsFunnelsPeriod]):
+        period (AnalyticsFunnelsPeriod | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[AnalyticsFunnelsResponse200, Error]]
+        Response[AnalyticsFunnelsResponse200 | Error]
     """
 
     kwargs = _get_kwargs(
@@ -97,9 +100,9 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
-    period: Union[Unset, AnalyticsFunnelsPeriod] = UNSET,
-) -> Optional[Union[AnalyticsFunnelsResponse200, Error]]:
+    client: AuthenticatedClient | Client,
+    period: AnalyticsFunnelsPeriod | Unset = UNSET,
+) -> AnalyticsFunnelsResponse200 | Error | None:
     """Story 47.4 — operator analytics: contribute funnel step counts + per-step drop-off (start → step →
     complete), verify funnel start/complete/fail counts by method (dns | email) with success rate, and
     daily badge-embed serves (last 30 d). Read entirely from the aggregate site-event rollups (privacy-
@@ -107,14 +110,14 @@ def sync(
     internal, not agent-facing).
 
     Args:
-        period (Union[Unset, AnalyticsFunnelsPeriod]):
+        period (AnalyticsFunnelsPeriod | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[AnalyticsFunnelsResponse200, Error]
+        AnalyticsFunnelsResponse200 | Error
     """
 
     return sync_detailed(
@@ -125,9 +128,9 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
-    period: Union[Unset, AnalyticsFunnelsPeriod] = UNSET,
-) -> Response[Union[AnalyticsFunnelsResponse200, Error]]:
+    client: AuthenticatedClient | Client,
+    period: AnalyticsFunnelsPeriod | Unset = UNSET,
+) -> Response[AnalyticsFunnelsResponse200 | Error]:
     """Story 47.4 — operator analytics: contribute funnel step counts + per-step drop-off (start → step →
     complete), verify funnel start/complete/fail counts by method (dns | email) with success rate, and
     daily badge-embed serves (last 30 d). Read entirely from the aggregate site-event rollups (privacy-
@@ -135,14 +138,14 @@ async def asyncio_detailed(
     internal, not agent-facing).
 
     Args:
-        period (Union[Unset, AnalyticsFunnelsPeriod]):
+        period (AnalyticsFunnelsPeriod | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[AnalyticsFunnelsResponse200, Error]]
+        Response[AnalyticsFunnelsResponse200 | Error]
     """
 
     kwargs = _get_kwargs(
@@ -156,9 +159,9 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
-    period: Union[Unset, AnalyticsFunnelsPeriod] = UNSET,
-) -> Optional[Union[AnalyticsFunnelsResponse200, Error]]:
+    client: AuthenticatedClient | Client,
+    period: AnalyticsFunnelsPeriod | Unset = UNSET,
+) -> AnalyticsFunnelsResponse200 | Error | None:
     """Story 47.4 — operator analytics: contribute funnel step counts + per-step drop-off (start → step →
     complete), verify funnel start/complete/fail counts by method (dns | email) with success rate, and
     daily badge-embed serves (last 30 d). Read entirely from the aggregate site-event rollups (privacy-
@@ -166,14 +169,14 @@ async def asyncio(
     internal, not agent-facing).
 
     Args:
-        period (Union[Unset, AnalyticsFunnelsPeriod]):
+        period (AnalyticsFunnelsPeriod | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[AnalyticsFunnelsResponse200, Error]
+        AnalyticsFunnelsResponse200 | Error
     """
 
     return (

@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -14,7 +14,7 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     *,
     body: BrandUpdate,
-    x_anseo_project: Union[Unset, str] = UNSET,
+    x_anseo_project: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(x_anseo_project, Unset):
@@ -25,9 +25,8 @@ def _get_kwargs(
         "url": "/v1/setup/brand",
     }
 
-    _body = body.to_dict()
+    _kwargs["json"] = body.to_dict()
 
-    _kwargs["json"] = _body
     headers["Content-Type"] = "application/json"
 
     _kwargs["headers"] = headers
@@ -35,20 +34,23 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[BrandUpdateResult, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> BrandUpdateResult | Error | None:
     if response.status_code == 200:
         response_200 = BrandUpdateResult.from_dict(response.json())
 
         return response_200
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
         return response_401
+
     if response.status_code == 409:
         response_409 = Error.from_dict(response.json())
 
         return response_409
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -56,8 +58,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[BrandUpdateResult, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[BrandUpdateResult | Error]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -68,15 +70,15 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: BrandUpdate,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[BrandUpdateResult, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[BrandUpdateResult | Error]:
     """Update brand config. Changing the name re-derives project_id (allowed only before the first run) and
     sets restart_required.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (BrandUpdate):
 
     Raises:
@@ -84,7 +86,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[BrandUpdateResult, Error]]
+        Response[BrandUpdateResult | Error]
     """
 
     kwargs = _get_kwargs(
@@ -101,15 +103,15 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: BrandUpdate,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[BrandUpdateResult, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> BrandUpdateResult | Error | None:
     """Update brand config. Changing the name re-derives project_id (allowed only before the first run) and
     sets restart_required.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (BrandUpdate):
 
     Raises:
@@ -117,7 +119,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[BrandUpdateResult, Error]
+        BrandUpdateResult | Error
     """
 
     return sync_detailed(
@@ -129,15 +131,15 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: BrandUpdate,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[BrandUpdateResult, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[BrandUpdateResult | Error]:
     """Update brand config. Changing the name re-derives project_id (allowed only before the first run) and
     sets restart_required.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (BrandUpdate):
 
     Raises:
@@ -145,7 +147,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[BrandUpdateResult, Error]]
+        Response[BrandUpdateResult | Error]
     """
 
     kwargs = _get_kwargs(
@@ -160,15 +162,15 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: BrandUpdate,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[BrandUpdateResult, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> BrandUpdateResult | Error | None:
     """Update brand config. Changing the name re-derives project_id (allowed only before the first run) and
     sets restart_required.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (BrandUpdate):
 
     Raises:
@@ -176,7 +178,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[BrandUpdateResult, Error]
+        BrandUpdateResult | Error
     """
 
     return (

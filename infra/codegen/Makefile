@@ -3,8 +3,8 @@
 # Pinned generator versions (bumps go through a deliberate PR with the
 # regenerated SDK diffs).
 
-ORVAL_VERSION             := 7.1.0
-OPENAPI_PYTHON_VERSION    := 0.24.0
+ORVAL_VERSION             := 8.15.0
+OPENAPI_PYTHON_VERSION    := 0.29.0
 
 SPEC := $(realpath ../../crates/wire-schema/openapi.json)
 TS_DIR := $(realpath ../../packages/typescript)

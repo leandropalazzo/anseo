@@ -7,9 +7,9 @@ export interface ComparisonCell {
   /** @minimum 0 */
   mention_count: number;
   /**
-   * @minimum 1
-   * @nullable
-   */
+     * @minimum 1
+     * @nullable
+     */
   ranking?: number | null;
   subject: string;
 }

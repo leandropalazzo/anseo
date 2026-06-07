@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import datetime
-from typing import Any, TypeVar, Union, cast
+from collections.abc import Mapping
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-from dateutil.parser import isoparse
 
 from ..types import UNSET, Unset
 
@@ -15,15 +17,15 @@ class SetupStatusWebhookTarget:
     """
     Attributes:
         configured (bool):
-        error (Union[Unset, str]):
-        last_delivery_at (Union[None, Unset, datetime.datetime]):
-        last_status (Union[None, Unset, str]):
+        error (str | Unset):
+        last_delivery_at (datetime.datetime | None | Unset):
+        last_status (None | str | Unset):
     """
 
     configured: bool
-    error: Union[Unset, str] = UNSET
-    last_delivery_at: Union[None, Unset, datetime.datetime] = UNSET
-    last_status: Union[None, Unset, str] = UNSET
+    error: str | Unset = UNSET
+    last_delivery_at: datetime.datetime | None | Unset = UNSET
+    last_status: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -31,7 +33,7 @@ class SetupStatusWebhookTarget:
 
         error = self.error
 
-        last_delivery_at: Union[None, Unset, str]
+        last_delivery_at: None | str | Unset
         if isinstance(self.last_delivery_at, Unset):
             last_delivery_at = UNSET
         elif isinstance(self.last_delivery_at, datetime.datetime):
@@ -39,7 +41,7 @@ class SetupStatusWebhookTarget:
         else:
             last_delivery_at = self.last_delivery_at
 
-        last_status: Union[None, Unset, str]
+        last_status: None | str | Unset
         if isinstance(self.last_status, Unset):
             last_status = UNSET
         else:
@@ -62,15 +64,13 @@ class SetupStatusWebhookTarget:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
-        d = src_dict.copy()
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
         configured = d.pop("configured")
 
         error = d.pop("error", UNSET)
 
-        def _parse_last_delivery_at(
-            data: object,
-        ) -> Union[None, Unset, datetime.datetime]:
+        def _parse_last_delivery_at(data: object) -> datetime.datetime | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -78,21 +78,21 @@ class SetupStatusWebhookTarget:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                last_delivery_at_type_0 = isoparse(data)
+                last_delivery_at_type_0 = datetime.datetime.fromisoformat(data)
 
                 return last_delivery_at_type_0
-            except:  # noqa: E722
+            except (TypeError, ValueError, AttributeError, KeyError):
                 pass
-            return cast(Union[None, Unset, datetime.datetime], data)
+            return cast(datetime.datetime | None | Unset, data)
 
         last_delivery_at = _parse_last_delivery_at(d.pop("last_delivery_at", UNSET))
 
-        def _parse_last_status(data: object) -> Union[None, Unset, str]:
+        def _parse_last_status(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, str], data)
+            return cast(None | str | Unset, data)
 
         last_status = _parse_last_status(d.pop("last_status", UNSET))
 

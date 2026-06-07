@@ -8,10 +8,10 @@ import type { ContributionStatus } from './contributionStatus';
  * Result of recording an external run, including the benchmark contribution outcome.
  */
 export interface IngestRunResponse {
-  contribution: ContributionStatus;
-  observed_at: string;
+  run_id: string;
   project_id: string;
   prompt_slug: string;
   provider: string;
-  run_id: string;
+  observed_at: string;
+  contribution: ContributionStatus;
 }

@@ -4,6 +4,6 @@
  */
 
 export type InstallPluginBody = {
-  acknowledge_unsigned?: boolean;
   id: string;
+  acknowledge_unsigned?: boolean;
 };

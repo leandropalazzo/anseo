@@ -6,7 +6,6 @@
 export type CrawlerIngestRequestFormat = typeof CrawlerIngestRequestFormat[keyof typeof CrawlerIngestRequestFormat];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const CrawlerIngestRequestFormat = {
   common: 'common',
   combined: 'combined',

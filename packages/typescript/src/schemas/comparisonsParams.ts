@@ -5,8 +5,17 @@
 import type { ComparisonsWindow } from './comparisonsWindow';
 
 export type ComparisonsParams = {
+/**
+ * Comma-separated; 2..=6 entries. First entry is the subject brand; remainder are competitors in caller-declared order.
+ */
 brands: string;
+/**
+ * Comma-separated prompt names; default = all prompts for the project.
+ */
 prompts?: string;
+/**
+ * Comma-separated provider names; default = all providers.
+ */
 providers?: string;
 window?: ComparisonsWindow;
 };

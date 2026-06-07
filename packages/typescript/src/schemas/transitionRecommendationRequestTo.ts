@@ -6,7 +6,6 @@
 export type TransitionRecommendationRequestTo = typeof TransitionRecommendationRequestTo[keyof typeof TransitionRecommendationRequestTo];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const TransitionRecommendationRequestTo = {
   surfaced: 'surfaced',
   acknowledged: 'acknowledged',

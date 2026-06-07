@@ -1,4 +1,7 @@
-from typing import Any, TypeVar, Union, cast
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -14,15 +17,15 @@ class SetupStatusWorker:
     """
     Attributes:
         state (SetupStatusWorkerState):
-        error (Union[Unset, str]):
-        queue_depth (Union[None, Unset, int]):
-        uptime_seconds (Union[None, Unset, int]):
+        error (str | Unset):
+        queue_depth (int | None | Unset):
+        uptime_seconds (int | None | Unset):
     """
 
     state: SetupStatusWorkerState
-    error: Union[Unset, str] = UNSET
-    queue_depth: Union[None, Unset, int] = UNSET
-    uptime_seconds: Union[None, Unset, int] = UNSET
+    error: str | Unset = UNSET
+    queue_depth: int | None | Unset = UNSET
+    uptime_seconds: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -30,13 +33,13 @@ class SetupStatusWorker:
 
         error = self.error
 
-        queue_depth: Union[None, Unset, int]
+        queue_depth: int | None | Unset
         if isinstance(self.queue_depth, Unset):
             queue_depth = UNSET
         else:
             queue_depth = self.queue_depth
 
-        uptime_seconds: Union[None, Unset, int]
+        uptime_seconds: int | None | Unset
         if isinstance(self.uptime_seconds, Unset):
             uptime_seconds = UNSET
         else:
@@ -59,27 +62,27 @@ class SetupStatusWorker:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
-        d = src_dict.copy()
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
         state = SetupStatusWorkerState(d.pop("state"))
 
         error = d.pop("error", UNSET)
 
-        def _parse_queue_depth(data: object) -> Union[None, Unset, int]:
+        def _parse_queue_depth(data: object) -> int | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, int], data)
+            return cast(int | None | Unset, data)
 
         queue_depth = _parse_queue_depth(d.pop("queue_depth", UNSET))
 
-        def _parse_uptime_seconds(data: object) -> Union[None, Unset, int]:
+        def _parse_uptime_seconds(data: object) -> int | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, int], data)
+            return cast(int | None | Unset, data)
 
         uptime_seconds = _parse_uptime_seconds(d.pop("uptime_seconds", UNSET))
 

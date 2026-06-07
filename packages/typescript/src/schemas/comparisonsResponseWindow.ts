@@ -6,7 +6,6 @@
 export type ComparisonsResponseWindow = typeof ComparisonsResponseWindow[keyof typeof ComparisonsResponseWindow];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ComparisonsResponseWindow = {
   '7d': '7d',
   '30d': '30d',

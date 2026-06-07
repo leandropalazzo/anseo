@@ -4,6 +4,10 @@
  */
 
 export interface GrafanaCrawlerSeries {
+  /**
+     * @items.minItems 2
+     * @items.maxItems 2
+     */
   datapoints: number[][];
   target: string;
 }

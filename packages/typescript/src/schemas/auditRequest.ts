@@ -4,20 +4,20 @@
  */
 
 export interface AuditRequest {
-  /** Rule ids or severities (low/medium/high). */
-  fail_on?: string[];
-  /**
-   * @minimum 1
-   * @maximum 200
-   * @nullable
-   */
-  max_pages?: number | null;
   /** URL, sitemap URL, file:// URL, or local HTML fixture path. */
   target: string;
   /**
-   * @minimum 1000
-   * @maximum 60000
-   * @nullable
-   */
+     * @minimum 1
+     * @maximum 200
+     * @nullable
+     */
+  max_pages?: number | null;
+  /**
+     * @minimum 1000
+     * @maximum 60000
+     * @nullable
+     */
   timeout_ms?: number | null;
+  /** Rule ids or severities (low/medium/high). */
+  fail_on?: string[];
 }

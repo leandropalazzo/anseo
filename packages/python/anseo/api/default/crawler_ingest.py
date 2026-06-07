@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -14,7 +14,7 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     *,
     body: CrawlerIngestRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
+    x_anseo_project: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(x_anseo_project, Unset):
@@ -25,9 +25,8 @@ def _get_kwargs(
         "url": "/v1/crawlers/ingest",
     }
 
-    _body = body.to_dict()
+    _kwargs["json"] = body.to_dict()
 
-    _kwargs["json"] = _body
     headers["Content-Type"] = "application/json"
 
     _kwargs["headers"] = headers
@@ -35,20 +34,23 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[CrawlerIngestResult, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> CrawlerIngestResult | Error | None:
     if response.status_code == 200:
         response_200 = CrawlerIngestResult.from_dict(response.json())
 
         return response_200
+
     if response.status_code == 400:
         response_400 = Error.from_dict(response.json())
 
         return response_400
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
         return response_401
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -56,8 +58,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[CrawlerIngestResult, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[CrawlerIngestResult | Error]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -68,15 +70,15 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: CrawlerIngestRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[CrawlerIngestResult, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[CrawlerIngestResult | Error]:
     """Roadmap Epic 31 — ingest raw web-server access-log lines, normalize + verify bot identity, and write
     crawler events for this project.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (CrawlerIngestRequest):
 
     Raises:
@@ -84,7 +86,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[CrawlerIngestResult, Error]]
+        Response[CrawlerIngestResult | Error]
     """
 
     kwargs = _get_kwargs(
@@ -101,15 +103,15 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: CrawlerIngestRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[CrawlerIngestResult, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> CrawlerIngestResult | Error | None:
     """Roadmap Epic 31 — ingest raw web-server access-log lines, normalize + verify bot identity, and write
     crawler events for this project.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (CrawlerIngestRequest):
 
     Raises:
@@ -117,7 +119,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[CrawlerIngestResult, Error]
+        CrawlerIngestResult | Error
     """
 
     return sync_detailed(
@@ -129,15 +131,15 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: CrawlerIngestRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[CrawlerIngestResult, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[CrawlerIngestResult | Error]:
     """Roadmap Epic 31 — ingest raw web-server access-log lines, normalize + verify bot identity, and write
     crawler events for this project.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (CrawlerIngestRequest):
 
     Raises:
@@ -145,7 +147,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[CrawlerIngestResult, Error]]
+        Response[CrawlerIngestResult | Error]
     """
 
     kwargs = _get_kwargs(
@@ -160,15 +162,15 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
+    client: AuthenticatedClient | Client,
     body: CrawlerIngestRequest,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[CrawlerIngestResult, Error]]:
+    x_anseo_project: str | Unset = UNSET,
+) -> CrawlerIngestResult | Error | None:
     """Roadmap Epic 31 — ingest raw web-server access-log lines, normalize + verify bot identity, and write
     crawler events for this project.
 
     Args:
-        x_anseo_project (Union[Unset, str]):
+        x_anseo_project (str | Unset):
         body (CrawlerIngestRequest):
 
     Raises:
@@ -176,7 +178,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[CrawlerIngestResult, Error]
+        CrawlerIngestResult | Error
     """
 
     return (

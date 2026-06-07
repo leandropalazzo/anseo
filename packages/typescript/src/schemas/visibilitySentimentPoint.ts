@@ -4,16 +4,16 @@
  */
 
 export interface VisibilitySentimentPoint {
-  average_score: number;
-  day: string;
-  entity: string;
-  negative: number;
-  negative_share: number;
-  neutral: number;
-  neutral_share: number;
-  positive: number;
-  positive_share: number;
   prompt: string;
   provider: string;
+  entity: string;
+  day: string;
+  positive: number;
+  neutral: number;
+  negative: number;
   total: number;
+  positive_share: number;
+  neutral_share: number;
+  negative_share: number;
+  average_score: number;
 }

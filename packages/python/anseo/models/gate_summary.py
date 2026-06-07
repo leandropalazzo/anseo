@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
@@ -16,12 +19,12 @@ class GateSummary:
     Attributes:
         passed (bool):
         fail_on (list[str]):
-        failed_findings (list['GateFinding']):
+        failed_findings (list[GateFinding]):
     """
 
     passed: bool
     fail_on: list[str]
-    failed_findings: list["GateFinding"]
+    failed_findings: list[GateFinding]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -47,10 +50,10 @@ class GateSummary:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.gate_finding import GateFinding
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         passed = d.pop("passed")
 
         fail_on = cast(list[str], d.pop("fail_on"))

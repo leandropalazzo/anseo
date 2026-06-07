@@ -1,4 +1,7 @@
-from typing import TYPE_CHECKING, Any, TypeVar, Union, cast
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -17,32 +20,32 @@ class BrandUpdate:
     """
     Attributes:
         name (str):
-        variants (Union[Unset, list[str]]):
-        competitors (Union[Unset, list['BrandCompetitor']]):
-        site_url (Union[None, Unset, str]):
+        variants (list[str] | Unset):
+        competitors (list[BrandCompetitor] | Unset):
+        site_url (None | str | Unset):
     """
 
     name: str
-    variants: Union[Unset, list[str]] = UNSET
-    competitors: Union[Unset, list["BrandCompetitor"]] = UNSET
-    site_url: Union[None, Unset, str] = UNSET
+    variants: list[str] | Unset = UNSET
+    competitors: list[BrandCompetitor] | Unset = UNSET
+    site_url: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         name = self.name
 
-        variants: Union[Unset, list[str]] = UNSET
+        variants: list[str] | Unset = UNSET
         if not isinstance(self.variants, Unset):
             variants = self.variants
 
-        competitors: Union[Unset, list[dict[str, Any]]] = UNSET
+        competitors: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.competitors, Unset):
             competitors = []
             for competitors_item_data in self.competitors:
                 competitors_item = competitors_item_data.to_dict()
                 competitors.append(competitors_item)
 
-        site_url: Union[None, Unset, str]
+        site_url: None | str | Unset
         if isinstance(self.site_url, Unset):
             site_url = UNSET
         else:
@@ -65,27 +68,29 @@ class BrandUpdate:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.brand_competitor import BrandCompetitor
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         name = d.pop("name")
 
         variants = cast(list[str], d.pop("variants", UNSET))
 
-        competitors = []
         _competitors = d.pop("competitors", UNSET)
-        for competitors_item_data in _competitors or []:
-            competitors_item = BrandCompetitor.from_dict(competitors_item_data)
+        competitors: list[BrandCompetitor] | Unset = UNSET
+        if _competitors is not UNSET:
+            competitors = []
+            for competitors_item_data in _competitors:
+                competitors_item = BrandCompetitor.from_dict(competitors_item_data)
 
-            competitors.append(competitors_item)
+                competitors.append(competitors_item)
 
-        def _parse_site_url(data: object) -> Union[None, Unset, str]:
+        def _parse_site_url(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, str], data)
+            return cast(None | str | Unset, data)
 
         site_url = _parse_site_url(d.pop("site_url", UNSET))
 

@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import datetime
-from typing import Any, TypeVar, Union, cast
+from collections.abc import Mapping
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-from dateutil.parser import isoparse
 
 from ..types import UNSET, Unset
 
@@ -19,7 +21,7 @@ class AuditRunItem:
         overall_score (int):
         pages_crawled (int):
         created_at (datetime.datetime):
-        gate_passed (Union[None, Unset, bool]):
+        gate_passed (bool | None | Unset):
     """
 
     id: str
@@ -27,7 +29,7 @@ class AuditRunItem:
     overall_score: int
     pages_crawled: int
     created_at: datetime.datetime
-    gate_passed: Union[None, Unset, bool] = UNSET
+    gate_passed: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -41,7 +43,7 @@ class AuditRunItem:
 
         created_at = self.created_at.isoformat()
 
-        gate_passed: Union[None, Unset, bool]
+        gate_passed: bool | None | Unset
         if isinstance(self.gate_passed, Unset):
             gate_passed = UNSET
         else:
@@ -64,8 +66,8 @@ class AuditRunItem:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
-        d = src_dict.copy()
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
         id = d.pop("id")
 
         target = d.pop("target")
@@ -74,14 +76,14 @@ class AuditRunItem:
 
         pages_crawled = d.pop("pages_crawled")
 
-        created_at = isoparse(d.pop("created_at"))
+        created_at = datetime.datetime.fromisoformat(d.pop("created_at"))
 
-        def _parse_gate_passed(data: object) -> Union[None, Unset, bool]:
+        def _parse_gate_passed(data: object) -> bool | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, bool], data)
+            return cast(bool | None | Unset, data)
 
         gate_passed = _parse_gate_passed(d.pop("gate_passed", UNSET))
 

@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import datetime
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-from dateutil.parser import isoparse
 
 if TYPE_CHECKING:
     from ..models.crawler_bot_metric import CrawlerBotMetric
@@ -20,20 +22,20 @@ class CrawlerMetricsResponse:
     `include_unverified=true` is requested.
 
         Attributes:
-            bots (list['CrawlerBotMetric']):
-            error_paths (list['CrawlerPathMetric']):
+            bots (list[CrawlerBotMetric]):
+            error_paths (list[CrawlerPathMetric]):
             include_unverified (bool):
-            top_paths (list['CrawlerPathMetric']):
-            trend (list['CrawlerTrendBucket']):
+            top_paths (list[CrawlerPathMetric]):
+            trend (list[CrawlerTrendBucket]):
             window_end (datetime.datetime):
             window_start (datetime.datetime):
     """
 
-    bots: list["CrawlerBotMetric"]
-    error_paths: list["CrawlerPathMetric"]
+    bots: list[CrawlerBotMetric]
+    error_paths: list[CrawlerPathMetric]
     include_unverified: bool
-    top_paths: list["CrawlerPathMetric"]
-    trend: list["CrawlerTrendBucket"]
+    top_paths: list[CrawlerPathMetric]
+    trend: list[CrawlerTrendBucket]
     window_end: datetime.datetime
     window_start: datetime.datetime
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -82,12 +84,12 @@ class CrawlerMetricsResponse:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.crawler_bot_metric import CrawlerBotMetric
         from ..models.crawler_path_metric import CrawlerPathMetric
         from ..models.crawler_trend_bucket import CrawlerTrendBucket
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         bots = []
         _bots = d.pop("bots")
         for bots_item_data in _bots:
@@ -118,9 +120,9 @@ class CrawlerMetricsResponse:
 
             trend.append(trend_item)
 
-        window_end = isoparse(d.pop("window_end"))
+        window_end = datetime.datetime.fromisoformat(d.pop("window_end"))
 
-        window_start = isoparse(d.pop("window_start"))
+        window_start = datetime.datetime.fromisoformat(d.pop("window_start"))
 
         crawler_metrics_response = cls(
             bots=bots,

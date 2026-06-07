@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
@@ -14,10 +17,10 @@ T = TypeVar("T", bound="ProjectListResponse")
 class ProjectListResponse:
     """
     Attributes:
-        projects (list['ProjectView']):
+        projects (list[ProjectView]):
     """
 
-    projects: list["ProjectView"]
+    projects: list[ProjectView]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -37,10 +40,10 @@ class ProjectListResponse:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.project_view import ProjectView
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         projects = []
         _projects = d.pop("projects")
         for projects_item_data in _projects:

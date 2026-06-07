@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import datetime
+from collections.abc import Mapping
 from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-from dateutil.parser import isoparse
 
 from ..models.click_house_install_event_step import ClickHouseInstallEventStep
 
@@ -51,9 +53,9 @@ class ClickHouseInstallEvent:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
-        d = src_dict.copy()
-        at = isoparse(d.pop("at"))
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
+        at = datetime.datetime.fromisoformat(d.pop("at"))
 
         log_line = d.pop("log_line")
 

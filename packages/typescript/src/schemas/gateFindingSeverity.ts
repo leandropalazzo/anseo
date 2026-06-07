@@ -6,7 +6,6 @@
 export type GateFindingSeverity = typeof GateFindingSeverity[keyof typeof GateFindingSeverity];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GateFindingSeverity = {
   low: 'low',
   medium: 'medium',

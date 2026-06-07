@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import datetime
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-from dateutil.parser import isoparse
 
 from ..models.recommendation_state import RecommendationState
 
@@ -42,14 +44,14 @@ class Recommendation:
     generated_at: datetime.datetime
     id: str
     kind: str
-    payload: "RecommendationPayload"
+    payload: RecommendationPayload
     project_id: str
-    reproducibility: "RecommendationReproducibility"
+    reproducibility: RecommendationReproducibility
     severity: str
     state: RecommendationState
     summary: str
     tags: list[str]
-    traceability: "RecommendationTraceability"
+    traceability: RecommendationTraceability
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -102,19 +104,19 @@ class Recommendation:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.recommendation_payload import RecommendationPayload
         from ..models.recommendation_reproducibility import (
             RecommendationReproducibility,
         )
         from ..models.recommendation_traceability import RecommendationTraceability
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         confidence_band = d.pop("confidence_band")
 
         engine_version = d.pop("engine_version")
 
-        generated_at = isoparse(d.pop("generated_at"))
+        generated_at = datetime.datetime.fromisoformat(d.pop("generated_at"))
 
         id = d.pop("id")
 

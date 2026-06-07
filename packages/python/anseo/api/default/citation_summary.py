@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -12,8 +12,8 @@ from ...types import UNSET, Response, Unset
 
 def _get_kwargs(
     *,
-    limit: Union[Unset, int] = UNSET,
-    x_anseo_project: Union[Unset, str] = UNSET,
+    limit: int | Unset = UNSET,
+    x_anseo_project: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(x_anseo_project, Unset):
@@ -36,16 +36,18 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[CitationSummaryResponse, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> CitationSummaryResponse | Error | None:
     if response.status_code == 200:
         response_200 = CitationSummaryResponse.from_dict(response.json())
 
         return response_200
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
         return response_401
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -53,8 +55,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[CitationSummaryResponse, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[CitationSummaryResponse | Error]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -65,21 +67,21 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = UNSET,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[CitationSummaryResponse, Error]]:
+    client: AuthenticatedClient | Client,
+    limit: int | Unset = UNSET,
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[CitationSummaryResponse | Error]:
     """
     Args:
-        limit (Union[Unset, int]):
-        x_anseo_project (Union[Unset, str]):
+        limit (int | Unset):
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[CitationSummaryResponse, Error]]
+        Response[CitationSummaryResponse | Error]
     """
 
     kwargs = _get_kwargs(
@@ -96,21 +98,21 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = UNSET,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[CitationSummaryResponse, Error]]:
+    client: AuthenticatedClient | Client,
+    limit: int | Unset = UNSET,
+    x_anseo_project: str | Unset = UNSET,
+) -> CitationSummaryResponse | Error | None:
     """
     Args:
-        limit (Union[Unset, int]):
-        x_anseo_project (Union[Unset, str]):
+        limit (int | Unset):
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[CitationSummaryResponse, Error]
+        CitationSummaryResponse | Error
     """
 
     return sync_detailed(
@@ -122,21 +124,21 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = UNSET,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[CitationSummaryResponse, Error]]:
+    client: AuthenticatedClient | Client,
+    limit: int | Unset = UNSET,
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[CitationSummaryResponse | Error]:
     """
     Args:
-        limit (Union[Unset, int]):
-        x_anseo_project (Union[Unset, str]):
+        limit (int | Unset):
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[CitationSummaryResponse, Error]]
+        Response[CitationSummaryResponse | Error]
     """
 
     kwargs = _get_kwargs(
@@ -151,21 +153,21 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
-    limit: Union[Unset, int] = UNSET,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[CitationSummaryResponse, Error]]:
+    client: AuthenticatedClient | Client,
+    limit: int | Unset = UNSET,
+    x_anseo_project: str | Unset = UNSET,
+) -> CitationSummaryResponse | Error | None:
     """
     Args:
-        limit (Union[Unset, int]):
-        x_anseo_project (Union[Unset, str]):
+        limit (int | Unset):
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[CitationSummaryResponse, Error]
+        CitationSummaryResponse | Error
     """
 
     return (

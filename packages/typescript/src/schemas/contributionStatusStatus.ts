@@ -6,7 +6,6 @@
 export type ContributionStatusStatus = typeof ContributionStatusStatus[keyof typeof ContributionStatusStatus];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ContributionStatusStatus = {
   sealed: 'sealed',
   skipped_not_opted_in: 'skipped_not_opted_in',

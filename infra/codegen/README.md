@@ -56,8 +56,8 @@ local install with `uvx` if you don't want a system-wide install:
 
 ```bash
 # Quick run without persistent install (uvx + npx)
-npx -y orval@7.1.0 --config infra/codegen/orval.config.cjs
-uvx openapi-python-client@0.24.0 generate \
+npx -y orval@8.15.0 --config infra/codegen/orval.config.cjs
+uvx openapi-python-client@0.29.0 generate \
   --path crates/wire-schema/openapi.json \
   --config infra/codegen/openapi-python.yaml \
   --meta none --output-path packages/python --overwrite

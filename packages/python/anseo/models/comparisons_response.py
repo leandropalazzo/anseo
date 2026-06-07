@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
@@ -21,14 +24,14 @@ class ComparisonsResponse:
         Attributes:
             brand (str):
             competitors (list[str]):
-            rows (list['ComparisonRow']):
+            rows (list[ComparisonRow]):
             trace_id (str):
             window (ComparisonsResponseWindow):
     """
 
     brand: str
     competitors: list[str]
-    rows: list["ComparisonRow"]
+    rows: list[ComparisonRow]
     trace_id: str
     window: ComparisonsResponseWindow
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -62,10 +65,10 @@ class ComparisonsResponse:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.comparison_row import ComparisonRow
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         brand = d.pop("brand")
 
         competitors = cast(list[str], d.pop("competitors"))

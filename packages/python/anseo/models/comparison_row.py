@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
@@ -14,13 +17,13 @@ T = TypeVar("T", bound="ComparisonRow")
 class ComparisonRow:
     """
     Attributes:
-        cells (list['ComparisonCell']):
+        cells (list[ComparisonCell]):
         prompt_id (str): ULID.
         prompt_name (str):
         provider (str):
     """
 
-    cells: list["ComparisonCell"]
+    cells: list[ComparisonCell]
     prompt_id: str
     prompt_name: str
     provider: str
@@ -52,10 +55,10 @@ class ComparisonRow:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.comparison_cell import ComparisonCell
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         cells = []
         _cells = d.pop("cells")
         for cells_item_data in _cells:

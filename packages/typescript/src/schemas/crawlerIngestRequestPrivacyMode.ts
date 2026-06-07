@@ -6,7 +6,6 @@
 export type CrawlerIngestRequestPrivacyMode = typeof CrawlerIngestRequestPrivacyMode[keyof typeof CrawlerIngestRequestPrivacyMode];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const CrawlerIngestRequestPrivacyMode = {
   hashed: 'hashed',
   truncated: 'truncated',

@@ -102,3 +102,126 @@ async fn loaded_report_builds_router() {
     }];
     let _app = build_router(report);
 }
+
+// ---------------------------------------------------------------------------
+// Story 41.3 — slash-containing plugin ids round-trip through the route layer.
+//
+// Plugin ids are `namespace/name` (e.g. `acme/widget`). The remove/upgrade
+// routes are single-segment (`/v1/plugins/:id`, `/v1/plugins/:id/upgrade`), so
+// a client MUST percent-encode the slash as `%2F` for the request to match the
+// route — and the server's `Path<String>` extractor decodes it back. The
+// generated SDK clients (packages/python, packages/typescript) now emit that
+// encoding (`quote(str(id), safe="")` / `encodeURIComponent(String(id))`).
+// These tests pin the server half of that contract so the round-trip can't
+// regress silently.
+// ---------------------------------------------------------------------------
+
+/// The percent-encoded form matches the route (handler reached → auth layer
+/// returns 401, *not* the router's 404), while the raw-slash form a buggy
+/// client would send does NOT match. The 401-vs-404 contrast is the whole
+/// reason the SDK must encode.
+#[tokio::test]
+async fn slash_plugin_id_routes_match_only_when_percent_encoded() {
+    let app = build_router(Vec::new());
+
+    // DELETE /v1/plugins/acme%2Fwidget — encoded slash ⇒ single segment ⇒
+    // matches `/v1/plugins/:id`; auth rejects before the handler runs.
+    let encoded_remove = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/v1/plugins/acme%2Fwidget")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        encoded_remove.status(),
+        StatusCode::UNAUTHORIZED,
+        "percent-encoded id must match the remove route (reach the auth layer)"
+    );
+
+    // POST /v1/plugins/acme%2Fwidget/upgrade — encoded slash keeps `id` a
+    // single segment, leaving `/upgrade` as the trailing literal.
+    let encoded_upgrade = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/plugins/acme%2Fwidget/upgrade")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        encoded_upgrade.status(),
+        StatusCode::UNAUTHORIZED,
+        "percent-encoded id must match the upgrade route (reach the auth layer)"
+    );
+
+    // DELETE /v1/plugins/acme/widget — the raw slash a non-encoding client
+    // sends. `acme/widget` is two segments, so no route matches ⇒ 404. This is
+    // the bug the SDK fix prevents.
+    let raw_remove = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/v1/plugins/acme/widget")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        raw_remove.status(),
+        StatusCode::NOT_FOUND,
+        "raw (unencoded) slash id must NOT match the single-segment route"
+    );
+}
+
+/// The `Path<String>` extractor decodes `%2F` back to `/`, so the handler sees
+/// the original `acme/widget` id for both the `:id` and `:id/upgrade` shapes.
+/// Mirrors the exact route patterns from `routes::plugins::v1_router()` with
+/// echo handlers so we observe the decoded value without auth/DB/registry.
+#[tokio::test]
+async fn path_extractor_decodes_percent_encoded_slash_id() {
+    use axum::extract::Path;
+    use axum::routing::{delete, post};
+
+    async fn echo_id(Path(id): Path<String>) -> String {
+        id
+    }
+
+    let app: axum::Router = axum::Router::new()
+        .route("/v1/plugins/:id", delete(echo_id))
+        .route("/v1/plugins/:id/upgrade", post(echo_id));
+
+    for (method, uri) in [
+        ("DELETE", "/v1/plugins/acme%2Fwidget"),
+        ("POST", "/v1/plugins/acme%2Fwidget/upgrade"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(uri)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{method} {uri}");
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            &body[..],
+            b"acme/widget",
+            "Path extractor must decode %2F back to a slash for {uri}"
+        );
+    }
+}

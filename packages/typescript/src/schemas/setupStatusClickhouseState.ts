@@ -6,7 +6,6 @@
 export type SetupStatusClickhouseState = typeof SetupStatusClickhouseState[keyof typeof SetupStatusClickhouseState];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const SetupStatusClickhouseState = {
   healthy: 'healthy',
   degraded: 'degraded',

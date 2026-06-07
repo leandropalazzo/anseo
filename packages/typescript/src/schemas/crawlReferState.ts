@@ -6,7 +6,6 @@
 export type CrawlReferState = typeof CrawlReferState[keyof typeof CrawlReferState];
 
 
-// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const CrawlReferState = {
   complete: 'complete',
   crawls_only: 'crawls_only',

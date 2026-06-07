@@ -4,5 +4,8 @@
  */
 
 export type ClickhouseInstallStreamParams = {
+/**
+ * Install ULID.
+ */
 id: string;
 };

@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import datetime
-from typing import Any, TypeVar, Union, cast
+from collections.abc import Mapping
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-from dateutil.parser import isoparse
 
 from ..models.claim_verdict_status import ClaimVerdictStatus
 from ..types import UNSET, Unset
@@ -22,7 +24,7 @@ class ClaimVerdict:
         rationale (str):
         prompt_run_id (str):
         observed_at (datetime.datetime):
-        matched_fact_key (Union[None, Unset, str]):
+        matched_fact_key (None | str | Unset):
     """
 
     entity: str
@@ -32,7 +34,7 @@ class ClaimVerdict:
     rationale: str
     prompt_run_id: str
     observed_at: datetime.datetime
-    matched_fact_key: Union[None, Unset, str] = UNSET
+    matched_fact_key: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -50,7 +52,7 @@ class ClaimVerdict:
 
         observed_at = self.observed_at.isoformat()
 
-        matched_fact_key: Union[None, Unset, str]
+        matched_fact_key: None | str | Unset
         if isinstance(self.matched_fact_key, Unset):
             matched_fact_key = UNSET
         else:
@@ -75,8 +77,8 @@ class ClaimVerdict:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
-        d = src_dict.copy()
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        d = dict(src_dict)
         entity = d.pop("entity")
 
         claim_text = d.pop("claim_text")
@@ -89,14 +91,14 @@ class ClaimVerdict:
 
         prompt_run_id = d.pop("prompt_run_id")
 
-        observed_at = isoparse(d.pop("observed_at"))
+        observed_at = datetime.datetime.fromisoformat(d.pop("observed_at"))
 
-        def _parse_matched_fact_key(data: object) -> Union[None, Unset, str]:
+        def _parse_matched_fact_key(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, str], data)
+            return cast(None | str | Unset, data)
 
         matched_fact_key = _parse_matched_fact_key(d.pop("matched_fact_key", UNSET))
 

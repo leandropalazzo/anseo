@@ -1,4 +1,7 @@
-from typing import TYPE_CHECKING, Any, TypeVar, Union, cast
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -19,14 +22,14 @@ class AuditReport:
     Attributes:
         target (str):
         overall_score (int):
-        pages (list['PageAudit']):
-        gate (Union['GateSummary', None, Unset]):
+        pages (list[PageAudit]):
+        gate (GateSummary | None | Unset):
     """
 
     target: str
     overall_score: int
-    pages: list["PageAudit"]
-    gate: Union["GateSummary", None, Unset] = UNSET
+    pages: list[PageAudit]
+    gate: GateSummary | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -41,7 +44,7 @@ class AuditReport:
             pages_item = pages_item_data.to_dict()
             pages.append(pages_item)
 
-        gate: Union[None, Unset, dict[str, Any]]
+        gate: dict[str, Any] | None | Unset
         if isinstance(self.gate, Unset):
             gate = UNSET
         elif isinstance(self.gate, GateSummary):
@@ -64,11 +67,11 @@ class AuditReport:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.gate_summary import GateSummary
         from ..models.page_audit import PageAudit
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         target = d.pop("target")
 
         overall_score = d.pop("overall_score")
@@ -80,7 +83,7 @@ class AuditReport:
 
             pages.append(pages_item)
 
-        def _parse_gate(data: object) -> Union["GateSummary", None, Unset]:
+        def _parse_gate(data: object) -> GateSummary | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -91,9 +94,9 @@ class AuditReport:
                 gate_type_1 = GateSummary.from_dict(data)
 
                 return gate_type_1
-            except:  # noqa: E722
+            except (TypeError, ValueError, AttributeError, KeyError):
                 pass
-            return cast(Union["GateSummary", None, Unset], data)
+            return cast(GateSummary | None | Unset, data)
 
         gate = _parse_gate(d.pop("gate", UNSET))
 

@@ -54,11 +54,15 @@ function bodyHasIntrinsicContentType(body: BodyInit | null | undefined): boolean
   return false;
 }
 
-// Orval's fetch client invokes the mutator with a type parameter shaped
-// like `Promise<{ data: X; status: number }>`. The constraint is left
-// open because the generator already encodes the response shape; this
-// runtime just shapes the payload into `{ data, status }` and trusts the
-// caller's contract.
+// Orval 8's generated client types each response as `{ data, status, headers }`
+// (modelling non-2xx as typed variants too). This SDK keeps its DOCUMENTED
+// contract — HTTP errors throw `AnseoApiError`, callers `try/catch` — rather
+// than returning non-2xx values, so existing consumers don't silently stop
+// handling 401/404/5xx. We therefore: (a) throw on non-2xx, and (b) include
+// `headers` on the SUCCESS return so the generated success-variant type is
+// satisfied. The generated non-2xx variants are a harmless type-superset that
+// this runtime never actually returns (it throws first). Transport-level
+// failures (network/abort) also throw AnseoApiError(status=0).
 export async function fetchClient<T>(
   url: string,
   init: RequestInit,
@@ -103,13 +107,15 @@ export async function fetchClient<T>(
   const text = await response.text();
   const parsed = text.length === 0 ? undefined : safeParseJson(text);
   if (!response.ok) {
+    // Documented contract: HTTP errors throw AnseoApiError (callers try/catch).
     throw new AnseoApiError(
       `Anseo API ${init.method ?? "GET"} ${url} failed: ${response.status}`,
       response.status,
       parsed,
     );
   }
-  return { data: parsed, status: response.status } as T;
+  // Success: include `headers` so the generated success-variant type matches.
+  return { data: parsed, status: response.status, headers: response.headers } as T;
 }
 
 function safeParseJson(text: string): unknown {

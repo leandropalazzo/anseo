@@ -5,9 +5,9 @@
 
 export interface CrawlerIngestResult {
   /** @minimum 0 */
-  ingested: number;
-  /** @minimum 0 */
   parsed: number;
+  /** @minimum 0 */
+  ingested: number;
   /** @minimum 0 */
   skipped: number;
 }

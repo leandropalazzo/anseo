@@ -1,4 +1,7 @@
-from typing import TYPE_CHECKING, Any, TypeVar, Union, cast
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -18,14 +21,14 @@ class PageAudit:
     Attributes:
         url (str):
         score (int):
-        findings (list['AuditFinding']):
-        title (Union[None, Unset, str]):
+        findings (list[AuditFinding]):
+        title (None | str | Unset):
     """
 
     url: str
     score: int
-    findings: list["AuditFinding"]
-    title: Union[None, Unset, str] = UNSET
+    findings: list[AuditFinding]
+    title: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -38,7 +41,7 @@ class PageAudit:
             findings_item = findings_item_data.to_dict()
             findings.append(findings_item)
 
-        title: Union[None, Unset, str]
+        title: None | str | Unset
         if isinstance(self.title, Unset):
             title = UNSET
         else:
@@ -59,10 +62,10 @@ class PageAudit:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: dict[str, Any]) -> T:
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.audit_finding import AuditFinding
 
-        d = src_dict.copy()
+        d = dict(src_dict)
         url = d.pop("url")
 
         score = d.pop("score")
@@ -74,12 +77,12 @@ class PageAudit:
 
             findings.append(findings_item)
 
-        def _parse_title(data: object) -> Union[None, Unset, str]:
+        def _parse_title(data: object) -> None | str | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
                 return data
-            return cast(Union[None, Unset, str], data)
+            return cast(None | str | Unset, data)
 
         title = _parse_title(d.pop("title", UNSET))
 

@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Any, Optional, Union
+from typing import Any
 
 import httpx
 
@@ -12,8 +12,8 @@ from ...types import UNSET, Response, Unset
 
 def _get_kwargs(
     *,
-    days: Union[Unset, int] = 30,
-    x_anseo_project: Union[Unset, str] = UNSET,
+    days: int | Unset = 30,
+    x_anseo_project: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
     if not isinstance(x_anseo_project, Unset):
@@ -36,20 +36,23 @@ def _get_kwargs(
 
 
 def _parse_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Optional[Union[CrawlReferReport, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> CrawlReferReport | Error | None:
     if response.status_code == 200:
         response_200 = CrawlReferReport.from_dict(response.json())
 
         return response_200
+
     if response.status_code == 400:
         response_400 = Error.from_dict(response.json())
 
         return response_400
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
         return response_401
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -57,8 +60,8 @@ def _parse_response(
 
 
 def _build_response(
-    *, client: Union[AuthenticatedClient, Client], response: httpx.Response
-) -> Response[Union[CrawlReferReport, Error]]:
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[CrawlReferReport | Error]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -69,23 +72,23 @@ def _build_response(
 
 def sync_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
-    days: Union[Unset, int] = 30,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[CrawlReferReport, Error]]:
+    client: AuthenticatedClient | Client,
+    days: int | Unset = 30,
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[CrawlReferReport | Error]:
     """Roadmap Epic 33 — crawl-to-refer ratio by verified bot, degraded to crawls_only until referral
     attribution exists.
 
     Args:
-        days (Union[Unset, int]):  Default: 30.
-        x_anseo_project (Union[Unset, str]):
+        days (int | Unset):  Default: 30.
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[CrawlReferReport, Error]]
+        Response[CrawlReferReport | Error]
     """
 
     kwargs = _get_kwargs(
@@ -102,23 +105,23 @@ def sync_detailed(
 
 def sync(
     *,
-    client: Union[AuthenticatedClient, Client],
-    days: Union[Unset, int] = 30,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[CrawlReferReport, Error]]:
+    client: AuthenticatedClient | Client,
+    days: int | Unset = 30,
+    x_anseo_project: str | Unset = UNSET,
+) -> CrawlReferReport | Error | None:
     """Roadmap Epic 33 — crawl-to-refer ratio by verified bot, degraded to crawls_only until referral
     attribution exists.
 
     Args:
-        days (Union[Unset, int]):  Default: 30.
-        x_anseo_project (Union[Unset, str]):
+        days (int | Unset):  Default: 30.
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[CrawlReferReport, Error]
+        CrawlReferReport | Error
     """
 
     return sync_detailed(
@@ -130,23 +133,23 @@ def sync(
 
 async def asyncio_detailed(
     *,
-    client: Union[AuthenticatedClient, Client],
-    days: Union[Unset, int] = 30,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Response[Union[CrawlReferReport, Error]]:
+    client: AuthenticatedClient | Client,
+    days: int | Unset = 30,
+    x_anseo_project: str | Unset = UNSET,
+) -> Response[CrawlReferReport | Error]:
     """Roadmap Epic 33 — crawl-to-refer ratio by verified bot, degraded to crawls_only until referral
     attribution exists.
 
     Args:
-        days (Union[Unset, int]):  Default: 30.
-        x_anseo_project (Union[Unset, str]):
+        days (int | Unset):  Default: 30.
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Union[CrawlReferReport, Error]]
+        Response[CrawlReferReport | Error]
     """
 
     kwargs = _get_kwargs(
@@ -161,23 +164,23 @@ async def asyncio_detailed(
 
 async def asyncio(
     *,
-    client: Union[AuthenticatedClient, Client],
-    days: Union[Unset, int] = 30,
-    x_anseo_project: Union[Unset, str] = UNSET,
-) -> Optional[Union[CrawlReferReport, Error]]:
+    client: AuthenticatedClient | Client,
+    days: int | Unset = 30,
+    x_anseo_project: str | Unset = UNSET,
+) -> CrawlReferReport | Error | None:
     """Roadmap Epic 33 — crawl-to-refer ratio by verified bot, degraded to crawls_only until referral
     attribution exists.
 
     Args:
-        days (Union[Unset, int]):  Default: 30.
-        x_anseo_project (Union[Unset, str]):
+        days (int | Unset):  Default: 30.
+        x_anseo_project (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Union[CrawlReferReport, Error]
+        CrawlReferReport | Error
     """
 
     return (

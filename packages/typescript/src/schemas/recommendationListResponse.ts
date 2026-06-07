@@ -10,8 +10,8 @@ import type { Recommendation } from './recommendation';
 export interface RecommendationListResponse {
   items: Recommendation[];
   /**
-   * Opaque cursor for the next page; null when no further pages remain.
-   * @nullable
-   */
+     * Opaque cursor for the next page; null when no further pages remain.
+     * @nullable
+     */
   next_cursor: string | null;
 }

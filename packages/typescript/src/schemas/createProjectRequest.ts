@@ -5,7 +5,7 @@
 
 export interface CreateProjectRequest {
   name: string;
+  variants?: string[];
   /** @nullable */
   site_url?: string | null;
-  variants?: string[];
 }
