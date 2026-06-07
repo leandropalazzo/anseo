@@ -26,6 +26,15 @@ docker compose ps          # confirm postgres + redis are healthy
 docker compose down        # tear down
 ```
 
+> **Upgrading from a pre-rename stack.** The Postgres role/database default
+> changed from `opengeo`/`opengeo_test` to `anseo`/`anseo_test`. Postgres only
+> applies `POSTGRES_USER`/`POSTGRES_DB` when the data volume is first
+> initialized, so an existing `postgres-data` volume created before this change
+> still holds the old `opengeo` role and the api/worker will fail to connect.
+> Local dev data is disposable — recreate the volume to pick up the new
+> defaults: `docker compose down -v && docker compose up -d` (or rename the role
+> + db inside the existing volume if you need to keep the data).
+
 For day-to-day local deployment from the workspace root, prefer the deploy
 helper:
 

@@ -306,8 +306,7 @@ async fn visibility_trend_parity_across_backends() {
 #[ignore = "requires CLICKHOUSE_*"]
 async fn backend_strings_disambiguate() {
     let pg_pool =
-        sqlx::PgPool::connect_lazy("postgres://anseo:anseo@127.0.0.1:1/__parity_smoke__")
-            .unwrap();
+        sqlx::PgPool::connect_lazy("postgres://anseo:anseo@127.0.0.1:1/__parity_smoke__").unwrap();
     let pg_store = PostgresMetricsStore::new(Arc::new(anseo_storage::Storage::from_pool(pg_pool)));
     let ch_store = ch();
     assert_eq!(pg_store.backend(), "postgres");

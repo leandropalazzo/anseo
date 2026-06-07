@@ -168,9 +168,8 @@ fn lazy_app() -> axum::Router {
     use anseo_api::{router, AppState};
     use anseo_core::ProjectId;
     use std::sync::Arc;
-    let lazy_pool =
-        sqlx::PgPool::connect_lazy("postgres://anseo:anseo@127.0.0.1:1/__ph_test__")
-            .expect("connect_lazy is sync");
+    let lazy_pool = sqlx::PgPool::connect_lazy("postgres://anseo:anseo@127.0.0.1:1/__ph_test__")
+        .expect("connect_lazy is sync");
     let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
     let (events, _rx) = anseo_scheduler::worker::event_channel();
     let state = AppState {
