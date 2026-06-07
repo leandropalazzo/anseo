@@ -72,8 +72,8 @@ anseo plugin keygen --out /secure/anseo-root.key
 - **Public key** → pin it as the `ANSEO_ROOT_PUBKEY` build env so the verifier
   trusts it (`crates/plugin-host/src/signing.rs::pinned_root_pubkeys`).
 - **Secret seed** → store it as the **`ANSEO_PLUGIN_SIGNING_KEY`** GitHub
-  Actions secret in the **private `opengeo-internal`** repo. **Never** commit
-  it; the public `opengeo` repo must not contain the private key (ADR-007).
+  Actions secret in the **private `anseo-internal`** repo. **Never** commit
+  it; the public `anseo` repo must not contain the private key (ADR-007).
 
 ### 2. Sign a bundle
 
@@ -96,16 +96,16 @@ two artifacts the registry serves.
   inputs) and `repository_dispatch` (`event_type: plugin-sign`) fired from the
   `plugin-registry` repo on a push to `main`. It is **not** a `pull_request` /
   `push` job, so it never gates ordinary PRs and is not a required check.
-- **Production** (in `opengeo-internal`, where the `ANSEO_PLUGIN_SIGNING_KEY`
+- **Production** (in `anseo-internal`, where the `ANSEO_PLUGIN_SIGNING_KEY`
   secret lives): signs the requested bundle with the real root key and commits
   `signature.bin` + `claim.toml` back to the registry.
-- **Public self-check** (in `opengeo`, no secret): runs the keygen→sign→verify
+- **Public self-check** (in `anseo`, no secret): runs the keygen→sign→verify
   round-trip with an **ephemeral** key to keep the pipeline green without ever
   exposing a real key.
 
 ### Open-core boundary (ADR-007)
 
-| Lives in `opengeo` (public)            | Lives in `opengeo-internal` (private) |
+| Lives in `anseo` (public)              | Lives in `anseo-internal` (private)   |
 | -------------------------------------- | ------------------------------------- |
 | Verification code (`plugin-host`)      | The real root **private key** secret  |
 | Signing **tools** (`anseo plugin sign`)| The production `plugin-sign` job that uses it |

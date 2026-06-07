@@ -28,7 +28,7 @@ Install [Caddy](https://caddyserver.com/) then drop this into `/etc/caddy/Caddyf
 ```caddyfile
 anseo.example.com {
     # Terminate TLS (auto-provisioned via Let's Encrypt) and forward to the
-    # local stack. Adjust the port to match your --port / OGEO_PORT setting.
+    # local stack. Adjust the port to match your --port / ANSEO_API_PORT setting.
     reverse_proxy localhost:8080
 
     # Basic auth for the web dashboard and MCP surfaces.
@@ -50,7 +50,7 @@ Start Caddy and the stack:
 
 ```bash
 # Run the Anseo stack (API + worker, managed Postgres) bound to localhost.
-ogeo serve --port 8080
+anseo serve --port 8080
 
 # In another terminal (or as a systemd unit):
 caddy run --config /etc/caddy/Caddyfile
@@ -133,12 +133,12 @@ nginx -t && systemctl reload nginx
 
 ## Docker Compose stack
 
-When running Tier 2 (Docker Compose), set `OGEO_BIND_HOST=127.0.0.1` (the default) in `infra/docker/.env` and let Caddy or nginx terminate TLS externally. **Do not** publish the stack ports directly to `0.0.0.0` unless they are already behind a firewall.
+When running Tier 2 (Docker Compose), set `ANSEO_BIND_HOST=127.0.0.1` (the default) in `infra/docker/.env` and let Caddy or nginx terminate TLS externally. **Do not** publish the stack ports directly to `0.0.0.0` unless they are already behind a firewall.
 
 ```bash
 # infra/docker/.env
-OGEO_BIND_HOST=127.0.0.1   # default — safe; override only behind a proxy
-OGEO_PORT=8080
+ANSEO_BIND_HOST=127.0.0.1   # default — safe; override only behind a proxy
+ANSEO_API_PORT=8080
 ```
 
 ---
@@ -147,10 +147,10 @@ OGEO_PORT=8080
 
 Before exposing Anseo to any network beyond localhost:
 
-- [ ] **Pinned container images** — use a version tag (e.g. `ghcr.io/opengeo/opengeo:v0.6.0`), not `latest`, so deployments are reproducible and rollbacks are clean.
+- [ ] **Pinned container images** — use a version tag (e.g. `ghcr.io/leandropalazzo/anseo/api:v0.6.0`), not `latest`, so deployments are reproducible and rollbacks are clean.
 - [ ] **Reverse proxy + TLS** — Caddy or nginx in front, with a valid certificate. Direct port exposure to the internet is not supported.
-- [ ] **API-key gate enabled** — create at least one project key with `ogeo api key create --name prod`; the `/v1` surface requires it. Document the key rotation process for your team.
-- [ ] **Secrets injected, not baked** — pass `DATABASE_URL`, provider keys, and `OGEO_API_KEY_*` via environment variables or a secrets manager; do not hard-code them in compose files or container images.
+- [ ] **API-key gate enabled** — create at least one project key with `anseo api key create --name prod`; the `/v1` surface requires it. Document the key rotation process for your team.
+- [ ] **Secrets injected, not baked** — pass `DATABASE_URL`, provider keys, and `ANSEO_API_KEY_*` via environment variables or a secrets manager; do not hard-code them in compose files or container images.
 - [ ] **Postgres backups scheduled** — set up `pg_dump` (or equivalent) with off-host storage and verified restores. Anseo stores all benchmark data and brand configs in Postgres.
 
 ---
@@ -161,7 +161,7 @@ The `/v1` REST surface requires a project-scoped API key on every request:
 
 ```bash
 # Create a key (shown once in plaintext):
-ogeo api key create --name prod
+anseo api key create --name prod
 
 # Use it:
 curl -H "Authorization: Bearer ogeo_…" https://anseo.example.com/v1/projects
@@ -173,7 +173,7 @@ The web dashboard and MCP server are **not** key-gated in the OSS stack. Use the
 
 ## Non-loopback bind warning
 
-If you start `ogeo serve --bind 0.0.0.0:8080` (or set `OGEO_BIND_HOST=0.0.0.0`) without a proxy in front, the CLI prints a startup warning:
+If you start `anseo serve --bind 0.0.0.0:8080` (or set `ANSEO_BIND_HOST=0.0.0.0`) without a proxy in front, the CLI prints a startup warning:
 
 ```
 ⚠️  WARNING: binding to 0.0.0.0:8080 exposes Anseo on a non-loopback interface.

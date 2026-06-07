@@ -1,9 +1,9 @@
-# Anseo MCP Manual (`opengeo-mcp`)
+# Anseo MCP Manual (`anseo-mcp`)
 
 The MCP server exposes Anseo to AI agents/assistants (Claude Desktop, Cursor, Zed, Cline, …) over the [Model Context Protocol](https://modelcontextprotocol.io). It is the agent-native surface — same data and operations as the CLI/web, callable by an LLM.
 
-- **Binary/crate:** `opengeo-mcp` (`apps/mcp`). Launch via `ogeo mcp serve` or directly.
-- **Protocol:** hand-rolled JSON-RPC 2.0, MCP `protocolVersion 2024-11-05`, `serverInfo.name = "opengeo-mcp"`.
+- **Binary/crate:** `anseo-mcp` (`apps/mcp`). Launch via `anseo mcp serve` or directly.
+- **Protocol:** hand-rolled JSON-RPC 2.0, MCP `protocolVersion 2024-11-05`, `serverInfo.name = "anseo-mcp"`.
 - **Process model:** the server **never touches storage directly** — every tool proxies over loopback HTTP to the local `/v1` REST API. (Exception: `search_benchmarks` hits the public benchmark service.) This is what guarantees CLI ⇄ Web ⇄ MCP parity.
 - **Capabilities:** `tools` + `logging` only. **No MCP `resources` or `prompts` are exposed** (`initialize` returns them `null`).
 
@@ -12,40 +12,40 @@ The MCP server exposes Anseo to AI agents/assistants (Claude Desktop, Cursor, Ze
 ## Launching
 
 ```bash
-ogeo mcp serve --transport stdio              # default; for desktop clients
-ogeo mcp serve --transport http+sse --bind 127.0.0.1:7071 --require-api-key
+anseo mcp serve --transport stdio              # default; for desktop clients
+anseo mcp serve --transport http+sse --bind 127.0.0.1:7071 --allow-public  # requires ANSEO_API_KEY
 ```
 
 **Transports**
 - **stdio** (default): line-delimited JSON, one message per line; logs to **stderr only** (stdout is the protocol channel). Best for Claude Desktop / Cursor / Zed.
-- **http+sse**: `POST /mcp` (request/response), `GET /mcp/sse` (presence/keepalive — no server-push tools yet). Concurrency cap 32 in-flight (`429` beyond). With `--allow-public`/`--require-api-key`, header `X-OpenGEO-API-Key` must equal `OPENGEO_API_KEY` (else `401`); the server refuses to start public without a key set.
+- **http+sse**: `POST /mcp` (request/response), `GET /mcp/sse` (presence/keepalive — no server-push tools yet). Concurrency cap 32 in-flight (`429` beyond). With `--allow-public` (requires `ANSEO_API_KEY`), header `X-Anseo-API-Key` must equal `ANSEO_API_KEY` (else `401`); the server refuses to start public without a key set.
 
 **Environment**
 | Var | Default | Purpose |
 |---|---|---|
-| `OPENGEO_API_URL` | `http://127.0.0.1:8080` | local `/v1` base |
-| `OPENGEO_API_KEY` | — | forwarded as `Authorization: Bearer`; required for public HTTP |
-| `OPENGEO_PROJECT_ID` | `default` | forwarded as `X-OpenGEO-Project` (actual project scoping) |
-| `OPENGEO_BENCHMARK_URL` | `https://benchmark.anseo.ai` | used only by `search_benchmarks` |
+| `ANSEO_API_URL` | `http://127.0.0.1:8080` | local `/v1` base |
+| `ANSEO_API_KEY` | — | forwarded as `Authorization: Bearer`; required for public HTTP |
+| `ANSEO_PROJECT_ID` | `default` | forwarded as `X-Anseo-Project` (actual project scoping) |
+| `ANSEO_BENCHMARK_URL` | `https://benchmark.anseo.ai` | used only by `search_benchmarks` |
 
-**Auth & scoping:** every loopback call forwards `Authorization: Bearer` + `X-OpenGEO-Project`. Each tool also takes a `project` argument (the LLM-facing contract), but the server-level project header is what actually scopes data. `search_benchmarks` deliberately sends **no** key/project header (privacy floor).
+**Auth & scoping:** every loopback call forwards `Authorization: Bearer` + `X-Anseo-Project`. Each tool also takes a `project` argument (the LLM-facing contract), but the server-level project header is what actually scopes data. `search_benchmarks` deliberately sends **no** key/project header (privacy floor).
 
 ---
 
 ## Connecting a client
 
-`ogeo mcp install-config claude-desktop` writes the snippet for you. Equivalent stdio config:
+`anseo mcp install-config claude-desktop` writes the snippet for you. Equivalent stdio config:
 
 ```json
 {
   "mcpServers": {
-    "opengeo": {
-      "command": "opengeo-mcp",
+    "anseo": {
+      "command": "anseo-mcp",
       "args": ["--transport", "stdio"],
       "env": {
-        "OPENGEO_API_URL": "http://127.0.0.1:8080",
-        "OPENGEO_API_KEY": "<key>",
-        "OPENGEO_PROJECT_ID": "default"
+        "ANSEO_API_URL": "http://127.0.0.1:8080",
+        "ANSEO_API_KEY": "<key>",
+        "ANSEO_PROJECT_ID": "default"
       }
     }
   }
@@ -73,7 +73,7 @@ The registry is a **closed set**: there is no tool-registration API, so plugins 
 | Tool | Backs | Input | Returns / use case |
 |---|---|---|---|
 | **`run_prompt`** | `POST /v1/prompt-runs` | `project`, `prompt` (name/ULID, req), `providers?` (default `["mock"]`), `idempotency_key?` | Per-provider results {status, ranking, mentions, citations, duration}; flagged `non_deterministic_pipeline: true`. *"Probe my visibility live right now."* |
-| **`audit`** | `POST /v1/audit` | `target` (URL/sitemap/`file://`, req), `max_pages?` (25, 1–200), `fail_on?: string[]` | overall_score, pages_crawled, non-pass findings {page, rule_id, category, severity}, `gate_passed?` (only when fail_on given). Same engine as `ogeo audit`. *"Audit my pages for citation-readiness."* |
+| **`audit`** | `POST /v1/audit` | `target` (URL/sitemap/`file://`, req), `max_pages?` (25, 1–200), `fail_on?: string[]` | overall_score, pages_crawled, non-pass findings {page, rule_id, category, severity}, `gate_passed?` (only when fail_on given). Same engine as `anseo audit`. *"Audit my pages for citation-readiness."* |
 
 ### Recommendations lifecycle (`recommend.*`)
 Each item is the engine wire envelope passed through **verbatim** (tags, `reproducibility.class`, `non_deterministic_pipeline` reach the LLM unchanged); every description carries the best-effort/non-deterministic caveat.

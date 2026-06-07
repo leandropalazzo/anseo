@@ -15,9 +15,8 @@ CLI verbs.** That is a design choice, not a gap, and it is the **one accepted
 parity exception** in the whole system.
 
 > **Naming note.** This doc uses the **Anseo** product name. The CLI binary
-> still ships as `ogeo` (the rename to `anseo` is provisional, tracked under
-> Epic 45). Runtime env vars and the `anseo serve` command in the codebase
-> already use the Anseo form; commands below match the **shipped** binary.
+> ships as `anseo` (canonical); `ogeo` remains a deprecated alias. Commands
+> below use the canonical `anseo` form.
 
 ---
 
@@ -94,15 +93,15 @@ artifacts identifiable while routing them through first-party surfaces.
   catalog.
 - **Add a new Web route or dashboard page.** No `/v1/plugins/...` per-plugin
   endpoints exist beyond the read-only operator surface below.
-- **Add a new CLI verb.** The `ogeo plugin` verbs (below) are the only
-  plugin-related commands; a plugin cannot register `ogeo my-plugin-thing`.
+- **Add a new CLI verb.** The `anseo plugin` verbs (below) are the only
+  plugin-related commands; a plugin cannot register `anseo my-plugin-thing`.
 - **Run unsandboxed or escape its capability grant** (see Load-path gates).
 
 The single **operator-facing** API surface plugins touch is read-only:
 `GET /v1/plugins` ([`apps/api/src/routes/plugins.rs`](../apps/api/src/routes/plugins.rs)),
 which reports each installed plugin's runtime load status
 (`loaded | skipped | load_error`). It mints no plugin-driven capability — it is a
-diagnostics view of the load report, rendered identically by `ogeo plugin list`.
+diagnostics view of the load report, rendered identically by `anseo plugin list`.
 
 ---
 
@@ -133,7 +132,7 @@ The gates, in order:
    `sandbox not supported on this platform` reason — never loaded in-process.
 
 A freshly installed plugin requires a restart to take effect, exactly as
-`ogeo plugin install` instructs.
+`anseo plugin install` instructs.
 
 ---
 
@@ -146,7 +145,7 @@ chain:
 
 1. The plugin `(id, version)` is not revoked.
 2. The signing key `(namespace, keyid)` is not revoked.
-3. The namespace claim is signed by a compile-pinned `OPENGEO_ROOT_PUBKEY` (or a
+3. The namespace claim is signed by a compile-pinned `ANSEO_ROOT_PUBKEY` (or a
    root-signed rotation thereof).
 4. The detached signature verifies over `SHA-256(manifest.yaml || entrypoint)` — the shipped manifest is `manifest.yaml` (the architecture's `plugin.toml` name notwithstanding; Anseo ships YAML manifests).
 5. **TOFU:** first sight of a namespace pins its author key; a later key change is
@@ -191,20 +190,20 @@ portion from colliding with the namespace separator.
 
 ---
 
-## The `ogeo plugin` verbs
+## The `anseo plugin` verbs
 
 These are the only plugin-related CLI commands; a plugin cannot add more.
 
 | Command | Does |
 |---|---|
-| `ogeo plugin validate <path>` | Pure-data manifest validation (no load/verify). |
-| `ogeo plugin search <query>` | Search the registry index. |
-| `ogeo plugin install <ns/name[@ver]>` | Download, verify signature, install. |
-| `ogeo plugin list` | List installed plugins + load status (same view as `GET /v1/plugins`). |
-| `ogeo plugin remove <id>` | Remove a plugin. |
-| `ogeo plugin upgrade <ns/name[@ver]>` | Upgrade (capability widening needs `--accept-new-capabilities`). |
+| `anseo plugin validate <path>` | Pure-data manifest validation (no load/verify). |
+| `anseo plugin search <query>` | Search the registry index. |
+| `anseo plugin install <ns/name[@ver]>` | Download, verify signature, install. |
+| `anseo plugin list` | List installed plugins + load status (same view as `GET /v1/plugins`). |
+| `anseo plugin remove <id>` | Remove a plugin. |
+| `anseo plugin upgrade <ns/name[@ver]>` | Upgrade (capability widening needs `--accept-new-capabilities`). |
 
-See the [CLI manual → Plugins](./manual/cli.md#11-plugins--ogeo-plugin-phase-3)
+See the [CLI manual → Plugins](./manual/cli.md#11-plugins--anseo-plugin-phase-3)
 for flags and use cases.
 
 ---
