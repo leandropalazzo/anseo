@@ -3,8 +3,8 @@
 The dashboard (Next.js 16 App Router, `apps/web/app`) is the human surface — **read** analytics + **control** operations + **trust/evidence** views. It mirrors the CLI/MCP over the same `/v1` API.
 
 **Cross-cutting behaviors**
-- **Demo-data contract:** live data renders if present; if empty and `OGEO_DEMO=1`, mock data renders behind a visible **demo badge**; otherwise an **empty state** that usually points at the `ogeo …` command to produce the data.
-- **CLI parity:** empty states and "copy as command" affordances surface the equivalent `ogeo` command throughout. Some actions are intentionally **CLI-only** (e.g. plugin install, bulk recommendation actions) and shown as disabled affordances, not hidden.
+- **Demo-data contract:** live data renders if present; if empty and `OGEO_DEMO=1`, mock data renders behind a visible **demo badge**; otherwise an **empty state** that usually points at the `anseo …` command to produce the data.
+- **CLI parity:** empty states and "copy as command" affordances surface the equivalent `anseo` command throughout. Some actions are intentionally **CLI-only** (e.g. plugin install, bulk recommendation actions) and shown as disabled affordances, not hidden.
 - **Graceful degradation:** a failed fetch yields an empty state, not a 500.
 
 Legend: **R** read · **C** control · **S** setup/infra.
@@ -31,11 +31,11 @@ Tabs: **table** (domains + frequency + trend sparkline + citation score), **grap
 
 ### `/sentiment` — Sentiment (R)
 7/30/90-day window; per-entity cards with avg score /100 and positive/neutral/negative share bars.
-- **Use case:** monitor mention tone per entity. Empty state cites `ogeo report --since 30d`.
+- **Use case:** monitor mention tone per entity. Empty state cites `anseo report --since 30d`.
 
 ### `/crawlers` — Crawlers (R + connect-source control)
 7/30/90-day window; verified AI-crawler activity table (hits/verified/errors), top crawled paths, crawl-to-refer ratio table (handles `crawls_only` state), and a `ConnectSource` ingest panel.
-- **Use case:** see which AI crawlers hit your site and whether crawls convert to referrals. Empty state cites `ogeo crawlers --ratio`.
+- **Use case:** see which AI crawlers hit your site and whether crawls convert to referrals. Empty state cites `anseo crawlers --ratio`.
 
 ---
 
@@ -54,7 +54,7 @@ Header (run id, timestamp, prompt/provider/model, status) + actions **Copy id**,
 ## Control plane — operate
 
 ### `/prompts` — Prompts (C)
-Prompt list + editor (name/text/tags; Save/Delete/Discard), an **AI generator** (pick a configured provider → suggest drafts → review → add), and a "copy as command" emitting `ogeo run --prompt "…"`.
+Prompt list + editor (name/text/tags; Save/Delete/Discard), an **AI generator** (pick a configured provider → suggest drafts → review → add), and a "copy as command" emitting `anseo run --prompt "…"`.
 - **Use case:** CRUD prompts; generate prompt ideas grounded in brand/competitors. Renaming warns it re-derives identity (allowed only before first run).
 
 ### `/schedules` — Schedules (C)
@@ -67,11 +67,11 @@ Tabs: **Inbox** (7-day anomalies) and **Rules** (alert rules).
 
 ### `/audit` — Site Audit (C/R)
 `AuditRunner` (target defaults to brand `site_url`) + "past audits" history (when/target/pages/score-/100). Heuristics are **open, in-tree**.
-- **Use case:** run an on-demand citation-readiness audit; review past scores. (Same engine as `ogeo audit` and the MCP `audit` tool.)
+- **Use case:** run an on-demand citation-readiness audit; review past scores. (Same engine as `anseo audit` and the MCP `audit` tool.)
 
 ### `/recommendations` — Recommendations (C/R)
 `GenerateButton`, an "adoption by kind" panel (acted vs dismissed, % acted), and recommendation cards (priority, **NDP marker**, summary, kind/state/confidence) with inline Mark done / Dismiss.
-- **Use case:** review & act on GEO recommendations; see which kinds actually move visibility. Empty state cites `ogeo recommend generate`. Bulk actions are **CLI-only** (shown disabled).
+- **Use case:** review & act on GEO recommendations; see which kinds actually move visibility. Empty state cites `anseo recommend generate`. Bulk actions are **CLI-only** (shown disabled).
 
 ### `/recommendations/[id]` — Recommendation Detail (C/R · evidence)
 Header with priority, NDP marker, state, **reproducibility class**, engine version; an **NDP disclaimer** for non-deterministic recs ("directional, not guaranteed"); **Evidence & traceability** chips linking to source runs + citations (an empty traceability block is a render error); **lifecycle actions** (mark acted with evidence, etc.).
@@ -82,7 +82,7 @@ Header with priority, NDP marker, state, **reproducibility class**, engine versi
 ## Integration / trust
 
 ### `/mcp` — MCP Server (R)
-Searchable tool catalog ("the same surfaces as the Web UI, served by the MCP server") with example JSON calls + a Claude Desktop config snippet (`ogeo mcp serve`), plus a recent-calls activity log.
+Searchable tool catalog ("the same surfaces as the Web UI, served by the MCP server") with example JSON calls + a Claude Desktop config snippet (`anseo mcp serve`), plus a recent-calls activity log.
 - **Use case:** discover MCP tools and wire up a client. See the [MCP manual](./mcp.md).
 
 ### `/mcp/[tool]` — MCP Tool Detail (R)
@@ -90,7 +90,7 @@ Per-tool stats: total calls, error rate, p50/p95 latency, invocation history.
 - **Use case:** monitor a single MCP tool's reliability.
 
 ### `/marketplace` + `/marketplace/[slug]` — Plugins (R + install control)
-Plugin grid; detail page with capability block + install (installed/update pills or install sheet) and CLI fallback `ogeo plugin install <slug>@<version>`.
+Plugin grid; detail page with capability block + install (installed/update pills or install sheet) and CLI fallback `anseo plugin install <slug>@<version>`.
 - **Use case:** discover & install plugins (install runs via the CLI).
 
 ---
@@ -114,7 +114,7 @@ Infra status cards: Postgres, Worker, ClickHouse (+docker), ETL progress (state/
 ## Dev / onboarding
 
 ### `/onboarding` — Initialize Anseo (C, first-run)
-Five-step wizard mirroring `ogeo init`: Initialize project → Connect providers → Configure brand → First prompt run → Schedule & alerts. Gated by an onboarded flag (bounces to `/` if already onboarded).
+Five-step wizard mirroring `anseo init`: Initialize project → Connect providers → Configure brand → First prompt run → Schedule & alerts. Gated by an onboarded flag (bounces to `/` if already onboarded).
 - **Use case:** guided first-run setup.
 
 ### `/dev` — Plugin Dev (C/R, dev-only)

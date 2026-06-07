@@ -1,6 +1,6 @@
 # Instrumentation SDK + Run Ingestion
 
-The instrumentation SDKs let you ship **externally-executed** LLM runs into Anseo. You already ran a prompt against a provider (OpenAI, Anthropic, …) *outside* Anseo; the SDK posts that run to `POST /v1/ingest/run`, so it flows through the **same extraction → redaction → benchmark-contribution path** as a native `ogeo prompt run`. Think OpenTelemetry-for-AI-search-visibility: a thin wrapper reads the provider's raw response, derives `provider`/`model`, and ships the run — without changing your inference logic, and **without ever interrupting your application**.
+The instrumentation SDKs let you ship **externally-executed** LLM runs into Anseo. You already ran a prompt against a provider (OpenAI, Anthropic, …) *outside* Anseo; the SDK posts that run to `POST /v1/ingest/run`, so it flows through the **same extraction → redaction → benchmark-contribution path** as a native `anseo prompt run`. Think OpenTelemetry-for-AI-search-visibility: a thin wrapper reads the provider's raw response, derives `provider`/`model`, and ships the run — without changing your inference logic, and **without ever interrupting your application**.
 
 > This page documents the OSS-canonical instrumentation surface only: the three SDKs (Python/TypeScript/Go), the ingest wire shape, the consent + redaction boundary, and the canonical-suite hook. The language-agnostic contract lives in [`../sdk-spec.md`](../sdk-spec.md); per-package READMEs live under [`packages/`](https://github.com/leandropalazzo/anseo/tree/main/packages).
 
@@ -8,10 +8,10 @@ The instrumentation SDKs let you ship **externally-executed** LLM runs into Anse
 
 | You run prompts… | Use |
 |---|---|
-| via Anseo (`ogeo prompt run`, schedules, MCP `run_prompt`) | nothing — runs are already recorded and (if opted in) contributed |
+| via Anseo (`anseo prompt run`, schedules, MCP `run_prompt`) | nothing — runs are already recorded and (if opted in) contributed |
 | in your own application/pipeline, outside Anseo | the **instrumentation SDK** — ship each run to `/v1/ingest/run` |
 
-The slug you record (`prompt_slug`) **must already be declared** in the project (`ogeo prompt add --name <slug>`). The ingest API never auto-creates prompts — an undeclared slug returns `404 prompt_not_found`.
+The slug you record (`prompt_slug`) **must already be declared** in the project (`anseo prompt add --name <slug>`). The ingest API never auto-creates prompts — an undeclared slug returns `404 prompt_not_found`.
 
 ---
 
@@ -62,7 +62,7 @@ print(result.run_id, result.contribution["status"])
 
 Construction raises `AnseoConfigError` when `base_url`/`api_key` is missing; `observe_run` raises `AnseoApiError` (with `.status`, `.code`) on a non-2xx. Debug logging: `logging.getLogger("anseo").setLevel(logging.DEBUG)`.
 
-### TypeScript — `@opengeo/observe`
+### TypeScript — `@anseo/observe`
 
 Zero runtime dependencies — uses the global `fetch` (Node ≥ 18, Deno, edge runtimes, browsers). Source: [`packages/sdk-typescript/`](https://github.com/leandropalazzo/anseo/tree/main/packages/sdk-typescript).
 
@@ -116,7 +116,7 @@ if err != nil {
 fmt.Println(result.RunID, result.Contribution.Status)
 ```
 
-> **Naming note.** The TypeScript and Go packages currently ship under the `@opengeo/observe` / `github.com/opengeo/opengeo` namespaces and send the legacy `X-OpenGEO-*` headers. The server accepts both the legacy and canonical `X-Anseo-*` headers (see below). The published package names migrate with the broader Anseo rebrand; this page uses canonical `anseo.ai` hostnames and `ANSEO_*` env-var conventions for forward-compatibility.
+> **Naming note.** The Go module is still published under the legacy `github.com/opengeo/opengeo/packages/sdk-go` import path (the import statement above reflects the real, current path); the TypeScript package already ships as `@anseo/observe`. Both SDKs send the canonical `X-Anseo-*` headers, and the server also accepts the legacy `X-OpenGEO-*` spellings for back-compat (see below). The Go import path migrates with the broader Anseo rebrand; this page uses canonical `anseo.ai` hostnames and `ANSEO_*` env-var conventions throughout.
 
 ---
 
@@ -216,7 +216,7 @@ Non-2xx bodies carry `{ "error": "<code>", "message": "<human text>" }`, e.g. `4
 
 Persisting a run and contributing it to the public benchmark are **two separate decisions**. An ingested run is always persisted; it is sealed for the public benchmark only when **all** of these hold:
 
-1. **The project opted in.** Run `ogeo benchmark optin` once per project (audited, durable). Check with `ogeo benchmark status`; reverse with `ogeo benchmark optout`. Without opt-in, the response reports `skipped_not_opted_in`.
+1. **The project opted in.** Run `anseo benchmark optin` once per project (audited, durable). Check with `anseo benchmark status`; reverse with `anseo benchmark optout`. Without opt-in, the response reports `skipped_not_opted_in`.
 2. **The project has a per-project encryption key (KEK).** A run that requests contribution without a KEK is reported as `kek_missing` and is **not** sealed under a false promise of contribution.
 3. **The current benchmark terms are accepted.** The redactor stamps each sealed payload with the consented `terms_version` and refuses to seal if the operator's accepted terms are stale (`redaction_rejected`).
 
@@ -259,15 +259,15 @@ The public benchmark is only useful as a dataset if contributors' runs are **app
 The mechanism is the slug itself:
 
 - The `prompt_slug` you ingest is the join key. Runs sharing a slug (across operators) aggregate into the same benchmark cohort.
-- The slug must be **declared in your project** before you can ingest against it (`ogeo prompt add --name <slug>`), and it must be **slug-safe** (lowercase ASCII + digits + hyphens).
+- The slug must be **declared in your project** before you can ingest against it (`anseo prompt add --name <slug>`), and it must be **slug-safe** (lowercase ASCII + digits + hyphens).
 - To contribute comparable data, align your slugs to the **canonical GEO prompt suite** — a versioned list of standard prompt slugs (e.g. `geo-v1/best-vector-db`) shared by all contributors. Using a canonical slug is what puts your runs in the same cohort as everyone else's.
 
-> **Known limitation (as of this release).** The canonical GEO prompt suite (Epic 39, Story 39.3) is **not yet published**. Until it lands there is no `GET /v1/suite/prompts` endpoint, no `ogeo suite list` / `ogeo suite check` helper, and no canonical slug table — so cross-operator suite comparability is **not yet available**. You can ingest and persist runs today and contribute them under your own declared slugs; they simply will not join a canonical cohort until the suite ships. This page will gain the slug table and the `suite` CLI/API/MCP surfaces once 39.3 is merged. Track the gap in Epic 39.
+> **Known limitation (as of this release).** The canonical GEO prompt suite (Epic 39, Story 39.3) is **not yet published**. Until it lands there is no `GET /v1/suite/prompts` endpoint, no `anseo suite list` / `anseo suite check` helper, and no canonical slug table — so cross-operator suite comparability is **not yet available**. You can ingest and persist runs today and contribute them under your own declared slugs; they simply will not join a canonical cohort until the suite ships. This page will gain the slug table and the `suite` CLI/API/MCP surfaces once 39.3 is merged. Track the gap in Epic 39.
 
 Until then, the comparable-contribution recipe is:
 
-1. `ogeo prompt add --name <slug>` — declare the slug in your project.
-2. `ogeo benchmark optin` — opt the project into the public dataset (once).
+1. `anseo prompt add --name <slug>` — declare the slug in your project.
+2. `anseo benchmark optin` — opt the project into the public dataset (once).
 3. Ensure the project has a KEK and current terms are accepted.
 4. Instrument your code with the SDK, recording that exact `prompt_slug`.
 5. Read `contribution.status` on the response to confirm runs are `sealed`.
@@ -277,6 +277,6 @@ Until then, the comparable-contribution recipe is:
 ## See also
 
 - [`../sdk-spec.md`](../sdk-spec.md) — the language-agnostic SDK contract (the source of truth the three SDKs implement).
-- [CLI manual](./cli.md) — `ogeo prompt`, `ogeo benchmark optin|optout|status`, API keys.
+- [CLI manual](./cli.md) — `anseo prompt`, `anseo benchmark optin|optout|status`, API keys.
 - [MCP manual](./mcp.md) — agent-facing tools over the same `/v1` API.
 - [Deploy manual](./deploy.md) — standing up the node the SDK ships to.

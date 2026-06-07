@@ -3,19 +3,19 @@
 Anseo is the self-hostable observability stack for AI search visibility — track how your brand ranks in LLM responses, against your competitors, over time. Fully open source (MIT); runs entirely in your own deployment.
 
 ```bash
-ogeo init                                  # scaffold opengeo.yaml
-ogeo login openai                          # store a provider key (OS keychain / age file / env)
-ogeo login anthropic
-ogeo prompt run                            # run declared prompts × providers, extract + persist
-ogeo report generate --format markdown     # summarize a recent window
-ogeo check visibility --expect-rank-lte 3  # CI gate on ranking (FR-15)
-ogeo dashboard open                        # open the local dashboard
+anseo init                                  # scaffold anseo.yaml
+anseo login openai                          # store a provider key (OS keychain / age file / env)
+anseo login anthropic
+anseo prompt run                            # run declared prompts × providers, extract + persist
+anseo report generate --format markdown     # summarize a recent window
+anseo check visibility --expect-rank-lte 3  # CI gate on ranking (FR-15)
+anseo dashboard open                        # open the local dashboard
 ```
 
 The closed local loop:
 
 ```text
-YAML config -> CLI prompt runs -> provider calls -> mention/citation extraction -> PostgreSQL persistence -> dashboard -> ogeo serve (or Docker Compose)
+YAML config -> CLI prompt runs -> provider calls -> mention/citation extraction -> PostgreSQL persistence -> dashboard -> anseo serve (or Docker Compose)
 ```
 
 **v0.5.0** wrapped that loop in a full operability surface (the OSS GA): a programmable REST `/v1` API with auto-generated TypeScript + Python SDKs, scheduled runs with anomaly alerts and webhook/Slack/SMTP delivery, ClickHouse-backed analytics, seven provider adapters, a GitHub Action, and a redesigned dashboard.
@@ -26,19 +26,19 @@ YAML config -> CLI prompt runs -> provider calls -> mention/citation extraction 
 
 One multi-project core, three ways to run it — pick by how much you want running.
 
-**Tier 0 — solo CLI.** Just `ogeo` against a Postgres you point it at; no long-running services.
+**Tier 0 — solo CLI.** Just `anseo` against a Postgres you point it at; no long-running services. (`ogeo` remains a deprecated alias for the `anseo` CLI.)
 
 ```bash
 export DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo
-ogeo init && ogeo login openai
-ogeo prompt run
+anseo init && anseo login openai
+anseo prompt run
 ```
 
-**Tier 1 — single binary (`ogeo serve`).** One process runs the REST API + the worker in-process. With no `DATABASE_URL` it provisions and supervises a **managed child Postgres** (nothing else to install); set `DATABASE_URL` to use your own. Binds `127.0.0.1:8080` by default.
+**Tier 1 — single binary (`anseo serve`).** One process runs the REST API + the worker in-process. With no `DATABASE_URL` it provisions and supervises a **managed child Postgres** (nothing else to install); set `DATABASE_URL` to use your own. Binds `127.0.0.1:8080` by default.
 
 ```bash
-ogeo serve                                         # managed child Postgres; API+worker on :8080
-DATABASE_URL=postgres://… ogeo serve --port 8080   # …or bring your own Postgres
+anseo serve                                         # managed child Postgres; API+worker on :8080
+DATABASE_URL=postgres://… anseo serve --port 8080   # …or bring your own Postgres
 ```
 
 Bind to a non-loopback address (`--bind host:port`) only behind your own auth/network controls — a public bind with no API keys is refused. See [Production deployment](docs/production-deployment.md) for reverse-proxy/TLS guidance.
@@ -51,22 +51,22 @@ docker compose -f infra/docker/compose.yml up -d
 docker compose -f infra/docker/compose.yml ps      # wait for healthy
 ```
 
-Every published port binds to `127.0.0.1` by default; override with `OGEO_BIND_HOST` only behind your own network controls. ClickHouse analytics is connected separately via the dashboard's guided setup. See [Production deployment](docs/production-deployment.md) for Caddy/nginx reverse-proxy configs and the pre-launch checklist.
+Every published port binds to `127.0.0.1` by default; override with `ANSEO_BIND_HOST` only behind your own network controls. ClickHouse analytics is connected separately via the dashboard's guided setup. See [Production deployment](docs/production-deployment.md) for Caddy/nginx reverse-proxy configs and the pre-launch checklist.
 
 A single operator runs **multiple projects** (brands) per deployment; the CLI, web dashboard, and MCP server all thread the selected project through every call.
 
 ## Exposing Anseo safely (security baseline)
 
-**Do not expose Anseo to a public network without a reverse proxy, TLS, and auth in front of it.** The OSS stack has no built-in authentication for the web dashboard or MCP surfaces; only the `/v1` REST API enforces per-project API keys. `ogeo serve` binds `127.0.0.1` by default; if you override that to a public interface it prints a non-blocking warning reminding you to put a proxy in front.
+**Do not expose Anseo to a public network without a reverse proxy, TLS, and auth in front of it.** The OSS stack has no built-in authentication for the web dashboard or MCP surfaces; only the `/v1` REST API enforces per-project API keys. `anseo serve` binds `127.0.0.1` by default; if you override that to a public interface it prints a non-blocking warning reminding you to put a proxy in front.
 
 See **[docs/production-deployment.md](docs/production-deployment.md)** for:
 - Copy-paste Caddy (automatic TLS) and nginx reverse-proxy configs with auth
-- Docker Compose `OGEO_BIND_HOST` guidance
+- Docker Compose `ANSEO_BIND_HOST` guidance
 - The five-item pre-launch production checklist
 
 ## Repo model (inverted open-core, ADR-007)
 
-This public `opengeo` repo is the **canonical OSS source of truth** — make OSS changes here. A private `opengeo-internal` repo overlays it via git submodule and adds commercial/Pro capabilities (premium hallucination/brand-accuracy verdicts, hosted-cloud infra) — **none of which appears in this repo**. See [`docs/open-core-boundary.md`](docs/open-core-boundary.md) for the full MIT-OSS vs private split.
+This public `anseo` repo is the **canonical OSS source of truth** — make OSS changes here. A private `anseo-internal` repo overlays it via git submodule and adds commercial/Pro capabilities (premium hallucination/brand-accuracy verdicts, hosted-cloud infra) — **none of which appears in this repo**. See [`docs/open-core-boundary.md`](docs/open-core-boundary.md) for the full MIT-OSS vs private split.
 
 ## Layout
 
@@ -74,7 +74,7 @@ This public `opengeo` repo is the **canonical OSS source of truth** — make OSS
 apps/
   api/      Axum REST `/v1` API binary
   worker/   background worker (scheduled runs, alert/webhook delivery)
-  cli/      `ogeo` CLI binary
+  cli/      `anseo` CLI binary (ships `ogeo` as a deprecated alias)
   mcp/      MCP server binary
   web/      Next.js dashboard (the canonical Anseo dashboard)
 crates/
@@ -93,7 +93,7 @@ extension/          MV3 browser extension (preview)
 packages/           generated TypeScript / Python / Go SDKs
 infra/
   docker/           Docker Compose stack
-  github-action/    `ogeo check` GitHub Action (bats + smoke tests)
+  github-action/    `anseo check` GitHub Action (bats + smoke tests)
 ```
 
 ## Toolchain
@@ -115,8 +115,8 @@ cd apps/web && pnpm install && pnpm build && pnpm lint
 `apps/api` exposes a read + write REST API under `/v1`, authenticated with per-project API keys. OpenAPI is generated from `crates/wire-schema`, and the TypeScript + Python + Go SDKs in `packages/` are generated from that spec (a CI drift gate keeps them in sync).
 
 ```bash
-ogeo api key create --name ci        # plaintext shown once
-cargo run -p opengeo-api             # serve on :8080
+anseo api key create --name ci       # plaintext shown once
+cargo run -p anseo-api               # serve on :8080
 ```
 
 ## Scheduling, alerts & webhooks
@@ -125,26 +125,26 @@ YAML `v0.2` schedule definitions drive the background worker (at-most-once deliv
 
 ## Analytics (ClickHouse)
 
-A ClickHouse analytics backend with a Postgres↔ClickHouse parity test and live routes (`/v1/analytics/{citation-graph,heatmap,volatility}`). Migrate idempotently with `ogeo analytics migrate-to-clickhouse`.
+A ClickHouse analytics backend with a Postgres↔ClickHouse parity test and live routes (`/v1/analytics/{citation-graph,heatmap,volatility}`). Migrate idempotently with `anseo analytics migrate-to-clickhouse`.
 
 ## MCP server
 
 `apps/mcp` is a Model Context Protocol server (stdio + HTTP/SSE) that lets an LLM client (Claude Desktop, Cursor, Zed) query and drive a project. Seven tools: `run_prompt`, `get_visibility`, `get_citations`, `list_trends`, `compare_brands`, `search_benchmarks`, `recommend`.
 
 ```bash
-ogeo mcp serve
-ogeo mcp install-config              # write a Claude Desktop / Cursor / Zed snippet
+anseo mcp serve
+anseo mcp install-config              # write a Claude Desktop / Cursor / Zed snippet
 ```
 
 ## GEO recommendations
 
-The `recommendations` crate emits prioritized, reproducible recommendations (deterministic kinds plus LLM-assisted kinds behind a determinism allow-list + cost cap), each with a lifecycle (surfaced → acknowledged → acted/dismissed) and webhook events. Available via `ogeo recommend`, REST `/v1/recommendations`, and the MCP `recommend` tool.
+The `recommendations` crate emits prioritized, reproducible recommendations (deterministic kinds plus LLM-assisted kinds behind a determinism allow-list + cost cap), each with a lifecycle (surfaced → acknowledged → acted/dismissed) and webhook events. Available via `anseo recommend`, REST `/v1/recommendations`, and the MCP `recommend` tool.
 
 ## Preview surfaces
 
 Two surfaces are in the tree but ship as **preview** — substrate and contracts are landed, but several behaviors are still mock-backed. Treat them as not-yet-production:
 
-- **Plugin SDK** (`crates/plugin-host`, `crates/plugin-manifest`, `ogeo plugin`) — manifest validation, ed25519 TOFU signing + revocation, namespace claims, and the capability catalog are real; sandbox execution, the registry, and marketplace surfaces are mock-backed.
+- **Plugin SDK** (`crates/plugin-host`, `crates/plugin-manifest`, `anseo plugin`) — manifest validation, ed25519 TOFU signing + revocation, namespace claims, and the capability catalog are real; sandbox execution, the registry, and marketplace surfaces are mock-backed.
 - **Browser extension** (`extension/`) — the MV3 manifest, service worker, paste-token bind, and the five-layer privacy invariant are real; per-site adapters, Shadow-DOM overlays, citation chips, popup, and the prompt-analysis classifier are mock-backed.
 
 ## CLI error mapping

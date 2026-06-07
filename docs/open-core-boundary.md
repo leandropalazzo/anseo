@@ -4,22 +4,22 @@
 
 ---
 
-## MIT OSS Core (`opengeo` — public)
+## MIT OSS Core (`anseo` — public)
 
-Everything needed to run a fully capable single-operator, multi-project Anseo deployment is MIT-licensed and lives in the public `opengeo` repo:
+Everything needed to run a fully capable single-operator, multi-project Anseo deployment is MIT-licensed and lives in the public `anseo` repo:
 
 - Data collection, prompt execution, and provider adapters
 - Mention and citation extraction
 - GEO analytics (Postgres query layer; ClickHouse via opt-in plugin)
 - Crawler ingest and audit heuristics
 - GEO recommendations engine (all ten kinds, including LLM-assisted)
-- Multi-project support (`ogeo project` verbs, `X-OpenGEO-Project` header, per-project secret keying)
-- `ogeo serve` (Tier-1 single-binary turnkey: embedded Postgres, in-process worker, static dashboard, MCP HTTP/SSE)
+- Multi-project support (`anseo project` verbs, `X-Anseo-Project` header, per-project secret keying)
+- `anseo serve` (Tier-1 single-binary turnkey: embedded Postgres, in-process worker, static dashboard, MCP HTTP/SSE)
 - Plugin host and marketplace OSS surface (manifest, ed25519 TOFU signing, capability catalog)
 - TypeScript and Python SDKs (generated from the wire-schema OpenAPI spec)
 - All CLI commands, the REST `/v1` API, scheduling, webhooks, and the MCP server
 
-## PRIVATE (`opengeo-internal` overlay only)
+## PRIVATE (`anseo-internal` overlay only)
 
 The following surfaces are Pro/cloud-only and never appear in the public repo:
 

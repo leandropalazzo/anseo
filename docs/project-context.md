@@ -127,19 +127,19 @@ Need:
 Example Commands:
 
 ```
-ogeo init
-ogeo login
-ogeo monitor add
-ogeo prompt run
-ogeo benchmark pull
-ogeo report generate
-ogeo dashboard open
+anseo init
+anseo login
+anseo monitor add
+anseo prompt run
+anseo benchmark pull
+anseo report generate
+anseo dashboard open
 ```
 
 CI/CD Example:
 
 ```
-ogeo check visibility \
+anseo check visibility \
   --prompt "best vector database" \
   --brand "Pinecone" \
   --expect-rank-lte 3
@@ -285,7 +285,7 @@ Example Reports:
 ### GitHub Action
 
 ```
-- uses: opengEO/check-visibility@v1
+- uses: anseo/check-visibility@v1
 ```
 
 ### Browser Extension
@@ -317,7 +317,7 @@ Example Reports:
 ## 13. Suggested Repository Structure
 
 ```
-/opengEO
+/anseo
   /apps
     /web
     /api

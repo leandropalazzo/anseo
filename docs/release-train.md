@@ -22,7 +22,7 @@ Run workflow** (`workflow_dispatch`), which takes a `ref` and a `dry_run` flag.
 | **Standalone compose snapshot** | 38.16 | pinned `compose.yml` published to `https://anseo.ai/compose/<X.Y.Z>.yml` | images |
 | **SDK publish** | 40.x | `@anseo/observe` → npm, `anseo-observe` → PyPI | resolve |
 | **Plugin sign/publish** | 41.4 | signed first-party plugin bundle via `plugin-sign.yml` | resolve |
-| **Overlay submodule bump** | 38.18 | `opengeo-internal` repoints its submodule at the tag + green-gates | resolve |
+| **Overlay submodule bump** | 38.18 | `anseo-internal` repoints its submodule at the tag + green-gates | resolve |
 | **Docs/marketing site** | 38.21 | site rebuilt against the tag | resolve |
 | **GitHub Release** | 38.19 | the user-facing Release object with notes + the compose snapshot attached | images, compose snapshot |
 | **Release summary** | 38.19 | one job; reports every leg and **fails the train if any leg failed** | all legs (`always()`) |
@@ -104,7 +104,7 @@ approval-less paths.
 > rule** restricting deployments to `v*` tags / the default branch. Without
 > required reviewers the gate is inert. The repo that holds a given secret is the
 > repo where the environment protection matters (e.g. the real signing key lives
-> in `opengeo-internal`, so configure reviewers there). In the public `opengeo`
+> in `anseo-internal`, so configure reviewers there). In the public `anseo`
 > repo there are no publish secrets, so its `release` environment can be left
 > without reviewers and the ephemeral-key plugin self-check still runs green.
 
@@ -131,7 +131,7 @@ publish tokens in scope. Dry-run and the build-only paths (`images`,
 
 Every cross-repo / publish leg derives a non-secret `enabled` boolean from the
 **presence** of its token (never its value) and gates on that. In the public
-`opengeo` repo, which holds no publish tokens, those legs skip cleanly rather
+`anseo` repo, which holds no publish tokens, those legs skip cleanly rather
 than failing; the images + compose snapshot (which need only `GITHUB_TOKEN`)
 still build, and the snapshot is retained as a run artifact.
 
