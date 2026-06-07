@@ -17,7 +17,7 @@ Migrations apply automatically on first connect in every tier, so there is no se
 No long-running services. You point `anseo` at a Postgres and invoke it when you need it. (`ogeo` remains a deprecated alias for the `anseo` CLI.)
 
 ```bash
-export DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo
+export DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo
 anseo init                                  # scaffold anseo.yaml
 anseo login openai                          # store a provider key
 anseo prompt run                            # run prompts × providers, extract + persist
@@ -46,7 +46,7 @@ anseo serve --bind 0.0.0.0:8080             # non-loopback bind — read the war
 - **`DATABASE_URL` set** → it uses your external Postgres unchanged.
 
 ```bash
-DATABASE_URL=postgres://opengeo:opengeo@db.internal:5432/opengeo anseo serve
+DATABASE_URL=postgres://anseo:anseo@db.internal:5432/anseo anseo serve
 ```
 
 **Binding & safety.** The default bind is `127.0.0.1:8080` (localhost-only). A **non-loopback bind with no API keys configured is refused** — so you can't accidentally expose an unauthenticated instance. Before binding to a public interface: create API keys (`anseo api key create`) and put the process behind your own TLS / auth / network controls.

@@ -15,7 +15,7 @@
 //! default cargo run; invoke with:
 //!
 //! ```text
-//! DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo \
+//! DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo \
 //!   cargo test -p opengeo-api --test prompt_run_persist -- --ignored
 //! ```
 

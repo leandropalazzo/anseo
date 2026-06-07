@@ -16,15 +16,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-opengeo}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-opengeo}
-      POSTGRES_DB: ${POSTGRES_DB:-opengeo}
+      POSTGRES_USER: ${POSTGRES_USER:-anseo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-anseo}
+      POSTGRES_DB: ${POSTGRES_DB:-anseo}
     ports:
       - "${ANSEO_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-opengeo} -d ${POSTGRES_DB:-opengeo}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-anseo} -d ${POSTGRES_DB:-anseo}"]
       interval: 2s
       timeout: 3s
       retries: 15
@@ -54,7 +54,7 @@ services:
     image: ${ANSEO_API_IMAGE:-anseo/api:dev}
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-opengeo}:${POSTGRES_PASSWORD:-opengeo}@postgres:5432/${POSTGRES_DB:-opengeo}
+      DATABASE_URL: postgres://${POSTGRES_USER:-anseo}:${POSTGRES_PASSWORD:-anseo}@postgres:5432/${POSTGRES_DB:-anseo}
       REDIS_URL: redis://redis:6379
       ANSEO_BIND_ADDR: 0.0.0.0:8080
       # The api binds 0.0.0.0 so the sibling `web` container can reach it at
@@ -125,7 +125,7 @@ services:
     image: ${ANSEO_WORKER_IMAGE:-anseo/worker:dev}
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-opengeo}:${POSTGRES_PASSWORD:-opengeo}@postgres:5432/${POSTGRES_DB:-opengeo}
+      DATABASE_URL: postgres://${POSTGRES_USER:-anseo}:${POSTGRES_PASSWORD:-anseo}@postgres:5432/${POSTGRES_DB:-anseo}
       REDIS_URL: redis://redis:6379
       RUST_LOG: ${RUST_LOG:-info}
       # Same canonical config the api derives its project_id from — the worker

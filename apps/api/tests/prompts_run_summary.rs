@@ -11,7 +11,7 @@ use tower::ServiceExt;
 
 fn build_router() -> axum::Router {
     let lazy_pool = sqlx::PgPool::connect_lazy(
-        "postgres://opengeo:opengeo@127.0.0.1:1/__prompts_run_summary_test__",
+        "postgres://anseo:anseo@127.0.0.1:1/__prompts_run_summary_test__",
     )
     .expect("connect_lazy never IOs synchronously");
     let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));

@@ -81,7 +81,7 @@ mod tests {
         // name; if this string changes silently, the attribution
         // breaks.
         let lazy_pool = sqlx::PgPool::connect_lazy(
-            "postgres://opengeo:opengeo@127.0.0.1:1/__metrics_backend_smoke__",
+            "postgres://anseo:anseo@127.0.0.1:1/__metrics_backend_smoke__",
         )
         .unwrap();
         let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
@@ -95,7 +95,7 @@ mod tests {
         // implements it or updates this test. Either path beats
         // silently returning the wrong data.
         let lazy_pool =
-            sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__anom_smoke__")
+            sqlx::PgPool::connect_lazy("postgres://anseo:anseo@127.0.0.1:1/__anom_smoke__")
                 .unwrap();
         let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
         let store = PostgresMetricsStore::new(storage);

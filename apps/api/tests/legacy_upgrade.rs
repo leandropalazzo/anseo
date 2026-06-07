@@ -24,7 +24,7 @@
 //! suites:
 //!
 //! ```text
-//! DATABASE_URL=postgres://opengeo:opengeo@localhost:5447/opengeo_test \
+//! DATABASE_URL=postgres://anseo:anseo@localhost:5447/anseo_test \
 //!   cargo test -p opengeo-api --test legacy_upgrade -- --ignored
 //! ```
 

@@ -17,7 +17,7 @@ use tower::ServiceExt;
 
 fn lazy_storage() -> Arc<anseo_storage::Storage> {
     let pool = sqlx::PgPool::connect_lazy(
-        "postgres://opengeo:opengeo@127.0.0.1:1/__prompts_similarity_test__",
+        "postgres://anseo:anseo@127.0.0.1:1/__prompts_similarity_test__",
     )
     .expect("connect_lazy never IOs synchronously");
     Arc::new(anseo_storage::Storage::from_pool(pool))

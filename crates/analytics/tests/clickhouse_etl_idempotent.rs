@@ -10,7 +10,7 @@
 //!     CLICKHOUSE_URL=http://localhost:8123 \
 //!     CLICKHOUSE_USER=opengeo CLICKHOUSE_PASSWORD=... \
 //!     CLICKHOUSE_DATABASE=anseo_analytics \
-//!     DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo \
+//!     DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo \
 //!     cargo test -p opengeo-analytics --features clickhouse \
 //!       --test clickhouse_etl_idempotent -- --ignored
 

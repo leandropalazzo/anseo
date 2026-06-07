@@ -41,7 +41,7 @@ async fn api_router_builds_with_minimal_state() {
     // build an in-memory placeholder pool via `sqlx::PgPool::connect_lazy` —
     // the router itself doesn't dereference the pool until a request lands.
     let lazy_pool =
-        sqlx::PgPool::connect_lazy("postgres://opengeo:opengeo@127.0.0.1:1/__router_build_smoke__")
+        sqlx::PgPool::connect_lazy("postgres://anseo:anseo@127.0.0.1:1/__router_build_smoke__")
             .expect("connect_lazy never IOs synchronously");
     let storage = Arc::new(anseo_storage::Storage::from_pool(lazy_pool));
     let (events, _rx) = anseo_scheduler::worker::event_channel();

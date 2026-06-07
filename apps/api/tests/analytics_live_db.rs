@@ -12,7 +12,7 @@
 //! Gated `#[ignore]` so default cargo runs stay offline. Run via:
 //!
 //! ```text
-//! DATABASE_URL=postgres://opengeo:opengeo@localhost:5432/opengeo \
+//! DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo \
 //!   cargo test -p opengeo-api --test analytics_live_db -- --ignored
 //! ```
 
