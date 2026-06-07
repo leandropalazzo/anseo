@@ -1,5 +1,5 @@
 #!/bin/sh
-# Plain-POSIX-sh smoke harness for the OpenGEO check-visibility entrypoint.
+# Plain-POSIX-sh smoke harness for the Anseo check-visibility entrypoint.
 #
 # Exercises the same flows as `tests/action.bats` but without the bats
 # dependency, so a contributor without bats installed can still get a
@@ -31,12 +31,12 @@ cleanup() {
 trap cleanup EXIT
 
 write_stub() {
-  cat > "/anseo" <<EOF
+  cat > "$STUB_BIN/anseo" <<EOF
 #!/bin/sh
 echo '$1'
 exit ${2:-0}
 EOF
-  chmod +x "/anseo"
+  chmod +x "$STUB_BIN/anseo"
 }
 
 assert_contains() {
@@ -66,7 +66,7 @@ run_case() {
 # Case: missing ANSEO_API_KEY exits 64
 case_missing_key() {
   unset ANSEO_API_KEY
-  OUTPUT="$("$ENTRYPOINT" "vec" "Acme" "3" "" "https://api.opengeo.dev" 2>&1)" && RC=0 || RC=$?
+  OUTPUT="$("$ENTRYPOINT" "vec" "Acme" "3" "" "https://api.anseo.ai" 2>&1)" && RC=0 || RC=$?
   [ "$RC" -eq 64 ] && assert_contains "$OUTPUT" "ANSEO_API_KEY"
 }
 
@@ -74,7 +74,7 @@ case_missing_key() {
 case_within_threshold() {
   export ANSEO_API_KEY="anseo_test"
   write_stub '{"observed_rank": 2, "matched_runs": 4}' 0
-  OUTPUT="$("$ENTRYPOINT" "vec" "Acme" "3" "" "https://api.opengeo.dev" 2>&1)" && RC=0 || RC=$?
+  OUTPUT="$("$ENTRYPOINT" "vec" "Acme" "3" "" "https://api.anseo.ai" 2>&1)" && RC=0 || RC=$?
   [ "$RC" -eq 0 ] && assert_contains "$(cat "$GITHUB_OUTPUT")" "observed-rank=2"
 }
 
@@ -82,7 +82,7 @@ case_within_threshold() {
 case_above_threshold() {
   export ANSEO_API_KEY="anseo_test"
   write_stub '{"observed_rank": 7, "matched_runs": 4}' 1
-  "$ENTRYPOINT" "vec" "Acme" "3" "" "https://api.opengeo.dev" >/dev/null 2>&1 && RC=0 || RC=$?
+  "$ENTRYPOINT" "vec" "Acme" "3" "" "https://api.anseo.ai" >/dev/null 2>&1 && RC=0 || RC=$?
   [ "$RC" -eq 1 ]
 }
 
@@ -90,21 +90,21 @@ case_above_threshold() {
 case_summary_table() {
   export ANSEO_API_KEY="anseo_test"
   write_stub '{"observed_rank": 2, "matched_runs": 4}' 0
-  "$ENTRYPOINT" "vec" "Acme" "3" "" "https://api.opengeo.dev" >/dev/null 2>&1
-  assert_contains "$(cat "$GITHUB_STEP_SUMMARY")" "OpenGEO visibility check"
+  "$ENTRYPOINT" "vec" "Acme" "3" "" "https://api.anseo.ai" >/dev/null 2>&1
+  assert_contains "$(cat "$GITHUB_STEP_SUMMARY")" "Anseo visibility check"
 }
 
 # Case: brand with a space round-trips intact (the bug the bats stub
 # couldn't easily catch without the set-- fix).
 case_brand_with_space() {
   export ANSEO_API_KEY="anseo_test"
-  cat > "/anseo" <<'EOF'
+  cat > "$STUB_BIN/anseo" <<'EOF'
 #!/bin/sh
 echo "{\"observed_rank\": 1, \"matched_runs\": 1, \"saw_brand\": \"$4\"}"
 exit 0
 EOF
-  chmod +x "/anseo"
-  "$ENTRYPOINT" "vec" "Acme Corp" "3" "" "https://api.opengeo.dev" >/dev/null 2>&1
+  chmod +x "$STUB_BIN/anseo"
+  "$ENTRYPOINT" "vec" "Acme Corp" "3" "" "https://api.anseo.ai" >/dev/null 2>&1
   # If `set --` is wrong, the brand would be word-split and $4 would be
   # something like "--expect-rank-lte" instead of "Acme Corp".
   SUMMARY="$(cat "$GITHUB_STEP_SUMMARY")"

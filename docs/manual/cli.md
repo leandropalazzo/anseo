@@ -47,7 +47,7 @@ Summary report over a recent window.
 Assert a brand's ranking stays at/below a threshold.
 - `--prompt <SLUG>` `--brand <NAME>` (must match `brand.name`) `--expect-rank-lte <N>` `--no-run` (check persisted data only).
 - **Exit:** designed to exit **2** when all providers errored / nothing evaluable (hard CI failure).
-- **Use case:** **visibility-as-code** — fail CI when brand ranking regresses (pairs with the `opengeo/check-visibility@v1` GitHub Action).
+- **Use case:** **visibility-as-code** — fail CI when brand ranking regresses (pairs with the `leandropalazzo/anseo/infra/github-action@v1` GitHub Action).
 
 ---
 
@@ -180,7 +180,7 @@ Crawl owned pages and score citation-readiness (Identity / Extractability / Corr
 
 **Fail a build if brand ranking regresses:**
 ```yaml
-- uses: opengeo/check-visibility@v1
+- uses: leandropalazzo/anseo/infra/github-action@v1
   with: { prompt: best-running-shoes, brand: Acme, expect-rank-lte: 3 }
 # or raw:  anseo check visibility --prompt best-running-shoes --brand Acme --expect-rank-lte 3
 ```
