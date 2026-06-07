@@ -30,6 +30,11 @@
 #            (38.16)     https://anseo.ai/compose/<X.Y.Z>.yml     [needs: images]
 #   sdk-publish        → npm (@anseo/observe) + PyPI (anseo-observe)
 #                        token-gated; skips cleanly when no token (public repo).
+#   cli-binaries       → build static musl `anseo` CLI per target triple and
+#                        upload each as a run artifact (attached to the GitHub
+#                        Release below). This is what the check-visibility GitHub
+#                        Action (infra/github-action) downloads at image-build
+#                        time, so without it the action 404s. VERIFIED leg.
 #   plugin-sign(41.4)  → BEST-EFFORT repository_dispatch → plugin-sign.yml (real
 #                        key lives only in opengeo-internal; public repo no-ops).
 #   overlay-bump(38.18)→ BEST-EFFORT repository_dispatch → opengeo-internal bumps
@@ -48,8 +53,9 @@
 #
 # ── VERIFIED vs BEST-EFFORT LEGS ────────────────────────────────────────────
 # Gating (success truly reflects the artifact exists): images, compose-snapshot,
-# sdk-publish, github-release. Non-gating fire-and-forget dispatches: plugin-sign,
-# overlay-bump, docs-site — verify their downstream runs in the target repos.
+# sdk-publish, cli-binaries, github-release. Non-gating fire-and-forget dispatches:
+# plugin-sign, overlay-bump, docs-site — verify their downstream runs in the target
+# repos.
 #
 # Independent legs (sdk/plugin/overlay/docs) run in parallel off `resolve`;
 # images→compose-snapshot→github-release form the artifact spine. No cycles.
@@ -573,6 +579,77 @@ jobs:
           python -m twine upload --skip-existing dist/*
 
   # ---------------------------------------------------------------------------
+  # CLI binaries — build the standalone static `anseo` CLI per target triple and
+  # upload each as a run artifact. github-release attaches these to the Release as
+  # downloadable assets named `anseo-<triple>`. The check-visibility GitHub Action
+  # (infra/github-action/Dockerfile) downloads exactly that asset at image-build
+  # time, so this leg is what makes the action installable at all.
+  #
+  # VERIFIED gating leg: it produces the binary artifact unconditionally on a real
+  # release (no external token needed — uses GITHUB_TOKEN only for the artifact
+  # upload), so its success genuinely reflects the binary exists. Gated on
+  # publish_ok / non-dry-run in lockstep with the other artifact legs. No
+  # `environment: release` — it exposes no publish/signing secret.
+  #
+  # NOTE FOR MAINTAINERS (first run): this is a NEW build leg. TLS is rustls/ring
+  # (no OpenSSL native dep) and the workspace builds with SQLX_OFFLINE=true against
+  # the committed .sqlx cache, so a static musl build should compile — but it has
+  # not yet run in CI. Validate the first release, and bump the action's default
+  # ANSEO_VERSION (infra/github-action/Dockerfile) to that first tag.
+  # ---------------------------------------------------------------------------
+  cli-binaries:
+    name: Build CLI binary — ${{ matrix.target }}
+    needs: resolve
+    if: ${{ needs.resolve.outputs.publish_ok == 'true' || needs.resolve.outputs.dry_run == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-musl
+          - aarch64-unknown-linux-musl
+    env:
+      # Build against the committed .sqlx cache — no live DATABASE_URL needed.
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Sets up the cross linker + CC for the musl target (incl. the aarch64
+      # cross toolchain) so a plain `cargo build --target <triple>` produces a
+      # static binary on the x86_64 runner. ring compiles its C under this.
+      - name: Set up cross toolchain
+        uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Build anseo CLI
+        run: cargo build --release --locked -p anseo-cli --bin anseo --target ${{ matrix.target }}
+
+      - name: Stage release asset
+        run: |
+          set -euo pipefail
+          mkdir -p dist/cli
+          cp "target/${{ matrix.target }}/release/anseo" "dist/cli/anseo-${{ matrix.target }}"
+          ./dist/cli/anseo-${{ matrix.target }} --version || true
+
+      - name: Upload CLI binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: anseo-cli-${{ matrix.target }}
+          path: dist/cli/anseo-${{ matrix.target }}
+          if-no-files-found: error
+          retention-days: 90
+
+  # ---------------------------------------------------------------------------
   # (41.4) Plugin signing/publish — repository_dispatch to plugin-sign.yml.
   # The REAL root key lives only in opengeo-internal; the public repo no-ops.
   # Token-gated; independent leg.
@@ -715,7 +792,7 @@ jobs:
   # ---------------------------------------------------------------------------
   github-release:
     name: Create GitHub Release
-    needs: [resolve, images, compose-snapshot]
+    needs: [resolve, images, compose-snapshot, cli-binaries]
     # Create the user-facing Release ONLY for a non-dry-run, default-branch-
     # reachable release tag. publish_ok=false (dispatch at an arbitrary branch/SHA,
     # a non-semver tag, or a tag not reachable from the default branch) must NOT
@@ -737,6 +814,16 @@ jobs:
           name: compose-snapshot-${{ needs.resolve.outputs.version }}
           path: dist/compose
 
+      # Pull every CLI binary artifact (anseo-cli-<triple>) into one dir so the
+      # release step can attach them as `anseo-<triple>` assets — the exact names
+      # the check-visibility action downloads.
+      - name: Download CLI binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: anseo-cli-*
+          path: dist/cli
+          merge-multiple: true
+
       - name: Create release with notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -757,6 +844,11 @@ jobs:
             echo "### Self-host (standalone compose)"
             echo "Pinned snapshot: \`https://anseo.ai/compose/${VERSION}.yml\` (attached below)."
             echo
+            echo "### CLI binaries (attached below)"
+            echo "- \`anseo-x86_64-unknown-linux-musl\`"
+            echo "- \`anseo-aarch64-unknown-linux-musl\`"
+            echo "Used by the \`leandropalazzo/anseo/infra/github-action\` check-visibility Action."
+            echo
             echo "### Changes"
             gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
               -f tag_name="${TAG}" --jq '.body' 2>/dev/null || echo "_See commit history._"
@@ -767,15 +859,23 @@ jobs:
           # refresh notes/title via `edit`. Assets upload with `--clobber` so a
           # re-upload overwrites instead of failing on "asset already exists".
           asset="dist/compose/${VERSION}.yml#standalone-compose-${VERSION}.yml"
+          # Standalone `anseo` CLI binaries (one per target triple). These are the
+          # exact assets the check-visibility GitHub Action downloads, so the
+          # release MUST carry them. Uploaded with --clobber so a rerun overwrites.
+          cli_assets=""
+          for f in dist/cli/anseo-*; do
+            [ -e "$f" ] || continue
+            cli_assets="$cli_assets $f"
+          done
           if gh release view "${TAG}" >/dev/null 2>&1; then
             echo "release ${TAG} already exists — editing (rerun-safe)"
             gh release edit "${TAG}" --title "Anseo ${TAG}" --notes-file "$notes"
-            gh release upload "${TAG}" "$asset" --clobber
+            gh release upload "${TAG}" "$asset" $cli_assets --clobber
           else
             gh release create "${TAG}" \
               --title "Anseo ${TAG}" \
               --notes-file "$notes" \
-              "$asset"
+              "$asset" $cli_assets
           fi
 
   # ---------------------------------------------------------------------------
@@ -805,7 +905,7 @@ jobs:
   # ---------------------------------------------------------------------------
   release-summary:
     name: Release summary
-    needs: [resolve, images, compose-snapshot, sdk-publish, plugin-sign, overlay-bump, docs-site, github-release]
+    needs: [resolve, images, compose-snapshot, sdk-publish, cli-binaries, plugin-sign, overlay-bump, docs-site, github-release]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -814,6 +914,7 @@ jobs:
           R_IMAGES: ${{ needs.images.result }}
           R_SNAPSHOT: ${{ needs.compose-snapshot.result }}
           R_SDK: ${{ needs.sdk-publish.result }}
+          R_CLI: ${{ needs.cli-binaries.result }}
           R_RELEASE: ${{ needs.github-release.result }}
           # Best-effort dispatch legs — reported, NOT gated.
           R_PLUGIN: ${{ needs.plugin-sign.result }}
@@ -832,6 +933,7 @@ jobs:
             echo "| GHCR images | 38.15 | ${R_IMAGES} |"
             echo "| Compose snapshot | 38.16 | ${R_SNAPSHOT} |"
             echo "| SDK publish (npm/PyPI) | 40.x | ${R_SDK} |"
+            echo "| CLI binaries (musl) | — | ${R_CLI} |"
             echo "| GitHub Release | 38.19 | ${R_RELEASE} |"
             echo
             echo "### Best-effort cross-repo dispatches (NOT verified, do not gate)"
@@ -855,7 +957,7 @@ jobs:
           # release. We do not pretend a fire-and-forget dispatch is a completed
           # release leg.
           fail=0
-          for r in "$R_IMAGES" "$R_SNAPSHOT" "$R_SDK" "$R_RELEASE"; do
+          for r in "$R_IMAGES" "$R_SNAPSHOT" "$R_SDK" "$R_CLI" "$R_RELEASE"; do
             case "$r" in
               failure|cancelled) fail=1 ;;
             esac
