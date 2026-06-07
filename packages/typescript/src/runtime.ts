@@ -54,13 +54,15 @@ function bodyHasIntrinsicContentType(body: BodyInit | null | undefined): boolean
   return false;
 }
 
-// Orval's fetch client invokes the mutator with a type parameter shaped
-// like `Promise<{ data: X; status: number }>`. The constraint is left
-// open because the generator already encodes the response shape. Orval 8's
-// fetch client models each response (success AND non-2xx) as a typed variant
-// carrying `{ data, status, headers }`, so this runtime returns that full shape
-// for every HTTP response and does NOT throw on non-2xx — callers branch on
-// `status`. Only transport-level failures (network/abort) throw AnseoApiError.
+// Orval 8's generated client types each response as `{ data, status, headers }`
+// (modelling non-2xx as typed variants too). This SDK keeps its DOCUMENTED
+// contract — HTTP errors throw `AnseoApiError`, callers `try/catch` — rather
+// than returning non-2xx values, so existing consumers don't silently stop
+// handling 401/404/5xx. We therefore: (a) throw on non-2xx, and (b) include
+// `headers` on the SUCCESS return so the generated success-variant type is
+// satisfied. The generated non-2xx variants are a harmless type-superset that
+// this runtime never actually returns (it throws first). Transport-level
+// failures (network/abort) also throw AnseoApiError(status=0).
 export async function fetchClient<T>(
   url: string,
   init: RequestInit,
@@ -104,10 +106,15 @@ export async function fetchClient<T>(
   }
   const text = await response.text();
   const parsed = text.length === 0 ? undefined : safeParseJson(text);
-  // Orval 8 contract: return { data, status, headers } for ALL HTTP responses
-  // (2xx and non-2xx alike). The generated client types model non-2xx as typed
-  // error variants, so we must NOT throw here — consumers branch on `status`
-  // (and may read `headers`). Transport failures already threw above.
+  if (!response.ok) {
+    // Documented contract: HTTP errors throw AnseoApiError (callers try/catch).
+    throw new AnseoApiError(
+      `Anseo API ${init.method ?? "GET"} ${url} failed: ${response.status}`,
+      response.status,
+      parsed,
+    );
+  }
+  // Success: include `headers` so the generated success-variant type matches.
   return { data: parsed, status: response.status, headers: response.headers } as T;
 }
 
