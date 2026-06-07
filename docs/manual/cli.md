@@ -153,7 +153,7 @@ Migrate Postgres analytics into ClickHouse pre-aggregated tables (idempotent).
 
 | Command | Purpose | Key flags |
 |---|---|---|
-| `anseo mcp serve` | Start the MCP server | `--transport stdio\|http+sse` `--bind <addr>` (default `127.0.0.1:7071`) `--require-api-key` |
+| `anseo mcp serve` | Start the MCP server | `--transport stdio\|http+sse` `--bind <addr>` (default `127.0.0.1:7071`) `--allow-public` |
 | `anseo mcp status` | Probe a running server | `--url` |
 | `anseo mcp install-config [client]` | Write an MCP config snippet | `client` = `claude-desktop`(default)\|`cursor`\|`zed` · `--config-path` · `--api-key` (or `ANSEO_API_KEY`) |
 

@@ -36,7 +36,7 @@ One process runs the REST `/v1` API **and** the background worker (schedules, an
 ```bash
 anseo serve                                 # API + worker on 127.0.0.1:8080
 anseo serve --port 9000                     # change the port
-anseo serve --dir /srv/anseo              # project dir holding anseo.yaml (default: cwd)
+anseo serve --projects-dir /srv/anseo              # project dir holding anseo.yaml (default: cwd)
 anseo serve --bind 0.0.0.0:8080             # non-loopback bind — read the warning below
 ```
 

@@ -13,12 +13,12 @@ The MCP server exposes Anseo to AI agents/assistants (Claude Desktop, Cursor, Ze
 
 ```bash
 anseo mcp serve --transport stdio              # default; for desktop clients
-anseo mcp serve --transport http+sse --bind 127.0.0.1:7071 --require-api-key
+anseo mcp serve --transport http+sse --bind 127.0.0.1:7071 --allow-public  # requires ANSEO_API_KEY
 ```
 
 **Transports**
 - **stdio** (default): line-delimited JSON, one message per line; logs to **stderr only** (stdout is the protocol channel). Best for Claude Desktop / Cursor / Zed.
-- **http+sse**: `POST /mcp` (request/response), `GET /mcp/sse` (presence/keepalive — no server-push tools yet). Concurrency cap 32 in-flight (`429` beyond). With `--allow-public`/`--require-api-key`, header `X-Anseo-API-Key` must equal `ANSEO_API_KEY` (else `401`); the server refuses to start public without a key set.
+- **http+sse**: `POST /mcp` (request/response), `GET /mcp/sse` (presence/keepalive — no server-push tools yet). Concurrency cap 32 in-flight (`429` beyond). With `--allow-public` (requires `ANSEO_API_KEY`), header `X-Anseo-API-Key` must equal `ANSEO_API_KEY` (else `401`); the server refuses to start public without a key set.
 
 **Environment**
 | Var | Default | Purpose |
