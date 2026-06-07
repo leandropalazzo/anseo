@@ -53,14 +53,19 @@ DATABASE_URL=postgres://opengeo:opengeo@db.internal:5432/opengeo anseo serve
 
 > **Standalone exposure baseline (Tier 2).** Before you set `ANSEO_BIND_HOST=0.0.0.0`:
 > 1. **Rotate the bootstrap key — in the database, not just `.env`.** The shipped `ANSEO_BOOTSTRAP_API_KEY` is a well-known dev credential, seeded into Postgres on first boot (only when zero keys exist) under the name `bootstrap`. If you already booted the trial with the default, changing the env var does **not** revoke the persisted key. Mint a fresh named key, point `.env` at it, then revoke `bootstrap`:
+>    The `anseo` CLI is **not** bundled in the runtime images, so run it from a
+>    host install (cargo-installed or a release binary) against the stack's
+>    published Postgres (`127.0.0.1:5432`) and the same project config. Match the
+>    credentials to your `.env`:
 >    ```bash
+>    export DATABASE_URL="postgres://anseo:anseo@127.0.0.1:5432/anseo"   # match .env
 >    # a) Mint a new key — the plaintext is printed ONCE; copy it.
->    docker compose exec api anseo api key create --name prod --config /anseo.yaml
+>    anseo api key create --name prod --config ./anseo.example.yaml
 >    # b) Set ANSEO_BOOTSTRAP_API_KEY to that plaintext (web/SSR + healthchecks
 >    #    authenticate with it), then recreate the api/web containers.
 >    $EDITOR .env && docker compose up -d
 >    # c) Revoke the well-known dev key (by name; idempotent).
->    docker compose exec api anseo api key revoke --name bootstrap --config /anseo.yaml
+>    anseo api key revoke --name bootstrap --config ./anseo.example.yaml
 >    ```
 >    Setting a strong `ANSEO_BOOTSTRAP_API_KEY` *before the first `up`* seeds that value instead and avoids the rotation entirely.
 > 2. **Rotate `POSTGRES_PASSWORD` and `ANSEO_KEYRING_PASSPHRASE`.** Keep the password URL-safe, or set a percent-encoded `DATABASE_URL` directly (see `.env.example`).

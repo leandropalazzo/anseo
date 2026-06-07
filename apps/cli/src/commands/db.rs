@@ -19,7 +19,7 @@ pub enum DbSub {
 
 #[derive(Debug, Args)]
 pub struct BackupArgs {
-    /// Output path. Defaults to `opengeo-backup-<ISO date>.sql.gz` in the
+    /// Output path. Defaults to `anseo-backup-<ISO date>.sql.gz` in the
     /// current working directory.
     #[arg(long, value_name = "PATH")]
     pub output: Option<PathBuf>,
@@ -139,5 +139,5 @@ fn resolve_database_url(arg: Option<String>) -> Result<String, OpenGeoError> {
 
 fn default_output_path() -> PathBuf {
     let stamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
-    PathBuf::from(format!("opengeo-backup-{stamp}.sql.gz"))
+    PathBuf::from(format!("anseo-backup-{stamp}.sql.gz"))
 }
