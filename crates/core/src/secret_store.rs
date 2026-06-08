@@ -323,7 +323,7 @@ impl KeyringStore {
     }
 
     /// Construct with an explicit service name. Used by tests that want to
-    /// avoid colliding with a developer's real `opengeo` entries.
+    /// avoid colliding with a developer's real `anseo` entries.
     pub fn with_service(service: impl Into<String>) -> Self {
         Self {
             service: service.into(),
@@ -391,9 +391,14 @@ fn map_keyring(err: keyring::Error) -> SecretStoreError {
 /// `ANSEO_KEYRING_PASSPHRASE`. The on-disk format is intentionally simple
 /// so a user can `age -d` the file with their passphrase to recover keys.
 ///
-/// Default path: `<config-dir>/opengeo/secrets.age`, where `<config-dir>` is
+/// Default path: `<config-dir>/anseo/secrets.age`, where `<config-dir>` is
 /// `dirs::config_dir()` (e.g. `~/.config` on Linux, `~/Library/Application
 /// Support` on macOS).
+///
+/// Pre-rebrand installs stored this file under `<config-dir>/opengeo/`. New
+/// writes land in the `anseo/` path above; the legacy path is added to the
+/// default chain as a READ fallback (see [`legacy_secrets_path`] and
+/// [`default_chain`]) so existing provider keys keep resolving.
 pub struct AgeFileStore {
     path: PathBuf,
 }
@@ -608,17 +613,32 @@ impl SecretStore for AgeFileStore {
 }
 
 fn default_secrets_path() -> Option<PathBuf> {
+    secrets_path_under("anseo")
+}
+
+/// Pre-rebrand secrets path under the legacy `opengeo/` config subdirectory.
+///
+/// Existing deployments wrote their age-encrypted provider keys here before the
+/// OpenGEO → Anseo rebrand. [`default_chain`] adds an [`AgeFileStore`] rooted at
+/// this path as a READ fallback (only when the file exists) so those keys keep
+/// resolving; new writes always target [`default_secrets_path`] (`anseo/`).
+fn legacy_secrets_path() -> Option<PathBuf> {
+    secrets_path_under("opengeo")
+}
+
+/// Resolve `<config-dir>/<subdir>/secrets.age` for the current platform.
+fn secrets_path_under(subdir: &str) -> Option<PathBuf> {
     // We intentionally do not pull in the `dirs` crate to keep dep footprint
     // small. XDG_CONFIG_HOME / HOME on Unix; %APPDATA% on Windows.
     if cfg!(windows) {
-        std::env::var_os("APPDATA").map(|p| PathBuf::from(p).join("opengeo").join("secrets.age"))
+        std::env::var_os("APPDATA").map(|p| PathBuf::from(p).join(subdir).join("secrets.age"))
     } else if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
-        Some(PathBuf::from(xdg).join("opengeo").join("secrets.age"))
+        Some(PathBuf::from(xdg).join(subdir).join("secrets.age"))
     } else {
         std::env::var_os("HOME").map(|h| {
             PathBuf::from(h)
                 .join(".config")
-                .join("opengeo")
+                .join(subdir)
                 .join("secrets.age")
         })
     }
@@ -656,7 +676,7 @@ fn write_secrets_file(path: &PathBuf, bytes: &[u8]) -> Result<(), SecretStoreErr
 }
 
 /// Ensure the secrets file's parent directory exists. `default_secrets_path`
-/// nests the file under a `opengeo/` subdirectory that may not exist yet
+/// nests the file under a `anseo/` subdirectory that may not exist yet
 /// (e.g. a fresh `$XDG_CONFIG_HOME` on a headless container) — without this
 /// the open would fail with `ENOENT` and the chain would silently fall back
 /// to the ephemeral in-memory leg.
@@ -832,6 +852,18 @@ pub fn default_chain() -> ChainedStore {
     }
     if let Some(file) = AgeFileStore::default_path() {
         legs.push(Box::new(file));
+    }
+    // Back-compat: pre-rebrand installs stored secrets under `<config>/opengeo/`.
+    // Add that path as a READ fallback (only when the file actually exists) so
+    // existing provider keys keep resolving after the rename. It sits AFTER the
+    // `anseo/` leg, so `set`/`set_durable` (first accepting/durable leg wins)
+    // always write to the new path, while `remove` (fans out to every leg)
+    // still clears the old file too. Mirrors the legacy env-var and
+    // legacy-provider-key fallbacks elsewhere in this module.
+    if let Some(legacy) = legacy_secrets_path() {
+        if legacy.exists() {
+            legs.push(Box::new(AgeFileStore::at(legacy)));
+        }
     }
     legs.push(Box::new(InMemoryStore::new()));
     ChainedStore::new(legs)
@@ -1173,13 +1205,13 @@ mod tests {
 
     #[test]
     fn age_file_set_creates_missing_parent_dirs() {
-        // `default_secrets_path` nests the file under `<config>/opengeo/`; on a
+        // `default_secrets_path` nests the file under `<config>/anseo/`; on a
         // fresh config dir that subdirectory does not exist. `set` must create
         // it rather than erroring with ENOENT (which would silently fall the
         // chain through to the ephemeral in-memory leg).
         let _env_guard = AGE_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("opengeo").join("secrets.age");
+        let path = dir.path().join("anseo").join("secrets.age");
         assert!(!path.parent().unwrap().exists());
         let prior = std::env::var_os(AGE_PASSPHRASE_ENV);
         std::env::set_var(AGE_PASSPHRASE_ENV, "test-passphrase");
