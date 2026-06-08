@@ -18,7 +18,7 @@
 //!
 //! 1. explicit `--project <id|name>` flag
 //! 2. `ogeo project use` selection (`.opengeo/selected-project` marker) OR the
-//!    working-dir `opengeo.yaml` brand — the marker, when present, wins over the
+//!    working-dir `anseo.yaml` brand — the marker, when present, wins over the
 //!    YAML; both are the "ambient working-dir" tier
 //! 3. legacy sole active project (exactly one project in the DB)
 //! 4. otherwise a clear error
@@ -56,7 +56,7 @@ pub struct ListArgs {
 #[derive(Debug, Args)]
 pub struct CreateArgs {
     /// Brand name. The `project_id` is derived from it (same identity the
-    /// `opengeo.yaml` boot path uses), so re-creating the same brand is a
+    /// `anseo.yaml` boot path uses), so re-creating the same brand is a
     /// conflict rather than a duplicate.
     pub brand: String,
     /// Optional brand-name variants/aliases to seed the project with.
@@ -289,7 +289,7 @@ pub async fn run_shred(args: ShredArgs) -> Result<(), OpenGeoError> {
 ///
 /// `flag` is the value of the global `--project <id|name>` flag (if any).
 /// `working_dir` anchors the `.opengeo/selected-project` marker and the
-/// `opengeo.yaml` lookup. `storage` is needed to translate a name → id, honor
+/// `anseo.yaml` lookup. `storage` is needed to translate a name → id, honor
 /// the `use` selection, and fall back to a legacy sole project.
 pub async fn resolve_project_id(
     storage: &Storage,
@@ -326,7 +326,7 @@ pub async fn resolve_project_id(
         )));
     }
 
-    // 2b. working-dir `opengeo.yaml` brand.
+    // 2b. working-dir `anseo.yaml` brand.
     let yaml_path = working_dir.join("anseo.yaml");
     if yaml_path.exists() {
         let yaml = std::fs::read_to_string(&yaml_path).map_err(|e| {
@@ -347,12 +347,12 @@ pub async fn resolve_project_id(
     // 4. nothing resolved.
     Err(OpenGeoError::Config(
         "no project selected: pass --project <id|name>, run `ogeo project use`, \
-         or work in a directory with an opengeo.yaml"
+         or work in a directory with an anseo.yaml"
             .into(),
     ))
 }
 
-/// Resolve a project for a verb that has already loaded its `opengeo.yaml`
+/// Resolve a project for a verb that has already loaded its `anseo.yaml`
 /// into a [`Config`], honoring the same ADR-004 chain as [`resolve_project_id`]
 /// but using the in-hand config as the working-dir tier (no second YAML read).
 ///

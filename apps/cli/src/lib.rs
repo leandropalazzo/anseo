@@ -22,12 +22,12 @@ use clap::{Parser, Subcommand};
     about = "OpenGEO — track your brand's visibility in LLM responses.",
     long_about = "OpenGEO sends declared Prompts to declared Providers, extracts \
 Mentions and Citations from the responses, and tracks how your Brand ranks against \
-Competitors over time. Configure via opengeo.yaml; persist locally to PostgreSQL; \
+Competitors over time. Configure via anseo.yaml; persist locally to PostgreSQL; \
 view in the Dashboard."
 )]
 pub struct Cli {
     /// Select the active project by id (ULID) or brand name. Overrides the
-    /// working-dir `opengeo.yaml` / `ogeo project use` selection on any verb
+    /// working-dir `anseo.yaml` / `ogeo project use` selection on any verb
     /// that resolves a project (ADR-004 precedence; see `ogeo project`).
     #[arg(long, global = true)]
     pub project: Option<String>,
@@ -44,7 +44,7 @@ pub enum Command {
     /// Capture and persist a provider API key (FR-7, FR-8, FR-11).
     Login(commands::login::LoginArgs),
 
-    /// Manage tracked Prompts in the project's opengeo.yaml.
+    /// Manage tracked Prompts in the project's anseo.yaml.
     Prompt {
         #[command(subcommand)]
         sub: PromptSub,
@@ -74,7 +74,7 @@ pub enum Command {
         sub: commands::db::DbSub,
     },
 
-    /// Manage scheduled Prompt Runs in opengeo.yaml.
+    /// Manage scheduled Prompt Runs in anseo.yaml.
     Schedule {
         #[command(subcommand)]
         sub: ScheduleSub,
@@ -282,10 +282,10 @@ pub enum DashboardSub {
 
 #[derive(Debug, Subcommand)]
 pub enum PromptSub {
-    /// Add a Prompt to opengeo.yaml.
+    /// Add a Prompt to anseo.yaml.
     Add(commands::prompt::AddArgs),
 
-    /// List Prompts declared in opengeo.yaml.
+    /// List Prompts declared in anseo.yaml.
     List(commands::prompt::ListArgs),
 
     /// Execute declared Prompts × Providers (FR-2, FR-6, FR-13).
@@ -294,13 +294,13 @@ pub enum PromptSub {
 
 #[derive(Debug, Subcommand)]
 pub enum ScheduleSub {
-    /// Add a Schedule declaration to opengeo.yaml.
+    /// Add a Schedule declaration to anseo.yaml.
     Add(commands::schedule::AddArgs),
 
-    /// List Schedule declarations from opengeo.yaml.
+    /// List Schedule declarations from anseo.yaml.
     List(commands::schedule::ListArgs),
 
-    /// Remove a Schedule declaration from opengeo.yaml.
+    /// Remove a Schedule declaration from anseo.yaml.
     Remove(commands::schedule::RemoveArgs),
 }
 

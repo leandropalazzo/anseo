@@ -58,7 +58,7 @@ pub struct SimilarityMatch {
     pub name: String,
     pub prompt: String,
     pub estimated_jaccard: f32,
-    /// Always `null` in Phase 3 — `opengeo.yaml` does not carry per-prompt
+    /// Always `null` in Phase 3 — `anseo.yaml` does not carry per-prompt
     /// configuration timestamps. The field is reserved so the extension
     /// can render a "configured at" badge once we surface it (likely from
     /// the prompts DB row's `created_at` once Story 0.11 lands).

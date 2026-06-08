@@ -229,7 +229,7 @@ async fn create_prompt_run(
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({
                 "error": "orchestrator_unconfigured",
-                "message": "API server booted without a readable `opengeo.yaml` (set ANSEO_CONFIG or place opengeo.yaml in CWD); live providers cannot be dispatched.",
+                "message": "API server booted without a readable `anseo.yaml` (set ANSEO_CONFIG or place anseo.yaml in CWD); live providers cannot be dispatched.",
             })),
         ));
     };

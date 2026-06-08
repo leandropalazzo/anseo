@@ -4,7 +4,7 @@
 //! `README.md`. The exact bytes are part of the FR-10 contract — schema-v0.1
 //! conformance of the scaffolded yaml is asserted by an integration test.
 
-/// The scaffolded `anseo.yaml` template (formerly `opengeo.yaml`).
+/// The scaffolded `anseo.yaml` template (formerly `anseo.yaml`).
 pub const ANSEO_YAML: &str = r#"# Anseo project — Phase 1 schema v0.1.
 #
 # This file is the canonical declaration of what to monitor (FR-23).

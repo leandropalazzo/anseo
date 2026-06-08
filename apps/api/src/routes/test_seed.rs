@@ -13,7 +13,7 @@
 //!
 //! ```json
 //! {
-//!   "config_yaml": "<verbatim opengeo.yaml content>",
+//!   "config_yaml": "<verbatim anseo.yaml content>",
 //!   "runs": [
 //!     { "prompt_name": "demo", "provider": "openai",    "status": "ok",
 //!       "message_text": "..."                                              },
@@ -57,7 +57,7 @@ pub fn router() -> Router<AppState> {
 
 #[derive(Debug, Deserialize)]
 pub struct SeedRequest {
-    /// Verbatim `opengeo.yaml` content (the same shape the CLI accepts).
+    /// Verbatim `anseo.yaml` content (the same shape the CLI accepts).
     /// Determines the project, prompts, and competitor set the seeded runs
     /// belong to.
     pub config_yaml: String,

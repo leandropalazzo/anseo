@@ -1,7 +1,7 @@
 //! `GET`/`PUT /v1/setup/brand` — DB-authoritative brand config.
 //!
 //! Phase 1 stored brand config (name, variants, competitors) only in
-//! `opengeo.yaml`. The dashboard now edits it, so the DB `projects` row is the
+//! `anseo.yaml`. The dashboard now edits it, so the DB `projects` row is the
 //! source of truth: `GET` reads it, `PUT` writes it.
 //!
 //! Identity coupling: `project_id` (and every `prompt_id`) is a stable hash of
@@ -107,7 +107,7 @@ async fn get_brand(
             None => Err(err(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "no_brand_configured",
-                "no project row and no opengeo.yaml present".to_string(),
+                "no project row and no anseo.yaml present".to_string(),
             )),
         },
         Err(e) => Err(err(

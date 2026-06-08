@@ -20,7 +20,7 @@ const TERMS_PATH: &str = "docs/benchmark-terms/v1-2026-05-28.md";
 
 #[derive(Debug, Args)]
 pub struct OptinArgs {
-    /// Path to opengeo.yaml. Defaults to `./opengeo.yaml`.
+    /// Path to anseo.yaml. Defaults to `./anseo.yaml`.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
     /// Skip the interactive terms prompt and assume confirmation.

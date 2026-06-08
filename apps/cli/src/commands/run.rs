@@ -1,6 +1,6 @@
 //! `ogeo prompt run` — FR-2, FR-6, FR-13.
 //!
-//! Loads `opengeo.yaml`, resolves provider secrets via the chained secret
+//! Loads `anseo.yaml`, resolves provider secrets via the chained secret
 //! store, builds a [`ProviderRegistry`], and dispatches to
 //! [`anseo_providers::Orchestrator`]. Returns records via the
 //! `PromptRunSink` so a callback can persist them (Story 3.1 will plug in
@@ -36,7 +36,7 @@ pub struct RunArgs {
     #[arg(long)]
     pub provider: Vec<String>,
 
-    /// Path to opengeo.yaml. Defaults to `./opengeo.yaml`.
+    /// Path to anseo.yaml. Defaults to `./anseo.yaml`.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
 
@@ -85,7 +85,7 @@ pub async fn run(args: RunArgs) -> Result<(), OpenGeoError> {
     // Exit code mapping (FR-2):
     if summary.total == 0 {
         return Err(OpenGeoError::Config(
-            "no (prompt, provider) cells to run — check filters and opengeo.yaml".into(),
+            "no (prompt, provider) cells to run — check filters and anseo.yaml".into(),
         ));
     }
     if summary.succeeded == 0 {

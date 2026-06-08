@@ -36,7 +36,7 @@ pub struct AddArgs {
     #[arg(long)]
     pub allow_expensive: bool,
 
-    /// Path to opengeo.yaml. Defaults to `./opengeo.yaml`.
+    /// Path to anseo.yaml. Defaults to `./anseo.yaml`.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
 }
@@ -47,7 +47,7 @@ pub struct ListArgs {
     #[arg(long, value_enum, default_value_t = ListFormat::Table)]
     pub format: ListFormat,
 
-    /// Path to opengeo.yaml. Defaults to `./opengeo.yaml`.
+    /// Path to anseo.yaml. Defaults to `./anseo.yaml`.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
 }
@@ -58,7 +58,7 @@ pub struct RemoveArgs {
     #[arg(long)]
     pub name: String,
 
-    /// Path to opengeo.yaml. Defaults to `./opengeo.yaml`.
+    /// Path to anseo.yaml. Defaults to `./anseo.yaml`.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
 }
@@ -105,7 +105,7 @@ pub fn run_add(args: AddArgs) -> Result<(), OpenGeoError> {
     cfg.schema_version = SCHEMA_VERSION_V0_2.to_string();
     cfg.schedules.push(schedule);
     let yaml = serde_yaml::to_string(&cfg)
-        .map_err(|e| OpenGeoError::Config(format!("failed to serialize opengeo.yaml: {e}")))?;
+        .map_err(|e| OpenGeoError::Config(format!("failed to serialize anseo.yaml: {e}")))?;
     let _round_trip = Config::from_yaml_str(&yaml)?;
     write_atomic(&path, &yaml)?;
     eprintln!(
@@ -161,7 +161,7 @@ pub fn run_remove(args: RemoveArgs) -> Result<(), OpenGeoError> {
         )));
     }
     let yaml = serde_yaml::to_string(&cfg)
-        .map_err(|e| OpenGeoError::Config(format!("failed to serialize opengeo.yaml: {e}")))?;
+        .map_err(|e| OpenGeoError::Config(format!("failed to serialize anseo.yaml: {e}")))?;
     let _round_trip = Config::from_yaml_str(&yaml)?;
     write_atomic(&path, &yaml)?;
     eprintln!("Removed schedule `{}` from {}", args.name, path.display());

@@ -158,7 +158,7 @@ async fn generate_handler(
         err(
             StatusCode::SERVICE_UNAVAILABLE,
             "config_unavailable",
-            "no opengeo.yaml loaded; cannot assemble recommendation inputs",
+            "no anseo.yaml loaded; cannot assemble recommendation inputs",
         )
     })?;
 

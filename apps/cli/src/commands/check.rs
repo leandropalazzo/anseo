@@ -15,7 +15,7 @@ pub struct VisibilityArgs {
     #[arg(long)]
     pub prompt: String,
 
-    /// Brand name (must match `brand.name` in opengeo.yaml).
+    /// Brand name (must match `brand.name` in anseo.yaml).
     #[arg(long)]
     pub brand: String,
 
@@ -28,7 +28,7 @@ pub struct VisibilityArgs {
     #[arg(long)]
     pub no_run: bool,
 
-    /// Path to opengeo.yaml.
+    /// Path to anseo.yaml.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
 }

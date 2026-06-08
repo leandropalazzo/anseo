@@ -19,7 +19,7 @@ pub struct CrawlerArgs {
     #[arg(long)]
     pub ratio: bool,
     /// Select the project by id (ULID) or brand name, overriding the working-dir
-    /// `opengeo.yaml` (ADR-004). Populated from the global `--project` flag.
+    /// `anseo.yaml` (ADR-004). Populated from the global `--project` flag.
     #[arg(skip)]
     pub project: Option<String>,
 }

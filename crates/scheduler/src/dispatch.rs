@@ -14,7 +14,7 @@
 //!
 //! The [`Orchestrator`] expands its matrix from `config.prompts ×
 //! config.providers`. Prompts are DB-authoritative (operators create them via
-//! the dashboard, not `opengeo.yaml`), and a schedule names its own provider
+//! the dashboard, not `anseo.yaml`), and a schedule names its own provider
 //! set, so neither is guaranteed to be in the worker's boot YAML. We therefore
 //! synthesise a `Config` whose `prompts` are the schedule's DB prompt rows and
 //! whose `providers` are the schedule's configured providers (those present in

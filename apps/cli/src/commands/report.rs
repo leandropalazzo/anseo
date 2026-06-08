@@ -24,7 +24,7 @@ pub struct ReportArgs {
     #[arg(long, default_value = "7d")]
     pub since: String,
 
-    /// Path to opengeo.yaml. Defaults to `./opengeo.yaml`.
+    /// Path to anseo.yaml. Defaults to `./anseo.yaml`.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
 }
@@ -52,7 +52,7 @@ pub async fn run(args: ReportArgs) -> Result<(), OpenGeoError> {
         "by_provider": {},
         "by_prompt": {},
         "sentiment": sentiment,
-        "note": "Set DATABASE_URL and keep opengeo.yaml available for live report aggregates.",
+        "note": "Set DATABASE_URL and keep anseo.yaml available for live report aggregates.",
     });
 
     match args.format {

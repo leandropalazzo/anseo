@@ -2,7 +2,7 @@
 //! tool and the Extension's Add-Prompt preview dialog (epics-phase3.md
 //! references both consumers).
 //!
-//! Returns the brand + competitors declared in `opengeo.yaml`, joined to
+//! Returns the brand + competitors declared in `anseo.yaml`, joined to
 //! a 7-day rolling mention count and avg rank computed from
 //! `mentions` × `prompt_runs`. The brand is marked `is_primary = true`;
 //! competitors are `false`. Providers-with-data is the set of providers
@@ -54,7 +54,7 @@ async fn list_brands(
     // Build the declaration set: primary brand first, then competitors. The DB
     // `projects` row is authoritative per-project (multi-project: the resolved
     // project's brand, not a single boot-pinned one); fall back to the boot
-    // `opengeo.yaml` only when no row exists yet.
+    // `anseo.yaml` only when no row exists yet.
     let mut declared: Vec<(String, bool, Vec<String>)> = Vec::new();
     match state.storage.projects().get_brand(project_id).await {
         Ok(Some(row)) => {
@@ -71,7 +71,7 @@ async fn list_brands(
                     StatusCode::SERVICE_UNAVAILABLE,
                     Json(serde_json::json!({
                         "error": "config_unavailable",
-                        "message": "no project brand row and no readable `opengeo.yaml`; brand list cannot be resolved.",
+                        "message": "no project brand row and no readable `anseo.yaml`; brand list cannot be resolved.",
                     })),
                 ));
             };

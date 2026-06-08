@@ -9,7 +9,7 @@
 //! ## Missing-key semantics
 //!
 //! Per FR-7/FR-8 the missing-key error names the relevant env var and the
-//! login command. When a provider declared in `opengeo.yaml` has no secret
+//! login command. When a provider declared in `anseo.yaml` has no secret
 //! configured, `build_real_registry` simply **skips** registering a client
 //! for it. The orchestrator's `unregistered_record` path then synthesises a
 //! `failed` `PromptRunRecord` with `ProviderUnauthorized` and the
@@ -121,12 +121,12 @@ fn build_client(name: &ProviderName, secret: Secret) -> Arc<dyn Provider> {
 /// Build a [`ProviderRegistry`] from `config`.
 ///
 /// Two passes:
-/// 1. Providers declared in `opengeo.yaml`. A declared provider with no
+/// 1. Providers declared in `anseo.yaml`. A declared provider with no
 ///    configured secret is skipped with a warning (orchestrator synthesises a
 ///    `failed` record via `unregistered_record`).
 /// 2. Any *other* first-class provider that has a secret in the env/keychain
 ///    chain. This makes dashboard-saved keys usable even when the provider was
-///    never listed in `opengeo.yaml` — the previous behaviour silently ignored
+///    never listed in `anseo.yaml` — the previous behaviour silently ignored
 ///    such keys. Handlers source the model from `ProviderName::default_model`.
 pub fn build_real_registry(config: &Config) -> Result<ProviderRegistry, SecretStoreError> {
     // Story 36.7: provider secrets are keyed per project. Derive the project

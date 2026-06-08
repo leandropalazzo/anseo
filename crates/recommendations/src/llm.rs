@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// Per-run LLM configuration + cost caps (architecture §4.4).
 #[derive(Debug, Clone)]
 pub struct LlmConfig {
-    /// `recommendations.llm_enrich` (opengeo.yaml v0.2). Default `false`.
+    /// `recommendations.llm_enrich` (anseo.yaml v0.2). Default `false`.
     pub enrich: bool,
     /// ≤ 20 LLM-aided recs / run (architecture §4.4 cost cap).
     pub max_recs_per_run: usize,

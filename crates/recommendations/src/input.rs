@@ -74,7 +74,7 @@ pub struct EngineInput {
     pub project_id: Ulid,
     pub brand: String,
     pub brand_etld1: String,
-    /// eTLD+1 of `brand.docs_url` (opengeo.yaml v0.2), if configured.
+    /// eTLD+1 of `brand.docs_url` (anseo.yaml v0.2), if configured.
     pub docs_etld1: Option<String>,
     pub competitors: Vec<String>,
     pub enabled_providers: Vec<String>,

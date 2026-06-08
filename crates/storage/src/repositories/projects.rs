@@ -150,7 +150,7 @@ impl<'a> ProjectRepo<'a> {
     /// Return the single project's brand config when the deployment holds
     /// exactly one project (the legacy single-project precedence fallback used
     /// by the API boot path: when exactly one project exists, its
-    /// name/variants/competitors win over the bootstrap `opengeo.yaml`).
+    /// name/variants/competitors win over the bootstrap `anseo.yaml`).
     ///
     /// Storage no longer forbids multiple projects — this helper simply yields
     /// `None` when zero or more-than-one projects exist, leaving the boot path

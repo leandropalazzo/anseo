@@ -7,7 +7,7 @@ use clap::Args;
 
 #[derive(Debug, Args)]
 pub struct StatusArgs {
-    /// Path to opengeo.yaml. Reserved for Story 10.2 worker lookup.
+    /// Path to anseo.yaml. Reserved for Story 10.2 worker lookup.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
 }

@@ -69,7 +69,7 @@ pub fn v1_router() -> Router<AppState> {
 // ---------------------------------------------------------------------
 
 /// Remote-connect request from the `/setup` ClickHouse form. `password` is
-/// used only to probe the endpoint; it is never persisted to `opengeo.yaml`
+/// used only to probe the endpoint; it is never persisted to `anseo.yaml`
 /// (the privacy rule — secrets stay in env / the managed provider's store).
 #[derive(Debug, Deserialize)]
 pub struct ConnectRequest {
@@ -166,14 +166,14 @@ async fn post_clickhouse_connect(
         }
     }
 
-    // Probe succeeded — persist the endpoint (sans password) to opengeo.yaml.
+    // Probe succeeded — persist the endpoint (sans password) to anseo.yaml.
     match persist_clickhouse_endpoint(&endpoint, &req) {
         Ok(()) => (
             StatusCode::OK,
             Json(ConnectResult {
                 ok: true,
                 state: ConnectState::Connected,
-                message: "connected and saved to opengeo.yaml".to_string(),
+                message: "connected and saved to anseo.yaml".to_string(),
                 endpoint: Some(endpoint),
             }),
         ),
@@ -237,7 +237,7 @@ async fn probe_remote_clickhouse(
     }
 }
 
-/// Load `opengeo.yaml` (path from `ANSEO_CONFIG`, default `opengeo.yaml`),
+/// Load `anseo.yaml` (path from `ANSEO_CONFIG`, default `anseo.yaml`),
 /// set `analytics.clickhouse`, and write it back. The password is never
 /// written; it is expected at runtime via `CLICKHOUSE_PASSWORD`.
 fn persist_clickhouse_endpoint(endpoint: &str, req: &ConnectRequest) -> Result<(), String> {

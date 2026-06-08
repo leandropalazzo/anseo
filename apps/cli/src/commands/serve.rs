@@ -38,7 +38,7 @@ const DEFAULT_HOST: &str = "127.0.0.1";
 
 #[derive(Debug, Args)]
 pub struct ServeArgs {
-    /// Directory holding project config (looks for `opengeo.yaml` inside).
+    /// Directory holding project config (looks for `anseo.yaml` inside).
     /// Defaults to the current directory.
     #[arg(long, value_name = "DIR")]
     pub projects_dir: Option<std::path::PathBuf>,
@@ -104,7 +104,7 @@ fn resolve_bind(bind: &Option<String>, port: u16) -> String {
     }
 }
 
-/// Resolve the `opengeo.yaml` path from `--projects-dir`.
+/// Resolve the `anseo.yaml` path from `--projects-dir`.
 fn resolve_config_path(projects_dir: &Option<std::path::PathBuf>) -> String {
     match projects_dir {
         Some(dir) => dir.join("anseo.yaml").to_string_lossy().into_owned(),

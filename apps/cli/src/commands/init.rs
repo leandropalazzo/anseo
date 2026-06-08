@@ -1,7 +1,7 @@
 //! `ogeo init` — scaffold a new OpenGEO project (FR-10).
 //!
 //! Behavior:
-//! - In an empty directory, creates `opengeo.yaml`, `.gitignore`, `README.md`.
+//! - In an empty directory, creates `anseo.yaml`, `.gitignore`, `README.md`.
 //! - Pre-existing files at any of those paths prompt per-file before overwrite
 //!   (interactive). `--force` overwrites without prompting; `--no-overwrite`
 //!   refuses to touch any existing file and exits non-zero if at least one
@@ -9,7 +9,7 @@
 //! - Declining the interactive prompt exits non-zero **without** writing any
 //!   partial scaffold (no half-applied state).
 //!
-//! Scaffolded `opengeo.yaml` is verified valid against the v0.1 schema by the
+//! Scaffolded `anseo.yaml` is verified valid against the v0.1 schema by the
 //! `opengeo_init_writes_a_valid_schema_v0_1_config` test in
 //! `tests/cli_smoke.rs`.
 

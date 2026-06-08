@@ -354,7 +354,7 @@ async fn run_tick(
     }
 }
 
-/// Build the [`DispatchContext`] from the deployment's `opengeo.yaml` + the live
+/// Build the [`DispatchContext`] from the deployment's `anseo.yaml` + the live
 /// provider registry, mirroring the binary's boot logic. Returns `None` when the
 /// config is unreadable or the registry can't be built (degraded mode: reaper +
 /// webhooks + ETL still run). Shared so `ogeo serve` reuses the same wiring.

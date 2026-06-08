@@ -32,7 +32,7 @@ pub struct GenerateArgs {
     #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
     /// Select the project by id (ULID) or brand name, overriding the working-dir
-    /// `opengeo.yaml` (ADR-004). Populated from the global `--project` flag.
+    /// `anseo.yaml` (ADR-004). Populated from the global `--project` flag.
     #[arg(skip)]
     pub project: Option<String>,
 }

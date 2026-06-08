@@ -91,7 +91,7 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
     storage.migrate().await?;
 
     // DB-authoritative brand config: once a project row exists, its
-    // name/variants/competitors win over the bootstrap `opengeo.yaml`.
+    // name/variants/competitors win over the bootstrap `anseo.yaml`.
     if let Some(brand) = storage.projects().get_single_brand().await? {
         project_id = anseo_core::project_id_for_name(&brand.name);
         configured_project = brand.name.clone();
@@ -104,7 +104,7 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
             event = "service.brand_db_authoritative",
             project = %project_id,
             brand = %brand.name,
-            "brand config loaded from DB (overrides opengeo.yaml)"
+            "brand config loaded from DB (overrides anseo.yaml)"
         );
     }
 
@@ -153,7 +153,7 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
             }
         }
     }
-    // Seed declared prompts from `opengeo.yaml` into the DB (DB-authoritative).
+    // Seed declared prompts from `anseo.yaml` into the DB (DB-authoritative).
     if let Some(cfg) = loaded_config.as_ref() {
         if !cfg.prompts.is_empty()
             && storage.projects().get(project_id).await?.is_some()
@@ -183,7 +183,7 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
                 event = "service.prompts_seeded",
                 project = %project_id,
                 count = cfg.prompts.len(),
-                "seeded prompts from opengeo.yaml (project had none)"
+                "seeded prompts from anseo.yaml (project had none)"
             );
         }
     }
