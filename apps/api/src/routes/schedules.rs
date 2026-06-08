@@ -386,7 +386,7 @@ async fn run_schedule_now(
         return Err(err(
             StatusCode::SERVICE_UNAVAILABLE,
             "config_unavailable",
-            "no project config loaded; cannot run schedules until `opengeo.yaml` is readable",
+            "no project config loaded; cannot run schedules until `anseo.yaml` is readable",
         ));
     };
     let Some(registry) = state.provider_registry.as_ref() else {

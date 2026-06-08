@@ -18,7 +18,7 @@ pub struct CreateArgs {
     /// target.
     #[arg(long)]
     pub name: String,
-    /// Path to `opengeo.yaml`. Defaults to `./opengeo.yaml`.
+    /// Path to `anseo.yaml`. Defaults to `./anseo.yaml`.
     #[arg(long, default_value = "anseo.yaml")]
     pub config: std::path::PathBuf,
 }

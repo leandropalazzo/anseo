@@ -23,13 +23,13 @@ pub struct LoginArgs {
     /// Provider to authenticate.
     pub provider: String,
 
-    /// Path to `opengeo.yaml`, used to resolve the current project so the key
-    /// is stored under that project's namespace. Defaults to `./opengeo.yaml`.
+    /// Path to `anseo.yaml`, used to resolve the current project so the key
+    /// is stored under that project's namespace. Defaults to `./anseo.yaml`.
     #[arg(long)]
     pub config: Option<PathBuf>,
 
     /// Explicit project id to store the key under, overriding the project
-    /// derived from `opengeo.yaml`. Useful for scripted multi-project setups.
+    /// derived from `anseo.yaml`. Useful for scripted multi-project setups.
     #[arg(long)]
     pub project: Option<String>,
 }
@@ -53,7 +53,7 @@ pub fn run(args: LoginArgs) -> Result<(), OpenGeoError> {
         // prefers this key and falls back to the legacy global key.
         Some(pid) => set_provider_secret(&store, pid, &provider.as_wire_str(), secret)
             .map_err(map_store_err)?,
-        // No project could be resolved (no `opengeo.yaml`, no `--project`).
+        // No project could be resolved (no `anseo.yaml`, no `--project`).
         // Fall back to the legacy global namespace so a project-less setup keeps
         // working exactly as before per-project keying existed.
         None => store
@@ -78,7 +78,7 @@ pub fn run(args: LoginArgs) -> Result<(), OpenGeoError> {
 ///
 /// Precedence:
 /// 1. An explicit `--project <id>` flag.
-/// 2. The `ProjectId` derived from `opengeo.yaml` (default `./opengeo.yaml`,
+/// 2. The `ProjectId` derived from `anseo.yaml` (default `./anseo.yaml`,
 ///    or the path given by `--config`).
 ///
 /// Returns `Ok(None)` when no config is present and no `--project` was given —
@@ -100,7 +100,7 @@ fn resolve_project_id(args: &LoginArgs) -> Result<Option<String>, OpenGeoError> 
             })?;
             Ok(Some(config.project_id().to_string()))
         }
-        // Default path: best-effort. Missing/invalid `opengeo.yaml` falls back
+        // Default path: best-effort. Missing/invalid `anseo.yaml` falls back
         // to global keying rather than failing the login.
         None => match Config::from_path(PathBuf::from("anseo.yaml")) {
             Ok(config) => Ok(Some(config.project_id().to_string())),

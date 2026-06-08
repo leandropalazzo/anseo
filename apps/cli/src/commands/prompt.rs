@@ -1,6 +1,6 @@
 //! `ogeo prompt add` and `ogeo prompt list` (FR-12).
 //!
-//! Both commands operate on `opengeo.yaml` at the working directory (or
+//! Both commands operate on `anseo.yaml` at the working directory (or
 //! `--config PATH`).
 //!
 //! - `add` interactive mode walks the user through name/text/description.
@@ -36,7 +36,7 @@ pub struct AddArgs {
     #[arg(long)]
     pub description: Option<String>,
 
-    /// Path to `opengeo.yaml`. Defaults to the file at the working directory.
+    /// Path to `anseo.yaml`. Defaults to the file at the working directory.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
 }
@@ -48,7 +48,7 @@ pub struct ListArgs {
     #[arg(long, value_enum, default_value_t = ListFormat::Table)]
     pub format: ListFormat,
 
-    /// Path to `opengeo.yaml`. Defaults to the file at the working directory.
+    /// Path to `anseo.yaml`. Defaults to the file at the working directory.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
 }
@@ -129,7 +129,7 @@ pub fn run_add(args: AddArgs) -> Result<(), OpenGeoError> {
 
     // Re-validate before writing — surfaces slug-shape errors etc.
     let yaml = serde_yaml::to_string(&cfg)
-        .map_err(|e| OpenGeoError::Config(format!("failed to serialize opengeo.yaml: {e}")))?;
+        .map_err(|e| OpenGeoError::Config(format!("failed to serialize anseo.yaml: {e}")))?;
     let _round_trip = Config::from_yaml_str(&yaml)?; // catches invalid slugs etc.
 
     write_atomic(&path, &yaml)?;
@@ -195,7 +195,7 @@ fn truncate(s: &str, max_chars: usize) -> String {
 }
 
 fn write_atomic(path: &Path, contents: &str) -> Result<(), OpenGeoError> {
-    // Plain write is fine for Phase 1 — `opengeo.yaml` is small and humans
+    // Plain write is fine for Phase 1 — `anseo.yaml` is small and humans
     // edit it. We just guard against missing parent dirs.
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {

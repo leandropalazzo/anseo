@@ -32,13 +32,13 @@ use crate::middleware::geo_gate::geo_gate_middleware;
 pub struct AppState {
     pub storage: Arc<Storage>,
     /// The "current project" the dashboard is reading. Phase 1 single-project
-    /// deployments derive this from the `opengeo.yaml`'s brand name.
+    /// deployments derive this from the `anseo.yaml`'s brand name.
     pub project_id: ProjectId,
     /// Phase 2 ARCH-16 broadcast — the worker, webhook dispatcher, and
     /// notification channels each publish here; the SSE route subscribes
     /// per-client.
     pub events: broadcast::Sender<LifecycleEvent>,
-    /// Project `Config` loaded at boot from `opengeo.yaml`. Carries the
+    /// Project `Config` loaded at boot from `anseo.yaml`. Carries the
     /// prompt + provider declarations needed by the orchestrator's API-
     /// mode entry point in `routes::prompt_runs`. Optional so dev binds
     /// (where the YAML may be absent) still boot for the read-only
@@ -49,7 +49,7 @@ pub struct AppState {
     /// without a secret are absent here; the orchestrator synthesises a
     /// `failed` record for them on dispatch.
     pub provider_registry: Option<Arc<ProviderRegistry>>,
-    /// Boot-derived project wire name (`brand.name` from `opengeo.yaml`).
+    /// Boot-derived project wire name (`brand.name` from `anseo.yaml`).
     ///
     /// As of Epic 36 (Story 36.2) the `/v1/*` surface no longer pins to this
     /// value — `extractors::project::project_header_guard` performs real

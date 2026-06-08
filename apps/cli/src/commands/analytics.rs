@@ -19,7 +19,7 @@ const DEFAULT_CITATION_LIMIT: i64 = 200;
 
 #[derive(Debug, Args)]
 pub struct MigrateArgs {
-    /// Path to opengeo.yaml. Defaults to `./opengeo.yaml`.
+    /// Path to anseo.yaml. Defaults to `./anseo.yaml`.
     #[arg(long, value_name = "PATH")]
     pub config: Option<PathBuf>,
     /// Rolling window (days) of visibility points to migrate per

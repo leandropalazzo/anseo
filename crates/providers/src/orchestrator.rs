@@ -17,7 +17,7 @@
 //! `Orchestrator::run_all` uses a [`tokio::sync::Semaphore`] sized at the
 //! `concurrency` value from the config (default 4 per Story 2.1). All
 //! provider calls share that semaphore — so the user can dial down
-//! parallelism by editing `concurrency:` in opengeo.yaml.
+//! parallelism by editing `concurrency:` in anseo.yaml.
 
 use std::collections::HashMap;
 use std::sync::Arc;

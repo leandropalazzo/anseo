@@ -113,9 +113,9 @@ services:
     environment:
       DATABASE_URL: postgres://anseo:anseo@postgres:5432/anseo
       CLICKHOUSE_URL: http://opengeo:opengeo@clickhouse:8123/opengeo_analytics
-      OGEO_BIND_ADDR: 0.0.0.0:8080
-      RUST_LOG: warn,opengeo=info
-      OGEO_CONFIG: /opengeo.yaml
+      ANSEO_BIND_ADDR: 0.0.0.0:8080
+      RUST_LOG: warn,anseo=info
+      ANSEO_CONFIG: /opengeo.yaml
     volumes:
       - ./fixture-opengeo.yaml:/opengeo.yaml:ro
     ports:

@@ -76,7 +76,7 @@ pub struct MinHashIndex {
 /// One row in [`MinHashIndex::query`]'s result.
 #[derive(Debug, Clone, Serialize)]
 pub struct Match {
-    /// Prompt name (slug from `opengeo.yaml`).
+    /// Prompt name (slug from `anseo.yaml`).
     pub name: String,
     /// Prompt text.
     pub prompt: String,

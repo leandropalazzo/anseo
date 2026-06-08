@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Schedule dispatch substrate: load the base config + provider registry the
     // same way `apps/api` does so scheduled ticks drive live providers through
-    // the orchestrator. Provider keys + concurrency come from `opengeo.yaml`;
+    // the orchestrator. Provider keys + concurrency come from `anseo.yaml`;
     // brand identity is overlaid per project each tick by the fan-out.
     let config_path = std::env::var("ANSEO_CONFIG").unwrap_or_else(|_| "anseo.yaml".into());
     let dispatch = load_dispatch_context(&config_path);

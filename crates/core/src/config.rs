@@ -1,13 +1,13 @@
-//! `opengeo.yaml` schema, parser, and stable-ID derivation (FR-1, FR-9, FR-23, FR-24).
+//! `anseo.yaml` schema, parser, and stable-ID derivation (FR-1, FR-9, FR-23, FR-24).
 //!
 //! The YAML file is the canonical declaration of what the system should observe; the
-//! database stores what the system observed. A run of OpenGEO loads `opengeo.yaml`,
+//! database stores what the system observed. A run of OpenGEO loads `anseo.yaml`,
 //! converts it into a [`Config`], and works from the [`Config`] thereafter.
 //!
 //! # Stable IDs
 //!
 //! [`Config::project_id`] and [`Config::prompt_id`] derive ULID newtypes via a SHA-256
-//! hash of the namespaced canonical input. The same `opengeo.yaml` content produces
+//! hash of the namespaced canonical input. The same `anseo.yaml` content produces
 //! the same IDs run after run — important for FR-1 ("Project/Prompt IDs are stable
 //! across runs when config unchanged") and for FR-23 ("removing a Prompt from YAML
 //! and re-running does not delete its historical Prompt Runs", since the historical
@@ -57,7 +57,7 @@ pub const DEFAULT_OPENROUTER_MODEL: &str = "openrouter/auto";
 /// Default debounce window for schedule declarations.
 pub const DEFAULT_SCHEDULE_DEBOUNCE_MINUTES: u32 = 5;
 
-/// Top-level `opengeo.yaml` document (v0.1).
+/// Top-level `anseo.yaml` document (v0.1).
 ///
 /// `#[serde(deny_unknown_fields)]` enforces FR-24's "unknown fields produce
 /// exit-code-compatible config errors" — surfaced via [`ConfigError::Parse`]
@@ -662,7 +662,7 @@ impl Config {
 
     /// Stable [`ProjectId`] derived from the canonical project namespace
     /// (currently the trimmed lowercase brand name). Two runs over the same
-    /// `opengeo.yaml` produce the same `ProjectId`.
+    /// `anseo.yaml` produce the same `ProjectId`.
     pub fn project_id(&self) -> ProjectId {
         project_id_for_name(&self.brand.name)
     }
