@@ -275,9 +275,12 @@ impl<'a> EntityRepo<'a> {
     /// (both reference the domain as free text, not via a constraint), so we
     /// delete them explicitly in one transaction. `contributions.entity_domain`
     /// is `ON DELETE RESTRICT`, so any live identified contribution would block
-    /// the entity delete — that is intentional: the contribution payload is
-    /// erased by KEK crypto-shred, not by row deletion, and we must not orphan a
-    /// referenced registry row. The caller resolves the crypto-shred separately.
+    /// the entity delete. The contribution rows are de-identified aggregate data
+    /// that must be RETAINED (GDPR: the identifiable PII lived in the
+    /// KEK-encrypted payload, which is crypto-shred separately by the caller), so
+    /// we DE-LINK them by setting `entity_domain = NULL` before deleting the
+    /// entity. This keeps the FK + ON DELETE RESTRICT intact while making the
+    /// entity delete succeed.
     ///
     /// Returns the number of (entity, attempt, dispute) rows deleted.
     pub async fn erase(&self, domain: &str) -> Result<EraseCounts, Error> {
@@ -294,6 +297,15 @@ impl<'a> EntityRepo<'a> {
             .execute(&mut *tx)
             .await?
             .rows_affected();
+
+        // De-link (do NOT delete) any retained contribution rows so the
+        // ON DELETE RESTRICT FK does not block the entity delete below. The
+        // contribution payload's identifiability is destroyed by the KEK
+        // crypto-shred; the aggregate row itself is retained, just orphaned.
+        sqlx::query(r#"UPDATE contributions SET entity_domain = NULL WHERE entity_domain = $1"#)
+            .bind(domain)
+            .execute(&mut *tx)
+            .await?;
 
         let entity = sqlx::query(r#"DELETE FROM entities WHERE domain = $1"#)
             .bind(domain)

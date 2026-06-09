@@ -101,6 +101,13 @@ fn bad_request(code: &str, msg: &str) -> ApiError {
     )
 }
 
+fn conflict(code: &str, msg: &str) -> ApiError {
+    (
+        StatusCode::CONFLICT,
+        Json(serde_json::json!({ "error": code, "message": msg })),
+    )
+}
+
 /// Resolve the acting operator: the request `operator` body field wins, else
 /// the `X-Anseo-Operator-Actor` header captured by the auth layer, else the
 /// `"operator"` sentinel. The login is echoed on responses for BFF auditing.
@@ -285,13 +292,27 @@ async fn revoke(
     let actor = resolve_actor(body.operator.as_deref(), &op);
 
     // 404 unless the entity exists — never silently "revoke" a non-entity.
-    let _ = state
+    let entity = state
         .storage
         .entities()
         .get(&domain)
         .await
         .map_err(storage_err)?
         .ok_or_else(|| not_found(&domain))?;
+
+    // Only a currently-`verified` entity is revocable. `set_grace_period_start`
+    // is a no-op on any other state (its WHERE clause), which would otherwise
+    // write a misleading revocation ledger row and return 200 on an unchanged
+    // entity. Reject up front with 409 so the operator gets an honest answer.
+    if entity.claim_status != "verified" {
+        return Err(conflict(
+            "entity_not_revocable",
+            &format!(
+                "cannot revoke entity in '{}' state; only 'verified' entities can be revoked",
+                entity.claim_status
+            ),
+        ));
+    }
 
     // SHARED revoke path: the exact same `revoke_entity` the daily re-verify job
     // uses (set revoked + grace-period start + ledger row). One revoke path.

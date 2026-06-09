@@ -96,6 +96,43 @@ async fn seed_entity(pool: &PgPool, domain: &str, status: &str, method: Option<&
     .expect("seed entity");
 }
 
+/// Seed a single identified contribution for `domain` under `project_id`, so
+/// `project_for_domain(domain)` resolves to `Unique(project_id)`. Returns the
+/// contribution row id. Inserts the required `benchmark_consent` provenance row
+/// (consent_record_id is NOT NULL on `contributions`).
+async fn seed_identified_contribution(
+    pool: &PgPool,
+    project_id: ProjectId,
+    domain: &str,
+) -> uuid::Uuid {
+    let consent_id = uuid::Uuid::new_v4();
+    sqlx::query(
+        r#"INSERT INTO benchmark_consent (id, project_id, event, terms_version, tier)
+           VALUES ($1, $2, 'optin', 'v1', 'brand_visibility')"#,
+    )
+    .bind(consent_id)
+    .bind(project_id)
+    .execute(pool)
+    .await
+    .expect("seed consent");
+
+    let contribution_id = uuid::Uuid::new_v4();
+    sqlx::query(
+        r#"INSERT INTO contributions
+               (id, project_id, project_hmac, consent_record_id, verification_token,
+                terms_version, entity_domain)
+           VALUES ($1, $2, 'hmac', $3, 'tok', 'v1', $4)"#,
+    )
+    .bind(contribution_id)
+    .bind(project_id)
+    .bind(consent_id)
+    .bind(domain)
+    .execute(pool)
+    .await
+    .expect("seed contribution");
+    contribution_id
+}
+
 async fn req(
     app: &axum::Router,
     method: &str,
@@ -342,4 +379,138 @@ async fn erase_two_step_token_gate_and_kek_skip() {
     )
     .await;
     assert_eq!(s, StatusCode::NOT_FOUND);
+}
+
+/// The UUID-text form of a `ProjectId` (a ULID newtype stored in a Postgres
+/// UUID column). `project_for_domain` returns `project_id::text` and the handler
+/// keys the KEK by that exact string, so the test must mint the KEK under the
+/// same key to exercise the crypto-shred.
+fn project_kek_key(project_id: ProjectId) -> String {
+    uuid::Uuid::from_bytes(project_id.into_ulid().to_bytes()).to_string()
+}
+
+// ─── erase: Unique mapping → KEK crypto-shred + contribution de-linked (B1) ───
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn erase_unique_mapping_shreds_kek_and_delinks_contribution() {
+    let (app, _t, pool) = setup().await;
+
+    // A dedicated project that owns the single identified contribution, so the
+    // entity→project mapping is Unique (the path B1 made unreachable).
+    let project_id = ProjectId::new();
+    ProjectRepo::new(&pool)
+        .insert(&ProjectRow {
+            id: project_id,
+            name: format!("kek-{project_id}"),
+            organization_id: None,
+            tenant_id: None,
+            created_at: Utc::now(),
+        })
+        .await
+        .expect("seed kek project");
+
+    let d = format!("kek{}.com", uuid::Uuid::new_v4().simple());
+    seed_entity(&pool, &d, "verified", Some("dns_txt")).await;
+    let contribution_id = seed_identified_contribution(&pool, project_id, &d).await;
+
+    // Mint the project KEK in the SAME store the handler shreds from.
+    let kek_key = project_kek_key(project_id);
+    anseo_benchmark::ProjectKek::load_or_create(&anseo_core::default_chain(), &kek_key)
+        .expect("provision KEK");
+    assert!(
+        anseo_benchmark::ProjectKek::load(&anseo_core::default_chain(), &kek_key).is_ok(),
+        "KEK must exist before erase"
+    );
+
+    // Step 1: mint the confirm token (erases nothing).
+    let (s, body) = req(
+        &app,
+        "POST",
+        &format!("/v1/operator/entities/{d}/erase"),
+        Some(OPERATOR_KEY),
+        Some(serde_json::json!({"operator":"alice"})),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    let token = body["confirm_token"].as_str().unwrap().to_string();
+
+    // Step 2: confirmed erase. Unique mapping → KEK crypto-shred fires.
+    let (s, body) = req(
+        &app,
+        "POST",
+        &format!("/v1/operator/entities/{d}/erase"),
+        Some(OPERATOR_KEY),
+        Some(serde_json::json!({"operator":"alice","confirm_token":token})),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["erased"], true);
+    // (b) response reports the shred.
+    assert_eq!(body["kek_destroyed"], true, "{body}");
+
+    // (a) entity is gone.
+    let (s, _) = req(
+        &app,
+        "GET",
+        &format!("/v1/operator/entities/{d}"),
+        Some(OPERATOR_KEY),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+
+    // (c) the KEK is actually destroyed in the SecretStore.
+    assert!(
+        matches!(
+            anseo_benchmark::ProjectKek::load(&anseo_core::default_chain(), &kek_key),
+            Err(anseo_benchmark::CryptoError::KekMissing { .. })
+        ),
+        "KEK must be crypto-shredded after erase"
+    );
+
+    // (d) the contribution row is RETAINED but DE-LINKED (entity_domain IS NULL).
+    let row: (Option<String>,) =
+        sqlx::query_as(r#"SELECT entity_domain FROM contributions WHERE id = $1"#)
+            .bind(contribution_id)
+            .fetch_one(&pool)
+            .await
+            .expect("contribution row must still exist");
+    assert_eq!(
+        row.0, None,
+        "contribution must be de-linked (entity_domain NULL)"
+    );
+}
+
+// ─── revoke: non-verified entity → 409, status unchanged (S2) ────────────────
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn revoke_pending_entity_is_conflict_and_does_not_flip_status() {
+    let (app, _t, pool) = setup().await;
+    let d = format!("rvp{}.com", uuid::Uuid::new_v4().simple());
+    seed_entity(&pool, &d, "pending", None).await;
+
+    let (s, body) = req(
+        &app,
+        "POST",
+        &format!("/v1/operator/entities/{d}/revoke"),
+        Some(OPERATOR_KEY),
+        Some(serde_json::json!({"operator":"alice"})),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{body}");
+    assert_eq!(body["error"], "entity_not_revocable");
+
+    // Status unchanged, and no revocation written.
+    let (s, body) = req(
+        &app,
+        "GET",
+        &format!("/v1/operator/entities/{d}"),
+        Some(OPERATOR_KEY),
+        None,
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(body["entity"]["claim_status"], "pending");
 }
