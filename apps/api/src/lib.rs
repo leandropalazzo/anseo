@@ -25,7 +25,7 @@ use ulid::Ulid;
 use crate::routes::serve_status::ServeInfo;
 use crate::routes::setup::InstallState;
 
-use crate::middleware::auth::require_api_key;
+use crate::middleware::auth::{require_api_key, require_operator_key};
 use crate::middleware::geo_gate::geo_gate_middleware;
 
 #[derive(Clone)]
@@ -187,6 +187,15 @@ pub fn router(state: AppState) -> Router {
             require_api_key,
         ));
 
+    // Story 48.4 — operator entity-admin surface (brands & verification admin).
+    // Gated by `require_operator_key` (constant-time compare against
+    // ANSEO_OPERATOR_API_KEY), a DISTINCT credential from tenant project API
+    // keys: a tenant key never satisfies this gate, so tenant projects cannot
+    // reach `/v1/operator/entities/*`. NOT under `require_api_key` nor the
+    // `X-Anseo-Project` guard — this is global, single-operator state.
+    let v1_operator_admin_surface = routes::operator_entities::v1_router()
+        .route_layer(axum::middleware::from_fn(require_operator_key));
+
     let phase_1_at_root_gated = phase_1_reads_at_root.route_layer(
         axum::middleware::from_fn_with_state(state.clone(), require_api_key),
     );
@@ -208,6 +217,7 @@ pub fn router(state: AppState) -> Router {
         .merge(phase_1_at_root_gated)
         .nest("/v1", v1_public_surface)
         .nest("/v1", v1_operator_surface)
+        .nest("/v1", v1_operator_admin_surface)
         .nest("/v1", v1_surface)
         // Story 43.7 — public, unauthenticated comms preference center +
         // one-click unsubscribe. No API key: authority is the opaque token in

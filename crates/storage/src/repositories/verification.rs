@@ -104,6 +104,7 @@ pub struct AttemptRecord {
     pub state: String,
     pub expires_at: chrono::DateTime<chrono::Utc>,
     pub consumed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -317,7 +318,7 @@ impl<'a> VerificationRepo<'a> {
         let row = sqlx::query(
             r#"
             SELECT id, domain, method, token_hash,
-                   status AS state, expires_at, used_at AS consumed_at
+                   status AS state, expires_at, used_at AS consumed_at, created_at
             FROM verification_attempts
             WHERE token_hash = $1
             "#,
@@ -333,6 +334,7 @@ impl<'a> VerificationRepo<'a> {
             state: r.get("state"),
             expires_at: r.get("expires_at"),
             consumed_at: r.get("consumed_at"),
+            created_at: r.get("created_at"),
         }))
     }
 
@@ -421,6 +423,37 @@ impl<'a> VerificationRepo<'a> {
             })
             .collect())
     }
+
+    /// All verification attempts for a domain, newest-first (Story 48.4 detail
+    /// view). Returns the full append-only ledger so the operator console can
+    /// render the attempt/audit history for one entity.
+    pub async fn attempts_for_domain(&self, domain: &str) -> Result<Vec<AttemptRecord>, Error> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, domain, method, token_hash,
+                   status AS state, expires_at, used_at AS consumed_at, created_at
+            FROM verification_attempts
+            WHERE domain = $1
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(domain)
+        .fetch_all(self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| AttemptRecord {
+                id: r.get("id"),
+                domain: r.get("domain"),
+                method: r.get("method"),
+                token_hash: r.get("token_hash"),
+                state: r.get("state"),
+                expires_at: r.get("expires_at"),
+                consumed_at: r.get("consumed_at"),
+                created_at: r.get("created_at"),
+            })
+            .collect())
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -439,13 +472,27 @@ impl<'a> VerificationRepo<'a> {
 /// hickory client and unit tests inject [`MockTxtResolver`] (no network).
 ///
 /// Returns the number of entities revoked this sweep.
+/// SHARED revocation path (Story 48.4). The ONE place that revokes a verified
+/// entity: flips `claim_status` → `revoked`, starts the 14-day grace period,
+/// and appends a revocation row to the append-only ledger. Both the daily
+/// re-verification job (43.2, on TXT-record removal) and the operator
+/// `revoke` endpoint (48.4) call this so there is a single revoke path, not a
+/// fork.
+///
+/// `EntityRepo::set_grace_period_start` only acts on a currently-`verified`
+/// entity (its WHERE clause), so revoking a non-verified entity is a safe
+/// no-op flip; the ledger row is still written so the action is audited.
+pub async fn revoke_entity(storage: &crate::Storage, domain: &str) -> Result<(), Error> {
+    storage.entities().set_grace_period_start(domain).await?;
+    storage.verification().record_revocation(domain).await?;
+    Ok(())
+}
+
 pub async fn run_reverification_job(
     storage: &crate::Storage,
     resolver: &dyn TxtResolver,
 ) -> Result<usize, Error> {
-    let verification = storage.verification();
-    let entities = storage.entities();
-    let domains = verification.dns_verified_domains().await?;
+    let domains = storage.verification().dns_verified_domains().await?;
     let mut revoked = 0usize;
 
     for (domain, token_hash) in domains {
@@ -467,8 +514,8 @@ pub async fn run_reverification_job(
         });
 
         if !still_present {
-            entities.set_grace_period_start(&domain).await?;
-            verification.record_revocation(&domain).await?;
+            // Single revoke path shared with the operator endpoint (48.4).
+            revoke_entity(storage, &domain).await?;
             revoked += 1;
             // AC-5: notify the registered email via anseo-comms once wired.
             tracing::warn!(
@@ -604,6 +651,7 @@ mod tests {
                 now + chrono::Duration::hours(1)
             },
             consumed_at: consumed.then_some(now),
+            created_at: now,
         }
     }
 
