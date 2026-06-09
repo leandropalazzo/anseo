@@ -61,6 +61,25 @@ from .install_plugin_body import InstallPluginBody
 from .install_plugin_response_200 import InstallPluginResponse200
 from .kind_adoption import KindAdoption
 from .list_marketplace_plugins_response_200 import ListMarketplacePluginsResponse200
+from .operator_entity import OperatorEntity
+from .operator_entity_claim_status import OperatorEntityClaimStatus
+from .operator_entity_detail import OperatorEntityDetail
+from .operator_entity_role import OperatorEntityRole
+from .operator_entity_verification_method import OperatorEntityVerificationMethod
+from .operator_erase_entity_body import OperatorEraseEntityBody
+from .operator_erase_entity_response_200 import OperatorEraseEntityResponse200
+from .operator_list_entities_claim_status import OperatorListEntitiesClaimStatus
+from .operator_list_entities_response_200 import OperatorListEntitiesResponse200
+from .operator_list_entities_verification_method import (
+    OperatorListEntitiesVerificationMethod,
+)
+from .operator_override_verify_body import OperatorOverrideVerifyBody
+from .operator_retrigger_verification_body import OperatorRetriggerVerificationBody
+from .operator_retrigger_verification_response_200 import (
+    OperatorRetriggerVerificationResponse200,
+)
+from .operator_revoke_entity_body import OperatorRevokeEntityBody
+from .operator_verification_attempt import OperatorVerificationAttempt
 from .page_audit import PageAudit
 from .plugin_status import PluginStatus
 from .plugin_status_kind import PluginStatusKind
@@ -161,6 +180,21 @@ __all__ = (
     "InstallPluginResponse200",
     "KindAdoption",
     "ListMarketplacePluginsResponse200",
+    "OperatorEntity",
+    "OperatorEntityClaimStatus",
+    "OperatorEntityDetail",
+    "OperatorEntityRole",
+    "OperatorEntityVerificationMethod",
+    "OperatorEraseEntityBody",
+    "OperatorEraseEntityResponse200",
+    "OperatorListEntitiesClaimStatus",
+    "OperatorListEntitiesResponse200",
+    "OperatorListEntitiesVerificationMethod",
+    "OperatorOverrideVerifyBody",
+    "OperatorRetriggerVerificationBody",
+    "OperatorRetriggerVerificationResponse200",
+    "OperatorRevokeEntityBody",
+    "OperatorVerificationAttempt",
     "PageAudit",
     "PluginStatus",
     "PluginStatusKind",

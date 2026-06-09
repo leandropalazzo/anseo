@@ -40,6 +40,43 @@ pub struct EntityRecord {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Filters for the operator entity-list query (Story 48.4). All present
+/// filters AND together; absent filters do not constrain. `domain` is a
+/// case-insensitive substring match.
+#[derive(Debug, Clone, Default)]
+pub struct EntityListFilters {
+    pub claim_status: Option<String>,
+    pub verification_method: Option<String>,
+    /// Case-insensitive substring of the domain.
+    pub domain: Option<String>,
+}
+
+/// Row counts deleted by [`EntityRepo::erase`] (Story 48.4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EraseCounts {
+    pub entity_rows: u64,
+    pub attempt_rows: u64,
+    pub dispute_rows: u64,
+}
+
+/// Result of resolving an entity (domain) to its owning project for the
+/// crypto-shred decision (Story 48.4). Entities are domain-keyed; KEKs are
+/// project-keyed. We can only crypto-shred when a domain maps to EXACTLY ONE
+/// project via the identified-contribution linkage (`contributions.entity_domain`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EntityProjectMapping {
+    /// Exactly one project owns identified contributions for this domain — a
+    /// KEK destroy is unambiguous and safe.
+    Unique(String),
+    /// No identified contribution links this domain to any project — there is
+    /// no KEK to destroy for it.
+    None,
+    /// Two or more distinct projects have identified contributions for this
+    /// domain. Destroying any one KEK could shred unrelated contributors, so we
+    /// refuse and surface the ambiguity instead.
+    Ambiguous { project_ids: Vec<String> },
+}
+
 /// A pending dedup review queue entry.
 #[derive(Debug, Clone)]
 pub struct DedupQueueEntry {
@@ -140,6 +177,136 @@ impl<'a> EntityRepo<'a> {
         .fetch_optional(self.pool)
         .await?;
         Ok(row)
+    }
+
+    /// Operator entity list (Story 48.4). Filters AND together; `domain` is a
+    /// case-insensitive substring. Ordered by `created_at DESC` (newest claims
+    /// first) for a stable, deterministic page.
+    ///
+    /// PAGINATION CHOICE: limit/offset. The operator surface is low-volume
+    /// (claimed brands number in the hundreds, not millions) and the console
+    /// needs jump-to-page UX, for which offset paging is the simplest correct
+    /// fit. Cursor paging would buy stability under high churn we do not have
+    /// here; if the registry ever grows past offset paging's comfort zone, the
+    /// filter shape stays the same and only the page token changes.
+    pub async fn list(
+        &self,
+        filters: &EntityListFilters,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<EntityRecord>, Error> {
+        // Dynamic WHERE built with positional binds (no string interpolation of
+        // user input — substring is bound, not concatenated).
+        let mut sql = String::from(
+            "SELECT domain, display_name, role, claim_status, \
+                    verified_at, verification_method, grace_period_start, \
+                    created_at, updated_at \
+             FROM entities WHERE 1=1",
+        );
+        let mut n = 0;
+        if filters.claim_status.is_some() {
+            n += 1;
+            sql.push_str(&format!(" AND claim_status = ${n}"));
+        }
+        if filters.verification_method.is_some() {
+            n += 1;
+            sql.push_str(&format!(" AND verification_method = ${n}"));
+        }
+        if filters.domain.is_some() {
+            n += 1;
+            // ILIKE with the bound value wrapped in %…% — case-insensitive
+            // substring. The literal is escaped at bind time.
+            sql.push_str(&format!(" AND domain ILIKE ${n}"));
+        }
+        n += 1;
+        sql.push_str(&format!(" ORDER BY created_at DESC LIMIT ${n}"));
+        n += 1;
+        sql.push_str(&format!(" OFFSET ${n}"));
+
+        let mut q = sqlx::query_as::<_, EntityRecord>(&sql);
+        if let Some(cs) = &filters.claim_status {
+            q = q.bind(cs);
+        }
+        if let Some(vm) = &filters.verification_method {
+            q = q.bind(vm);
+        }
+        if let Some(d) = &filters.domain {
+            q = q.bind(format!("%{}%", d));
+        }
+        q = q.bind(limit).bind(offset);
+        Ok(q.fetch_all(self.pool).await?)
+    }
+
+    /// Resolve a domain to its owning project for the crypto-shred decision
+    /// (Story 48.4 erase). Looks at the identified-contribution linkage
+    /// (`contributions.entity_domain`, migration 20260606140000): a domain maps
+    /// unambiguously to a project IFF exactly one distinct `project_id` has
+    /// identified contributions for it. Returns [`EntityProjectMapping`].
+    ///
+    /// This is the ONLY mapping we trust for KEK destruction. Anything else
+    /// (zero, or two-or-more projects) is reported so the caller refuses to
+    /// guess and never shreds a KEK shared by unrelated contributors.
+    pub async fn project_for_domain(&self, domain: &str) -> Result<EntityProjectMapping, Error> {
+        let rows = sqlx::query(
+            r#"
+            SELECT DISTINCT project_id::text AS project_id
+            FROM contributions
+            WHERE entity_domain = $1
+            "#,
+        )
+        .bind(domain)
+        .fetch_all(self.pool)
+        .await?;
+        let ids: Vec<String> = rows
+            .into_iter()
+            .map(|r| r.get::<String, _>("project_id"))
+            .collect();
+        Ok(match ids.len() {
+            0 => EntityProjectMapping::None,
+            1 => EntityProjectMapping::Unique(ids.into_iter().next().unwrap()),
+            _ => EntityProjectMapping::Ambiguous { project_ids: ids },
+        })
+    }
+
+    /// GDPR erase (Story 48.4): transactionally delete the entity row, its
+    /// `verification_attempts`, and identifiable dispute rows for the domain.
+    ///
+    /// `verification_attempts` and `disputes` are NOT FK-children of `entities`
+    /// (both reference the domain as free text, not via a constraint), so we
+    /// delete them explicitly in one transaction. `contributions.entity_domain`
+    /// is `ON DELETE RESTRICT`, so any live identified contribution would block
+    /// the entity delete — that is intentional: the contribution payload is
+    /// erased by KEK crypto-shred, not by row deletion, and we must not orphan a
+    /// referenced registry row. The caller resolves the crypto-shred separately.
+    ///
+    /// Returns the number of (entity, attempt, dispute) rows deleted.
+    pub async fn erase(&self, domain: &str) -> Result<EraseCounts, Error> {
+        let mut tx = self.pool.begin().await?;
+
+        let disputes = sqlx::query(r#"DELETE FROM disputes WHERE domain = $1"#)
+            .bind(domain)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+
+        let attempts = sqlx::query(r#"DELETE FROM verification_attempts WHERE domain = $1"#)
+            .bind(domain)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+
+        let entity = sqlx::query(r#"DELETE FROM entities WHERE domain = $1"#)
+            .bind(domain)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+
+        tx.commit().await?;
+        Ok(EraseCounts {
+            entity_rows: entity,
+            attempt_rows: attempts,
+            dispute_rows: disputes,
+        })
     }
 
     /// Update claim status. Transitions:

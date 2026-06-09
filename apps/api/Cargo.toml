@@ -45,6 +45,9 @@ ulid = { workspace = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 hex = { workspace = true }
 async-trait = "0.1"
+subtle = { workspace = true }
+hmac = { workspace = true }
+sha2 = { workspace = true }
 hickory-resolver = "0.24"
 
 [dev-dependencies]

@@ -18,6 +18,7 @@ pub mod health;
 pub mod ingest;
 pub mod leaderboard;
 pub mod mcp;
+pub mod operator_entities;
 pub mod plugins;
 pub mod projects;
 pub mod prompt_runs;

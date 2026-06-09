@@ -441,6 +441,25 @@ async fn send_magic_link(
     }
 }
 
+/// Operator-facing re-send (Story 48.4 retrigger). Reuses the exact 43.2
+/// magic-link dispatch path and collapses the outcome to a simple
+/// `Ok(())` / `Err(detail)` so the operator route can map a non-send to an
+/// honest 502 without depending on this module's private outcome enum. Never
+/// reports success when the email did not actually go out.
+pub async fn send_magic_link_for_operator(
+    state: &AppState,
+    email: &str,
+    raw_token: &str,
+) -> Result<(), String> {
+    match send_magic_link(state, email, raw_token).await {
+        Ok(MagicLinkOutcome::Sent) | Ok(MagicLinkOutcome::AlreadySent) => Ok(()),
+        Ok(MagicLinkOutcome::Failed(detail)) => Err(detail),
+        // `send_magic_link` only errors on template/config faults, which are
+        // also non-sends — surface the detail rather than a false success.
+        Err((_, body)) => Err(body.0.to_string()),
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /verification/check (DNS-TXT)
 // ─────────────────────────────────────────────────────────────────────────────

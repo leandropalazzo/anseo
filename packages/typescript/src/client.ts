@@ -43,6 +43,16 @@ import type {
   ListMarketplacePlugins200,
   ListRecommendationsParams,
   ListRunsParams,
+  OperatorEntity,
+  OperatorEntityDetail,
+  OperatorEraseEntity200,
+  OperatorEraseEntityBody,
+  OperatorListEntities200,
+  OperatorListEntitiesParams,
+  OperatorOverrideVerifyBody,
+  OperatorRetriggerVerification200,
+  OperatorRetriggerVerificationBody,
+  OperatorRevokeEntityBody,
   PluginStatus,
   ProjectListResponse,
   ProjectView,
@@ -763,6 +773,340 @@ export const listMarketplacePlugins = async ( options?: RequestInit): Promise<li
     method: 'GET'
 
 
+  }
+);}
+
+
+
+export type operatorListEntitiesResponse200 = {
+  data: OperatorListEntities200
+  status: 200
+}
+
+export type operatorListEntitiesResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type operatorListEntitiesResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorListEntitiesResponseSuccess = (operatorListEntitiesResponse200) & {
+  headers: Headers;
+};
+export type operatorListEntitiesResponseError = (operatorListEntitiesResponse401 | operatorListEntitiesResponse403) & {
+  headers: Headers;
+};
+
+export type operatorListEntitiesResponse = (operatorListEntitiesResponseSuccess | operatorListEntitiesResponseError)
+
+export const getOperatorListEntitiesUrl = (params?: OperatorListEntitiesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/operator/entities?${stringifiedParams}` : `/v1/operator/entities`
+}
+
+/**
+ * @summary Story 48.4 — operator entity-admin: list/search claimed brands. Filters claim_status, verification_method, and a case-insensitive domain substring (filters AND together); limit/offset pagination (default limit 50, max 200). Operator-scoped: gated by the global ANSEO_OPERATOR_API_KEY (X-Anseo-API-Key); tenant project keys are rejected with 403. Reached server-to-server by the anseo-web BFF.
+ */
+export const operatorListEntities = async (params?: OperatorListEntitiesParams, options?: RequestInit): Promise<operatorListEntitiesResponse> => {
+
+  return fetchClient<operatorListEntitiesResponse>(getOperatorListEntitiesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type operatorGetEntityResponse200 = {
+  data: OperatorEntityDetail
+  status: 200
+}
+
+export type operatorGetEntityResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type operatorGetEntityResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorGetEntityResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type operatorGetEntityResponseSuccess = (operatorGetEntityResponse200) & {
+  headers: Headers;
+};
+export type operatorGetEntityResponseError = (operatorGetEntityResponse401 | operatorGetEntityResponse403 | operatorGetEntityResponse404) & {
+  headers: Headers;
+};
+
+export type operatorGetEntityResponse = (operatorGetEntityResponseSuccess | operatorGetEntityResponseError)
+
+export const getOperatorGetEntityUrl = (domain: string,) => {
+
+
+
+
+  return `/v1/operator/entities/${encodeURIComponent(String(domain))}`
+}
+
+/**
+ * @summary Story 48.4 — operator entity-admin: one entity by domain plus its full verification_attempts history (newest-first). Operator-scoped (ANSEO_OPERATOR_API_KEY); tenant keys 403.
+ */
+export const operatorGetEntity = async (domain: string, options?: RequestInit): Promise<operatorGetEntityResponse> => {
+
+  return fetchClient<operatorGetEntityResponse>(getOperatorGetEntityUrl(domain),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type operatorRevokeEntityResponse200 = {
+  data: OperatorEntity
+  status: 200
+}
+
+export type operatorRevokeEntityResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type operatorRevokeEntityResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorRevokeEntityResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type operatorRevokeEntityResponseSuccess = (operatorRevokeEntityResponse200) & {
+  headers: Headers;
+};
+export type operatorRevokeEntityResponseError = (operatorRevokeEntityResponse401 | operatorRevokeEntityResponse403 | operatorRevokeEntityResponse404) & {
+  headers: Headers;
+};
+
+export type operatorRevokeEntityResponse = (operatorRevokeEntityResponseSuccess | operatorRevokeEntityResponseError)
+
+export const getOperatorRevokeEntityUrl = (domain: string,) => {
+
+
+
+
+  return `/v1/operator/entities/${encodeURIComponent(String(domain))}/revoke`
+}
+
+/**
+ * @summary Story 48.4 — revoke a claimed entity via the SHARED revoke path (set claim_status=revoked + start 14-day grace period + append revocation ledger row) — the same path the daily re-verify job uses, not a fork. Actor read from X-Anseo-Operator-Actor / operator body. Operator-scoped; tenant keys 403.
+ */
+export const operatorRevokeEntity = async (domain: string,
+    operatorRevokeEntityBody?: OperatorRevokeEntityBody, options?: RequestInit): Promise<operatorRevokeEntityResponse> => {
+
+  return fetchClient<operatorRevokeEntityResponse>(getOperatorRevokeEntityUrl(domain),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(operatorRevokeEntityBody)
+  }
+);}
+
+
+
+export type operatorOverrideVerifyResponse200 = {
+  data: OperatorEntity
+  status: 200
+}
+
+export type operatorOverrideVerifyResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type operatorOverrideVerifyResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type operatorOverrideVerifyResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorOverrideVerifyResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type operatorOverrideVerifyResponseSuccess = (operatorOverrideVerifyResponse200) & {
+  headers: Headers;
+};
+export type operatorOverrideVerifyResponseError = (operatorOverrideVerifyResponse400 | operatorOverrideVerifyResponse401 | operatorOverrideVerifyResponse403 | operatorOverrideVerifyResponse404) & {
+  headers: Headers;
+};
+
+export type operatorOverrideVerifyResponse = (operatorOverrideVerifyResponseSuccess | operatorOverrideVerifyResponseError)
+
+export const getOperatorOverrideVerifyUrl = (domain: string,) => {
+
+
+
+
+  return `/v1/operator/entities/${encodeURIComponent(String(domain))}/override-verify`
+}
+
+/**
+ * @summary Story 48.4 — manually mark an entity verified with a REQUIRED recorded reason; verification_method is set to manual_override (distinct from the self-service dns_txt / email_magic_link methods). Empty reason → 400. Operator-scoped; tenant keys 403.
+ */
+export const operatorOverrideVerify = async (domain: string,
+    operatorOverrideVerifyBody: OperatorOverrideVerifyBody, options?: RequestInit): Promise<operatorOverrideVerifyResponse> => {
+
+  return fetchClient<operatorOverrideVerifyResponse>(getOperatorOverrideVerifyUrl(domain),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(operatorOverrideVerifyBody)
+  }
+);}
+
+
+
+export type operatorRetriggerVerificationResponse200 = {
+  data: OperatorRetriggerVerification200
+  status: 200
+}
+
+export type operatorRetriggerVerificationResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type operatorRetriggerVerificationResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorRetriggerVerificationResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type operatorRetriggerVerificationResponse502 = {
+  data: Error
+  status: 502
+}
+
+export type operatorRetriggerVerificationResponseSuccess = (operatorRetriggerVerificationResponse200) & {
+  headers: Headers;
+};
+export type operatorRetriggerVerificationResponseError = (operatorRetriggerVerificationResponse401 | operatorRetriggerVerificationResponse403 | operatorRetriggerVerificationResponse404 | operatorRetriggerVerificationResponse502) & {
+  headers: Headers;
+};
+
+export type operatorRetriggerVerificationResponse = (operatorRetriggerVerificationResponseSuccess | operatorRetriggerVerificationResponseError)
+
+export const getOperatorRetriggerVerificationUrl = (domain: string,) => {
+
+
+
+
+  return `/v1/operator/entities/${encodeURIComponent(String(domain))}/retrigger`
+}
+
+/**
+ * @summary Story 48.4 — re-issue the 43.2 email magic-link verification (mint a fresh challenge + re-send via the comms SMTP wire). Honest failure: if mail is not configured the call returns 502 (no silent success). Operator-scoped; tenant keys 403.
+ */
+export const operatorRetriggerVerification = async (domain: string,
+    operatorRetriggerVerificationBody: OperatorRetriggerVerificationBody, options?: RequestInit): Promise<operatorRetriggerVerificationResponse> => {
+
+  return fetchClient<operatorRetriggerVerificationResponse>(getOperatorRetriggerVerificationUrl(domain),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(operatorRetriggerVerificationBody)
+  }
+);}
+
+
+
+export type operatorEraseEntityResponse200 = {
+  data: OperatorEraseEntity200
+  status: 200
+}
+
+export type operatorEraseEntityResponse401 = {
+  data: Error
+  status: 401
+}
+
+export type operatorEraseEntityResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorEraseEntityResponse404 = {
+  data: Error
+  status: 404
+}
+
+export type operatorEraseEntityResponseSuccess = (operatorEraseEntityResponse200) & {
+  headers: Headers;
+};
+export type operatorEraseEntityResponseError = (operatorEraseEntityResponse401 | operatorEraseEntityResponse403 | operatorEraseEntityResponse404) & {
+  headers: Headers;
+};
+
+export type operatorEraseEntityResponse = (operatorEraseEntityResponseSuccess | operatorEraseEntityResponseError)
+
+export const getOperatorEraseEntityUrl = (domain: string,) => {
+
+
+
+
+  return `/v1/operator/entities/${encodeURIComponent(String(domain))}/erase`
+}
+
+/**
+ * @summary Story 48.4 — GDPR erase (two-step, irreversible). A call with no confirm_token returns a short-lived (~5 min) signed HMAC confirm token bound to (domain, actor) and erases NOTHING; a call presenting the matching token transactionally deletes the entity + its verification_attempts + identifiable dispute rows. KEK SAFETY: ProjectKek::destroy (crypto-shred) runs ONLY when the domain maps to EXACTLY ONE project via the identified-contribution linkage; otherwise the response carries kek_destroyed:false with a kek_skip_reason (we never destroy a KEK that could shred unrelated contributors). Operator-scoped; tenant keys 403.
+ */
+export const operatorEraseEntity = async (domain: string,
+    operatorEraseEntityBody?: OperatorEraseEntityBody, options?: RequestInit): Promise<operatorEraseEntityResponse> => {
+
+  return fetchClient<operatorEraseEntityResponse>(getOperatorEraseEntityUrl(domain),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(operatorEraseEntityBody)
   }
 );}
 

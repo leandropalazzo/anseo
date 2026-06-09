@@ -104,10 +104,132 @@ pub async fn require_api_key(
     Ok(response)
 }
 
+/// Header carrying the GitHub login of the operator performing the action
+/// (Story 48.4). Forwarded by the anseo-web BFF; recorded on event rows so
+/// every operator mutation is attributable. Optional — handlers fall back to
+/// the `operator` body field / `"operator"` sentinel when absent.
+pub const OPERATOR_ACTOR_HEADER: &str = "X-Anseo-Operator-Actor";
+
+/// Env var carrying the single global operator-admin API key (Story 48.4).
+/// Constant-time compared by [`require_operator_key`]. SINGLE-OPERATOR MODEL:
+/// there is exactly one operator credential for the whole core API. The richer
+/// `api_keys` scope-column approach (per-key operator scope) is deferred to
+/// 49.x; this env-gate is the minimum that keeps tenant project keys out of the
+/// `/v1/operator/*` surface.
+pub const OPERATOR_API_KEY_ENV: &str = "ANSEO_OPERATOR_API_KEY";
+
+/// Marker inserted into request extensions once the operator key has been
+/// verified, carrying the resolved actor login for the handlers.
+#[derive(Debug, Clone)]
+pub struct AuthenticatedOperator {
+    /// GitHub login of the operator, read from [`OPERATOR_ACTOR_HEADER`], or
+    /// `None` when the header was absent.
+    pub actor: Option<String>,
+}
+
+/// Constant-time equality over the two byte slices. Returns false on a length
+/// mismatch (the length itself is not secret here — the key value is).
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    use subtle::ConstantTimeEq;
+    if a.len() != b.len() {
+        return false;
+    }
+    a.ct_eq(b).into()
+}
+
+/// Constant-time string equality. Public so the operator-entity erase
+/// confirm-token verification (Story 48.4) compares its HMAC without a timing
+/// leak through the same primitive used for the operator key.
+pub fn ct_eq_str(a: &str, b: &str) -> bool {
+    ct_eq(a.as_bytes(), b.as_bytes())
+}
+
+/// Auth gate for the `/v1/operator/*` sub-router (Story 48.4).
+///
+/// Verifies the presented `X-Anseo-API-Key` against the configured
+/// `ANSEO_OPERATOR_API_KEY` env (constant-time). This is a DISTINCT credential
+/// from tenant project API keys: a valid project key does NOT pass here (it is
+/// not equal to the operator key), so tenant keys can never reach the operator
+/// surface — exactly the isolation Story 48.4 requires.
+///
+/// * No `ANSEO_OPERATOR_API_KEY` configured → `503` (the surface is disabled;
+///   we do not silently allow access).
+/// * Missing / malformed key header → `401`.
+/// * Key present but not equal to the operator key → `403`.
+pub async fn require_operator_key(
+    mut request: Request<Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let configured = std::env::var(OPERATOR_API_KEY_ENV)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty());
+    let Some(configured) = configured else {
+        tracing::warn!(
+            event = "operator_auth.not_configured",
+            "{} is unset; the /v1/operator/* surface is disabled (503)",
+            OPERATOR_API_KEY_ENV
+        );
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    };
+
+    let anseo_header: HeaderName = HeaderName::from_static("x-anseo-api-key");
+    let legacy_header: HeaderName = HeaderName::from_static("x-opengeo-api-key");
+    let presented = request
+        .headers()
+        .get(&anseo_header)
+        .or_else(|| request.headers().get(&legacy_header))
+        .and_then(|v| v.to_str().ok());
+
+    let Some(presented) = extract_api_key(presented) else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
+
+    if !ct_eq(presented.as_bytes(), configured.as_bytes()) {
+        // A wrong key — including a perfectly valid TENANT project key — is a
+        // 403: authenticated shape, but not authorized for the operator surface.
+        tracing::warn!(
+            event = "operator_auth.rejected",
+            "presented key did not match the operator credential"
+        );
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let actor_header: HeaderName = HeaderName::from_static("x-anseo-operator-actor");
+    let actor = request
+        .headers()
+        .get(&actor_header)
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string);
+
+    request
+        .extensions_mut()
+        .insert(AuthenticatedOperator { actor });
+
+    Ok(next.run(request).await)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use anseo_core::api_key::{extract_api_key, generate, looks_like_key, sha256_hex};
+
+    #[test]
+    fn operator_key_constant_time_compare() {
+        assert!(ct_eq(b"ogeo_secret_operator", b"ogeo_secret_operator"));
+        // A valid-shaped tenant project key is NOT the operator key.
+        assert!(!ct_eq(b"ogeo_tenant_project_key", b"ogeo_secret_operator"));
+        // Length mismatch rejected.
+        assert!(!ct_eq(b"short", b"longer-value"));
+    }
+
+    #[test]
+    fn operator_header_constants_match_spec() {
+        assert_eq!(OPERATOR_ACTOR_HEADER, "X-Anseo-Operator-Actor");
+        assert_eq!(OPERATOR_API_KEY_ENV, "ANSEO_OPERATOR_API_KEY");
+    }
 
     #[test]
     fn header_extraction_chain_handles_missing_header() {

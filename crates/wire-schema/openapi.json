@@ -1133,6 +1133,157 @@
           }
         }
       },
+      "OperatorEntity": {
+        "type": "object",
+        "description": "Story 48.4 \u2014 an entity (claimed brand) as seen by the operator entity-admin surface.",
+        "required": [
+          "domain",
+          "display_name",
+          "role",
+          "claim_status",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "brand",
+              "source",
+              "both"
+            ]
+          },
+          "claim_status": {
+            "type": "string",
+            "enum": [
+              "unclaimed",
+              "pending",
+              "verified",
+              "revoked",
+              "pending_conflict"
+            ]
+          },
+          "verified_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "verification_method": {
+            "type": "string",
+            "enum": [
+              "dns_txt",
+              "email_magic_link",
+              "manual_override"
+            ],
+            "nullable": true
+          },
+          "grace_period_start": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OperatorVerificationAttempt": {
+        "type": "object",
+        "description": "Story 48.4 \u2014 one row of an entity's append-only verification attempt history.",
+        "required": [
+          "id",
+          "method",
+          "state",
+          "expires_at",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "method": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "consumed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OperatorEntityDetail": {
+        "type": "object",
+        "description": "Story 48.4 \u2014 entity detail: the OperatorEntity fields plus its verification_attempts (newest-first).",
+        "required": [
+          "domain",
+          "verification_attempts"
+        ],
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "claim_status": {
+            "type": "string"
+          },
+          "verified_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "verification_method": {
+            "type": "string",
+            "nullable": true
+          },
+          "grace_period_start": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "verification_attempts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OperatorVerificationAttempt"
+            }
+          }
+        }
+      },
       "PluginStatus": {
         "description": "Story 41.2 — runtime activation status of one installed plugin, as resolved at `anseo serve` boot. `anseo plugin list` renders the same fields.",
         "properties": {
@@ -2287,6 +2438,452 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/operator/entities": {
+      "get": {
+        "operationId": "operatorListEntities",
+        "summary": "Story 48.4 \u2014 operator entity-admin: list/search claimed brands. Filters claim_status, verification_method, and a case-insensitive domain substring (filters AND together); limit/offset pagination (default limit 50, max 200). Operator-scoped: gated by the global ANSEO_OPERATOR_API_KEY (X-Anseo-API-Key); tenant project keys are rejected with 403. Reached server-to-server by the anseo-web BFF.",
+        "parameters": [
+          {
+            "name": "claim_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "unclaimed",
+                "pending",
+                "verified",
+                "revoked",
+                "pending_conflict"
+              ]
+            }
+          },
+          {
+            "name": "verification_method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "dns_txt",
+                "email_magic_link",
+                "manual_override"
+              ]
+            }
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive substring of the domain."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK \u2014 { entities: OperatorEntity[], limit, offset, count }",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 a non-operator (e.g. tenant project) key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operator/entities/{domain}": {
+      "get": {
+        "operationId": "operatorGetEntity",
+        "summary": "Story 48.4 \u2014 operator entity-admin: one entity by domain plus its full verification_attempts history (newest-first). Operator-scoped (ANSEO_OPERATOR_API_KEY); tenant keys 403.",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK \u2014 OperatorEntity flattened with verification_attempts[]",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorEntityDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 a non-operator (e.g. tenant project) key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No entity for this domain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operator/entities/{domain}/revoke": {
+      "post": {
+        "operationId": "operatorRevokeEntity",
+        "summary": "Story 48.4 \u2014 revoke a claimed entity via the SHARED revoke path (set claim_status=revoked + start 14-day grace period + append revocation ledger row) \u2014 the same path the daily re-verify job uses, not a fork. Actor read from X-Anseo-Operator-Actor / operator body. Operator-scoped; tenant keys 403.",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operator": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated OperatorEntity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorEntity"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 a non-operator (e.g. tenant project) key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No entity for this domain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operator/entities/{domain}/override-verify": {
+      "post": {
+        "operationId": "operatorOverrideVerify",
+        "summary": "Story 48.4 \u2014 manually mark an entity verified with a REQUIRED recorded reason; verification_method is set to manual_override (distinct from the self-service dns_txt / email_magic_link methods). Empty reason \u2192 400. Operator-scoped; tenant keys 403.",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  },
+                  "operator": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated OperatorEntity (verified, manual_override).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorEntity"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty reason.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 a non-operator (e.g. tenant project) key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No entity for this domain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operator/entities/{domain}/retrigger": {
+      "post": {
+        "operationId": "operatorRetriggerVerification",
+        "summary": "Story 48.4 \u2014 re-issue the 43.2 email magic-link verification (mint a fresh challenge + re-send via the comms SMTP wire). Honest failure: if mail is not configured the call returns 502 (no silent success). Operator-scoped; tenant keys 403.",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "operator": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "{ domain, state, method, email_sent_to }",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 a non-operator (e.g. tenant project) key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No entity for this domain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Challenge created but the magic-link email could not be sent (SMTP not configured / dispatch failed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/operator/entities/{domain}/erase": {
+      "post": {
+        "operationId": "operatorEraseEntity",
+        "summary": "Story 48.4 \u2014 GDPR erase (two-step, irreversible). A call with no confirm_token returns a short-lived (~5 min) signed HMAC confirm token bound to (domain, actor) and erases NOTHING; a call presenting the matching token transactionally deletes the entity + its verification_attempts + identifiable dispute rows. KEK SAFETY: ProjectKek::destroy (crypto-shred) runs ONLY when the domain maps to EXACTLY ONE project via the identified-contribution linkage; otherwise the response carries kek_destroyed:false with a kek_skip_reason (we never destroy a KEK that could shred unrelated contributors). Operator-scoped; tenant keys 403.",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "confirm_token": {
+                    "type": "string"
+                  },
+                  "operator": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Either an EraseChallenge (token-less call: { confirm_required, confirm_token, expires_in_secs }) or an EraseResult (confirmed: { erased, entity_rows, attempt_rows, dispute_rows, kek_destroyed, kek_skip_reason? }).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing operator key, or the confirm_token is invalid/expired/not bound to this (domain, operator).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden \u2014 a non-operator (e.g. tenant project) key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No entity for this domain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
