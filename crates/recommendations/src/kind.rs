@@ -84,3 +84,104 @@ impl RecommendationKind {
         ]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use RecommendationKind::*;
+
+    /// Every Kind in declaration order, so as_str/lane/serde assertions stay
+    /// exhaustive: adding a Kind without updating this list fails the match in
+    /// `as_str_matches_serde_snake_case` to compile, drawing attention.
+    const ALL: [RecommendationKind; 10] = [
+        DocsNotCitedForPrompt,
+        CompetitorOutranksForPrompt,
+        CitationDomainDrift,
+        PromptCoverageGap,
+        ProviderBlindspot,
+        LowExtractionConfidence,
+        BenchmarkCategoryUnderperformance,
+        StructuralContentSuggestion,
+        CitationQualityUplift,
+        VolatilityAnomalyExplained,
+    ];
+
+    #[test]
+    fn as_str_matches_serde_snake_case_for_every_kind() {
+        // The wire identifier (`as_str`) MUST equal serde's snake_case rename for
+        // every Kind — REST, storage and MCP all rely on the two agreeing.
+        for k in ALL {
+            let serde_name = serde_json::to_value(k).unwrap();
+            assert_eq!(
+                serde_json::Value::String(k.as_str().to_string()),
+                serde_name,
+                "as_str diverges from serde for {k:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn kinds_round_trip_through_serde_by_wire_name() {
+        for k in ALL {
+            let json = format!("\"{}\"", k.as_str());
+            let back: RecommendationKind = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, k);
+        }
+    }
+
+    #[test]
+    fn lane_classification_is_exhaustive_and_correct() {
+        // Deterministic lane: the seven Story 19.1 Kinds.
+        for k in RecommendationKind::deterministic() {
+            assert_eq!(
+                k.lane(),
+                Lane::Deterministic,
+                "{k:?} should be deterministic"
+            );
+        }
+        // LLM-aided lane (Story 19.3).
+        assert_eq!(StructuralContentSuggestion.lane(), Lane::LlmAided);
+        assert_eq!(CitationQualityUplift.lane(), Lane::LlmAided);
+        // Hybrid lane.
+        assert_eq!(VolatilityAnomalyExplained.lane(), Lane::Hybrid);
+    }
+
+    #[test]
+    fn deterministic_set_is_exactly_the_deterministic_lane() {
+        // The `deterministic()` convenience must contain ONLY deterministic-lane
+        // Kinds and ALL of them — no LLM/hybrid Kind leaks in, none is dropped.
+        let det = RecommendationKind::deterministic();
+        assert_eq!(det.len(), 7);
+        let det_count = ALL
+            .iter()
+            .filter(|k| k.lane() == Lane::Deterministic)
+            .count();
+        assert_eq!(det_count, 7, "exactly 7 Kinds are deterministic-lane");
+        for k in det {
+            assert_eq!(k.lane(), Lane::Deterministic);
+        }
+    }
+
+    #[test]
+    fn wire_names_are_unique() {
+        // No two Kinds may share a wire identifier (would collide in storage).
+        let mut names: Vec<&str> = ALL.iter().map(|k| k.as_str()).collect();
+        names.sort_unstable();
+        let before = names.len();
+        names.dedup();
+        assert_eq!(before, names.len(), "duplicate Kind wire name");
+    }
+
+    #[test]
+    fn lane_serializes_to_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&Lane::LlmAided).unwrap(),
+            "\"llm_aided\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Lane::Deterministic).unwrap(),
+            "\"deterministic\""
+        );
+        assert_eq!(serde_json::to_string(&Lane::Hybrid).unwrap(), "\"hybrid\"");
+    }
+}

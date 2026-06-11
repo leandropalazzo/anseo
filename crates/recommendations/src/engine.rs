@@ -327,3 +327,135 @@ pub(crate) fn jaccard_distance(a: &[String], b: &[String]) -> f32 {
 pub fn window(start: DateTime<Utc>, end: DateTime<Utc>) -> TimeWindow {
     TimeWindow { start, end }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn s(items: &[&str]) -> Vec<String> {
+        items.iter().map(|x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn jaccard_distance_known_values() {
+        // Identical sets → distance 0.
+        assert_eq!(jaccard_distance(&s(&["a", "b"]), &s(&["a", "b"])), 0.0);
+        // Disjoint sets → distance 1.
+        assert_eq!(jaccard_distance(&s(&["a"]), &s(&["b"])), 1.0);
+        // {a,b} vs {b,c}: intersection 1, union 3 → 1 - 1/3 = 0.6667.
+        let d = jaccard_distance(&s(&["a", "b"]), &s(&["b", "c"]));
+        assert!((d - (1.0 - 1.0 / 3.0)).abs() < 1e-6, "got {d}");
+    }
+
+    #[test]
+    fn jaccard_distance_dedups_and_handles_empty() {
+        // Two empty sets → defined as 0 (no drift), not NaN from 0/0.
+        assert_eq!(jaccard_distance(&[], &[]), 0.0);
+        // Empty vs non-empty → fully drifted.
+        assert_eq!(jaccard_distance(&[], &s(&["a"])), 1.0);
+        // Duplicates collapse to set semantics: {a,a} == {a}.
+        assert_eq!(jaccard_distance(&s(&["a", "a"]), &s(&["a"])), 0.0);
+    }
+
+    #[test]
+    fn clamp_summary_truncates_with_ellipsis_and_keeps_short_intact() {
+        // A short summary passes through byte-for-byte.
+        let short = "all good".to_string();
+        assert_eq!(clamp_summary(short.clone()), short);
+
+        // A 300-char summary is clamped to exactly 240 chars, last char the …
+        let long = "x".repeat(300);
+        let clamped = clamp_summary(long);
+        assert_eq!(clamped.chars().count(), 240);
+        assert!(clamped.ends_with('…'));
+        assert_eq!(clamped.chars().filter(|c| *c == 'x').count(), 239);
+    }
+
+    #[test]
+    fn clamp_summary_counts_chars_not_bytes() {
+        // Multi-byte chars must not blow the 240-CHAR budget nor panic on a
+        // byte-boundary slice.
+        let long = "é".repeat(300);
+        let clamped = clamp_summary(long);
+        assert_eq!(clamped.chars().count(), 240);
+        assert!(clamped.ends_with('…'));
+    }
+
+    #[test]
+    fn truncate_caps_at_max_source_ids_and_flags() {
+        // Under the cap: untouched, not flagged.
+        let few: Vec<Ulid> = (0..3).map(|_| Ulid::new()).collect();
+        let (kept, flagged) = truncate(few.clone());
+        assert_eq!(kept, few);
+        assert!(!flagged);
+
+        // Over the cap: truncated to MAX_SOURCE_IDS and flagged.
+        let many: Vec<Ulid> = (0..MAX_SOURCE_IDS + 7).map(|_| Ulid::new()).collect();
+        let (kept, flagged) = truncate(many.clone());
+        assert_eq!(kept.len(), MAX_SOURCE_IDS);
+        assert!(flagged);
+        // Truncation keeps the prefix (the first MAX_SOURCE_IDS ids), in order.
+        assert_eq!(kept, &many[..MAX_SOURCE_IDS]);
+
+        // Exactly at the cap: kept whole, NOT flagged (boundary is `>`).
+        let exact: Vec<Ulid> = (0..MAX_SOURCE_IDS).map(|_| Ulid::new()).collect();
+        let (kept, flagged) = truncate(exact.clone());
+        assert_eq!(kept.len(), MAX_SOURCE_IDS);
+        assert!(!flagged);
+    }
+
+    #[test]
+    fn fingerprint_is_prefixed_stable_and_input_sensitive() {
+        let a = fingerprint(&serde_json::json!({ "k": 1, "j": 2 }));
+        // sha256: prefix + 64 hex chars.
+        assert!(a.starts_with("sha256:"));
+        assert_eq!(a.len(), "sha256:".len() + 64);
+        // Key order in the source JSON does not matter (serde sorts keys), so
+        // the same logical value fingerprints identically.
+        let b = fingerprint(&serde_json::json!({ "j": 2, "k": 1 }));
+        assert_eq!(a, b);
+        // A different value yields a different digest.
+        let c = fingerprint(&serde_json::json!({ "k": 1, "j": 3 }));
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn deterministic_id_is_content_derived_and_identity_sensitive() {
+        let pid = Ulid::new();
+        let id1 = deterministic_id(
+            RecommendationKind::ProviderBlindspot,
+            pid,
+            &["p1", "openai"],
+        );
+        // Same kind + project + identity → same id (no wall clock, no randomness).
+        let id2 = deterministic_id(
+            RecommendationKind::ProviderBlindspot,
+            pid,
+            &["p1", "openai"],
+        );
+        assert_eq!(id1, id2);
+        // Different identity → different id.
+        let id3 = deterministic_id(
+            RecommendationKind::ProviderBlindspot,
+            pid,
+            &["p1", "gemini"],
+        );
+        assert_ne!(id1, id3);
+        // Different kind → different id (kind is part of the hash preimage).
+        let id4 = deterministic_id(
+            RecommendationKind::PromptCoverageGap,
+            pid,
+            &["p1", "openai"],
+        );
+        assert_ne!(id1, id4);
+    }
+
+    #[test]
+    fn window_helper_builds_the_pair() {
+        let start = Utc::now();
+        let end = start + chrono::Duration::days(14);
+        let w = window(start, end);
+        assert_eq!(w.start, start);
+        assert_eq!(w.end, end);
+    }
+}
