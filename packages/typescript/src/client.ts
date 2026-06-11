@@ -43,6 +43,14 @@ import type {
   ListMarketplacePlugins200,
   ListRecommendationsParams,
   ListRunsParams,
+  OperatorBenchmarkGate,
+  OperatorConsentEvents200,
+  OperatorConsentEventsParams,
+  OperatorConsentKekStatus200,
+  OperatorConsentRecords200,
+  OperatorConsentRecordsParams,
+  OperatorContributionsDensity200,
+  OperatorContributionsDensityParams,
   OperatorEntity,
   OperatorEntityDetail,
   OperatorEraseEntity200,
@@ -50,9 +58,12 @@ import type {
   OperatorListEntities200,
   OperatorListEntitiesParams,
   OperatorOverrideVerifyBody,
+  OperatorPutBenchmarkGateBody,
   OperatorRetriggerVerification200,
   OperatorRetriggerVerificationBody,
   OperatorRevokeEntityBody,
+  OperatorVerificationThroughput200,
+  OperatorVerificationThroughputParams,
   PluginStatus,
   ProjectListResponse,
   ProjectView,
@@ -1107,6 +1118,385 @@ export const operatorEraseEntity = async (domain: string,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(operatorEraseEntityBody)
+  }
+);}
+
+
+
+export type operatorConsentRecordsResponse200 = {
+  data: OperatorConsentRecords200
+  status: 200
+}
+
+export type operatorConsentRecordsResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type operatorConsentRecordsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type operatorConsentRecordsResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorConsentRecordsResponseSuccess = (operatorConsentRecordsResponse200) & {
+  headers: Headers;
+};
+export type operatorConsentRecordsResponseError = (operatorConsentRecordsResponse400 | operatorConsentRecordsResponse401 | operatorConsentRecordsResponse403) & {
+  headers: Headers;
+};
+
+export type operatorConsentRecordsResponse = (operatorConsentRecordsResponseSuccess | operatorConsentRecordsResponseError)
+
+export const getOperatorConsentRecordsUrl = (params?: OperatorConsentRecordsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/operator/consent/records?${stringifiedParams}` : `/v1/operator/consent/records`
+}
+
+/**
+ * @summary Story 49.0 (D1) — Plane-1 OSS operator read of the OSS-owned benchmark_consent ledger. Filters: tier (anonymous|brand_visibility), project (id), event (optin|optout), from/to (RFC3339); limit/offset pagination (default 50, max 200). Read-only. Operator-scoped (ANSEO_OPERATOR_API_KEY); tenant keys 403. benchmark-service untouched.
+ */
+export const operatorConsentRecords = async (params?: OperatorConsentRecordsParams, options?: RequestInit): Promise<operatorConsentRecordsResponse> => {
+
+  return fetchClient<operatorConsentRecordsResponse>(getOperatorConsentRecordsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type operatorConsentEventsResponse200 = {
+  data: OperatorConsentEvents200
+  status: 200
+}
+
+export type operatorConsentEventsResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type operatorConsentEventsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type operatorConsentEventsResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorConsentEventsResponseSuccess = (operatorConsentEventsResponse200) & {
+  headers: Headers;
+};
+export type operatorConsentEventsResponseError = (operatorConsentEventsResponse400 | operatorConsentEventsResponse401 | operatorConsentEventsResponse403) & {
+  headers: Headers;
+};
+
+export type operatorConsentEventsResponse = (operatorConsentEventsResponseSuccess | operatorConsentEventsResponseError)
+
+export const getOperatorConsentEventsUrl = (params?: OperatorConsentEventsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/operator/consent/events?${stringifiedParams}` : `/v1/operator/consent/events`
+}
+
+/**
+ * @summary Story 49.0 (D1) — opt-in/opt-out event stream projected from the OSS-owned benchmark_consent ledger (event + terms_version + timestamp). Same filters/pagination as consent/records. Read-only. Operator-scoped; tenant keys 403.
+ */
+export const operatorConsentEvents = async (params?: OperatorConsentEventsParams, options?: RequestInit): Promise<operatorConsentEventsResponse> => {
+
+  return fetchClient<operatorConsentEventsResponse>(getOperatorConsentEventsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type operatorConsentKekStatusResponse200 = {
+  data: OperatorConsentKekStatus200
+  status: 200
+}
+
+export type operatorConsentKekStatusResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type operatorConsentKekStatusResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorConsentKekStatusResponseSuccess = (operatorConsentKekStatusResponse200) & {
+  headers: Headers;
+};
+export type operatorConsentKekStatusResponseError = (operatorConsentKekStatusResponse401 | operatorConsentKekStatusResponse403) & {
+  headers: Headers;
+};
+
+export type operatorConsentKekStatusResponse = (operatorConsentKekStatusResponseSuccess | operatorConsentKekStatusResponseError)
+
+export const getOperatorConsentKekStatusUrl = () => {
+
+
+
+
+  return `/v1/operator/consent/kek-status`
+}
+
+/**
+ * @summary Story 49.0 (D1) — per-project crypto-shred/KEK status (active|shredded|pending) derived from non-secret signals only (KEK presence in the secret store + OSS-owned identified-contribution count). NEVER returns key material. Read-only. Operator-scoped; tenant keys 403.
+ */
+export const operatorConsentKekStatus = async ( options?: RequestInit): Promise<operatorConsentKekStatusResponse> => {
+
+  return fetchClient<operatorConsentKekStatusResponse>(getOperatorConsentKekStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type operatorContributionsDensityResponse200 = {
+  data: OperatorContributionsDensity200
+  status: 200
+}
+
+export type operatorContributionsDensityResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type operatorContributionsDensityResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorContributionsDensityResponseSuccess = (operatorContributionsDensityResponse200) & {
+  headers: Headers;
+};
+export type operatorContributionsDensityResponseError = (operatorContributionsDensityResponse401 | operatorContributionsDensityResponse403) & {
+  headers: Headers;
+};
+
+export type operatorContributionsDensityResponse = (operatorContributionsDensityResponseSuccess | operatorContributionsDensityResponseError)
+
+export const getOperatorContributionsDensityUrl = (params?: OperatorContributionsDensityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/operator/contributions/density?${stringifiedParams}` : `/v1/operator/contributions/density`
+}
+
+/**
+ * @summary Story 49.0 (D1) — contribution density per (provider × category × window) feeding the k>=N floor. The density_floor comes from the OSS-owned gate config; meets_floor uses the SAME contributor_count >= floor predicate as the public-benchmark density-floor source of truth (density_check). Read-only. Operator-scoped; tenant keys 403.
+ */
+export const operatorContributionsDensity = async (params?: OperatorContributionsDensityParams, options?: RequestInit): Promise<operatorContributionsDensityResponse> => {
+
+  return fetchClient<operatorContributionsDensityResponse>(getOperatorContributionsDensityUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type operatorVerificationThroughputResponse200 = {
+  data: OperatorVerificationThroughput200
+  status: 200
+}
+
+export type operatorVerificationThroughputResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type operatorVerificationThroughputResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorVerificationThroughputResponseSuccess = (operatorVerificationThroughputResponse200) & {
+  headers: Headers;
+};
+export type operatorVerificationThroughputResponseError = (operatorVerificationThroughputResponse401 | operatorVerificationThroughputResponse403) & {
+  headers: Headers;
+};
+
+export type operatorVerificationThroughputResponse = (operatorVerificationThroughputResponseSuccess | operatorVerificationThroughputResponseError)
+
+export const getOperatorVerificationThroughputUrl = (params?: OperatorVerificationThroughputParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/operator/verification/throughput?${stringifiedParams}` : `/v1/operator/verification/throughput`
+}
+
+/**
+ * @summary Story 49.0 (D1) — recent verification completions/failures over the 48.4 verification_attempts substrate (counts by terminal status over a look-back window). Read-only. Operator-scoped; tenant keys 403.
+ */
+export const operatorVerificationThroughput = async (params?: OperatorVerificationThroughputParams, options?: RequestInit): Promise<operatorVerificationThroughputResponse> => {
+
+  return fetchClient<operatorVerificationThroughputResponse>(getOperatorVerificationThroughputUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type operatorGetBenchmarkGateResponse200 = {
+  data: OperatorBenchmarkGate
+  status: 200
+}
+
+export type operatorGetBenchmarkGateResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type operatorGetBenchmarkGateResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorGetBenchmarkGateResponseSuccess = (operatorGetBenchmarkGateResponse200) & {
+  headers: Headers;
+};
+export type operatorGetBenchmarkGateResponseError = (operatorGetBenchmarkGateResponse401 | operatorGetBenchmarkGateResponse403) & {
+  headers: Headers;
+};
+
+export type operatorGetBenchmarkGateResponse = (operatorGetBenchmarkGateResponseSuccess | operatorGetBenchmarkGateResponseError)
+
+export const getOperatorGetBenchmarkGateUrl = () => {
+
+
+
+
+  return `/v1/operator/config/benchmark-gate`
+}
+
+/**
+ * @summary Story 49.0 (D2) — read the OSS-owned terms-finalize gate (terms_finalized toggle + active terms_version + density_floor). This is the source of truth: an OSS consumer (CLI optin / ingest) reads it WITHOUT reading anseo_admin (ADR-007). Operator-scoped; tenant keys 403.
+ */
+export const operatorGetBenchmarkGate = async ( options?: RequestInit): Promise<operatorGetBenchmarkGateResponse> => {
+
+  return fetchClient<operatorGetBenchmarkGateResponse>(getOperatorGetBenchmarkGateUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type operatorPutBenchmarkGateResponse200 = {
+  data: OperatorBenchmarkGate
+  status: 200
+}
+
+export type operatorPutBenchmarkGateResponse400 = {
+  data: Error
+  status: 400
+}
+
+export type operatorPutBenchmarkGateResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type operatorPutBenchmarkGateResponse403 = {
+  data: Error
+  status: 403
+}
+
+export type operatorPutBenchmarkGateResponseSuccess = (operatorPutBenchmarkGateResponse200) & {
+  headers: Headers;
+};
+export type operatorPutBenchmarkGateResponseError = (operatorPutBenchmarkGateResponse400 | operatorPutBenchmarkGateResponse401 | operatorPutBenchmarkGateResponse403) & {
+  headers: Headers;
+};
+
+export type operatorPutBenchmarkGateResponse = (operatorPutBenchmarkGateResponseSuccess | operatorPutBenchmarkGateResponseError)
+
+export const getOperatorPutBenchmarkGateUrl = () => {
+
+
+
+
+  return `/v1/operator/config/benchmark-gate`
+}
+
+/**
+ * @summary Story 49.0 (D2) — operator-admin write of the terms-finalize gate. The source of truth lives in OSS (crates/storage), not anseo_admin; a subsequent GET reflects the write. Operator-scoped; tenant keys 403.
+ */
+export const operatorPutBenchmarkGate = async (operatorPutBenchmarkGateBody: OperatorPutBenchmarkGateBody, options?: RequestInit): Promise<operatorPutBenchmarkGateResponse> => {
+
+  return fetchClient<operatorPutBenchmarkGateResponse>(getOperatorPutBenchmarkGateUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(operatorPutBenchmarkGateBody)
   }
 );}
 

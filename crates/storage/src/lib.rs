@@ -121,6 +121,12 @@ impl Storage {
         repositories::benchmark_consent::BenchmarkConsentRepo::new(&self.pool)
     }
 
+    /// Story 49.0 (D2) — OSS-owned terms-finalize gate config (source of truth
+    /// for the terms-finalized toggle / active terms version / density floor).
+    pub fn benchmark_gate(&self) -> repositories::benchmark_gate::BenchmarkGateRepo<'_> {
+        repositories::benchmark_gate::BenchmarkGateRepo::new(&self.pool)
+    }
+
     /// Story 0.12 — Epic 17 GEO Recommendations substrate. No callers
     /// yet; Epic 17 stories wire up the recommender producers.
     pub fn recommendations(&self) -> repositories::recommendations::RecommendationsRepo<'_> {

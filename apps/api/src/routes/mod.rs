@@ -19,6 +19,7 @@ pub mod ingest;
 pub mod leaderboard;
 pub mod mcp;
 pub mod operator_entities;
+pub mod operator_plane1;
 pub mod plugins;
 pub mod projects;
 pub mod prompt_runs;

@@ -194,6 +194,9 @@ pub fn router(state: AppState) -> Router {
     // reach `/v1/operator/entities/*`. NOT under `require_api_key` nor the
     // `X-Anseo-Project` guard — this is global, single-operator state.
     let v1_operator_admin_surface = routes::operator_entities::v1_router()
+        // Story 49.0 — Plane-1 OSS substrate (consent/density reads +
+        // terms-finalize gate). Same require_operator_key gate as 48.4.
+        .merge(routes::operator_plane1::v1_router())
         .route_layer(axum::middleware::from_fn(require_operator_key));
 
     let phase_1_at_root_gated = phase_1_reads_at_root.route_layer(
