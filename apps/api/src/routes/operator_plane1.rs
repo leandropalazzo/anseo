@@ -603,4 +603,91 @@ mod tests {
         // No KEK and no contributions → pending provisioning.
         assert_eq!(derive_kek_status(false, false), "pending");
     }
+
+    #[test]
+    fn clamp_limit_passes_through_in_range_and_pins_default() {
+        // An in-range request is returned unchanged.
+        assert_eq!(clamp_limit(Some(25)), 25);
+        // Exact boundaries are accepted.
+        assert_eq!(clamp_limit(Some(1)), 1);
+        assert_eq!(clamp_limit(Some(MAX_LIMIT)), MAX_LIMIT);
+        // A negative request clamps up to the minimum (1), not 0.
+        assert_eq!(clamp_limit(Some(-5)), 1);
+    }
+
+    #[test]
+    fn clamp_offset_passes_through_nonnegative() {
+        assert_eq!(clamp_offset(None), 0);
+        assert_eq!(clamp_offset(Some(0)), 0);
+        assert_eq!(clamp_offset(Some(42)), 42);
+    }
+
+    #[test]
+    fn parse_filters_trim_and_treat_blank_as_absent() {
+        // Surrounding whitespace is trimmed before matching the allow-list.
+        assert_eq!(
+            parse_tier(Some("  anonymous  ")).unwrap(),
+            Some(ConsentTier::Anonymous)
+        );
+        assert_eq!(
+            parse_event(Some("  optout ")).unwrap(),
+            Some("optout".to_string())
+        );
+        // An all-whitespace (or empty) value is treated as "filter absent",
+        // NOT as an invalid value — it must not 400.
+        assert!(parse_tier(Some("   ")).unwrap().is_none());
+        assert!(parse_tier(Some("")).unwrap().is_none());
+        assert!(parse_event(Some("   ")).unwrap().is_none());
+        assert!(parse_event(Some("")).unwrap().is_none());
+    }
+
+    #[test]
+    fn parse_project_handles_blank_valid_and_invalid() {
+        // Absent / blank → no project filter.
+        assert!(parse_project(None).unwrap().is_none());
+        assert!(parse_project(Some("   ")).unwrap().is_none());
+        // A garbage id is a 400, not a silent pass-through.
+        assert!(parse_project(Some("not-a-project-id")).is_err());
+
+        // A real, parseable ProjectId round-trips through the filter.
+        let pid = ProjectId::new();
+        let parsed = parse_project(Some(&pid.to_string()))
+            .unwrap()
+            .expect("valid id parses to Some");
+        assert_eq!(parsed, pid);
+        // Whitespace around an otherwise-valid id is tolerated (trimmed).
+        let padded = format!("  {pid}  ");
+        assert_eq!(parse_project(Some(&padded)).unwrap(), Some(pid));
+    }
+
+    #[test]
+    fn build_filters_assembles_clamped_and_parsed_filters() {
+        let q = ConsentRecordsQuery {
+            tier: Some("brand_visibility".to_string()),
+            project: None,
+            event: Some(" optin ".to_string()),
+            from: None,
+            to: None,
+            limit: Some(100_000), // over MAX_LIMIT → clamps down
+            offset: Some(-3),     // negative → clamps to 0
+        };
+        let f = build_filters(&q).unwrap();
+        assert_eq!(f.tier, Some(ConsentTier::BrandVisibility));
+        assert_eq!(f.event, Some("optin".to_string()));
+        assert_eq!(f.limit, MAX_LIMIT);
+        assert_eq!(f.offset, 0);
+        assert!(f.project_id.is_none());
+
+        // A single invalid sub-filter fails the whole build (400 propagation).
+        let bad = ConsentRecordsQuery {
+            tier: Some("nonsense".to_string()),
+            project: None,
+            event: None,
+            from: None,
+            to: None,
+            limit: None,
+            offset: None,
+        };
+        assert!(build_filters(&bad).is_err());
+    }
 }
