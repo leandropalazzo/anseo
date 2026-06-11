@@ -198,6 +198,66 @@ impl<'a> BenchmarkConsentRepo<'a> {
         .await?;
         row.map(map_consent_row).transpose()
     }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Story 49.0 — operator-admin Plane-1 READ-ONLY surface over the OSS-owned
+    // `benchmark_consent` ledger. No mutation path is exposed here.
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// List consent records filtered by tier / project / event / time range,
+    /// newest-first, paginated. Read-only (the operator consent-records read,
+    /// 49.0). All filters are optional; an absent filter matches all rows.
+    pub async fn list_records(&self, f: &ConsentReadFilters) -> Result<Vec<ConsentRow>, Error> {
+        let rows = sqlx::query(
+            r#"SELECT id, project_id, event, tier, terms_version, actor, note, created_at
+               FROM benchmark_consent
+               WHERE ($1::text IS NULL OR tier = $1)
+                 AND ($2::uuid IS NULL OR project_id = $2)
+                 AND ($3::text IS NULL OR event = $3)
+                 AND ($4::timestamptz IS NULL OR created_at >= $4)
+                 AND ($5::timestamptz IS NULL OR created_at <= $5)
+               ORDER BY created_at DESC, id DESC
+               LIMIT $6 OFFSET $7"#,
+        )
+        .bind(f.tier.as_ref().map(|t| t.as_str()))
+        .bind(f.project_id)
+        .bind(f.event.as_deref())
+        .bind(f.from)
+        .bind(f.to)
+        .bind(f.limit)
+        .bind(f.offset)
+        .fetch_all(self.pool)
+        .await?;
+        rows.into_iter().map(map_consent_row).collect()
+    }
+
+    /// Distinct project ids that have at least one consent record. Backs the
+    /// per-project kek-status read (49.0): the set of projects whose KEK status
+    /// the operator can ask about, derived purely from OSS-owned consent data.
+    pub async fn distinct_projects(&self) -> Result<Vec<ProjectId>, Error> {
+        let rows = sqlx::query(
+            r#"SELECT DISTINCT project_id FROM benchmark_consent ORDER BY project_id"#,
+        )
+        .fetch_all(self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|r| r.try_get::<ProjectId, _>("project_id").map_err(Error::from))
+            .collect()
+    }
+}
+
+/// Filters for the operator consent-records read (49.0). All optional; an
+/// absent filter matches all rows. `limit`/`offset` are clamped by the caller.
+#[derive(Debug, Clone, Default)]
+pub struct ConsentReadFilters {
+    pub tier: Option<ConsentTier>,
+    pub project_id: Option<ProjectId>,
+    /// `optin` | `optout`.
+    pub event: Option<String>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+    pub limit: i64,
+    pub offset: i64,
 }
 
 fn map_consent_row(r: sqlx::postgres::PgRow) -> Result<ConsentRow, Error> {

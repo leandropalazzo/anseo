@@ -9,6 +9,7 @@ pub mod alert_rules;
 pub mod api_keys;
 pub mod audit;
 pub mod benchmark_consent;
+pub mod benchmark_gate;
 pub mod brand_accuracy;
 pub mod citations;
 pub mod contributions;
