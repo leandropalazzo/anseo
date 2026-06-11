@@ -1284,6 +1284,127 @@
           }
         }
       },
+      "OperatorConsentRecord": {
+        "description": "Story 49.0 \u2014 one row of the OSS-owned benchmark_consent ledger as seen by the Plane-1 operator read.",
+        "properties": {
+          "actor": {
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "event": {
+            "enum": [
+              "optin",
+              "optout"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "note": {
+            "nullable": true,
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "terms_version": {
+            "type": "string"
+          },
+          "tier": {
+            "enum": [
+              "anonymous",
+              "brand_visibility"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "event",
+          "tier",
+          "terms_version",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "OperatorConsentEvent": {
+        "description": "Story 49.0 \u2014 an opt-in/opt-out event projected from benchmark_consent (event + terms_version + timestamp).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "event": {
+            "enum": [
+              "optin",
+              "optout"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "terms_version": {
+            "type": "string"
+          },
+          "tier": {
+            "enum": [
+              "anonymous",
+              "brand_visibility"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "event",
+          "tier",
+          "terms_version",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "OperatorBenchmarkGate": {
+        "description": "Story 49.0 (D2) \u2014 the OSS-owned terms-finalize gate (source of truth; read WITHOUT anseo_admin).",
+        "properties": {
+          "density_floor": {
+            "type": "integer"
+          },
+          "terms_finalized": {
+            "type": "boolean"
+          },
+          "terms_version": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "updated_by": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "terms_finalized",
+          "terms_version",
+          "density_floor"
+        ],
+        "type": "object"
+      },
       "PluginStatus": {
         "description": "Story 41.2 — runtime activation status of one installed plugin, as resolved at `anseo serve` boot. `anseo plugin list` renders the same fields.",
         "properties": {
@@ -2886,6 +3007,445 @@
             }
           }
         }
+      }
+    },
+    "/v1/operator/consent/records": {
+      "get": {
+        "operationId": "operatorConsentRecords",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tier",
+            "required": false,
+            "schema": {
+              "enum": [
+                "anonymous",
+                "brand_visibility"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event",
+            "required": false,
+            "schema": {
+              "enum": [
+                "optin",
+                "optout"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK \u2014 { records: OperatorConsentRecord[], limit, offset, count }"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid tier/event/project filter."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden \u2014 non-operator key."
+          }
+        },
+        "summary": "Story 49.0 (D1) \u2014 Plane-1 OSS operator read of the OSS-owned benchmark_consent ledger. Filters: tier (anonymous|brand_visibility), project (id), event (optin|optout), from/to (RFC3339); limit/offset pagination (default 50, max 200). Read-only. Operator-scoped (ANSEO_OPERATOR_API_KEY); tenant keys 403. benchmark-service untouched."
+      }
+    },
+    "/v1/operator/consent/events": {
+      "get": {
+        "operationId": "operatorConsentEvents",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tier",
+            "required": false,
+            "schema": {
+              "enum": [
+                "anonymous",
+                "brand_visibility"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event",
+            "required": false,
+            "schema": {
+              "enum": [
+                "optin",
+                "optout"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK \u2014 { events: OperatorConsentEvent[], limit, offset, count }"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Invalid filter."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden \u2014 non-operator key."
+          }
+        },
+        "summary": "Story 49.0 (D1) \u2014 opt-in/opt-out event stream projected from the OSS-owned benchmark_consent ledger (event + terms_version + timestamp). Same filters/pagination as consent/records. Read-only. Operator-scoped; tenant keys 403."
+      }
+    },
+    "/v1/operator/consent/kek-status": {
+      "get": {
+        "operationId": "operatorConsentKekStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK \u2014 { projects: { project_id, status }[], count }"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden \u2014 non-operator key."
+          }
+        },
+        "summary": "Story 49.0 (D1) \u2014 per-project crypto-shred/KEK status (active|shredded|pending) derived from non-secret signals only (KEK presence in the secret store + OSS-owned identified-contribution count). NEVER returns key material. Read-only. Operator-scoped; tenant keys 403."
+      }
+    },
+    "/v1/operator/contributions/density": {
+      "get": {
+        "operationId": "operatorContributionsDensity",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK \u2014 { density_floor, window_days, segments: { provider, category, window_days, contributor_count, meets_floor }[], count }"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden \u2014 non-operator key."
+          }
+        },
+        "summary": "Story 49.0 (D1) \u2014 contribution density per (provider \u00d7 category \u00d7 window) feeding the k>=N floor. The density_floor comes from the OSS-owned gate config; meets_floor uses the SAME contributor_count >= floor predicate as the public-benchmark density-floor source of truth (density_check). Read-only. Operator-scoped; tenant keys 403."
+      }
+    },
+    "/v1/operator/verification/throughput": {
+      "get": {
+        "operationId": "operatorVerificationThroughput",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window_hours",
+            "required": false,
+            "schema": {
+              "default": 24,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK \u2014 { window_hours, verified, failed, revoked, expired, pending, total }"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden \u2014 non-operator key."
+          }
+        },
+        "summary": "Story 49.0 (D1) \u2014 recent verification completions/failures over the 48.4 verification_attempts substrate (counts by terminal status over a look-back window). Read-only. Operator-scoped; tenant keys 403."
+      }
+    },
+    "/v1/operator/config/benchmark-gate": {
+      "get": {
+        "operationId": "operatorGetBenchmarkGate",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorBenchmarkGate"
+                }
+              }
+            },
+            "description": "OK \u2014 OperatorBenchmarkGate."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden \u2014 non-operator key."
+          }
+        },
+        "summary": "Story 49.0 (D2) \u2014 read the OSS-owned terms-finalize gate (terms_finalized toggle + active terms_version + density_floor). This is the source of truth: an OSS consumer (CLI optin / ingest) reads it WITHOUT reading anseo_admin (ADR-007). Operator-scoped; tenant keys 403."
+      },
+      "put": {
+        "operationId": "operatorPutBenchmarkGate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "density_floor": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "operator": {
+                    "type": "string"
+                  },
+                  "terms_finalized": {
+                    "type": "boolean"
+                  },
+                  "terms_version": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "terms_finalized",
+                  "terms_version",
+                  "density_floor"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorBenchmarkGate"
+                }
+              }
+            },
+            "description": "OK \u2014 the persisted OperatorBenchmarkGate."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Empty terms_version or density_floor < 1."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden \u2014 non-operator key."
+          }
+        },
+        "summary": "Story 49.0 (D2) \u2014 operator-admin write of the terms-finalize gate. The source of truth lives in OSS (crates/storage), not anseo_admin; a subsequent GET reflects the write. Operator-scoped; tenant keys 403."
       }
     },
     "/v1/plugins/install": {

@@ -177,6 +177,12 @@ pub const KNOWN_V1_PATHS: &[&str] = &[
     "/v1/operator/entities/{domain}/override-verify",
     "/v1/operator/entities/{domain}/retrigger",
     "/v1/operator/entities/{domain}/erase",
+    "/v1/operator/consent/records",
+    "/v1/operator/consent/events",
+    "/v1/operator/consent/kek-status",
+    "/v1/operator/contributions/density",
+    "/v1/operator/verification/throughput",
+    "/v1/operator/config/benchmark-gate",
 ];
 
 /// The v-next capability registry: the single source of truth for which
