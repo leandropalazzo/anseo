@@ -235,11 +235,10 @@ impl<'a> BenchmarkConsentRepo<'a> {
     /// per-project kek-status read (49.0): the set of projects whose KEK status
     /// the operator can ask about, derived purely from OSS-owned consent data.
     pub async fn distinct_projects(&self) -> Result<Vec<ProjectId>, Error> {
-        let rows = sqlx::query(
-            r#"SELECT DISTINCT project_id FROM benchmark_consent ORDER BY project_id"#,
-        )
-        .fetch_all(self.pool)
-        .await?;
+        let rows =
+            sqlx::query(r#"SELECT DISTINCT project_id FROM benchmark_consent ORDER BY project_id"#)
+                .fetch_all(self.pool)
+                .await?;
         rows.into_iter()
             .map(|r| r.try_get::<ProjectId, _>("project_id").map_err(Error::from))
             .collect()
