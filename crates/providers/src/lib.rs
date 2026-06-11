@@ -218,6 +218,15 @@ impl std::fmt::Debug for HttpClient {
     }
 }
 
+pub use anthropic::AnthropicProvider;
+pub use mock::MockProvider;
+pub use openai::OpenAiProvider;
+pub use orchestrator::{
+    Orchestrator, OrchestratorFilter, PromptRunRecord, PromptRunStatus, ProviderRegistry,
+    RunSummary,
+};
+pub use plugin::PluginProvider;
+
 #[cfg(test)]
 mod lib_tests {
     use super::*;
@@ -305,12 +314,3 @@ mod lib_tests {
         assert!(dbg.contains("api.example.com"), "base_url missing: {dbg}");
     }
 }
-
-pub use anthropic::AnthropicProvider;
-pub use mock::MockProvider;
-pub use openai::OpenAiProvider;
-pub use orchestrator::{
-    Orchestrator, OrchestratorFilter, PromptRunRecord, PromptRunStatus, ProviderRegistry,
-    RunSummary,
-};
-pub use plugin::PluginProvider;
