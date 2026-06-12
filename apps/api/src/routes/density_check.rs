@@ -148,15 +148,28 @@ async fn compute_density_check(
     .await
     .unwrap_or(0);
 
-    // 2. Categories with at least one (provider × 30-day) segment above k=5.
+    // 2. Categories with at least one (provider × 30-day) segment above the
+    //    k>=N density floor. The floor is the OSS-owned gate config value
+    //    (`benchmark_gate_config.density_floor`, default 5) — the SAME source of
+    //    truth the operator density endpoint reads — so the public-benchmark
+    //    floor and the operator surface can never diverge. Falls back to the
+    //    built-in default when the gate has never been written.
+    let density_floor = state
+        .storage
+        .benchmark_gate()
+        .get()
+        .await
+        .map(|g| g.density_floor as i64)
+        .unwrap_or(anseo_storage::repositories::benchmark_gate::DEFAULT_DENSITY_FLOOR as i64);
     let categories_above_floor: i64 = sqlx::query_scalar(
         r#"
         SELECT COUNT(DISTINCT category)::bigint
         FROM benchmark_segment_stats
-        WHERE contributor_count >= 5
+        WHERE contributor_count >= $1
           AND window_days = 30
         "#,
     )
+    .bind(density_floor)
     .fetch_one(state.storage.pool())
     .await
     .unwrap_or(0);

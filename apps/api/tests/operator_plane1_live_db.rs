@@ -379,3 +379,129 @@ async fn density_floor_parity_with_gate_and_floor_predicate() {
     assert_eq!(body["density_floor"], 5);
     assert_eq!(body["window_days"], 30);
 }
+
+// ─── a non-default gate floor moves BOTH surfaces' verdict consistently ───────
+//
+// 49.0 follow-up: density_check (public benchmark) used to HARDCODE the literal
+// `contributor_count >= 5`, so it could disagree with the operator density
+// endpoint when the gate floor != 5. Both now read the gate floor. This test
+// seeds a category that sits BETWEEN the default floor (5) and a raised floor
+// (7), then proves raising the gate floor flips the verdict the SAME way on
+// BOTH surfaces:
+//   - operator endpoint  → segment.meets_floor
+//   - public density_check → categories_above_k5_floor.actual count
+async fn seed_segment(pool: &PgPool, provider: &str, category: &str, count: i64) {
+    sqlx::query(
+        r#"CREATE TABLE IF NOT EXISTS benchmark_segment_stats (
+               provider          text   NOT NULL,
+               category          text   NOT NULL,
+               window_days       bigint NOT NULL,
+               contributor_count bigint NOT NULL
+           )"#,
+    )
+    .execute(pool)
+    .await
+    .expect("create benchmark_segment_stats");
+    sqlx::query(
+        r#"INSERT INTO benchmark_segment_stats (provider, category, window_days, contributor_count)
+           VALUES ($1, $2, 30, $3)"#,
+    )
+    .bind(provider)
+    .bind(category)
+    .bind(count)
+    .execute(pool)
+    .await
+    .expect("seed segment");
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn nondefault_gate_floor_moves_both_surfaces_consistently() {
+    let (app, _t, pool, _p) = setup().await;
+
+    // A category with exactly 6 contributors: ABOVE the default floor (5) but
+    // BELOW a raised floor (7). Its verdict therefore hinges on the floor.
+    seed_segment(&pool, "openai", "fintech", 6).await;
+
+    // ── default floor (5): the 6-contributor segment counts as above-floor ──
+    let (s, dens) = req(&app, "GET", "/v1/benchmark/density-check", None, None).await;
+    assert_eq!(s, StatusCode::OK, "{dens}");
+    let cat_detail = dens["thresholds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["threshold_name"] == "categories_above_k5_floor")
+        .expect("categories_above_k5_floor threshold present");
+    assert_eq!(
+        cat_detail["actual"], 1,
+        "at floor 5 the 6-contributor category is above-floor"
+    );
+
+    let (_s, op) = req(
+        &app,
+        "GET",
+        "/v1/operator/contributions/density",
+        Some(OPERATOR_KEY),
+        None,
+    )
+    .await;
+    assert_eq!(op["density_floor"], 5);
+    let seg = op["segments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["category"] == "fintech")
+        .expect("fintech segment present");
+    assert_eq!(
+        seg["meets_floor"], true,
+        "operator endpoint agrees: above floor 5"
+    );
+
+    // ── raise the gate floor to 7 (the single source of truth) ──
+    let storage = anseo_storage::Storage::from_pool(pool.clone());
+    storage
+        .benchmark_gate()
+        .upsert(true, "floor-7", 7, Some("console"))
+        .await
+        .expect("raise floor");
+
+    // density_check now reads floor 7 → the 6-contributor category drops below.
+    let (_s, dens) = req(&app, "GET", "/v1/benchmark/density-check", None, None).await;
+    let cat_detail = dens["thresholds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["threshold_name"] == "categories_above_k5_floor")
+        .unwrap();
+    assert_eq!(
+        cat_detail["actual"], 0,
+        "at floor 7 the 6-contributor category is NO LONGER above-floor"
+    );
+
+    // Operator endpoint flips the SAME way — the two surfaces stay consistent.
+    let (_s, op) = req(
+        &app,
+        "GET",
+        "/v1/operator/contributions/density",
+        Some(OPERATOR_KEY),
+        None,
+    )
+    .await;
+    assert_eq!(op["density_floor"], 7);
+    let seg = op["segments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["category"] == "fintech")
+        .unwrap();
+    assert_eq!(
+        seg["meets_floor"], false,
+        "operator endpoint flips consistently: below floor 7"
+    );
+
+    // Clean up the externally-shaped table so it can't leak into other tests.
+    sqlx::query("DROP TABLE IF EXISTS benchmark_segment_stats")
+        .execute(&pool)
+        .await
+        .ok();
+}
