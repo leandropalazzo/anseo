@@ -226,3 +226,91 @@ pub use orchestrator::{
     RunSummary,
 };
 pub use plugin::PluginProvider;
+
+#[cfg(test)]
+mod lib_tests {
+    use super::*;
+
+    #[test]
+    fn error_constructors_set_the_right_taxonomy_kind() {
+        // Each helper must map to its dedicated closed-taxonomy variant — the
+        // orchestrator persists `kind` to the `error_kind` column, so a wrong
+        // mapping silently mislabels failures.
+        assert_eq!(
+            ProviderError::unauthorized("x").kind,
+            ProviderErrorKind::ProviderUnauthorized
+        );
+        assert_eq!(
+            ProviderError::rate_limited("x").kind,
+            ProviderErrorKind::ProviderRateLimited
+        );
+        assert_eq!(
+            ProviderError::timeout("x").kind,
+            ProviderErrorKind::ProviderTimeout
+        );
+        assert_eq!(
+            ProviderError::five_xx("x").kind,
+            ProviderErrorKind::Provider5xx
+        );
+        assert_eq!(
+            ProviderError::invalid_response("x").kind,
+            ProviderErrorKind::ProviderInvalidResponse
+        );
+        assert_eq!(
+            ProviderError::network("x").kind,
+            ProviderErrorKind::NetworkError
+        );
+        assert_eq!(
+            ProviderError::unsupported_model("x").kind,
+            ProviderErrorKind::ProviderUnsupportedModel
+        );
+    }
+
+    #[test]
+    fn error_display_includes_kind_and_message() {
+        // `#[error("{kind}: {message}")]` — both halves must surface so logs are
+        // greppable by kind AND carry the upstream detail.
+        let err = ProviderError::rate_limited("slow down please");
+        let rendered = err.to_string();
+        assert!(rendered.contains("slow down please"), "{rendered}");
+        // The kind's Display is the leading segment.
+        assert!(
+            rendered.starts_with(&ProviderErrorKind::ProviderRateLimited.to_string()),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn request_new_sets_sane_defaults() {
+        let req = ProviderRequest::new("hello", "gpt-4o");
+        assert_eq!(req.prompt_text, "hello");
+        assert_eq!(req.model, "gpt-4o");
+        // Default timeout is 60s and parameters default to an empty object.
+        assert_eq!(req.timeout, Duration::from_secs(60));
+        assert_eq!(req.request_parameters, serde_json::json!({}));
+    }
+
+    #[test]
+    fn request_builders_override_defaults() {
+        let params = serde_json::json!({ "temperature": 0, "max_tokens": 256 });
+        let req = ProviderRequest::new("hi", "m")
+            .with_parameters(params.clone())
+            .with_timeout(Duration::from_millis(250));
+        assert_eq!(req.request_parameters, params);
+        assert_eq!(req.timeout, Duration::from_millis(250));
+        // Unrelated fields are untouched by the builders.
+        assert_eq!(req.prompt_text, "hi");
+        assert_eq!(req.model, "m");
+    }
+
+    #[test]
+    fn http_client_exposes_config_and_redacts_secret_in_debug() {
+        let client = HttpClient::new(Secret::new("sk-super-secret"), "https://api.example.com");
+        assert_eq!(client.base_url(), "https://api.example.com");
+        assert_eq!(client.api_key().expose(), "sk-super-secret");
+        // Debug must NOT leak the API key (it's omitted from the struct entirely).
+        let dbg = format!("{client:?}");
+        assert!(!dbg.contains("sk-super-secret"), "secret leaked: {dbg}");
+        assert!(dbg.contains("api.example.com"), "base_url missing: {dbg}");
+    }
+}

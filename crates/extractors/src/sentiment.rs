@@ -134,4 +134,74 @@ mod tests {
         let neutral = classify_sentiment("Acme is a vector database.", 0);
         assert_eq!(neutral, Sentiment::neutral());
     }
+
+    #[test]
+    fn label_as_str_round_trips() {
+        assert_eq!(SentimentLabel::Positive.as_str(), "positive");
+        assert_eq!(SentimentLabel::Neutral.as_str(), "neutral");
+        assert_eq!(SentimentLabel::Negative.as_str(), "negative");
+    }
+
+    #[test]
+    fn single_polarity_term_scores_one_step_off_neutral() {
+        // One net positive term → 60 + 1*10 = 70 (not the 90 of a 3-term run).
+        let p = classify_sentiment("Acme is good.", 0);
+        assert_eq!(p.label, SentimentLabel::Positive);
+        assert_eq!(p.score, 70);
+
+        // One net negative term → 40 - 1*10 = 30.
+        let n = classify_sentiment("Acme is slow.", 0);
+        assert_eq!(n.label, SentimentLabel::Negative);
+        assert_eq!(n.score, 30);
+    }
+
+    #[test]
+    fn positive_score_saturates_at_four_net_terms() {
+        // Five positive terms, zero negative → delta clamps at 4, score = 100.
+        let p = classify_sentiment("good great fast best reliable strong leading", 0);
+        assert_eq!(p.label, SentimentLabel::Positive);
+        assert_eq!(p.score, 100); // 60 + min(7,4)*10
+    }
+
+    #[test]
+    fn negative_score_floors_at_zero() {
+        // Many negative terms → 40 - min(n,4)*10 clamped at 0, never underflows.
+        let n = classify_sentiment("bad slow poor weak buggy fails worse", 0);
+        assert_eq!(n.label, SentimentLabel::Negative);
+        assert_eq!(n.score, 0); // 40 - min(7,4)*10 = 0
+    }
+
+    #[test]
+    fn equal_positive_and_negative_terms_are_neutral() {
+        // One positive + one negative → tie → neutral, regardless of order.
+        let tie = classify_sentiment("Acme is fast but buggy.", 0);
+        assert_eq!(tie, Sentiment::neutral());
+    }
+
+    #[test]
+    fn substring_terms_do_not_count_only_whole_tokens() {
+        // "goodness" / "slowly" must NOT match "good" / "slow": tokenization is
+        // word-boundary based, so this stays neutral.
+        let s = classify_sentiment("Acme has goodness and runs slowly.", 0);
+        assert_eq!(s.label, SentimentLabel::Neutral);
+    }
+
+    #[test]
+    fn context_window_limits_which_terms_count() {
+        // A positive term far (>160 chars) beyond the mention offset falls
+        // outside the window and does not flip an otherwise-neutral mention.
+        let filler = "x ".repeat(120); // ~240 chars of neutral filler
+        let msg = format!("Acme is a database. {filler} reliable fast good");
+        // Offset 0 = the "Acme" mention; the trailing praise is out of window.
+        let s = classify_sentiment(&msg, 0);
+        assert_eq!(s.label, SentimentLabel::Neutral);
+    }
+
+    #[test]
+    fn offset_past_end_does_not_panic() {
+        // A char_offset beyond the message length must clamp safely, not panic.
+        let s = classify_sentiment("Acme is good.", 9_999);
+        // Window collapses near the end; behaviour is defined (no panic).
+        assert_eq!(s.lane, "deterministic_lexicon");
+    }
 }
