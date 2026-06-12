@@ -26,7 +26,7 @@
 //!
 //! benchmark-service stays UNTOUCHED. Dynamic sqlx only (no `query!` macros).
 
-use anseo_benchmark::{kek_secret_key, ProjectKek};
+use anseo_benchmark::ProjectKek;
 use anseo_core::ids::ProjectId;
 use anseo_storage::repositories::benchmark_consent::{ConsentReadFilters, ConsentRow, ConsentTier};
 use anseo_storage::repositories::benchmark_gate::GateConfig;
@@ -309,7 +309,6 @@ async fn kek_status(State(state): State<AppState>) -> Result<Json<KekStatusRespo
         let pid_str = pid.to_string();
         // Presence check ONLY — we never construct/return the KEK value.
         let kek_present = ProjectKek::load(&store, &pid_str).is_ok();
-        let _ = kek_secret_key(&pid_str); // wire-shape reference; no value read.
         let has_contribs: i64 = sqlx::query_scalar(
             r#"SELECT COUNT(*)::bigint FROM contributions WHERE project_id = $1"#,
         )
