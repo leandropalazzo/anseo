@@ -1,7 +1,7 @@
 # =============================================================================
 # RELEASE-TRAIN — one tag fans out to every release artifact (Story 38.19)
 #
-# A single `opengeo` version tag `vX.Y.Z` propagates everywhere: GHCR images,
+# A single Anseo version tag `vX.Y.Z` propagates everywhere: GHCR images,
 # the pinned standalone compose snapshot, the SDK publishes, the GitHub Release,
 # the plugin signing/publish, the internal-overlay submodule bump, and the
 # docs/marketing site rebuild — coordinated as ONE release, with a single
@@ -21,7 +21,7 @@
 # .github/workflows/release-images.yml (the refactored Story 38.15 logic). This
 # train is the sole tag-triggered caller (`uses:`), so a tag publishes the
 # images exactly once. release-images.yml itself has no tag trigger; it only
-# runs via `workflow_call` (here) or manual `workflow_dispatch`.
+# runs via `workflow_call` from this guarded train.
 #
 # ── FAN-OUT SET & ORDERING ──────────────────────────────────────────────────
 #   resolve            → derive bare X.Y.Z (strip leading v), dry-run flag.
@@ -36,8 +36,8 @@
 #                        Action (infra/github-action) downloads at image-build
 #                        time, so without it the action 404s. VERIFIED leg.
 #   plugin-sign(41.4)  → BEST-EFFORT repository_dispatch → plugin-sign.yml (real
-#                        key lives only in opengeo-internal; public repo no-ops).
-#   overlay-bump(38.18)→ BEST-EFFORT repository_dispatch → opengeo-internal bumps
+#                        key lives only in anseo-internal; public repo no-ops).
+#   overlay-bump(38.18)→ BEST-EFFORT repository_dispatch → anseo-internal bumps
 #                        its submodule to the tag + green-gates. token-gated.
 #   docs-site (38.21)  → BEST-EFFORT repository_dispatch → rebuild marketing+docs
 #                        site against the tag. token-gated.
@@ -670,7 +670,7 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # (41.4) Plugin signing/publish — repository_dispatch to plugin-sign.yml.
-  # The REAL root key lives only in opengeo-internal; the public repo no-ops.
+  # The REAL root key lives only in anseo-internal; the public repo no-ops.
   # Token-gated; independent leg.
   # ---------------------------------------------------------------------------
   plugin-sign:
@@ -718,7 +718,7 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # (38.18) Internal-overlay submodule bump — repository_dispatch to
-  # opengeo-internal so it points its submodule at this tag + green-gates.
+  # anseo-internal so it points its submodule at this tag + green-gates.
   # Token-gated; the public repo has no overlay token, so it no-ops.
   # ---------------------------------------------------------------------------
   overlay-bump:
@@ -745,8 +745,8 @@ jobs:
           fi
 
       # BEST-EFFORT TRIGGER ONLY. The dispatch succeeds as soon as GitHub accepts
-      # the event — NOT when opengeo-internal finishes bumping its submodule and
-      # green-gating. Downstream success is observed in opengeo-internal; this leg
+      # the event — NOT when anseo-internal finishes bumping its submodule and
+      # green-gating. Downstream success is observed in anseo-internal; this leg
       # is excluded from release-summary's completeness gate (see release-summary).
       - name: Dispatch overlay submodule bump (best-effort — does not wait for downstream)
         if: ${{ steps.tok.outputs.enabled == 'true' }}
@@ -895,20 +895,20 @@ jobs:
           # Standalone `anseo` CLI binaries (one per target triple). These are the
           # exact assets the check-visibility GitHub Action downloads, so the
           # release MUST carry them. Uploaded with --clobber so a rerun overwrites.
-          cli_assets=""
+          cli_assets=()
           for f in dist/cli/anseo-*; do
             [ -e "$f" ] || continue
-            cli_assets="$cli_assets $f"
+            cli_assets+=("$f")
           done
           if gh release view "${TAG}" >/dev/null 2>&1; then
             echo "release ${TAG} already exists — editing (rerun-safe)"
             gh release edit "${TAG}" --title "Anseo ${TAG}" --notes-file "$notes"
-            gh release upload "${TAG}" "$asset" $cli_assets --clobber
+            gh release upload "${TAG}" "$asset" "${cli_assets[@]}" --clobber
           else
             gh release create "${TAG}" \
               --title "Anseo ${TAG}" \
               --notes-file "$notes" \
-              "$asset" $cli_assets
+              "$asset" "${cli_assets[@]}"
           fi
 
   # ---------------------------------------------------------------------------
@@ -978,7 +978,7 @@ jobs:
             echo "| Leg | Story | Dispatch | Target repo |"
             echo "| --- | ----- | -------- | ----------- |"
             echo "| Plugin sign/publish | 41.4 | ${R_PLUGIN} (not verified) | this repo (plugin-sign.yml) |"
-            echo "| Overlay submodule bump | 38.18 | ${R_OVERLAY} (not verified) | opengeo-internal |"
+            echo "| Overlay submodule bump | 38.18 | ${R_OVERLAY} (not verified) | anseo-internal |"
             echo "| Docs/marketing site | 38.21 | ${R_DOCS} (not verified) | docs-site |"
           } >> "$GITHUB_STEP_SUMMARY"
 

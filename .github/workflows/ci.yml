@@ -521,6 +521,21 @@ jobs:
       - name: Story 37.16 production deployment docs
         run: bash scripts/check-production-deployment-docs.sh
 
+  release-image-contract:
+    name: Release — image publish contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Validate release workflow syntax
+        run: actionlint .github/workflows/ci.yml .github/workflows/release.yml .github/workflows/release-images.yml
+      - name: Story 38.15 GHCR image workflow
+        run: bash scripts/check-release-images-workflow.sh
+
   ci-summary:
     name: CI summary
     runs-on: ubuntu-latest
@@ -535,6 +550,7 @@ jobs:
         web-e2e,
         compose-smoke,
         docs-contract,
+        release-image-contract,
       ]
     if: always()
     steps:
@@ -548,13 +564,14 @@ jobs:
           echo "web-e2e:       ${{ needs.web-e2e.result }}"
           echo "compose-smoke: ${{ needs.compose-smoke.result }}"
           echo "docs-contract: ${{ needs.docs-contract.result }}"
+          echo "release-image-contract: ${{ needs.release-image-contract.result }}"
           # skipped (path-filtered / event-gated) is acceptable; only failure/cancelled fail the gate.
           for r in \
             "${{ needs.rust-lint.result }}" "${{ needs.rust-test.result }}" \
             "${{ needs.rust-managed-pg.result }}" \
             "${{ needs.rust-coverage.result }}" "${{ needs.web-lint-unit.result }}" \
             "${{ needs.web-e2e.result }}" "${{ needs.compose-smoke.result }}" \
-            "${{ needs.docs-contract.result }}"; do
+            "${{ needs.docs-contract.result }}" "${{ needs.release-image-contract.result }}"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
               echo "::error::A job failed or was cancelled."; exit 1
             fi
