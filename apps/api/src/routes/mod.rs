@@ -25,6 +25,7 @@ pub mod projects;
 pub mod prompt_runs;
 pub mod prompts;
 pub mod prompts_similarity;
+pub mod provider_lookup;
 pub mod providers;
 pub mod recommendations;
 pub mod run_detail;

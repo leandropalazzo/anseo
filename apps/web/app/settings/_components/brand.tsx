@@ -13,7 +13,7 @@ import {
   type SetupStatus,
 } from "@/lib/api";
 import {
-  configuredConcreteProviderIds,
+  configuredCredentialProviderIds,
   resolveProviderIdentity,
 } from "@/lib/provider-colors";
 
@@ -85,15 +85,16 @@ export function BrandSection() {
     };
   }, []);
 
-  // Configured providers drive the suggest-competitors picker; only providers
-  // with a stored key can answer, so we list those.
+  // Configured credential routes drive the suggest-competitors picker; unlike
+  // analytics/schedule selectors, this route must call the provider that owns
+  // the stored key (including OpenRouter).
   useEffect(() => {
     let cancelled = false;
     fetch("/api/setup/status", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((s: SetupStatus) => {
         if (cancelled) return;
-        const configured = configuredConcreteProviderIds(s.api_keys);
+        const configured = configuredCredentialProviderIds(s.api_keys);
         setProviders(configured);
         if (configured[0]) setProvider(configured[0]);
       })
