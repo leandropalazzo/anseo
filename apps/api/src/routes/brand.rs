@@ -288,20 +288,12 @@ async fn suggest_competitors(
             format!("unknown provider `{}`", body.provider),
         ));
     };
-    let Some(registry) = state.provider_registry.as_ref() else {
-        return Err(err(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "no_registry",
-            "API booted without a provider registry; configure a provider key first".to_string(),
-        ));
-    };
-    let Some(provider) = registry.get(&provider_name) else {
-        return Err(err(
-            StatusCode::BAD_REQUEST,
-            "provider_not_configured",
-            format!("provider `{}` has no configured API key", body.provider),
-        ));
-    };
+    let provider = crate::routes::provider_lookup::provider_for_request(
+        &state,
+        &provider_name,
+        &body.provider,
+    )
+    .await?;
 
     // Read the current brand from the DB (authoritative) so suggestions are
     // grounded in the operator's actual brand + variants.

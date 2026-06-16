@@ -14,7 +14,7 @@
 //! still render the row. Determinism contract: items are ordered by
 //! prompt name ascending.
 //!
-//! `X-Anseo-Project` is accepted but not consumed at this layer.
+//! `X-Anseo-Project` selects the project for every prompt read/write.
 
 use anseo_core::{prompt_id_for, ProjectId, PromptId, ProviderName};
 use anseo_providers::ProviderRequest;
@@ -26,7 +26,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
-use crate::middleware::auth::AuthenticatedProject;
+use crate::extractors::ProjectScope;
 use crate::AppState;
 
 pub fn v1_router() -> Router<AppState> {
@@ -134,9 +134,10 @@ async fn brand_name_for(state: &AppState, project_id: ProjectId) -> String {
 }
 
 async fn list_prompts(
-    Extension(AuthenticatedProject(project_id)): Extension<AuthenticatedProject>,
+    Extension(project): Extension<ProjectScope>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<PromptView>>, ApiError> {
+    let project_id = project.id();
     let rows = state
         .storage
         .prompts()
@@ -157,10 +158,11 @@ async fn list_prompts(
 }
 
 async fn create_prompt(
-    Extension(AuthenticatedProject(project_id)): Extension<AuthenticatedProject>,
+    Extension(project): Extension<ProjectScope>,
     State(state): State<AppState>,
     Json(body): Json<PromptCreate>,
 ) -> Result<(StatusCode, Json<PromptMutationResult>), ApiError> {
+    let project_id = project.id();
     let name = body.name.trim().to_string();
     if name.is_empty() {
         return Err(err(
@@ -215,11 +217,12 @@ async fn create_prompt(
 }
 
 async fn update_prompt(
-    Extension(AuthenticatedProject(project_id)): Extension<AuthenticatedProject>,
+    Extension(project): Extension<ProjectScope>,
     State(state): State<AppState>,
     Path(id): Path<String>,
     Json(body): Json<PromptUpdate>,
 ) -> Result<Json<PromptMutationResult>, ApiError> {
+    let project_id = project.id();
     let current_id = parse_prompt_id(&id)?;
     let name = body.name.trim().to_string();
     if name.is_empty() {
@@ -299,10 +302,11 @@ async fn update_prompt(
 }
 
 async fn delete_prompt(
-    Extension(AuthenticatedProject(project_id)): Extension<AuthenticatedProject>,
+    Extension(project): Extension<ProjectScope>,
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
+    let project_id = project.id();
     let prompt_id = parse_prompt_id(&id)?;
     let prompts = state.storage.prompts();
     let existing = prompts.get(prompt_id).await.map_err(storage_err)?;
@@ -361,10 +365,11 @@ pub struct RunSummaryResponse {
 }
 
 async fn run_summary(
-    Extension(AuthenticatedProject(project_id)): Extension<AuthenticatedProject>,
+    Extension(project): Extension<ProjectScope>,
     State(state): State<AppState>,
     Query(q): Query<RunSummaryQuery>,
 ) -> Result<Json<RunSummaryResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let project_id = project.id();
     let since = match q.since.as_deref() {
         None => Utc::now() - Duration::days(30),
         Some(raw) => match DateTime::parse_from_rfc3339(raw) {
@@ -406,10 +411,11 @@ pub struct KpiTrendQuery {
 /// `GET /v1/prompts/kpi-trend` — hourly project-wide KPI series (run_count,
 /// success_rate, avg_latency_ms) for the Overview tile sparklines.
 async fn kpi_trend_handler(
-    Extension(AuthenticatedProject(project_id)): Extension<AuthenticatedProject>,
+    Extension(project): Extension<ProjectScope>,
     State(state): State<AppState>,
     Query(q): Query<KpiTrendQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let project_id = project.id();
     let points = anseo_analytics::kpi_trend(&state.storage, project_id, q.hours.unwrap_or(168))
         .await
         .map_err(|e| {
@@ -515,10 +521,11 @@ pub struct TagSummaryResponse {
 /// Overview. A prompt may carry several tags, so prompts are unnested by tag;
 /// run metrics are aggregated over the prompts under each tag.
 async fn tag_summary(
-    Extension(AuthenticatedProject(project_id)): Extension<AuthenticatedProject>,
+    Extension(project): Extension<ProjectScope>,
     State(state): State<AppState>,
     Query(q): Query<RunSummaryQuery>,
 ) -> Result<Json<TagSummaryResponse>, ApiError> {
+    let project_id = project.id();
     let since = match q.since.as_deref() {
         None => Utc::now() - Duration::days(30),
         Some(raw) => match DateTime::parse_from_rfc3339(raw) {
@@ -627,10 +634,11 @@ pub struct SuggestPromptsResult {
 /// Nothing is persisted — suggestions are returned for review; the editor
 /// creates the ones the operator keeps.
 async fn suggest_prompts(
-    Extension(AuthenticatedProject(project_id)): Extension<AuthenticatedProject>,
+    Extension(project): Extension<ProjectScope>,
     State(state): State<AppState>,
     Json(body): Json<SuggestPromptsRequest>,
 ) -> Result<Json<SuggestPromptsResult>, ApiError> {
+    let project_id = project.id();
     let Some(provider_name) = ProviderName::parse(&body.provider) else {
         return Err(err(
             StatusCode::BAD_REQUEST,
@@ -638,20 +646,12 @@ async fn suggest_prompts(
             format!("unknown provider `{}`", body.provider),
         ));
     };
-    let Some(registry) = state.provider_registry.as_ref() else {
-        return Err(err(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "no_registry",
-            "API booted without a provider registry; configure a provider key first".to_string(),
-        ));
-    };
-    let Some(provider) = registry.get(&provider_name) else {
-        return Err(err(
-            StatusCode::BAD_REQUEST,
-            "provider_not_configured",
-            format!("provider `{}` has no configured API key", body.provider),
-        ));
-    };
+    let provider = crate::routes::provider_lookup::provider_for_request(
+        &state,
+        &provider_name,
+        &body.provider,
+    )
+    .await?;
 
     // Ground the suggestions in the operator's actual brand + variants +
     // competitors (DB is authoritative), so the prompts track real rivals.

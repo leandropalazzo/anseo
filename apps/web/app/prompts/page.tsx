@@ -19,7 +19,7 @@ import {
   type SetupStatus,
 } from "@/lib/api";
 import {
-  configuredConcreteProviderIds,
+  configuredCredentialProviderIds,
   resolveProviderIdentity,
 } from "@/lib/provider-colors";
 
@@ -109,14 +109,15 @@ export default function PromptsPage() {
     };
   }, []);
 
-  // Only providers with a stored key can answer; list those for the picker.
+  // Only providers with a stored credential route can answer; list those for
+  // the picker so OpenRouter is sent as `openrouter`, not as a concrete alias.
   useEffect(() => {
     let cancelled = false;
     fetch("/api/setup/status", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((s: SetupStatus) => {
         if (cancelled) return;
-        const configured = configuredConcreteProviderIds(s.api_keys);
+        const configured = configuredCredentialProviderIds(s.api_keys);
         setProviders(configured);
         if (configured[0]) setProvider(configured[0]);
       })

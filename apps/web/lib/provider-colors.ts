@@ -309,3 +309,12 @@ export function configuredConcreteProviderIds(
     (provider) => configured.has(provider) || hasOpenRouterKey,
   );
 }
+
+export function configuredCredentialProviderIds(
+  keys: ReadonlyArray<{ provider: string; configured: boolean }>,
+): ProviderId[] {
+  const configured = new Set(
+    keys.filter((k) => k.configured).map((k) => k.provider.toLowerCase()),
+  );
+  return CREDENTIAL_PROVIDER_IDS.filter((provider) => configured.has(provider));
+}

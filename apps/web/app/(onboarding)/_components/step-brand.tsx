@@ -19,7 +19,7 @@ import {
   type SetupStatus,
 } from "@/lib/api";
 import {
-  configuredConcreteProviderIds,
+  configuredCredentialProviderIds,
   resolveProviderIdentity,
 } from "@/lib/provider-colors";
 
@@ -79,7 +79,7 @@ export function StepBrand({ onNext }: StepBrandProps) {
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((s: SetupStatus) => {
         if (cancelled) return;
-        const configured = configuredConcreteProviderIds(s.api_keys);
+        const configured = configuredCredentialProviderIds(s.api_keys);
         setProviders(configured);
         if (configured[0]) setProvider(configured[0]);
       })
