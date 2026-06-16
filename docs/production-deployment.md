@@ -31,12 +31,12 @@ anseo.example.com {
     # local stack. Adjust the port to match your --port / ANSEO_API_PORT setting.
     reverse_proxy localhost:8080
 
-    # Basic auth for the web dashboard and MCP surfaces.
-    # Generate a hash with: caddy hash-password
-    basicauth /  {
-        your_username <bcrypt-hash-here>
+    # Basic auth for every non-API surface: dashboard, MCP, assets, and routes.
+    @protected {
+        not path /v1* /healthz
     }
-    basicauth /mcp* {
+    # Generate a hash with: caddy hash-password
+    basicauth @protected {
         your_username <bcrypt-hash-here>
     }
 
