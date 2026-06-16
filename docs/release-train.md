@@ -53,9 +53,19 @@ The image build/publish logic lives in **exactly one place**: the reusable
 workflow `.github/workflows/release-images.yml` (the refactored Story 38.15
 logic). The release-train is its **only tag-triggered caller** (`uses:`), so a
 tag publishes the images exactly once. `release-images.yml` has no tag trigger of
-its own — it runs only via `workflow_call` (from the train) or a manual
-`workflow_dispatch` (operator re-publish of a single ref). There is no second
-workflow that publishes images on a tag.
+its own — it runs only via `workflow_call` from the guarded train. There is no
+second workflow that publishes images on a tag.
+
+After a real tag publish, verify the GHCR artifact evidence from a clean Docker
+config:
+
+```bash
+scripts/verify-release-images.sh 0.5.0
+```
+
+The verifier checks unauthenticated pullability, `linux/amd64` and `linux/arm64`
+manifest entries, and basic image-history secret/default guards for `api`,
+`worker`, and `web`.
 
 ## It can never block PRs
 

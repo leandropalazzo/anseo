@@ -107,6 +107,7 @@ infra/
 cargo build
 cargo test
 ./scripts/check-production-deployment-docs.sh
+./scripts/check-release-images-workflow.sh
 
 cd apps/web && pnpm install && pnpm build && pnpm lint
 ```
