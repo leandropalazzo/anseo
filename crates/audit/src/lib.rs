@@ -27,6 +27,8 @@ pub enum AuditError {
     Fetch { url: String, source: reqwest::Error },
     #[error("audit target returned HTTP {status}: {url}")]
     HttpStatus { url: String, status: u16 },
+    #[error("skipping non-HTML response ({content_type}): {url}")]
+    NotHtml { url: String, content_type: String },
 }
 
 #[derive(Debug, Clone)]
@@ -344,6 +346,19 @@ impl Crawler {
             return Err(AuditError::HttpStatus {
                 url: target.to_string(),
                 status: status.as_u16(),
+            });
+        }
+        // Only audit HTML pages; skip JS, CSS, fonts, images, and other assets.
+        let content_type = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_lowercase();
+        if !content_type.is_empty() && !content_type.starts_with("text/html") {
+            return Err(AuditError::NotHtml {
+                url: url.to_string(),
+                content_type,
             });
         }
         let final_url = resp.url().to_string();
@@ -729,12 +744,37 @@ fn sitemap_locs(xml: &str) -> Vec<String> {
     out
 }
 
+/// Returns `false` for URLs that are obviously static assets rather than HTML
+/// pages: Next.js build chunks, stylesheets, fonts, images, and manifests.
+/// Keeps the crawl queue clean so operators see only meaningful page results.
+fn is_crawlable_url(url: &Url) -> bool {
+    let path = url.path().to_lowercase();
+    // Skip Next.js build output and other common static asset directories.
+    if path.starts_with("/_next/") || path.starts_with("/static/") {
+        return false;
+    }
+    // Skip by file extension (strip query string first).
+    let path_no_qs = path.split('?').next().unwrap_or(&path);
+    const SKIP_EXT: &[&str] = &[
+        ".js", ".mjs", ".cjs",
+        ".css",
+        ".woff", ".woff2", ".ttf", ".eot", ".otf",
+        ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp", ".avif",
+        ".webmanifest",
+        ".zip", ".gz", ".tar",
+        ".mp4", ".mp3", ".webm",
+        ".pdf",
+    ];
+    !SKIP_EXT.iter().any(|ext| path_no_qs.ends_with(ext))
+}
+
 fn owned_links(root: &Url, page_url: &Url, html: &str) -> Vec<Url> {
     let mut links: Vec<Url> = href_values(html)
         .into_iter()
         .filter_map(|href| page_url.join(&href).ok())
         .filter(|url| same_origin(root, url))
         .filter(|url| matches!(url.scheme(), "http" | "https"))
+        .filter(|url| is_crawlable_url(url))
         .collect();
     links.sort_by_key(|url| normalize_url(url.clone()));
     links.dedup_by_key(|url| normalize_url(url.clone()));
@@ -973,6 +1013,63 @@ mod tests {
         assert_eq!(
             rule_gate.failed_findings[0].rule_id,
             "identity.canonical_url"
+        );
+    }
+
+    #[test]
+    fn crawlable_url_filters_static_assets() {
+        let html_page = Url::parse("https://example.com/about").unwrap();
+        assert!(is_crawlable_url(&html_page));
+
+        // Next.js build chunks must be excluded.
+        let next_js = Url::parse("https://example.com/_next/static/chunks/main.js").unwrap();
+        assert!(!is_crawlable_url(&next_js));
+
+        let next_css = Url::parse("https://example.com/_next/static/css/styles.css").unwrap();
+        assert!(!is_crawlable_url(&next_css));
+
+        let next_font = Url::parse(
+            "https://example.com/_next/static/media/font.woff2",
+        )
+        .unwrap();
+        assert!(!is_crawlable_url(&next_font));
+
+        // Icon, manifest, and other static assets must be excluded.
+        let icon = Url::parse("https://example.com/icon.png").unwrap();
+        assert!(!is_crawlable_url(&icon));
+
+        let manifest = Url::parse("https://example.com/manifest.webmanifest").unwrap();
+        assert!(!is_crawlable_url(&manifest));
+
+        // Query strings on non-HTML extensions are also excluded.
+        let icon_qs = Url::parse("https://example.com/apple-icon.png?v=2").unwrap();
+        assert!(!is_crawlable_url(&icon_qs));
+    }
+
+    #[test]
+    fn owned_links_excludes_static_assets() {
+        let root = Url::parse("https://example.com/").unwrap();
+        let page = Url::parse("https://example.com/").unwrap();
+        // Typical Next.js HTML head contains stylesheet, manifest, and icon links.
+        let links = owned_links(
+            &root,
+            &page,
+            r#"
+            <link rel="stylesheet" href="/_next/static/css/main.css">
+            <link rel="manifest" href="/manifest.webmanifest">
+            <link rel="apple-touch-icon" href="/apple-icon.png">
+            <a href="/about">About</a>
+            <a href="/methodology">Methodology</a>
+            "#,
+        );
+        let urls: Vec<String> = links.into_iter().map(normalize_url).collect();
+        // Only real HTML pages should survive.
+        assert_eq!(
+            urls,
+            vec![
+                "https://example.com/about",
+                "https://example.com/methodology",
+            ]
         );
     }
 
