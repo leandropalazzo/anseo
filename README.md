@@ -41,7 +41,7 @@ anseo serve                                         # managed child Postgres; AP
 DATABASE_URL=postgres://… anseo serve --port 8080   # …or bring your own Postgres
 ```
 
-Bind to a non-loopback address (`--bind host:port`) only behind your own auth/network controls — a public bind with no API keys is refused. See [Production deployment](docs/production-deployment.md) for reverse-proxy/TLS guidance.
+Bind to a non-loopback address (`--bind host:port`) only behind your own auth/network controls — a public bind prints a startup warning because the web and MCP surfaces are not key-gated. See [Production deployment](docs/production-deployment.md) for reverse-proxy/TLS guidance.
 
 **Tier 2 — Docker Compose.** The full stack (API + worker + web + Postgres) from `infra/docker`.
 
@@ -106,6 +106,7 @@ infra/
 ```bash
 cargo build
 cargo test
+./scripts/check-production-deployment-docs.sh
 
 cd apps/web && pnpm install && pnpm build && pnpm lint
 ```

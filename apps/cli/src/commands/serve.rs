@@ -1,6 +1,6 @@
-//! `ogeo serve` — single-binary supervisor (Story 37.1).
+//! `anseo serve` — single-binary supervisor (Story 37.1).
 //!
-//! Boots the HTTP API (`opengeo-api`) and runs the background worker fan-out
+//! Boots the HTTP API (`anseo-api`) and runs the background worker fan-out
 //! loop (`anseo-worker`) IN-PROCESS in one binary, sharing one Postgres pool's
 //! worth of connections, one shutdown signal, and one process lifetime.
 //!
@@ -63,7 +63,10 @@ fn is_loopback_bind(addr: &str) -> bool {
         None => addr,
     };
     // Strip surrounding brackets for bare IPv6 literals like `[::1]:port`.
-    let host = host.trim_matches(|c| c == '[' || c == ']');
+    let host = host
+        .trim_matches(|c| c == '[' || c == ']')
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
     // Parse as a std IP first; fall back to string prefix checks for the
     // unusual case where the host was specified as a bare hostname.
     if let Ok(ip) = host.parse::<std::net::IpAddr>() {
@@ -71,6 +74,20 @@ fn is_loopback_bind(addr: &str) -> bool {
     }
     // Conservative: unknown hostnames are treated as non-loopback.
     host == "localhost"
+}
+
+fn should_warn_public_bind(addr: &str) -> bool {
+    !is_loopback_bind(addr)
+}
+
+fn public_bind_warning_message(addr: &str) -> String {
+    format!(
+        "\n\
+⚠️  WARNING: binding to {addr} exposes Anseo on a non-loopback interface.\n\
+   Anseo OSS has no built-in auth for the web or MCP surfaces.\n\
+   Ensure a reverse proxy (Caddy, nginx) with TLS and auth is in front.\n\
+   See docs/production-deployment.md for copy-paste Caddy/nginx configs.\n\n"
+    )
 }
 
 /// Emit a startup warning when the operator binds to a non-loopback interface.
@@ -81,13 +98,8 @@ fn is_loopback_bind(addr: &str) -> bool {
 /// (a warning, not an error) to allow operators who know what they are doing
 /// (e.g. behind a VPN or in a firewalled private network) to continue.
 fn warn_if_public_bind(addr: &str) {
-    if !is_loopback_bind(addr) {
-        println!();
-        println!("⚠️  WARNING: binding to {addr} exposes Anseo on a non-loopback interface.");
-        println!("   Anseo OSS has no built-in auth for the web or MCP surfaces.");
-        println!("   Ensure a reverse proxy (Caddy, nginx) with TLS and auth is in front.");
-        println!("   See docs/production-deployment.md for copy-paste Caddy/nginx configs.");
-        println!();
+    if should_warn_public_bind(addr) {
+        print!("{}", public_bind_warning_message(addr));
         tracing::warn!(
             event = "serve.public_bind",
             bind = addr,
@@ -113,12 +125,19 @@ fn resolve_config_path(projects_dir: &Option<std::path::PathBuf>) -> String {
 }
 
 pub async fn run(args: ServeArgs) -> Result<(), OpenGeoError> {
+    let bind_addr = resolve_bind(&args.bind, args.port);
+    let config_path = resolve_config_path(&args.projects_dir);
+
+    // Security baseline (Story 37.16 / RISK-5): warn early when the operator
+    // binds to a non-loopback address without an obvious proxy in front.
+    warn_if_public_bind(&bind_addr);
+
     // Resolve the datastore: external `DATABASE_URL` if set (behavior unchanged),
     // otherwise provision + start a managed child Postgres. `_datastore` is held
     // for the whole `serve` lifetime; dropping it on return stops the child.
     let datastore = resolve_from_env()?;
     if matches!(datastore, Datastore::Managed(_)) {
-        println!("ogeo serve — no DATABASE_URL; using the managed child Postgres datastore");
+        println!("anseo serve — no DATABASE_URL; using the managed child Postgres datastore");
         tracing::info!(
             event = "serve.datastore_managed",
             "provisioned a managed child Postgres (no DATABASE_URL set)"
@@ -126,12 +145,6 @@ pub async fn run(args: ServeArgs) -> Result<(), OpenGeoError> {
     }
     let database_url = datastore.database_url().to_string();
     let _datastore = datastore;
-    let bind_addr = resolve_bind(&args.bind, args.port);
-    let config_path = resolve_config_path(&args.projects_dir);
-
-    // Security baseline (Story 37.16 / RISK-5): warn early when the operator
-    // binds to a non-loopback address without an obvious proxy in front.
-    warn_if_public_bind(&bind_addr);
 
     // Shared graceful-shutdown signal: one source, two consumers (API + worker).
     let (shutdown_tx, _) = tokio::sync::watch::channel(false);
@@ -154,12 +167,12 @@ pub async fn run(args: ServeArgs) -> Result<(), OpenGeoError> {
     let socket = booted.socket;
 
     // Print the bound URLs on startup (Task 4).
-    println!("ogeo serve — OpenGEO running in a single process");
+    println!("anseo serve — Anseo running in a single process");
     println!("  API:        http://{socket}");
     println!("  Health:     http://{socket}/healthz");
     println!("  Dashboard:  http://{socket}/");
     println!("Press Ctrl-C to stop.");
-    tracing::info!(event = "serve.boot", bind = %socket, "ogeo serve listening");
+    tracing::info!(event = "serve.boot", bind = %socket, "anseo serve listening");
 
     // Worker substrate: a second Storage handle over its own pool (the API owns
     // its pool inside `AppState`). External `DATABASE_URL` for this story.
@@ -222,7 +235,7 @@ pub async fn run(args: ServeArgs) -> Result<(), OpenGeoError> {
         }
     }
 
-    tracing::info!(event = "serve.stopped", "ogeo serve stopped cleanly");
+    tracing::info!(event = "serve.stopped", "anseo serve stopped cleanly");
     Ok(())
 }
 
@@ -291,6 +304,8 @@ mod tests {
     #[test]
     fn localhost_hostname_is_loopback() {
         assert!(is_loopback_bind("localhost:8080"));
+        assert!(is_loopback_bind("LOCALHOST:8080"));
+        assert!(is_loopback_bind("localhost.:8080"));
     }
 
     #[test]
@@ -303,6 +318,29 @@ mod tests {
     #[test]
     fn public_ipv6_is_not_loopback() {
         assert!(!is_loopback_bind("[::]:8080"));
+    }
+
+    #[test]
+    fn public_bind_warning_decision_matches_security_baseline() {
+        assert!(!should_warn_public_bind("127.0.0.1:8080"));
+        assert!(!should_warn_public_bind("localhost:8080"));
+        assert!(!should_warn_public_bind("LOCALHOST.:8080"));
+        assert!(!should_warn_public_bind("[::1]:8080"));
+        assert!(should_warn_public_bind("0.0.0.0:8080"));
+        assert!(should_warn_public_bind("192.168.1.10:8080"));
+        assert!(should_warn_public_bind("[::]:8080"));
+    }
+
+    #[test]
+    fn public_bind_warning_message_matches_security_baseline() {
+        let message = public_bind_warning_message("0.0.0.0:8080");
+
+        assert!(message.contains(
+            "WARNING: binding to 0.0.0.0:8080 exposes Anseo on a non-loopback interface."
+        ));
+        assert!(message.contains("no built-in auth for the web or MCP surfaces"));
+        assert!(message.contains("reverse proxy (Caddy, nginx) with TLS and auth"));
+        assert!(message.contains("docs/production-deployment.md"));
     }
 
     // ── resolve_bind ─────────────────────────────────────────────────────────
