@@ -64,11 +64,14 @@ use axum::http::StatusCode;
 use axum::routing::post;
 use axum::{Extension, Json, Router};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use anseo_benchmark::{ProjectKek, RawPromptRun, Redactor, SealedContribution, TERMS_VERSION};
+use anseo_core::ids::CitationId;
+use anseo_extractors::SourceType;
+use anseo_storage::models::CitationRow;
 use anseo_storage::repositories::anonymous_contributions::AnonymousContributionToStore;
 use anseo_storage::repositories::prompt_runs::PromptRunRepo;
 
@@ -213,6 +216,15 @@ pub fn validate_request(req: &IngestRunRequest) -> Result<(), ValidationError> {
                 .to_string(),
         ));
     }
+    if req
+        .metadata
+        .as_ref()
+        .is_some_and(|metadata| !metadata.is_object())
+    {
+        return Err(ValidationError::BadRequest(
+            "`metadata` must be a JSON object when supplied".to_string(),
+        ));
+    }
     if anseo_core::ProviderName::parse(req.provider.trim()).is_none() {
         return Err(ValidationError::ProviderNotSupported(format!(
             "provider `{}` is not supported (expected a first-party name or `plugin:<id>`)",
@@ -349,19 +361,81 @@ fn message_text_for_extraction(req: &IngestRunRequest) -> Option<String> {
         return Some(text.clone());
     }
     let raw = req.raw_response.as_ref()?;
-    if let Some(text) = raw.as_str().filter(|text| !text.trim().is_empty()) {
-        return Some(text.to_string());
+    let mut fragments = Vec::new();
+    collect_text_fragments(raw, &mut fragments);
+    if fragments.is_empty() {
+        None
+    } else {
+        Some(fragments.join("\n"))
     }
-    for key in ["text", "output_text", "response_text", "content"] {
-        if let Some(text) = raw
-            .get(key)
-            .and_then(|value| value.as_str())
-            .filter(|text| !text.trim().is_empty())
-        {
-            return Some(text.to_string());
+}
+
+fn collect_text_fragments(value: &serde_json::Value, fragments: &mut Vec<String>) {
+    match value {
+        serde_json::Value::String(text) => {
+            let trimmed = text.trim();
+            if !trimmed.is_empty() {
+                fragments.push(trimmed.to_string());
+            }
         }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                collect_text_fragments(item, fragments);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for key in [
+                "text",
+                "output_text",
+                "response_text",
+                "content",
+                "message",
+                "choices",
+                "output",
+                "messages",
+            ] {
+                if let Some(value) = map.get(key) {
+                    collect_text_fragments(value, fragments);
+                }
+            }
+        }
+        _ => {}
     }
-    None
+}
+
+fn has_annotation_citations(raw_response: &serde_json::Value) -> bool {
+    !anseo_extractors::extract_citations_from_annotations(raw_response).is_empty()
+}
+
+async fn persist_explicit_citation_domains(
+    state: &AppState,
+    run_id: anseo_core::PromptRunId,
+    now: chrono::DateTime<chrono::Utc>,
+    domains: &[String],
+) -> Result<(), anseo_storage::Error> {
+    let mut seen = HashSet::new();
+    for domain in domains {
+        let normalized = domain.trim().to_lowercase();
+        if normalized.is_empty() || !seen.insert(normalized.clone()) {
+            continue;
+        }
+        state
+            .storage
+            .citations()
+            .insert(&CitationRow {
+                id: CitationId::new(),
+                prompt_run_id: run_id,
+                url: None,
+                domain: normalized.clone(),
+                frequency: 1,
+                source_type: Some(SourceType::GeneralWeb.as_wire_str().to_string()),
+                organization_id: None,
+                tenant_id: None,
+                created_at: now,
+            })
+            .await?;
+    }
+    Ok(())
 }
 
 async fn ingest_run(
@@ -534,7 +608,7 @@ async fn ingest_run(
         model: req.model.clone(),
         observed_at,
         observed_rank: req.observed_rank,
-        citation_domains,
+        citation_domains: citation_domains.clone(),
         // Fields the redactor intentionally drops — never transmitted.
         brand_name: scope.name().to_string(),
         raw_response_text: message_text.clone().unwrap_or_default(),
@@ -630,18 +704,29 @@ async fn ingest_run(
         )
     })?;
 
-    if let (Some(config), Some(text)) = (state.config.as_ref(), message_text.as_deref()) {
+    let should_extract = message_text.is_some() || has_annotation_citations(&raw_response);
+    if let (Some(config), true) = (state.config.as_ref(), should_extract) {
         if let Err(e) = anseo_extractors::extract_and_persist(
             &state.storage,
             config,
             run_id,
-            text,
+            message_text.as_deref().unwrap_or(""),
             &raw_response,
             now,
         )
         .await
         {
             tracing::warn!(error = %e, "ingest: mention/citation extraction failed");
+        }
+    }
+    if message_text.is_none()
+        && !has_annotation_citations(&raw_response)
+        && req.citation_domains.is_some()
+    {
+        if let Err(e) =
+            persist_explicit_citation_domains(&state, run_id, now, &citation_domains).await
+        {
+            tracing::warn!(error = %e, "ingest: explicit citation-domain persistence failed");
         }
     }
 
@@ -752,6 +837,16 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_non_object_metadata() {
+        let mut r = req(Some("hello"), None);
+        r.metadata = Some(serde_json::json!("trace-123"));
+        assert!(matches!(
+            validate_request(&r),
+            Err(ValidationError::BadRequest(m)) if m.contains("`metadata`")
+        ));
+    }
+
+    #[test]
     fn validate_accepts_first_party_and_plugin_providers() {
         let mut r = req(Some("hello"), None);
         r.provider = "anthropic".into();
@@ -813,6 +908,25 @@ mod tests {
         assert_eq!(
             message_text_for_extraction(&r),
             Some("plain string".to_string())
+        );
+    }
+
+    #[test]
+    fn message_text_uses_nested_provider_payloads() {
+        let mut r = req(None, None);
+        r.raw_response = Some(serde_json::json!({
+            "choices": [{
+                "message": {
+                    "content": [
+                        { "text": "first" },
+                        { "text": "second" }
+                    ]
+                }
+            }]
+        }));
+        assert_eq!(
+            message_text_for_extraction(&r),
+            Some("first\nsecond".to_string())
         );
     }
 

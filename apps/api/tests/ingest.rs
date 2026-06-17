@@ -426,6 +426,49 @@ async fn ingest_unknown_provider_returns_422() {
 
 #[tokio::test]
 #[ignore = "requires DATABASE_URL"]
+async fn ingest_explicit_citation_domains_persist_without_text() {
+    let (app, _project_id, project_name, api_key) = seeded().await;
+    let body = serde_json::json!({
+        "prompt_slug": "vector-db",
+        "provider": "openai",
+        "model": "gpt-4o-2024-08-06",
+        "raw_response": { "id": "resp_annotations_only" },
+        "citation_domains": ["docs.pinecone.io", "community.pinecone.io"],
+    });
+    let response = app
+        .oneshot(post("/v1/ingest/run", &api_key, &project_name, body))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let bytes = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let run_id = payload["run_id"].as_str().unwrap().parse().unwrap();
+
+    let pool = sqlx::PgPool::connect(&std::env::var("DATABASE_URL").unwrap())
+        .await
+        .unwrap();
+    let citations = CitationRepo::new(&pool)
+        .list_by_run(run_id)
+        .await
+        .expect("citations by run");
+    assert!(
+        citations
+            .iter()
+            .any(|citation| citation.domain == "docs.pinecone.io"),
+        "expected explicit citation domain to persist when no extractable text is present"
+    );
+    assert!(
+        citations
+            .iter()
+            .any(|citation| citation.domain == "community.pinecone.io"),
+        "expected all explicit citation domains to persist"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
 async fn ingest_rate_limit_returns_429() {
     let (app, _project_id, project_name, api_key) = seeded().await;
     for _ in 0..60 {
