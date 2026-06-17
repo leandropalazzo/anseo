@@ -145,6 +145,14 @@ pub fn router(state: AppState) -> Router {
     // Premium surface — only compiled into the `pro` build. The default OSS
     // build never references the entitlement-gated hallucination evaluator.
     let v1_surface = v1_routes
+        // Story 22.2 — RBAC capability check (single policy point).
+        // Runs AFTER auth (has OrgContext); BEFORE the project-header guard.
+        // Routes that need a specific capability inject `RequiredCapability`
+        // into extensions; routes without it pass through (API-key self-host).
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            middleware::authz::check_authz,
+        ))
         // Story 44.4 — Geo-gating for identified-tier (class-c) endpoints.
         // Applied BEFORE auth so jurisdiction rejections are visible without
         // a valid API key. Only identified-tier paths are blocked; the
