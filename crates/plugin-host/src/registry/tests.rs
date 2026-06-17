@@ -224,6 +224,25 @@ fn latest_resolves_to_artifact() {
 }
 
 #[test]
+fn fetch_manifest_returns_metadata_without_artifact_verification() {
+    let fx = build_fixture(Tamper {
+        omit_signature: true,
+        ..Default::default()
+    });
+    let manifest = client(&fx)
+        .fetch_manifest(ID, "latest")
+        .expect("manifest browse path should not require signatures");
+
+    assert_eq!(manifest.entry.id, ID);
+    assert_eq!(manifest.entry.version, VERSION);
+    assert_eq!(manifest.manifest.name, ID);
+    assert_eq!(manifest.manifest.author, "");
+    assert_eq!(manifest.manifest.homepage, "");
+    assert_eq!(manifest.manifest.plugin_type.to_string(), "extractor");
+    assert_eq!(manifest.manifest.capabilities.len(), 1);
+}
+
+#[test]
 fn tampered_checksum_is_rejected() {
     let fx = build_fixture(Tamper {
         bad_checksum: true,
