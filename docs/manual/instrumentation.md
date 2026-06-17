@@ -271,7 +271,7 @@ The mechanism is the slug itself:
 - The slug must be **declared in your project** before you can ingest against it (`anseo prompt add --name <slug>`), and it must be **slug-safe** (lowercase ASCII + digits + hyphens).
 - To contribute comparable data, align your slugs to the **canonical GEO prompt suite** — a versioned list of standard prompt slugs (e.g. `geo-v1/best-vector-db`) shared by all contributors. Using a canonical slug is what puts your runs in the same cohort as everyone else's.
 
-> **Known limitation (as of this release).** The canonical GEO prompt suite (Epic 39, Story 39.3) is **not yet published**. Until it lands there is no `GET /v1/suite/prompts` endpoint, no `anseo suite list` / `anseo suite check` helper, and no canonical slug table — so cross-operator suite comparability is **not yet available**. You can ingest and persist runs today and contribute them under your own declared slugs; they simply will not join a canonical cohort until the suite ships. This page will gain the slug table and the `suite` CLI/API/MCP surfaces once 39.3 is merged. Track the gap in Epic 39.
+> **Current state.** The canonical GEO prompt suite is now published as a versioned artifact in [`./canonical-suite.md`](./canonical-suite.md), but the convenience surfaces from Story 40.5 are still pending: there is not yet a `GET /v1/suite/prompts` endpoint, `anseo suite list` / `anseo suite check`, or MCP suite-listing tool. You can already align your ingested runs to the published canonical slugs today; the dedicated API/CLI/MCP helpers will arrive in Epic 40.
 
 Until then, the comparable-contribution recipe is:
 
