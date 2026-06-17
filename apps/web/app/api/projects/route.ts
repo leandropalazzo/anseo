@@ -15,7 +15,7 @@ export async function GET() {
   });
   const body = await r.text();
   return new NextResponse(body, {
-    status: r.status,
+    status: r.status === 204 ? 200 : r.status,
     headers: { "Content-Type": "application/json" },
   });
 }
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   });
   const out = await r.text();
   return new NextResponse(out, {
-    status: r.status,
+    status: r.status === 204 ? 200 : r.status,
     headers: { "Content-Type": "application/json" },
   });
 }

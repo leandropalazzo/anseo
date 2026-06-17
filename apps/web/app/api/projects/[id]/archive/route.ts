@@ -18,8 +18,10 @@ export async function POST(
     },
   );
   const out = await r.text();
+  // Next.js 16 does not allow Response status 204 — map it to 200.
+  const status = r.status === 204 ? 200 : r.status;
   return new NextResponse(out || "{}", {
-    status: r.status,
+    status,
     headers: { "Content-Type": "application/json" },
   });
 }

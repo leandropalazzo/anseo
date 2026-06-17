@@ -23,7 +23,7 @@ export async function PUT(
   );
   const out = await r.text();
   return new NextResponse(out, {
-    status: r.status,
+    status: r.status === 204 ? 200 : r.status,
     headers: { "Content-Type": "application/json" },
   });
 }
@@ -46,7 +46,7 @@ export async function DELETE(
   }
   const out = await r.text();
   return new NextResponse(out, {
-    status: r.status,
+    status: r.status === 204 ? 200 : r.status,
     headers: { "Content-Type": "application/json" },
   });
 }

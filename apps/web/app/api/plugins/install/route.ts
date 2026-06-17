@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   });
   const out = await r.text();
   return new NextResponse(out, {
-    status: r.status,
+    status: r.status === 204 ? 200 : r.status,
     headers: { "Content-Type": "application/json" },
   });
 }
