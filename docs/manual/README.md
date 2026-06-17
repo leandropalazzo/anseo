@@ -8,6 +8,7 @@ Anseo is open-source AI-search-visibility **observability infrastructure** — "
 | [MCP](./mcp.md) | `anseo-mcp` server | AI agents / assistants | every tool + how to connect |
 | [Web](./web.md) | Next.js dashboard | humans (read + control) | every route + use case |
 | [Instrumentation](./instrumentation.md) | `anseo-observe` SDKs + `/v1/ingest/run` | developers shipping external LLM runs | quickstarts, consent, what's transmitted, canonical-suite hook |
+| [Canonical GEO Suite](./canonical-suite.md) | shared benchmark slugs | operators standardizing benchmark cohorts | canonical prompt taxonomy + change-control |
 | [Deploy](./deploy.md) | tiers 0–2 | operators standing up a node | how to run each tier |
 
 > The narrative onboarding manual (concepts, install, the Phase-1 closed loop) lives at [`../release-manual.html`](../release-manual.html). These three docs are the **surface references** — exhaustive, use-case-indexed.

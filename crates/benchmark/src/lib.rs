@@ -22,9 +22,13 @@
 //! type signature: `fn contribute` takes `&ProjectKek`, making it impossible
 //! to call without one.
 
+pub mod canonical_suite;
 pub mod crypto;
 pub mod redactor;
 
+pub use canonical_suite::{
+    canonical_geo_prompt_suite, CanonicalPromptEntry, CanonicalPromptSuite, SuiteOwnership,
+};
 pub use crypto::{kek_secret_key, CryptoError, ProjectKek, SealedContribution};
 pub use redactor::{
     BenchmarkPayload, ProjectHmac, RawPromptRun, Redactor, RedactorError, TERMS_VERSION,
