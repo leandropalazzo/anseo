@@ -16,15 +16,15 @@
 #
 # OPEN-CORE BOUNDARY (ADR-007): the REAL root private key
 # (`ANSEO_PLUGIN_SIGNING_KEY` secret) lives ONLY in the private
-# `opengeo-internal` repo, which hosts the production copy of this workflow. In
-# the PUBLIC `opengeo` repo this workflow runs a self-check with an EPHEMERAL
+# `anseo-internal` repo, which hosts the production copy of this workflow. In
+# the PUBLIC `anseo` repo this workflow runs a self-check with an EPHEMERAL
 # key (no secret) to prove the pipeline + verifier round-trip stays green. See
 # docs/plugin-signing.md.
 #
 # SUPPLY-CHAIN: the `sign` job declares `environment: release`. The real signing
 # key + registry token are exposed only after a maintainer approves the `release`
 # deployment; configure that environment with required reviewers in the repo that
-# holds the secret (opengeo-internal). See docs/release-train.md.
+# holds the secret (anseo-internal). See docs/release-train.md.
 # =============================================================================
 
 name: plugin-sign
@@ -62,10 +62,10 @@ jobs:
     name: Sign plugin bundle
     # SUPPLY-CHAIN: this job materializes the real root signing key
     # (ANSEO_PLUGIN_SIGNING_KEY) and, when publishing, the registry token
-    # (PLUGIN_REGISTRY_TOKEN). Both live ONLY in opengeo-internal. Gate the job
+    # (PLUGIN_REGISTRY_TOKEN). Both live ONLY in anseo-internal. Gate the job
     # behind the protected `release` environment so a maintainer must approve the
     # deployment before either secret is exposed, even on a repository_dispatch.
-    # In opengeo-internal the `release` environment MUST be configured with
+    # In anseo-internal the `release` environment MUST be configured with
     # required reviewers (and, ideally, a branch/tag deployment-protection rule),
     # so the real key is never materialized without a maintainer approval. The
     # public repo holds no signing secret and (configures the environment with no
@@ -142,7 +142,7 @@ jobs:
         run: cargo build -p anseo-cli --bin anseo
 
       # ---------------------------------------------------------------------
-      # PRODUCTION path (opengeo-internal): the ANSEO_PLUGIN_SIGNING_KEY secret
+      # PRODUCTION path (anseo-internal): the ANSEO_PLUGIN_SIGNING_KEY secret
       # is present, so sign the requested bundle with the real root key. The
       # produced signature.bin + claim.toml are uploaded as a build artifact
       # (and, when a registry push target is configured, committed back to the
@@ -179,7 +179,7 @@ jobs:
 
       # ---------------------------------------------------------------------
       # OPTIONAL: publish the signed artifacts back into the plugin registry.
-      # The production copy of this workflow lives in opengeo-internal, which
+      # The production copy of this workflow lives in anseo-internal, which
       # owns the registry push target + token; if PLUGIN_REGISTRY_REPO is
       # configured there, commit signature.bin + claim.toml into the registry
       # so installs/workers pick them up automatically. Guarded so the public

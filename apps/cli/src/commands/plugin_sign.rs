@@ -18,7 +18,7 @@
 //!
 //! Keys never live in the public repo: `keygen` writes a keypair to a path the
 //! operator chooses (then uploads the secret to the `ANSEO_PLUGIN_SIGNING_KEY`
-//! GitHub Actions secret in `opengeo-internal`); `sign` reads the secret seed
+//! GitHub Actions secret in `anseo-internal`); `sign` reads the secret seed
 //! from `ANSEO_PLUGIN_SIGNING_KEY` (env / `--key-file`). See
 //! `docs/plugin-signing.md`.
 
@@ -47,9 +47,7 @@ pub fn run_keygen(args: KeygenArgs) -> Result<(), OpenGeoError> {
         Some(path) => {
             write_secret(&path, &kp.secret_hex())?;
             println!("secret  written to {} (DO NOT COMMIT)", path.display());
-            println!(
-                "next: upload it as the `ANSEO_PLUGIN_SIGNING_KEY` secret in opengeo-internal."
-            );
+            println!("next: upload it as the `ANSEO_PLUGIN_SIGNING_KEY` secret in anseo-internal.");
         }
         None => {
             println!(
