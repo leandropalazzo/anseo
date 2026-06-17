@@ -37,7 +37,7 @@ async fn insert_project_for_org(pool: &PgPool, org_id: uuid::Uuid, name: &str) -
 // 1. Unset GUC → zero rows on projects
 // ---------------------------------------------------------------------------
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn unset_guc_yields_zero_rows(pool: PgPool) {
     // Get the default org to insert a row.
     let default_org: uuid::Uuid =
@@ -65,7 +65,7 @@ async fn unset_guc_yields_zero_rows(pool: PgPool) {
 // 2. Correct org GUC → own row visible
 // ---------------------------------------------------------------------------
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn correct_org_guc_yields_own_rows(pool: PgPool) {
     let default_org: uuid::Uuid =
         sqlx::query_scalar("SELECT id FROM organizations WHERE slug = 'default'")
@@ -97,7 +97,7 @@ async fn correct_org_guc_yields_own_rows(pool: PgPool) {
 // 3. Foreign org GUC → foreign row not visible
 // ---------------------------------------------------------------------------
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn foreign_org_guc_yields_zero_rows(pool: PgPool) {
     // Create two orgs.
     let org_a: uuid::Uuid = sqlx::query_scalar(
@@ -141,7 +141,7 @@ async fn foreign_org_guc_yields_zero_rows(pool: PgPool) {
 // 4. RLS is enabled on all required tenant tables
 // ---------------------------------------------------------------------------
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn rls_enabled_on_all_tenant_tables(pool: PgPool) {
     let tables_with_rls: Vec<String> = sqlx::query_scalar(
         "SELECT relname::text FROM pg_class \

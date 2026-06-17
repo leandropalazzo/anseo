@@ -14,7 +14,7 @@ use sqlx::PgPool;
 // 1. Default org exists after migration
 // ---------------------------------------------------------------------------
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn default_org_is_created(pool: PgPool) {
     let count: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM organizations WHERE slug = 'default'")
@@ -44,7 +44,7 @@ async fn assert_org_id_not_null(pool: &PgPool, table: &str) {
     );
 }
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn org_id_not_null_on_tenant_tables(pool: PgPool) {
     for table in [
         "projects",
@@ -65,7 +65,7 @@ async fn org_id_not_null_on_tenant_tables(pool: PgPool) {
 // 3. New rows inherit org_id from the FK
 // ---------------------------------------------------------------------------
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn new_project_can_be_inserted_with_default_org(pool: PgPool) {
     let default_org: uuid::Uuid =
         sqlx::query_scalar("SELECT id FROM organizations WHERE slug = 'default'")
@@ -95,7 +95,7 @@ async fn new_project_can_be_inserted_with_default_org(pool: PgPool) {
 // 4. brands VIEW exposes brand_id alias
 // ---------------------------------------------------------------------------
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn brands_view_exposes_brand_id(pool: PgPool) {
     let col_exists: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM information_schema.columns \
@@ -108,7 +108,7 @@ async fn brands_view_exposes_brand_id(pool: PgPool) {
     assert_eq!(col_exists, 1, "brands view must expose brand_id column");
 }
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn brands_view_brand_id_equals_project_id(pool: PgPool) {
     let default_org: uuid::Uuid =
         sqlx::query_scalar("SELECT id FROM organizations WHERE slug = 'default'")
@@ -138,7 +138,7 @@ async fn brands_view_brand_id_equals_project_id(pool: PgPool) {
 // 5. Idempotency: re-running INSERT ... ON CONFLICT doesn't error
 // ---------------------------------------------------------------------------
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn default_org_insert_is_idempotent(pool: PgPool) {
     // Running the same insert again must succeed silently.
     let result = sqlx::query(

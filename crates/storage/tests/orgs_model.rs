@@ -12,7 +12,7 @@ use sqlx::PgPool;
 // 1. Table + column existence
 // ---------------------------------------------------------------------------
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn organizations_table_columns_exist(pool: PgPool) {
     let cols: Vec<String> = sqlx::query_scalar(
         "SELECT column_name FROM information_schema.columns \
@@ -30,7 +30,7 @@ async fn organizations_table_columns_exist(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn operators_table_columns_exist(pool: PgPool) {
     let cols: Vec<String> = sqlx::query_scalar(
         "SELECT column_name FROM information_schema.columns \
@@ -55,7 +55,7 @@ async fn operators_table_columns_exist(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn operator_org_roles_table_exists(pool: PgPool) {
     let cols: Vec<String> = sqlx::query_scalar(
         "SELECT column_name FROM information_schema.columns \
@@ -73,7 +73,7 @@ async fn operator_org_roles_table_exists(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn brand_grants_table_exists(pool: PgPool) {
     let cols: Vec<String> = sqlx::query_scalar(
         "SELECT column_name FROM information_schema.columns \
@@ -97,7 +97,7 @@ async fn brand_grants_table_exists(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn org_invites_table_exists(pool: PgPool) {
     let cols: Vec<String> = sqlx::query_scalar(
         "SELECT column_name FROM information_schema.columns \
@@ -129,7 +129,7 @@ async fn org_invites_table_exists(pool: PgPool) {
 // 2. Enum types
 // ---------------------------------------------------------------------------
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn org_role_enum_variants(pool: PgPool) {
     let variants: Vec<String> = sqlx::query_scalar(
         "SELECT enumlabel FROM pg_enum \
@@ -149,7 +149,7 @@ async fn org_role_enum_variants(pool: PgPool) {
     }
 }
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn invite_state_enum_variants(pool: PgPool) {
     let variants: Vec<String> = sqlx::query_scalar(
         "SELECT enumlabel FROM pg_enum \
@@ -173,7 +173,7 @@ async fn invite_state_enum_variants(pool: PgPool) {
 // 3. Constraint enforcement
 // ---------------------------------------------------------------------------
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn organizations_slug_unique_constraint(pool: PgPool) {
     sqlx::query("INSERT INTO organizations (slug, name) VALUES ('acme', 'Acme Corp')")
         .execute(&pool)
@@ -190,7 +190,7 @@ async fn organizations_slug_unique_constraint(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn organizations_slug_format_constraint(pool: PgPool) {
     // Slug must match '^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$'
     let result = sqlx::query("INSERT INTO organizations (slug, name) VALUES ('UPPER-CASE', 'Bad')")
@@ -202,7 +202,7 @@ async fn organizations_slug_format_constraint(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn operators_login_unique_constraint(pool: PgPool) {
     sqlx::query("INSERT INTO operators (login) VALUES ('alice')")
         .execute(&pool)
@@ -219,7 +219,7 @@ async fn operators_login_unique_constraint(pool: PgPool) {
     );
 }
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn operator_org_role_round_trip(pool: PgPool) {
     let org_id: uuid::Uuid = sqlx::query_scalar(
         "INSERT INTO organizations (slug, name) VALUES ('test-org', 'Test Org') RETURNING id",
@@ -256,7 +256,7 @@ async fn operator_org_role_round_trip(pool: PgPool) {
     assert_eq!(role, "admin");
 }
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn org_invite_state_machine_insert(pool: PgPool) {
     let org_id: uuid::Uuid = sqlx::query_scalar(
         "INSERT INTO organizations (slug, name) VALUES ('invite-org', 'Invite Org') RETURNING id",
@@ -288,7 +288,7 @@ async fn org_invite_state_machine_insert(pool: PgPool) {
 // 4. Phase 1–3 tables intact (RR-Phase4-NoContractBreak)
 // ---------------------------------------------------------------------------
 
-#[sqlx::test(migrations = "migrations")]
+#[sqlx::test(migrations = "./migrations")]
 async fn phase1_tables_still_exist(pool: PgPool) {
     for table in [
         "projects",
