@@ -1005,10 +1005,37 @@
             "type": "string",
             "description": "Provider model/version string the external run used."
           },
+          "raw_response": {
+            "nullable": true,
+            "description": "Canonical external provider payload. May be plain text or structured JSON.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object"
+              },
+              {
+                "type": "array"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true,
+            "description": "Caller-supplied metadata persisted under request_parameters.metadata.",
+            "additionalProperties": true
+          },
           "response_text": {
             "type": "string",
             "nullable": true,
-            "description": "Raw provider response text. Optional when citation_domains is supplied directly."
+            "description": "Compatibility field for early clients that only captured plain response text before raw_response became canonical."
           },
           "citation_domains": {
             "type": "array",
@@ -1016,7 +1043,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Source domains observed in citations. When omitted, extracted from response_text."
+            "description": "Optional compatibility/input hint for source domains observed in citations. When omitted, extracted from response_text or raw_response text when possible."
           },
           "observed_rank": {
             "type": "integer",
@@ -2445,7 +2472,7 @@
       "post": {
         "operationId": "ingestExternalRun",
         "summary": "Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-sealed-contribution path as native runs.",
-        "description": "Records a prompt run executed against a provider OUTSIDE Anseo's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-Anseo-Project header and returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).",
+        "description": "Records a prompt run executed against a provider OUTSIDE Anseo's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-Anseo-Project header and returns 202 with the new run_id. `raw_response` is the canonical payload field; `response_text` remains accepted as a backward-compatibility convenience for early clients. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).",
         "parameters": [
           {
             "$ref": "#/components/parameters/ProjectHeader"
@@ -2507,6 +2534,16 @@
           },
           "422": {
             "description": "The prompt slug is not declared in the project (prompt_not_found) or the provider does not resolve (provider_not_supported).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Per-process per-project ingest rate limit exceeded (rate_limited).",
             "content": {
               "application/json": {
                 "schema": {

@@ -64,6 +64,9 @@ use axum::http::StatusCode;
 use axum::routing::post;
 use axum::{Extension, Json, Router};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use anseo_benchmark::{ProjectKek, RawPromptRun, Redactor, SealedContribution, TERMS_VERSION};
 use anseo_storage::repositories::anonymous_contributions::AnonymousContributionToStore;
@@ -83,8 +86,16 @@ pub struct IngestRunRequest {
     pub prompt_slug: String,
     pub provider: String,
     pub model: String,
-    /// The raw response text the external provider returned. Optional when the
-    /// caller has already extracted `citation_domains` itself.
+    /// Canonical external provider payload. May be plain text or structured
+    /// JSON, depending on what the caller captured.
+    #[serde(default)]
+    pub raw_response: Option<serde_json::Value>,
+    /// Caller-supplied run metadata. Persisted under
+    /// `request_parameters.metadata`.
+    #[serde(default)]
+    pub metadata: Option<serde_json::Value>,
+    /// Compatibility field for early clients that only captured plain response
+    /// text before `raw_response` became canonical.
     #[serde(default)]
     pub response_text: Option<String>,
     /// Source domains observed in the run's citations. When omitted and
@@ -140,6 +151,32 @@ pub struct IngestRunResponse {
     pub contribution: ContributionStatus,
 }
 
+const INGEST_RATE_LIMIT_MAX: usize = 60;
+const INGEST_RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
+
+#[derive(Debug, Default)]
+struct ProjectRateLimiter {
+    windows: Mutex<HashMap<String, Vec<Instant>>>,
+}
+
+impl ProjectRateLimiter {
+    fn check(&self, project_id: &str, now: Instant) -> bool {
+        let mut windows = self.windows.lock().expect("ingest rate limiter poisoned");
+        let window = windows.entry(project_id.to_string()).or_default();
+        window.retain(|seen| now.duration_since(*seen) < INGEST_RATE_LIMIT_WINDOW);
+        if window.len() >= INGEST_RATE_LIMIT_MAX {
+            return false;
+        }
+        window.push(now);
+        true
+    }
+}
+
+fn ingest_rate_limiter() -> &'static ProjectRateLimiter {
+    static LIMITER: OnceLock<ProjectRateLimiter> = OnceLock::new();
+    LIMITER.get_or_init(ProjectRateLimiter::default)
+}
+
 /// Why a request was rejected at the pure-validation stage. Distinguished so
 /// the handler can map each to the AC-mandated status code:
 /// `provider_not_supported` is a `422` (the body is well-formed but names a
@@ -168,6 +205,12 @@ pub fn validate_request(req: &IngestRunRequest) -> Result<(), ValidationError> {
     if req.model.trim().is_empty() {
         return Err(ValidationError::BadRequest(
             "`model` must not be empty".to_string(),
+        ));
+    }
+    if req.raw_response.is_none() && req.response_text.is_none() {
+        return Err(ValidationError::BadRequest(
+            "either `raw_response` or compatibility field `response_text` must be supplied"
+                .to_string(),
         ));
     }
     if anseo_core::ProviderName::parse(req.provider.trim()).is_none() {
@@ -245,8 +288,8 @@ pub fn decide_contribution(
 pub fn resolve_citation_domains(req: &IngestRunRequest) -> Vec<String> {
     let mut domains: Vec<String> = if let Some(explicit) = &req.citation_domains {
         explicit.clone()
-    } else if let Some(text) = &req.response_text {
-        anseo_extractors::extract_citations(text)
+    } else if let Some(text) = message_text_for_extraction(req) {
+        anseo_extractors::extract_citations(&text)
             .into_iter()
             .map(|c| c.domain)
             .collect()
@@ -282,6 +325,45 @@ fn sealed_payload_json(
     })
 }
 
+fn persisted_raw_response(
+    req: &IngestRunRequest,
+    citation_domains: &[String],
+) -> serde_json::Value {
+    if let Some(raw) = &req.raw_response {
+        return raw.clone();
+    }
+    serde_json::json!({
+        "kind": "external_ingest_compat",
+        "response_text": req.response_text,
+        "citation_domains": citation_domains,
+        "observed_rank": req.observed_rank,
+    })
+}
+
+fn message_text_for_extraction(req: &IngestRunRequest) -> Option<String> {
+    if let Some(text) = req
+        .response_text
+        .as_ref()
+        .filter(|text| !text.trim().is_empty())
+    {
+        return Some(text.clone());
+    }
+    let raw = req.raw_response.as_ref()?;
+    if let Some(text) = raw.as_str().filter(|text| !text.trim().is_empty()) {
+        return Some(text.to_string());
+    }
+    for key in ["text", "output_text", "response_text", "content"] {
+        if let Some(text) = raw
+            .get(key)
+            .and_then(|value| value.as_str())
+            .filter(|text| !text.trim().is_empty())
+        {
+            return Some(text.to_string());
+        }
+    }
+    None
+}
+
 async fn ingest_run(
     Extension(scope): Extension<ProjectScope>,
     State(state): State<AppState>,
@@ -302,6 +384,17 @@ async fn ingest_run(
     }
 
     let project_id = scope.id();
+    if !ingest_rate_limiter().check(&project_id.to_string(), Instant::now()) {
+        return Err(err(
+            StatusCode::TOO_MANY_REQUESTS,
+            "rate_limited",
+            format!(
+                "project rate limit exceeded ({} requests per {}s window)",
+                INGEST_RATE_LIMIT_MAX,
+                INGEST_RATE_LIMIT_WINDOW.as_secs()
+            ),
+        ));
+    }
 
     // 1. The prompt must be declared in THIS project (scoping boundary). An
     //    undeclared slug is a 404 with a pointer, never an auto-create.
@@ -376,14 +469,14 @@ async fn ingest_run(
     let citation_domains = resolve_citation_domains(&req);
     let run_id = anseo_core::PromptRunId::new();
     let now = chrono::Utc::now();
+    let raw_response = persisted_raw_response(&req, &citation_domains);
+    let message_text = message_text_for_extraction(&req);
+    let request_metadata = req
+        .metadata
+        .clone()
+        .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new()));
 
     // 2. Persist the external run as a prompt_run for the resolved project.
-    let raw_response = serde_json::json!({
-        "kind": "external_ingest",
-        "response_text": req.response_text,
-        "citation_domains": citation_domains,
-        "observed_rank": req.observed_rank,
-    });
     let row = anseo_storage::models::PromptRunRow {
         id: run_id,
         prompt_id: prompt.id,
@@ -392,8 +485,12 @@ async fn ingest_run(
         provider_region: None,
         started_at: observed_at,
         finished_at: Some(observed_at),
-        raw_response,
-        request_parameters: serde_json::json!({ "source": "ingest_api" }),
+        raw_response: raw_response.clone(),
+        request_parameters: serde_json::json!({
+            "source": "ingest_api",
+            "metadata": request_metadata,
+            "observed_rank": req.observed_rank,
+        }),
         status: "ok".to_string(),
         error_kind: None,
         organization_id: None,
@@ -440,7 +537,7 @@ async fn ingest_run(
         citation_domains,
         // Fields the redactor intentionally drops — never transmitted.
         brand_name: scope.name().to_string(),
-        raw_response_text: req.response_text.clone().unwrap_or_default(),
+        raw_response_text: message_text.clone().unwrap_or_default(),
         api_key_used: String::new(),
         ip_address: String::new(),
     };
@@ -533,6 +630,21 @@ async fn ingest_run(
         )
     })?;
 
+    if let (Some(config), Some(text)) = (state.config.as_ref(), message_text.as_deref()) {
+        if let Err(e) = anseo_extractors::extract_and_persist(
+            &state.storage,
+            config,
+            run_id,
+            text,
+            &raw_response,
+            now,
+        )
+        .await
+        {
+            tracing::warn!(error = %e, "ingest: mention/citation extraction failed");
+        }
+    }
+
     Ok((
         StatusCode::ACCEPTED,
         Json(IngestRunResponse {
@@ -560,6 +672,8 @@ mod tests {
             prompt_slug: "vector-db".into(),
             provider: "openai".into(),
             model: "gpt-4o-2024-08-06".into(),
+            raw_response: text.map(|text| serde_json::Value::String(text.to_string())),
+            metadata: None,
             response_text: text.map(str::to_string),
             citation_domains: domains.map(|d| d.into_iter().map(str::to_string).collect()),
             observed_rank: Some(2),
@@ -602,13 +716,13 @@ mod tests {
     #[test]
     fn validate_rejects_empty_or_unknown_provider() {
         // Empty and unknown providers both fail to resolve → ProviderNotSupported.
-        let mut r = req(None, None);
+        let mut r = req(Some("hello"), None);
         r.provider = "".into();
         assert!(matches!(
             validate_request(&r),
             Err(ValidationError::ProviderNotSupported(_))
         ));
-        let mut r = req(None, None);
+        let mut r = req(Some("hello"), None);
         r.provider = "totally-made-up".into();
         assert!(matches!(
             validate_request(&r),
@@ -627,8 +741,19 @@ mod tests {
     }
 
     #[test]
-    fn validate_accepts_first_party_and_plugin_providers() {
+    fn validate_requires_raw_response_or_compat_response_text() {
         let mut r = req(None, None);
+        r.raw_response = None;
+        r.response_text = None;
+        assert!(matches!(
+            validate_request(&r),
+            Err(ValidationError::BadRequest(m)) if m.contains("raw_response")
+        ));
+    }
+
+    #[test]
+    fn validate_accepts_first_party_and_plugin_providers() {
+        let mut r = req(Some("hello"), None);
         r.provider = "anthropic".into();
         assert!(validate_request(&r).is_ok());
         r.provider = "plugin:test.mock-provider".into();
@@ -667,6 +792,51 @@ mod tests {
         );
         let domains = resolve_citation_domains(&r);
         assert!(domains.contains(&"docs.example.com".to_string()));
+    }
+
+    #[test]
+    fn message_text_prefers_compat_response_text() {
+        let r = req(Some("compat text"), None);
+        assert_eq!(
+            message_text_for_extraction(&r),
+            Some("compat text".to_string())
+        );
+    }
+
+    #[test]
+    fn message_text_uses_canonical_raw_response_when_needed() {
+        let mut r = req(None, None);
+        r.raw_response = Some(serde_json::json!({"text": "hello"}));
+        assert_eq!(message_text_for_extraction(&r), Some("hello".to_string()));
+
+        r.raw_response = Some(serde_json::json!("plain string"));
+        assert_eq!(
+            message_text_for_extraction(&r),
+            Some("plain string".to_string())
+        );
+    }
+
+    #[test]
+    fn persisted_raw_response_preserves_supplied_json() {
+        let mut r = req(None, None);
+        r.raw_response = Some(serde_json::json!({"id": "abc", "text": "hello"}));
+        let persisted = persisted_raw_response(&r, &[]);
+        assert_eq!(persisted["id"], "abc");
+        assert_eq!(persisted["text"], "hello");
+    }
+
+    #[test]
+    fn limiter_blocks_after_capacity_then_recovers_after_window() {
+        let limiter = ProjectRateLimiter::default();
+        let base = Instant::now();
+        for _ in 0..INGEST_RATE_LIMIT_MAX {
+            assert!(limiter.check(PROJECT, base));
+        }
+        assert!(!limiter.check(PROJECT, base));
+        assert!(limiter.check(
+            PROJECT,
+            base + INGEST_RATE_LIMIT_WINDOW + Duration::from_millis(1)
+        ));
     }
 
     #[test]

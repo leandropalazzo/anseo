@@ -21,10 +21,12 @@ use anseo_api::{router, AppState};
 use anseo_benchmark::{CryptoError, ProjectKek, SealedContribution, TERMS_VERSION};
 use anseo_core::api_key::{generate as gen_key, API_KEY_HEADER};
 use anseo_core::ProjectId;
+use anseo_core::{AnomalySensitivity, BrandConfig, Config, PromptConfig, SCHEMA_VERSION_V0_2};
 use anseo_storage::models::{ProjectRow, PromptRow};
 use anseo_storage::repositories::{
     anonymous_contributions::AnonymousContributionRepo, api_keys::ApiKeyRepo,
-    benchmark_consent::BenchmarkConsentRepo, projects::ProjectRepo, prompts::PromptRepo,
+    benchmark_consent::BenchmarkConsentRepo, citations::CitationRepo, mentions::MentionRepo,
+    projects::ProjectRepo, prompts::PromptRepo,
 };
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -84,11 +86,30 @@ async fn seeded() -> (axum::Router, ProjectId, String, String) {
         .expect("seed api key");
 
     let (events, _rx) = anseo_scheduler::worker::event_channel();
+    let config = Config {
+        schema_version: SCHEMA_VERSION_V0_2.to_string(),
+        brand: BrandConfig {
+            name: "Pinecone".to_string(),
+            variants: vec!["pinecone".to_string()],
+            site_url: None,
+        },
+        competitors: Vec::new(),
+        prompts: vec![PromptConfig {
+            name: "vector-db".to_string(),
+            text: "What is the best vector DB?".to_string(),
+            description: Some("fixture".to_string()),
+        }],
+        providers: Vec::new(),
+        schedules: Vec::new(),
+        concurrency: 4,
+        anomaly_sensitivity: AnomalySensitivity::default(),
+        analytics: None,
+    };
     let state = AppState {
         storage,
         project_id,
         events,
-        config: None,
+        config: Some(Arc::new(config)),
         provider_registry: None,
         configured_project: Arc::new(project_name.clone()),
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
@@ -106,6 +127,16 @@ fn post(uri: &str, key: &str, project_name: &str, body: serde_json::Value) -> Re
         .header(PROJECT_HEADER, project_name)
         .header("content-type", "application/json")
         .body(Body::from(body.to_string()))
+        .unwrap()
+}
+
+fn get(uri: &str, key: &str, project_name: &str) -> Request<Body> {
+    Request::builder()
+        .method("GET")
+        .uri(uri)
+        .header(API_KEY_HEADER, key)
+        .header(PROJECT_HEADER, project_name)
+        .body(Body::empty())
         .unwrap()
 }
 
@@ -133,10 +164,18 @@ async fn ingest_scopes_to_resolved_project_and_persists() {
         "prompt_slug": "vector-db",
         "provider": "openai",
         "model": "gpt-4o-2024-08-06",
-        "response_text": "Pinecone, see https://docs.pinecone.io/guide",
+        "raw_response": {
+            "id": "resp_123",
+            "text": "Pinecone, see https://docs.pinecone.io/guide"
+        },
+        "metadata": {
+            "sdk": "python",
+            "trace_id": "trace-123"
+        },
         "observed_rank": 2,
     });
     let response = app
+        .clone()
         .oneshot(post("/v1/ingest/run", &api_key, &project_name, body))
         .await
         .unwrap();
@@ -165,6 +204,42 @@ async fn ingest_scopes_to_resolved_project_and_persists() {
     assert_eq!(row.provider, "openai");
     assert_eq!(row.provider_model_version, "gpt-4o-2024-08-06");
     assert_eq!(row.status, "ok");
+    assert_eq!(row.raw_response["id"], "resp_123");
+    assert_eq!(row.request_parameters["metadata"]["sdk"], "python");
+    assert_eq!(row.request_parameters["metadata"]["trace_id"], "trace-123");
+
+    let detail = app
+        .clone()
+        .oneshot(get(&format!("/v1/runs/{run_id}"), &api_key, &project_name))
+        .await
+        .unwrap();
+    assert_eq!(detail.status(), StatusCode::OK);
+    let detail_bytes = axum::body::to_bytes(detail.into_body(), 64 * 1024)
+        .await
+        .unwrap();
+    let detail_payload: serde_json::Value = serde_json::from_slice(&detail_bytes).unwrap();
+    assert_eq!(detail_payload["id"], run_id.to_string());
+    assert_eq!(detail_payload["status"], "ok");
+    assert_eq!(detail_payload["raw_response"]["id"], "resp_123");
+
+    let mentions = MentionRepo::new(&pool)
+        .list_by_run(run_id)
+        .await
+        .expect("mentions by run");
+    assert!(
+        !mentions.is_empty(),
+        "ingest should exercise the extraction persistence path when config is present"
+    );
+    let citations = CitationRepo::new(&pool)
+        .list_by_run(run_id)
+        .await
+        .expect("citations by run");
+    assert!(
+        citations
+            .iter()
+            .any(|citation| citation.domain == "docs.pinecone.io"),
+        "expected extracted citation domain from canonical raw_response text"
+    );
 }
 
 #[tokio::test]
@@ -313,6 +388,7 @@ async fn ingest_undeclared_prompt_returns_422() {
         "prompt_slug": "not-declared",
         "provider": "openai",
         "model": "gpt-4o-2024-08-06",
+        "raw_response": "hello",
     });
     let response = app
         .oneshot(post("/v1/ingest/run", &api_key, &project_name, body))
@@ -324,6 +400,73 @@ async fn ingest_undeclared_prompt_returns_422() {
         .unwrap();
     let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(payload["error"], "prompt_not_found");
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn ingest_unknown_provider_returns_422() {
+    let (app, _project_id, project_name, api_key) = seeded().await;
+    let body = serde_json::json!({
+        "prompt_slug": "vector-db",
+        "provider": "totally-made-up",
+        "model": "gpt-4o-2024-08-06",
+        "raw_response": "hello",
+    });
+    let response = app
+        .oneshot(post("/v1/ingest/run", &api_key, &project_name, body))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let bytes = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(payload["error"], "provider_not_supported");
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn ingest_rate_limit_returns_429() {
+    let (app, _project_id, project_name, api_key) = seeded().await;
+    for _ in 0..60 {
+        let response = app
+            .clone()
+            .oneshot(post(
+                "/v1/ingest/run",
+                &api_key,
+                &project_name,
+                serde_json::json!({
+                    "prompt_slug": "vector-db",
+                    "provider": "openai",
+                    "model": "gpt-4o-2024-08-06",
+                    "raw_response": "Pinecone",
+                }),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::ACCEPTED);
+    }
+
+    let response = app
+        .oneshot(post(
+            "/v1/ingest/run",
+            &api_key,
+            &project_name,
+            serde_json::json!({
+                "prompt_slug": "vector-db",
+                "provider": "openai",
+                "model": "gpt-4o-2024-08-06",
+                "raw_response": "Pinecone",
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    let bytes = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(payload["error"], "rate_limited");
 }
 
 #[tokio::test]

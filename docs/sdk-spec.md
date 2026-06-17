@@ -72,13 +72,19 @@ Body (snake_case; optional fields omitted when unset so server defaults apply):
   "prompt_slug": "best-polarized-sunglasses",   // required, slug-safe
   "provider": "openai",                          // required; "unknown" if undetectable
   "model": "gpt-4o-2024-08-06",                  // required
-  "response_text": "…",                          // optional
-  "citation_domains": ["sunski.com"],            // optional
-  "observed_rank": 1,                            // optional
+  "raw_response": { "text": "…" },               // required by the canonical contract
+  "metadata": { "trace_id": "abc-123" },         // optional
+  "response_text": "…",                          // optional compatibility field for early clients
+  "citation_domains": ["sunski.com"],            // optional compatibility/input hint
+  "observed_rank": 1,                            // optional compatibility/input hint
   "observed_at": "2026-06-04T12:00:00+00:00",    // optional ISO-8601; defaults to server now
   "contribute": true                             // optional; defaults false
 }
 ```
+
+`raw_response` is now the canonical payload field. A client MAY still send only
+`response_text` for backward compatibility, but new SDKs should populate
+`raw_response` and treat `response_text` as a compatibility shim.
 
 `contribute` is a per-run opt-in to the benchmark contribution path. Omit it to
 preserve the safe default (`false`). A `true` value requires a per-project KEK at
@@ -114,7 +120,8 @@ is rejected as `403 kek_missing` before persistence.
 Non-2xx bodies carry `{ "error": "<code>", "message": "<human text>" }`, e.g.
 `400 validation_failed`, `401` (bad key), `422 prompt_not_found`, `422
 provider_not_supported`, or `403 kek_missing` when `contribute: true` has no
-project KEK.
+project KEK. The `429 rate_limited` guard is currently an in-process
+per-project limiter on the API node, not a distributed cross-node quota.
 
 ---
 
