@@ -113,9 +113,11 @@ async fn correct_org_guc_yields_own_rows(pool: PgPool) {
     conn.execute(sqlx::query("SET ROLE rls_tester"))
         .await
         .expect("set role");
-    conn.execute(sqlx::query("SELECT set_config('app.org', $1, false)").bind(default_org.to_string()))
-        .await
-        .expect("set GUC");
+    conn.execute(
+        sqlx::query("SELECT set_config('app.org', $1, false)").bind(default_org.to_string()),
+    )
+    .await
+    .expect("set GUC");
 
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM projects")
         .fetch_one(&mut *conn)
