@@ -47,6 +47,7 @@ describe("AnseoObserver", () => {
       responseText: "Try Sunski, see https://sunski.com",
       observedRank: 1,
       observedAt: new Date("2026-06-04T12:00:00Z"),
+      contribute: true,
     });
 
     expect(result).toEqual(OK_BODY);
@@ -69,6 +70,7 @@ describe("AnseoObserver", () => {
       response_text: "Try Sunski, see https://sunski.com",
       observed_rank: 1,
       observed_at: "2026-06-04T12:00:00.000Z",
+      contribute: true,
     });
   });
 
@@ -313,7 +315,7 @@ describe("observe wrapper", () => {
     };
     const returned = await observe(
       observer,
-      { promptSlug: "best-sunglasses" },
+      { promptSlug: "best-sunglasses", contribute: true },
       () => resp,
     );
 
@@ -325,6 +327,7 @@ describe("observe wrapper", () => {
     expect(body.model).toBe("gpt-4o-2024-08-06");
     expect(body.response_text).toBe("Try Sunski.");
     expect(body.prompt_slug).toBe("best-sunglasses");
+    expect(body.contribute).toBe(true);
   });
 
   it("sends nothing when the wrapped call throws, and propagates the error", async () => {

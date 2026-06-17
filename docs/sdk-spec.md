@@ -75,16 +75,22 @@ Body (snake_case; optional fields omitted when unset so server defaults apply):
   "response_text": "…",                          // optional
   "citation_domains": ["sunski.com"],            // optional
   "observed_rank": 1,                            // optional
-  "observed_at": "2026-06-04T12:00:00+00:00"     // optional ISO-8601; defaults to server now
+  "observed_at": "2026-06-04T12:00:00+00:00",    // optional ISO-8601; defaults to server now
+  "contribute": true                             // optional; defaults false
 }
 ```
 
-`prompt_slug` MUST already be declared in the project — 40.1 returns `404
+`contribute` is a per-run opt-in to the benchmark contribution path. Omit it to
+preserve the safe default (`false`). A `true` value requires a per-project KEK at
+request time; the durable project opt-in then controls whether the accepted run
+seals as `sealed` or reports `skipped_not_opted_in`.
+
+`prompt_slug` MUST already be declared in the project — 40.1 returns `422
 prompt_not_found` for an undeclared slug (no auto-create). `provider` validation
 is the server's job: an unknown provider is sent through as-is (e.g.
 `"unknown"`), not rejected client-side.
 
-### Response — `IngestRunResponse` (HTTP 200)
+### Response — `IngestRunResponse` (HTTP 202)
 
 ```json
 {
@@ -98,15 +104,17 @@ is the server's job: an unknown provider is sent through as-is (e.g.
 ```
 
 `contribution.status` is the internally-tagged `ContributionStatus` from 40.1:
-`sealed` · `skipped_not_opted_in` · `kek_missing` ·
+`sealed` · `skipped_not_opted_in` ·
 `{ "status": "redaction_rejected", "reason": "…" }`. A run is **persisted**
-(HTTP 200) even when the benchmark leg is skipped or blocked — the status tells
-the caller exactly what happened.
+(HTTP 202) when accepted; if `contribute: true` lacks a project KEK, the request
+is rejected as `403 kek_missing` before persistence.
 
 ### Error responses
 
 Non-2xx bodies carry `{ "error": "<code>", "message": "<human text>" }`, e.g.
-`400 validation_failed`, `404 prompt_not_found`, `401` (bad key).
+`400 validation_failed`, `401` (bad key), `422 prompt_not_found`, `422
+provider_not_supported`, or `403 kek_missing` when `contribute: true` has no
+project KEK.
 
 ---
 
@@ -143,7 +151,7 @@ record) and the original exception propagates unchanged.
 ## 5. The `observe` contract
 
 `observe(observer, prompt_slug=..., [provider=], [model=], [observed_rank=],
-[citation_domains=])` works two ways from one object:
+[citation_domains=], [contribute=])` works two ways from one object:
 
 - **Context manager** — the caller runs the LLM call, then `run.capture(resp)`
   auto-detects `provider`/`model` and extracts `response_text`. The run ships

@@ -62,6 +62,10 @@ const (
 // RunInput.ObservedRank inline.
 func Int(v int) *int { return &v }
 
+// Bool returns a pointer to v, for setting optional pointer fields like
+// RunInput.Contribute inline.
+func Bool(v bool) *bool { return &v }
+
 // Logger is the minimal diagnostics sink the SDK writes to. The standard
 // library *log.Logger satisfies it.
 type Logger interface {
@@ -114,11 +118,18 @@ type RunInput struct {
 	// ObservedAt is when the run was observed. Zero value omits it (server
 	// defaults to now).
 	ObservedAt time.Time
+	// Contribute opts this run into Anseo's benchmark contribution path. Nil
+	// omits the field, preserving the server default (`false`). Use Bool(true)
+	// for explicit per-run contribution.
+	Contribute *bool
 }
 
 // ContributionStatus mirrors the API's internally-tagged ContributionStatus
-// enum: Status is one of "sealed", "skipped_not_opted_in", "kek_missing", or
-// "redaction_rejected" (in which case Reason is populated).
+// enum: Status is typically "sealed", "skipped_not_opted_in", or
+// "redaction_rejected" (in which case Reason is populated). The
+// "kek_missing" value is retained for wire compatibility even though current
+// servers reject `contribute: true` without a KEK as HTTP 403 before
+// persistence.
 type ContributionStatus struct {
 	Status string `json:"status"`
 	Reason string `json:"reason,omitempty"`
@@ -198,6 +209,7 @@ type wireRequest struct {
 	CitationDomains []string `json:"citation_domains,omitempty"`
 	ObservedRank    *int     `json:"observed_rank,omitempty"`
 	ObservedAt      string   `json:"observed_at,omitempty"`
+	Contribute      *bool    `json:"contribute,omitempty"`
 }
 
 // ObserveRun records one externally-executed run (strict). It returns the
@@ -211,6 +223,7 @@ func (o *Observer) ObserveRun(ctx context.Context, input RunInput) (*RunResult, 
 		ResponseText:    input.ResponseText,
 		CitationDomains: input.CitationDomains,
 		ObservedRank:    input.ObservedRank,
+		Contribute:      input.Contribute,
 	}
 	if !input.ObservedAt.IsZero() {
 		body.ObservedAt = input.ObservedAt.UTC().Format(time.RFC3339Nano)

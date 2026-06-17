@@ -73,7 +73,7 @@ def test_context_manager_autodetects_openai_and_ships():
     transport = RecordingTransport()
     obs = _observer(transport)
 
-    with observe(obs, prompt_slug="best-sunglasses") as run:
+    with observe(obs, prompt_slug="best-sunglasses", contribute=True) as run:
         resp = FakeOpenAIResponse("gpt-4o-2024-08-06", "Try Sunski https://sunski.com")
         run.capture(resp)
 
@@ -83,6 +83,7 @@ def test_context_manager_autodetects_openai_and_ships():
     assert body["provider"] == "openai"
     assert body["model"] == "gpt-4o-2024-08-06"
     assert body["response_text"] == "Try Sunski https://sunski.com"
+    assert body["contribute"] is True
     assert "observed_at" in body
 
 

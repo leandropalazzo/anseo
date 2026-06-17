@@ -52,6 +52,7 @@ func TestObserveRun_PostsHeadersAndSnakeCaseBody(t *testing.T) {
 		ResponseText: "Try Sunski, see https://sunski.com",
 		ObservedRank: intPtr(1),
 		ObservedAt:   time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC),
+		Contribute:   Bool(true),
 	})
 	if err != nil {
 		t.Fatalf("ObserveRun: %v", err)
@@ -79,6 +80,7 @@ func TestObserveRun_PostsHeadersAndSnakeCaseBody(t *testing.T) {
 		"response_text": "Try Sunski, see https://sunski.com",
 		"observed_rank": float64(1),
 		"observed_at":   "2026-06-04T12:00:00Z",
+		"contribute":    true,
 	}
 	for k, v := range want {
 		if gotBody[k] != v {

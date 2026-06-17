@@ -58,6 +58,7 @@ class _ObserveRun:
         model: Optional[str],
         observed_rank: Optional[int],
         citation_domains: Optional[Sequence[str]],
+        contribute: Optional[bool],
     ) -> None:
         self._observer = observer
         self._prompt_slug = prompt_slug
@@ -66,6 +67,7 @@ class _ObserveRun:
         self.response_text: Optional[str] = None
         self.observed_rank = observed_rank
         self.citation_domains = citation_domains
+        self.contribute = contribute
         self._captured = False
 
     def capture(
@@ -130,6 +132,7 @@ class _ObserveRun:
             citation_domains=self.citation_domains,
             observed_rank=self.observed_rank,
             observed_at=datetime.now(timezone.utc),
+            contribute=self.contribute,
         )
 
 
@@ -142,6 +145,7 @@ class observe:  # noqa: N801 — public API spelled lowercase by design
     :param model: optional explicit model; overrides auto-detect.
     :param observed_rank: optional pre-computed brand rank for the run.
     :param citation_domains: optional pre-extracted citation domains.
+    :param contribute: opt this run into Anseo's benchmark contribution path.
     """
 
     def __init__(
@@ -153,6 +157,7 @@ class observe:  # noqa: N801 — public API spelled lowercase by design
         model: Optional[str] = None,
         observed_rank: Optional[int] = None,
         citation_domains: Optional[Sequence[str]] = None,
+        contribute: Optional[bool] = None,
     ) -> None:
         self._observer = observer
         self._prompt_slug = prompt_slug
@@ -160,6 +165,7 @@ class observe:  # noqa: N801 — public API spelled lowercase by design
         self._model = model
         self._observed_rank = observed_rank
         self._citation_domains = citation_domains
+        self._contribute = contribute
         self._run: Optional[_ObserveRun] = None
 
     def _new_run(self) -> _ObserveRun:
@@ -170,6 +176,7 @@ class observe:  # noqa: N801 — public API spelled lowercase by design
             model=self._model,
             observed_rank=self._observed_rank,
             citation_domains=self._citation_domains,
+            contribute=self._contribute,
         )
 
     # --- context-manager protocol -----------------------------------------
