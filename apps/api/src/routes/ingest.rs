@@ -372,12 +372,40 @@ fn message_text_for_extraction(req: &IngestRunRequest) -> Option<String> {
 /// Only the actual model output is returned; metadata, error fields, and usage
 /// blocks are never searched for brand mentions.
 fn extract_response_text_from_provider_shape(raw: &serde_json::Value) -> Option<String> {
+    // Plain JSON string — pass through directly.
+    if let Some(s) = raw.as_str() {
+        let s = s.trim();
+        if !s.is_empty() {
+            return Some(s.to_string());
+        }
+    }
+
     // OpenAI / Mistral / Grok / Perplexity / OpenRouter: choices[0].message.content
-    if let Some(text) = raw
+    // content may be a plain string or an array of {text} blocks.
+    if let Some(content) = raw
         .get("choices")
         .and_then(|c| c.get(0))
         .and_then(|c| c.get("message"))
         .and_then(|m| m.get("content"))
+    {
+        if let Some(text) = content.as_str().filter(|s| !s.trim().is_empty()) {
+            return Some(text.to_string());
+        }
+        if let Some(arr) = content.as_array() {
+            let parts: Vec<&str> = arr
+                .iter()
+                .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
+                .filter(|s| !s.trim().is_empty())
+                .collect();
+            if !parts.is_empty() {
+                return Some(parts.join("\n"));
+            }
+        }
+    }
+
+    // Canonical {text: "..."} shape — simple top-level text field.
+    if let Some(text) = raw
+        .get("text")
         .and_then(|v| v.as_str())
         .filter(|s| !s.trim().is_empty())
     {
