@@ -1,7 +1,8 @@
-//! Story 20.11 — authZ seam (D-P4-8, [p4-iso-4]).
+//! Story 20.11 + 22.1 — authZ seam and RBAC policy module.
 //!
-//! Provides the minimal `AuthzDecider` trait and a deny-by-default stub.
-//! Story 22.1 replaces the stub body with the full 5-role RBAC matrix.
+//! Story 20.11: the `AuthzDecider` trait + deny-by-default stub (seam).
+//! Story 22.1: `matrix` module fills the 5-role RBAC matrix; `RbacDecider`
+//!   implements `AuthzDecider` using the matrix.
 //!
 //! Ordering invariant (AC-1 / AC-2):
 //!   1. `AuthzDecider::decide` is called FIRST, before the org GUC is set.
@@ -12,6 +13,8 @@
 //!   If the GUC SET fails after an allowed decision, the transaction must abort
 //!   (see `GucContext::set_local` which propagates errors; callers are expected
 //!   to rollback on error rather than continue to a data-reading query).
+
+pub mod matrix;
 
 use uuid::Uuid;
 
@@ -127,4 +130,54 @@ pub fn authz_then_guc(
     guc.set_local(org_id)?;
 
     Ok(Decision::Allow)
+}
+
+/// Story 22.1 — RBAC-backed decider.
+///
+/// Resolves the caller's role from a user-provided lookup function, then
+/// checks the `matrix::is_allowed` table for the requested capability.
+///
+/// `role_lookup` is a sync closure so it can be implemented against the DB
+/// connection pool or a cache without imposing async on this seam.
+pub struct RbacDecider<F>
+where
+    F: Fn(Uuid, Uuid) -> Option<matrix::Role> + Send + Sync,
+{
+    role_lookup: F,
+    capability: matrix::Capability,
+}
+
+impl<F> RbacDecider<F>
+where
+    F: Fn(Uuid, Uuid) -> Option<matrix::Role> + Send + Sync,
+{
+    /// Create a new `RbacDecider`.
+    ///
+    /// * `role_lookup(caller_id, org_id)` — returns the caller's role in the org,
+    ///   or `None` if they are not a member (→ Deny).
+    /// * `capability` — the capability being checked.
+    pub fn new(role_lookup: F, capability: matrix::Capability) -> Self {
+        Self {
+            role_lookup,
+            capability,
+        }
+    }
+}
+
+impl<F> AuthzDecider for RbacDecider<F>
+where
+    F: Fn(Uuid, Uuid) -> Option<matrix::Role> + Send + Sync,
+{
+    fn decide(&self, caller_id: Uuid, org_id: Uuid) -> Result<Decision, AuthzError> {
+        match (self.role_lookup)(caller_id, org_id) {
+            None => Ok(Decision::Deny),
+            Some(role) => {
+                if matrix::is_allowed(role, self.capability) {
+                    Ok(Decision::Allow)
+                } else {
+                    Ok(Decision::Deny)
+                }
+            }
+        }
+    }
 }
