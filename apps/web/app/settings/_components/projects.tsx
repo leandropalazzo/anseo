@@ -91,6 +91,7 @@ export function ProjectsSection() {
       setName("");
       setSiteUrl("");
       await load();
+      window.dispatchEvent(new CustomEvent("anseo:projects-changed"));
     });
   }
 
@@ -104,6 +105,7 @@ export function ProjectsSection() {
       );
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       await load();
+      window.dispatchEvent(new CustomEvent("anseo:projects-changed"));
     } catch (e) {
       setActionError(`Archive failed: ${String(e)}`);
     } finally {

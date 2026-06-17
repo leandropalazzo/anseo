@@ -31,8 +31,7 @@ export function ProjectSwitcher({ deployment }: { deployment: "local" | "cloud" 
   const [switching, startSwitch] = useTransition();
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Load the list + current selection once on mount.
-  useEffect(() => {
+  function fetchProjects() {
     let cancelled = false;
     Promise.all([
       fetch("/api/projects", { cache: "no-store" })
@@ -55,6 +54,18 @@ export function ProjectSwitcher({ deployment }: { deployment: "local" | "cloud" 
     return () => {
       cancelled = true;
     };
+  }
+
+  // Load the list + current selection once on mount.
+  useEffect(fetchProjects, []);
+
+  // Re-fetch whenever another part of the app mutates the project list.
+  useEffect(() => {
+    function onChanged() {
+      fetchProjects();
+    }
+    window.addEventListener("anseo:projects-changed", onChanged);
+    return () => window.removeEventListener("anseo:projects-changed", onChanged);
   }, []);
 
   // Close on outside click / Escape.
