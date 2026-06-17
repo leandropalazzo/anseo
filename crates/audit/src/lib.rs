@@ -756,13 +756,30 @@ fn is_crawlable_url(url: &Url) -> bool {
     // Skip by file extension (strip query string first).
     let path_no_qs = path.split('?').next().unwrap_or(&path);
     const SKIP_EXT: &[&str] = &[
-        ".js", ".mjs", ".cjs",
+        ".js",
+        ".mjs",
+        ".cjs",
         ".css",
-        ".woff", ".woff2", ".ttf", ".eot", ".otf",
-        ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp", ".avif",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".otf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".svg",
+        ".ico",
+        ".webp",
+        ".avif",
         ".webmanifest",
-        ".zip", ".gz", ".tar",
-        ".mp4", ".mp3", ".webm",
+        ".zip",
+        ".gz",
+        ".tar",
+        ".mp4",
+        ".mp3",
+        ".webm",
         ".pdf",
     ];
     !SKIP_EXT.iter().any(|ext| path_no_qs.ends_with(ext))
@@ -774,7 +791,7 @@ fn owned_links(root: &Url, page_url: &Url, html: &str) -> Vec<Url> {
         .filter_map(|href| page_url.join(&href).ok())
         .filter(|url| same_origin(root, url))
         .filter(|url| matches!(url.scheme(), "http" | "https"))
-        .filter(|url| is_crawlable_url(url))
+        .filter(is_crawlable_url)
         .collect();
     links.sort_by_key(|url| normalize_url(url.clone()));
     links.dedup_by_key(|url| normalize_url(url.clone()));
@@ -1028,10 +1045,7 @@ mod tests {
         let next_css = Url::parse("https://example.com/_next/static/css/styles.css").unwrap();
         assert!(!is_crawlable_url(&next_css));
 
-        let next_font = Url::parse(
-            "https://example.com/_next/static/media/font.woff2",
-        )
-        .unwrap();
+        let next_font = Url::parse("https://example.com/_next/static/media/font.woff2").unwrap();
         assert!(!is_crawlable_url(&next_font));
 
         // Icon, manifest, and other static assets must be excluded.
