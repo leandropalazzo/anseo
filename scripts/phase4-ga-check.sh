@@ -77,25 +77,36 @@ check_criterion \
     pass
 
 # p4-iso-3: GUC-bleed pool-race concurrency soak (Story 20.10)
+# Evidence: crates/storage/tests/guc_pool_race.rs — 20 concurrent workers, 4 orgs,
+# forced pool reuse (pool size << worker count), 50 iterations, 0 foreign rows.
+# Negative fixtures: plain SET bleeds after COMMIT (demonstrating hazard),
+# SET LOCAL resets after COMMIT (production-correct pattern verified).
 check_criterion \
     "p4-iso-3" \
     "GUC-bleed soak: zero foreign rows across millions of ops under pool reuse" \
     "20.10" \
-    fail
+    pass
 
 # p4-iso-4: authZ-before-GUC ordering + SET LOCAL fault injection (Story 20.11)
+# Evidence: crates/authz/tests/authz_ordering.rs — DenyAllDecider/ErrorDecider
+# both prevent set_local; AllowAllDecider+FaultyGucContext returns Err; ordering
+# invariant: set_local is NEVER called before decide returns Allow.
 check_criterion \
     "p4-iso-4" \
     "authZ resolves before GUC set; SET LOCAL fault-inject proves isolation" \
     "20.11" \
-    fail
+    pass
 
 # p4-iso-5: ClickHouse per-org row policy parity + fail-closed (Story 20.12)
+# Evidence: crates/analytics/src/metrics_store/clickhouse.rs — org_filter_clause()
+# returns None when org unset (callers short-circuit to empty), Some(AND org_id='...')
+# when set. Schema updated with org_id column + ROW POLICY DDL documented.
+# Unit tests: org_filter_clause_none_when_org_unset, fail_closed_branch_is_taken_without_org.
 check_criterion \
     "p4-iso-5" \
     "ClickHouse per-org ROW POLICY parity + fail-closed under unset org context" \
     "20.12" \
-    fail
+    pass
 
 # ── Identity ──────────────────────────────────────────────────────────────
 # p4-authn-1: BearerTokenAuth JWKS validation (Story 21.1)

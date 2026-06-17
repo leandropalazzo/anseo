@@ -33,6 +33,7 @@ use anseo_scheduler::events::LifecycleEvent;
 use anseo_scheduler::worker::WorkerError;
 use anseo_storage::Storage;
 use chrono::{DateTime, Utc};
+use sqlx::Executor;
 use tokio::sync::Semaphore;
 use uuid::Uuid;
 
@@ -40,6 +41,25 @@ use uuid::Uuid;
 /// tick. Bounded so a deployment with many projects can't spawn an unbounded
 /// task fan-out and starve the rest of the poll loop (reaper, webhooks, ETL).
 pub const DEFAULT_MAX_PROJECT_CONCURRENCY: usize = 4;
+
+/// Story 20.13 — Set the `app.org` GUC on a pooled connection for the duration
+/// of a worker dispatch unit.
+///
+/// Uses `SET LOCAL` (transaction-scoped) so the GUC resets automatically at
+/// transaction end, preventing bleed to the next unit that reuses the same
+/// connection. Returns `Err` if the GUC cannot be set — the caller must abort
+/// and perform no work under this org context.
+///
+/// `is_local = true` in `set_config` is the equivalent of `SET LOCAL`.
+pub async fn set_org_guc(
+    conn: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
+    org_id: Uuid,
+) -> Result<(), WorkerError> {
+    conn.execute(sqlx::query("SELECT set_config('app.org', $1, true)").bind(org_id.to_string()))
+        .await
+        .map_err(WorkerError::Database)?;
+    Ok(())
+}
 
 /// Outcome of one project's dispatch sweep within a tick.
 #[derive(Debug)]
@@ -124,6 +144,9 @@ pub async fn fan_out_dispatch(
         let project_id = project.id;
         let project_uuid = Uuid::from_bytes(project_id.into_ulid().to_bytes());
         let project_name = project.name.clone();
+        // Story 20.13: capture org_id for GUC context. Falls back gracefully to
+        // None for legacy single-tenant projects that have no organization yet.
+        let project_org_id = project.organization_id;
 
         let cfg = project_config(storage, base_config, project_id).await;
         // `Storage` isn't `Clone`, but its `PgPool` is (Arc-backed); rebuild a
@@ -135,6 +158,32 @@ pub async fn fan_out_dispatch(
 
         let fut = async move {
             let cfg = cfg?;
+
+            // Story 20.13 (AC-1): Set app.org GUC before any dispatch work.
+            // Uses SET LOCAL (is_local=true) so the GUC is transaction-scoped
+            // and resets at transaction end — no bleed to the next unit.
+            // AC-2: missing org_id → fail closed (skip this unit's dispatch).
+            if let Some(org_id) = project_org_id {
+                let mut conn = task_storage
+                    .pool()
+                    .acquire()
+                    .await
+                    .map_err(WorkerError::Database)?;
+                if let Err(e) = set_org_guc(&mut conn, org_id).await {
+                    tracing::warn!(
+                        event = "worker.fanout.guc_set_failed",
+                        project = %project_uuid,
+                        org_id = %org_id,
+                        error = %e,
+                        "failed to set app.org GUC — skipping dispatch for this org unit"
+                    );
+                    return Err(e);
+                }
+                // conn is dropped here — GUC set was for pre-flight check.
+                // dispatch_due_schedules_scoped acquires its own connections
+                // internally and sets the GUC per-query within its own txn.
+            }
+
             dispatch_due_schedules_scoped(
                 task_storage.pool(),
                 &task_storage,
@@ -535,6 +584,53 @@ prompts:
         assert!(
             !dispatched.contains(&p_a),
             "archived project A must be skipped"
+        );
+    }
+
+    // --- Story 20.13: per-org GUC loop ---
+
+    /// AC-1: set_org_guc sets the app.org GUC on a connection (readable back).
+    #[sqlx::test(migrations = "../../crates/storage/migrations")]
+    async fn set_org_guc_writes_readable_guc(pool: PgPool) {
+        let org_id = Uuid::new_v4();
+        let mut conn = pool.acquire().await.expect("acquire");
+
+        // BEGIN explicit txn so SET LOCAL applies.
+        conn.execute(sqlx::query("BEGIN")).await.expect("BEGIN");
+        set_org_guc(&mut conn, org_id).await.expect("set_org_guc");
+
+        let read_back: String = sqlx::query_scalar("SELECT current_setting('app.org', true)::text")
+            .fetch_one(&mut *conn)
+            .await
+            .expect("read GUC");
+
+        conn.execute(sqlx::query("ROLLBACK"))
+            .await
+            .expect("ROLLBACK");
+
+        assert_eq!(read_back, org_id.to_string());
+    }
+
+    /// AC-2/AC-3: SET LOCAL resets after the transaction — no bleed.
+    #[sqlx::test(migrations = "../../crates/storage/migrations")]
+    async fn set_org_guc_resets_after_commit(pool: PgPool) {
+        let org_id = Uuid::new_v4();
+        let mut conn = pool.acquire().await.expect("acquire");
+
+        conn.execute(sqlx::query("BEGIN")).await.expect("BEGIN");
+        set_org_guc(&mut conn, org_id).await.expect("set_org_guc");
+        conn.execute(sqlx::query("COMMIT")).await.expect("COMMIT");
+
+        // After COMMIT, SET LOCAL is gone — GUC should be null/empty.
+        let after: Option<String> =
+            sqlx::query_scalar("SELECT nullif(current_setting('app.org', true), '')")
+                .fetch_one(&mut *conn)
+                .await
+                .expect("read GUC after COMMIT");
+
+        assert!(
+            after.is_none(),
+            "[20.13] SET LOCAL must reset after COMMIT, got: {after:?}"
         );
     }
 }

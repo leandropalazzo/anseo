@@ -20,6 +20,7 @@ members = [
     "crates/audit",
     "crates/comms",
     "crates/authn",
+    "crates/authz",
 ]
 
 [workspace.package]
