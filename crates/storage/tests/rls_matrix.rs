@@ -266,12 +266,15 @@ async fn policy_guard_detects_table_without_rls(pool: PgPool) {
     // Our policy-guard checks pg_policies — the temp table is in pg_temp schema,
     // which is NOT 'public'. The guard only covers public schema tables.
     // So we simulate by querying the schema directly:
+    // Non-tenant tables: have org_id for FK/reference but are managed by the
+    // authZ layer (not per-org RLS). Intentionally excluded from this guard.
     let missing: Vec<String> = sqlx::query(
         "SELECT c.relname FROM pg_class c \
          JOIN pg_namespace n ON n.oid = c.relnamespace \
          JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'org_id' \
          WHERE n.nspname = 'public' \
            AND c.relkind = 'r' \
+           AND c.relname NOT IN ('org_invites', 'operator_org_roles', 'brand_grants') \
            AND NOT EXISTS ( \
                SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid \
            )",
