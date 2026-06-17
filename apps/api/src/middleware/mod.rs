@@ -3,5 +3,6 @@
 //! Story 20.4 adds `org_guc` for request-scoped org context.
 
 pub mod auth;
+pub mod authz;
 pub mod geo_gate;
 pub mod org_guc;

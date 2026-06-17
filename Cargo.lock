@@ -124,6 +124,7 @@ version = "0.6.0"
 dependencies = [
  "anseo-analytics",
  "anseo-audit",
+ "anseo-authz",
  "anseo-benchmark",
  "anseo-comms",
  "anseo-core",
