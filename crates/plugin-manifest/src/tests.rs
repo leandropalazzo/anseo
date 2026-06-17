@@ -108,6 +108,19 @@ fn validate_catches_invalid_name() {
 }
 
 #[test]
+fn validate_rejects_colon_in_plugin_name() {
+    let mut m = good_manifest();
+    m.name = "acme:serp-enrichment".into();
+    let errs = m.validate().unwrap_err();
+    assert!(
+        errs.iter().any(
+            |e| matches!(e, ValidationError::InvalidName(name) if name == "acme:serp-enrichment")
+        ),
+        "expected explicit InvalidName for reserved ':' separator, got: {errs:?}"
+    );
+}
+
+#[test]
 fn validate_catches_invalid_version() {
     let mut m = good_manifest();
     m.version = "not-semver".into();
