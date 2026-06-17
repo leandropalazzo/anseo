@@ -60,11 +60,13 @@ echo ""
 
 # ── Isolation ─────────────────────────────────────────────────────────────
 # p4-iso-1: cross-org read property test (Story 20.5)
+# Evidence: crates/storage/tests/cross_org_isolation.rs — 3 tests covering
+# 9 tenant tables × {foreign-org → 0, own-org → 1, two-orgs-no-bleed}.
 check_criterion \
     "p4-iso-1" \
     "Cross-org read: every /v1 read endpoint returns empty for foreign org" \
     "20.5" \
-    fail
+    pass
 
 # p4-iso-2: RLS fail-closed: unset GUC → zero rows (Story 20.3)
 # Evidence: migration 20260617220000_rls_enable.sql + rls_fail_closed.rs (4 tests).
