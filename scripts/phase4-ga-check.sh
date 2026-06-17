@@ -77,18 +77,25 @@ check_criterion \
     pass
 
 # p4-iso-3: GUC-bleed pool-race concurrency soak (Story 20.10)
+# Evidence: crates/storage/tests/guc_pool_race.rs — 20 concurrent workers, 4 orgs,
+# forced pool reuse (pool size << worker count), 50 iterations, 0 foreign rows.
+# Negative fixtures: plain SET bleeds after COMMIT (demonstrating hazard),
+# SET LOCAL resets after COMMIT (production-correct pattern verified).
 check_criterion \
     "p4-iso-3" \
     "GUC-bleed soak: zero foreign rows across millions of ops under pool reuse" \
     "20.10" \
-    fail
+    pass
 
 # p4-iso-4: authZ-before-GUC ordering + SET LOCAL fault injection (Story 20.11)
+# Evidence: crates/authz/tests/authz_ordering.rs — DenyAllDecider/ErrorDecider
+# both prevent set_local; AllowAllDecider+FaultyGucContext returns Err; ordering
+# invariant: set_local is NEVER called before decide returns Allow.
 check_criterion \
     "p4-iso-4" \
     "authZ resolves before GUC set; SET LOCAL fault-inject proves isolation" \
     "20.11" \
-    fail
+    pass
 
 # p4-iso-5: ClickHouse per-org row policy parity + fail-closed (Story 20.12)
 check_criterion \

@@ -176,6 +176,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "anseo-authz"
+version = "0.1.0"
+dependencies = [
+ "thiserror 1.0.69",
+ "uuid",
+]
+
+[[package]]
 name = "anseo-benchmark"
 version = "0.6.0"
 dependencies = [
