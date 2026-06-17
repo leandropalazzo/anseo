@@ -116,6 +116,9 @@ export default async function OverviewPage() {
   const primaryMentions = primaryBrand?.mention_count_7d ?? 0;
   const brandName = primaryBrand?.name ?? "—";
 
+  // Overall presence rate: run-weighted average across all providers.
+  // Computed after byProvider is built below — placeholder set after that block.
+
   // Real per-bucket sparkline series for the brand-rank tile, from
   // `/api/visibility/trend`. Use the most-active prompt this window (highest
   // run count) as a representative series. Tiles without a per-bucket series
@@ -167,6 +170,13 @@ export default async function OverviewPage() {
   }
   const providerRows = byProvider.length > 0 ? byProvider : fallbackProviders;
 
+  // Run-weighted overall presence rate across all providers.
+  const totalProviderRuns = providerRows.reduce((a, p) => a + p.count, 0);
+  const overallPresenceRate =
+    totalProviderRuns > 0
+      ? providerRows.reduce((a, p) => a + p.rate * p.count, 0) / totalProviderRuns
+      : undefined;
+
   // Hero provider count: distinct provider identities seen in the matrix, or
   // the run-summary's base providers when the matrix is empty.
   const heroProviderCount =
@@ -186,6 +196,7 @@ export default async function OverviewPage() {
       <HeroStrip
         brandName={brandName}
         avgRank={primaryRank}
+        presenceRate={overallPresenceRate}
         mentions={primaryMentions}
         successRate={successRate * 100}
         totalRuns={totalRuns}

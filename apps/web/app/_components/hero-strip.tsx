@@ -1,6 +1,8 @@
 export interface HeroStripProps {
   brandName: string;
   avgRank?: number;
+  /** Fraction 0–1: share of runs where brand was mentioned. */
+  presenceRate?: number;
   mentions: number;
   successRate: number;
   totalRuns: number;
@@ -11,10 +13,15 @@ export interface HeroStripProps {
 /**
  * Hero strip summarizing the primary brand's last-7d standing. All copy is
  * derived from live run-summary + brand data — no fabricated narrative.
+ *
+ * Presence rate (% of runs where brand appeared) is the primary metric.
+ * Avg rank is secondary — it is conditional on the brand appearing at all
+ * and overstates standing when presence rate is low.
  */
 export function HeroStrip({
   brandName,
   avgRank,
+  presenceRate,
   mentions,
   successRate,
   totalRuns,
@@ -31,17 +38,26 @@ export function HeroStrip({
     : "Healthy · all runs ok";
 
   const providerLabel = `${providerCount} provider${providerCount === 1 ? "" : "s"}`;
+
+  const presencePct =
+    presenceRate !== undefined ? Math.round(presenceRate * 100) : undefined;
+
   const headline = noRuns
     ? `No runs recorded for ${brandName} yet.`
-    : avgRank !== undefined
-    ? `${brandName} averages rank ${avgRank.toFixed(1)} across ${providerLabel}.`
+    : presencePct !== undefined
+    ? `${brandName} appeared in ${presencePct}% of measured runs across ${providerLabel}.`
     : mentions > 0
     ? `${brandName} was mentioned ${mentions} time${mentions === 1 ? "" : "s"} across ${providerLabel}.`
     : `${brandName} ran ${totalRuns} time${totalRuns === 1 ? "" : "s"} across ${providerLabel}, with no mentions yet.`;
 
+  const rankNote =
+    avgRank !== undefined
+      ? `avg rank ${avgRank.toFixed(2)} when mentioned`
+      : "no rank data";
+
   const sub = noRuns
-    ? "Run a prompt (ogeo prompt run) to populate the last-7-day window."
-    : `Avg rank ${avgRank !== undefined ? avgRank.toFixed(2) : "—"} · ${mentions} mention${mentions === 1 ? "" : "s"} · ${successRate.toFixed(0)}% run success · ${failedCount} failed.`;
+    ? "Run a prompt (anseo prompt run) to populate the last-7-day window."
+    : `${mentions} mention${mentions === 1 ? "" : "s"} · ${rankNote} · ${successRate.toFixed(0)}% run success · ${failedCount} failed. Presence rate is measured against your configured prompt set only.`;
 
   return (
     <div className="relative grid grid-cols-[1fr_auto] items-center gap-4 overflow-hidden border border-[color:var(--border)] bg-[color:var(--bg-elev)] p-[18px]">

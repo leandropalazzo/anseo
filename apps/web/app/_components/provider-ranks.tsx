@@ -17,9 +17,9 @@ export interface ProviderRanksProps {
   promptCount: number;
 }
 
-function toneFor(rank: number): "ok" | "warn" | "danger" {
-  if (rank <= 3) return "ok";
-  if (rank <= 5) return "warn";
+function toneFor(rate: number): "ok" | "warn" | "danger" {
+  if (rate >= 0.3) return "ok";
+  if (rate >= 0.1) return "warn";
   return "danger";
 }
 
@@ -31,7 +31,7 @@ export function ProviderRanks({
   return (
     <div className="flex flex-col gap-[10px]">
       {providers.map((p) => {
-        const tone = toneFor(p.rank);
+        const tone = toneFor(p.rate);
         const identity = resolveProviderIdentity(p.provider);
         return (
           <div
@@ -48,17 +48,17 @@ export function ProviderRanks({
               </span>
             </div>
             <div className="whitespace-nowrap font-[family-name:var(--font-mono)] text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
-              rank {p.rank.toFixed(2)}
+              {(p.rate * 100).toFixed(0)}% seen
             </div>
             <Bar
-              value={Math.max(0, 10 - p.rank)}
-              max={10}
+              value={p.rate}
+              max={1}
               color={`var(--${tone})`}
               height={6}
-              ariaLabel={`${identity.label} rank score`}
+              ariaLabel={`${identity.label} presence rate`}
             />
             <div className="whitespace-nowrap text-right font-[family-name:var(--font-mono)] text-[length:var(--font-size-xs)] text-[color:var(--text-muted)]">
-              {(p.rate * 100).toFixed(0)}% seen · {p.count}r
+              {p.rank > 0 ? `rank ${p.rank.toFixed(1)} when seen` : "not seen"} · {p.count}r
             </div>
           </div>
         );

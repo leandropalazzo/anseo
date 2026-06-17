@@ -353,6 +353,7 @@ fn persisted_raw_response(
 }
 
 fn message_text_for_extraction(req: &IngestRunRequest) -> Option<String> {
+    // Prefer explicit response_text — callers should supply this.
     if let Some(text) = req
         .response_text
         .as_ref()
@@ -361,46 +362,61 @@ fn message_text_for_extraction(req: &IngestRunRequest) -> Option<String> {
         return Some(text.clone());
     }
     let raw = req.raw_response.as_ref()?;
-    let mut fragments = Vec::new();
-    collect_text_fragments(raw, &mut fragments);
-    if fragments.is_empty() {
-        None
-    } else {
-        Some(fragments.join("\n"))
-    }
+    // Fall back to known provider response shapes only. We intentionally do NOT
+    // recursively collect all strings under generic keys — that would sweep up
+    // error messages, model IDs, and metadata fields, inflating mention counts.
+    extract_response_text_from_provider_shape(raw)
 }
 
-fn collect_text_fragments(value: &serde_json::Value, fragments: &mut Vec<String>) {
-    match value {
-        serde_json::Value::String(text) => {
-            let trimmed = text.trim();
-            if !trimmed.is_empty() {
-                fragments.push(trimmed.to_string());
-            }
-        }
-        serde_json::Value::Array(items) => {
-            for item in items {
-                collect_text_fragments(item, fragments);
-            }
-        }
-        serde_json::Value::Object(map) => {
-            for key in [
-                "text",
-                "output_text",
-                "response_text",
-                "content",
-                "message",
-                "choices",
-                "output",
-                "messages",
-            ] {
-                if let Some(value) = map.get(key) {
-                    collect_text_fragments(value, fragments);
-                }
-            }
-        }
-        _ => {}
+/// Extract the AI's response text from a known provider response JSON shape.
+/// Only the actual model output is returned; metadata, error fields, and usage
+/// blocks are never searched for brand mentions.
+fn extract_response_text_from_provider_shape(raw: &serde_json::Value) -> Option<String> {
+    // OpenAI / Mistral / Grok / Perplexity / OpenRouter: choices[0].message.content
+    if let Some(text) = raw
+        .get("choices")
+        .and_then(|c| c.get(0))
+        .and_then(|c| c.get("message"))
+        .and_then(|m| m.get("content"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+    {
+        return Some(text.to_string());
     }
+
+    // Anthropic: content[*].text (type == "text" blocks only)
+    if let Some(content) = raw.get("content").and_then(|v| v.as_array()) {
+        let parts: Vec<&str> = content
+            .iter()
+            .filter(|block| block.get("type").and_then(|t| t.as_str()) == Some("text"))
+            .filter_map(|block| block.get("text").and_then(|t| t.as_str()))
+            .filter(|s| !s.trim().is_empty())
+            .collect();
+        if !parts.is_empty() {
+            return Some(parts.join("\n"));
+        }
+    }
+
+    // Gemini: candidates[0].content.parts[*].text
+    if let Some(parts) = raw
+        .get("candidates")
+        .and_then(|c| c.get(0))
+        .and_then(|c| c.get("content"))
+        .and_then(|c| c.get("parts"))
+        .and_then(|v| v.as_array())
+    {
+        let texts: Vec<&str> = parts
+            .iter()
+            .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+            .filter(|s| !s.trim().is_empty())
+            .collect();
+        if !texts.is_empty() {
+            return Some(texts.join("\n"));
+        }
+    }
+
+    // Unrecognised shape — do not extract anything rather than risk false positives.
+    None
 }
 
 fn has_annotation_citations(raw_response: &serde_json::Value) -> bool {
