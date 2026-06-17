@@ -113,7 +113,7 @@ async fn correct_org_guc_yields_own_rows(pool: PgPool) {
     conn.execute(sqlx::query("SET ROLE rls_tester"))
         .await
         .expect("set role");
-    conn.execute(sqlx::query("SET app.org = $1::text").bind(default_org.to_string()))
+    conn.execute(sqlx::query("SELECT set_config('app.org', $1, false)").bind(default_org.to_string()))
         .await
         .expect("set GUC");
 
@@ -157,7 +157,7 @@ async fn foreign_org_guc_yields_zero_rows(pool: PgPool) {
     conn.execute(sqlx::query("SET ROLE rls_tester"))
         .await
         .expect("set role");
-    conn.execute(sqlx::query("SET app.org = $1::text").bind(org_b.to_string()))
+    conn.execute(sqlx::query("SELECT set_config('app.org', $1, false)").bind(org_b.to_string()))
         .await
         .expect("set foreign GUC");
 
