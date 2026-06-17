@@ -211,7 +211,6 @@ fn internal(msg: String) -> (StatusCode, Json<serde_json::Value>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::StatusCode;
 
     #[test]
     fn org_response_serializes() {
