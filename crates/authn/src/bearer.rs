@@ -132,15 +132,12 @@ mod tests {
     use super::*;
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
     use base64::Engine as _;
-    use jsonwebtoken::{encode, EncodingKey, Header};
 
-    // Helper: build a minimal RS256 keypair for tests.
-    // We use HS256 (symmetric) here for simplicity — the validation logic
-    // is algorithm-independent. The adversarial tests focus on claim validation.
-    fn hs256_key() -> (EncodingKey, jsonwebtoken::DecodingKey) {
+    #[allow(dead_code)]
+    fn hs256_key() -> (jsonwebtoken::EncodingKey, jsonwebtoken::DecodingKey) {
         let secret = b"adversarial-test-secret-32-bytes!!";
         (
-            EncodingKey::from_secret(secret),
+            jsonwebtoken::EncodingKey::from_secret(secret),
             jsonwebtoken::DecodingKey::from_secret(secret),
         )
     }
@@ -168,6 +165,7 @@ mod tests {
 
     /// Build a JwksClient pre-loaded with an HS256 key (via internal cache mutation).
     /// In production, the JWKS contains RSA/EC keys. The test uses HS256 for simplicity.
+    #[allow(dead_code)]
     fn make_auth(
         decoding_key: jsonwebtoken::DecodingKey,
         issuer: &str,
