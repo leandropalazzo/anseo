@@ -22,6 +22,7 @@ anseo-audit = { path = "../../crates/audit" }
 anseo-providers = { path = "../../crates/providers" }
 anseo-extractors = { path = "../../crates/extractors" }
 anseo-plugin-host = { path = "../../crates/plugin-host" }
+anseo-plugin-manifest = { path = "../../crates/plugin-manifest" }
 anseo-benchmark = { path = "../../crates/benchmark" }
 anseo-scheduler = { path = "../../crates/scheduler" }
 anseo-recommendations = { path = "../../crates/recommendations" }

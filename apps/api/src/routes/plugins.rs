@@ -44,6 +44,7 @@ use serde_json::{json, Value as JsonValue};
 use anseo_plugin_host::loader::LoadedPlugin;
 use anseo_plugin_host::registry::{IndexEntry, RegistryClient, RegistryError};
 use anseo_plugin_host::signing::{pinned_root_pubkeys, SignatureStatus};
+use anseo_plugin_manifest::PluginManifest;
 use anseo_storage::repositories::plugin_installs::{
     NewPluginInstall, PluginInstallRow, PluginInstallsRepo,
 };
@@ -138,6 +139,15 @@ struct MarketplaceResponse {
     plugins: Vec<MarketplacePlugin>,
 }
 
+#[derive(Debug, Clone)]
+struct MarketplaceManifestMetadata {
+    name: String,
+    author: String,
+    homepage: String,
+    plugin_type: String,
+    capabilities: JsonValue,
+}
+
 // ---------------------------------------------------------------------------
 // GET /v1/marketplace/plugins
 // ---------------------------------------------------------------------------
@@ -187,13 +197,29 @@ async fn marketplace_handler(
             .or_insert(e);
     }
 
-    let mut plugins: Vec<MarketplacePlugin> = current
-        .into_values()
-        .map(|e| {
-            let inst = installed_by_id.get(&e.id);
-            into_marketplace_plugin(e, inst)
-        })
-        .collect();
+    let installed_for_lookup = installed_by_id.clone();
+    let mut plugins: Vec<MarketplacePlugin> = tokio::task::spawn_blocking(move || {
+        let client = RegistryClient::from_env();
+        current
+            .into_values()
+            .map(|entry| {
+                let metadata = client
+                    .fetch_manifest(&entry.id, &entry.version)
+                    .ok()
+                    .map(|fetched| metadata_from_manifest(&fetched.manifest));
+                let inst = installed_for_lookup.get(&entry.id);
+                into_marketplace_plugin(entry, metadata, inst)
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|e| {
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "join_error",
+            e.to_string(),
+        )
+    })?;
 
     // Installed plugins that are no longer in the registry index still belong
     // on the Installed tab, so surface them too.
@@ -208,8 +234,16 @@ async fn marketplace_handler(
 }
 
 /// Build the marketplace row for a registry index entry, merging install state.
-fn into_marketplace_plugin(e: IndexEntry, inst: Option<&PluginInstallRow>) -> MarketplacePlugin {
+fn into_marketplace_plugin(
+    e: IndexEntry,
+    metadata: Option<MarketplaceManifestMetadata>,
+    inst: Option<&PluginInstallRow>,
+) -> MarketplacePlugin {
     let slug = e.id.clone();
+    let manifest_capabilities = metadata
+        .as_ref()
+        .map(|meta| meta.capabilities.clone())
+        .unwrap_or_else(|| json!([]));
     let (installed, installed_version, signature_status, verified, capabilities) = match inst {
         Some(row) => (
             true,
@@ -222,26 +256,117 @@ fn into_marketplace_plugin(e: IndexEntry, inst: Option<&PluginInstallRow>) -> Ma
         // so report an indeterminate "unsigned/unverified" trust state until
         // the install pipeline verifies it (the install path is what proves a
         // signature). Capabilities are surfaced at install time / detail fetch.
-        None => (false, None, "unsigned".to_string(), false, json!([])),
+        None => (
+            false,
+            None,
+            "unsigned".to_string(),
+            false,
+            manifest_capabilities,
+        ),
     };
+    let plugin_type = metadata
+        .as_ref()
+        .map(|meta| meta.plugin_type.clone())
+        .unwrap_or_else(|| "extractor".to_string());
+    let (name, author, homepage) = metadata
+        .map(|meta| (meta.name, meta.author, meta.homepage))
+        .unwrap_or_else(|| (slug.clone(), String::new(), String::new()));
     // `latest` (registry-current) differs from the installed version ⇒ upgrade.
     let update_available = installed_version.as_deref().is_some_and(|v| v != e.version);
     MarketplacePlugin {
-        name: slug.clone(),
+        name,
         slug,
         version: e.version,
         description: e.description,
-        author: String::new(),
-        homepage: String::new(),
-        // The index does not carry the plugin kind; default to "extractor"
-        // for display. The detail fetch (manifest) carries the real kind.
-        plugin_type: "extractor".to_string(),
+        author,
+        homepage,
+        plugin_type,
         verified,
         signature_status,
         capabilities,
         installed,
         installed_version,
         update_available,
+    }
+}
+
+fn metadata_from_manifest(manifest: &PluginManifest) -> MarketplaceManifestMetadata {
+    MarketplaceManifestMetadata {
+        name: manifest.name.clone(),
+        author: manifest.author.clone(),
+        homepage: manifest.homepage.clone(),
+        plugin_type: manifest.plugin_type.to_string(),
+        capabilities: serde_json::to_value(&manifest.capabilities).unwrap_or_else(|_| json!([])),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anseo_plugin_manifest::{Capability, PluginType};
+
+    fn sample_entry() -> IndexEntry {
+        IndexEntry {
+            id: "acme/warehouse".to_string(),
+            version: "1.2.3".to_string(),
+            description: "Warehouse connector".to_string(),
+            sha256: "00".repeat(32),
+            yanked: false,
+        }
+    }
+
+    #[test]
+    fn marketplace_rows_use_manifest_metadata_for_registry_plugins() {
+        let plugin = into_marketplace_plugin(
+            sample_entry(),
+            Some(MarketplaceManifestMetadata {
+                name: "Warehouse Sync".to_string(),
+                author: "Acme".to_string(),
+                homepage: "https://example.com/plugins/warehouse".to_string(),
+                plugin_type: "provider".to_string(),
+                capabilities: json!([
+                    { "kind": "network", "allowlist": ["warehouse.example.com"] }
+                ]),
+            }),
+            None,
+        );
+
+        assert_eq!(plugin.name, "Warehouse Sync");
+        assert_eq!(plugin.author, "Acme");
+        assert_eq!(plugin.homepage, "https://example.com/plugins/warehouse");
+        assert_eq!(plugin.plugin_type, "provider");
+        assert_eq!(
+            plugin.capabilities,
+            json!([{ "kind": "network", "allowlist": ["warehouse.example.com"] }])
+        );
+    }
+
+    #[test]
+    fn manifest_metadata_serializes_plugin_shape_for_ui() {
+        let manifest = PluginManifest {
+            name: "acme/warehouse".to_string(),
+            version: "1.2.3".to_string(),
+            description: "Warehouse connector".to_string(),
+            author: "Acme".to_string(),
+            publisher: String::new(),
+            homepage: "https://example.com/plugins/warehouse".to_string(),
+            capabilities: vec![Capability::Network {
+                allowlist: vec!["warehouse.example.com".to_string()],
+            }],
+            plugin_type: PluginType::Provider,
+            entry_point: "entrypoint.wasm".into(),
+        };
+
+        let metadata = metadata_from_manifest(&manifest);
+
+        assert_eq!(metadata.name, "acme/warehouse");
+        assert_eq!(metadata.author, "Acme");
+        assert_eq!(metadata.homepage, "https://example.com/plugins/warehouse");
+        assert_eq!(metadata.plugin_type, "provider");
+        assert_eq!(
+            metadata.capabilities,
+            json!([{ "kind": "network", "allowlist": ["warehouse.example.com"] }])
+        );
     }
 }
 

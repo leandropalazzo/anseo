@@ -312,6 +312,16 @@ pub struct RegistryClient<T: RegistryTransport> {
     transport: T,
 }
 
+/// Manifest-only metadata fetched from the registry without signature
+/// verification. This is suitable for browse/display surfaces such as the
+/// marketplace, where we want accurate descriptive metadata without claiming an
+/// install has been verified.
+#[derive(Debug, Clone)]
+pub struct RegistryManifest {
+    pub entry: IndexEntry,
+    pub manifest: PluginManifest,
+}
+
 impl RegistryClient<HttpTransport> {
     /// Build a client whose base URL comes from the environment
     /// (`ANSEO_PLUGIN_REGISTRY_URL`, or the deprecated
@@ -435,6 +445,29 @@ impl<T: RegistryTransport> RegistryClient<T> {
 
     fn version_path(id: &str, version: &str, file: &str) -> String {
         format!("plugins/{id}/{version}/{file}")
+    }
+
+    /// Resolve and parse a plugin manifest without downloading the artifact or
+    /// verifying signatures. Intended for metadata-only surfaces.
+    pub fn fetch_manifest(
+        &self,
+        id: &str,
+        version: &str,
+    ) -> Result<RegistryManifest, RegistryError> {
+        let entry = self.resolve(id, version)?;
+        let manifest_bytes = self.transport.fetch(&Self::version_path(
+            &entry.id,
+            &entry.version,
+            "manifest.yaml",
+        ))?;
+        let manifest = PluginManifest::load_from_yaml(&manifest_bytes).map_err(|e| {
+            RegistryError::Malformed {
+                id: entry.id.clone(),
+                version: entry.version.clone(),
+                message: format!("manifest: {e}"),
+            }
+        })?;
+        Ok(RegistryManifest { entry, manifest })
     }
 
     /// Resolve, download, and fully verify a plugin artifact.

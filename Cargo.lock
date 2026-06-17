@@ -130,6 +130,7 @@ dependencies = [
  "anseo-crawler-ingest",
  "anseo-extractors",
  "anseo-plugin-host",
+ "anseo-plugin-manifest",
  "anseo-providers",
  "anseo-recommendations",
  "anseo-scheduler",
