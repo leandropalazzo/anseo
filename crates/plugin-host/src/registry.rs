@@ -3,7 +3,7 @@
 //! This operationalizes the Phase-3 GitHub flat-file registry
 //! (architecture-phase3 `AD-Phase3-PluginRegistry`, plugin-sdk §3.1). The
 //! registry is a directory tree served either over GitHub's CDN
-//! (`raw.githubusercontent.com/anseo/plugin-registry/...`) or from a local
+//! (`raw.githubusercontent.com/leandropalazzo/plugin-registry/...`) or from a local
 //! path. The on-disk shape mirrors the resolver in
 //! `apps/cli/src/commands/plugin_registry.rs`:
 //!
@@ -20,7 +20,7 @@
 //!
 //! Transport is abstracted behind [`RegistryTransport`]. Production uses
 //! [`HttpTransport`] (configurable base URL, default the canonical
-//! `anseo/plugin-registry` raw URL). Tests use [`FileTransport`] against a
+//! `leandropalazzo/plugin-registry` raw URL). Tests use [`FileTransport`] against a
 //! temp-dir fixture, so the test suite never touches the network.
 //!
 //! ## Verification
@@ -50,10 +50,10 @@ use crate::signing::{
 };
 
 /// Canonical registry base, used when nothing is configured. Points at the
-/// raw CDN view of the `main` branch of `anseo/plugin-registry` — the single
+/// raw CDN view of the `main` branch of `leandropalazzo/plugin-registry` — the single
 /// place the live registry URL is declared (Story 41.1 AC5).
 pub const DEFAULT_REGISTRY_URL: &str =
-    "https://raw.githubusercontent.com/anseo/plugin-registry/main";
+    "https://raw.githubusercontent.com/leandropalazzo/plugin-registry/main";
 
 /// Environment variable that overrides the registry base URL.
 pub const REGISTRY_URL_ENV: &str = "ANSEO_PLUGIN_REGISTRY_URL";
@@ -77,7 +77,7 @@ pub enum RegistryError {
     #[error("plugin `{id}@{version}` not present in index")]
     UnknownPlugin { id: String, version: String },
     #[error(
-        "checksum mismatch for `{id}@{version}`: index declares sha256:{expected}, \
+        "integrity check failed: checksum mismatch for `{id}@{version}`: index declares sha256:{expected}, \
          downloaded artifact is sha256:{actual}"
     )]
     ChecksumMismatch {

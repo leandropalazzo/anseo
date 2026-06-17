@@ -82,13 +82,13 @@ yanked = false
 ```
 
 To publish to the **canonical** community registry, open a PR against
-`anseo/plugin-registry`. To serve your own (a fork or an internal registry),
-point clients at it with:
+`leandropalazzo/plugin-registry`. To serve your own (a fork or an internal
+registry), point search clients at it with:
 
 ```bash
 export ANSEO_PLUGIN_REGISTRY_URL="https://raw.githubusercontent.com/acme/plugin-registry/main"
 anseo plugin search serp
-anseo plugin install acme/serp-enrichment
+anseo plugin install acme/serp-enrichment --registry ./registry
 ```
 
 ## 4. Sign your release (recommended)
