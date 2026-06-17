@@ -74,8 +74,8 @@ async fn new_project_can_be_inserted_with_default_org(pool: PgPool) {
             .expect("default org");
 
     let project_id: uuid::Uuid = sqlx::query_scalar(
-        "INSERT INTO projects (name, competitors, variants, org_id) \
-         VALUES ('test-project', '[]'::jsonb, '{}'::text[], $1) RETURNING id",
+        "INSERT INTO projects (id, name, competitors, variants, org_id) \
+         VALUES (gen_random_uuid(), 'test-project', '[]'::jsonb, '{}'::text[], $1) RETURNING id",
     )
     .bind(default_org)
     .fetch_one(&pool)
@@ -117,8 +117,8 @@ async fn brands_view_brand_id_equals_project_id(pool: PgPool) {
             .expect("default org");
 
     let project_id: uuid::Uuid = sqlx::query_scalar(
-        "INSERT INTO projects (name, competitors, variants, org_id) \
-         VALUES ('brand-test', '[]'::jsonb, '{}'::text[], $1) RETURNING id",
+        "INSERT INTO projects (id, name, competitors, variants, org_id) \
+         VALUES (gen_random_uuid(), 'brand-test', '[]'::jsonb, '{}'::text[], $1) RETURNING id",
     )
     .bind(default_org)
     .fetch_one(&pool)

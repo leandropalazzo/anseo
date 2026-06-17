@@ -46,8 +46,8 @@ async fn setup_rls_tester_role(pool: &PgPool) {
 // ---------------------------------------------------------------------------
 async fn insert_project_as_superuser(pool: &PgPool, org_id: uuid::Uuid, name: &str) -> uuid::Uuid {
     sqlx::query_scalar::<_, uuid::Uuid>(
-        "INSERT INTO projects (name, competitors, variants, org_id) \
-         VALUES ($1, '[]'::jsonb, '{}'::text[], $2) RETURNING id",
+        "INSERT INTO projects (id, name, competitors, variants, org_id) \
+         VALUES (gen_random_uuid(), $1, '[]'::jsonb, '{}'::text[], $2) RETURNING id",
     )
     .bind(name)
     .bind(org_id)
