@@ -48,6 +48,11 @@ export interface ObserveOptions {
   observedRank?: number;
   /** Pre-extracted citation domains. */
   citationDomains?: string[];
+  /**
+   * Opt this captured run into Anseo's benchmark contribution path.
+   * Omit to preserve the server default (`false`).
+   */
+  contribute?: boolean;
 }
 
 /**
@@ -121,6 +126,7 @@ export class ObserveRunHandle {
       citationDomains: this.citationDomains,
       observedRank: this.observedRank,
       observedAt: new Date(),
+      contribute: this.options.contribute,
     });
   }
 }

@@ -64,6 +64,7 @@ def test_posts_to_ingest_run_with_canonical_headers_and_snake_case_body():
         response_text="Try Sunski, see https://sunski.com",
         observed_rank=1,
         observed_at=datetime(2026, 6, 4, 12, 0, 0, tzinfo=timezone.utc),
+        contribute=True,
     )
 
     assert isinstance(result, ObserveRunResult)
@@ -85,6 +86,7 @@ def test_posts_to_ingest_run_with_canonical_headers_and_snake_case_body():
         "response_text": "Try Sunski, see https://sunski.com",
         "observed_rank": 1,
         "observed_at": "2026-06-04T12:00:00+00:00",
+        "contribute": True,
     }
 
 

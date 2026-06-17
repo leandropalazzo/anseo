@@ -74,6 +74,13 @@ export interface ObserveRunInput {
   observedRank?: number;
   /** When the run was observed. Defaults to server-side `now` if omitted. */
   observedAt?: Date | string;
+  /**
+   * Opt this run into Anseo's benchmark contribution path.
+   *
+   * Defaults to `false` when omitted. A `true` value requires the project to
+   * have an active per-project KEK and benchmark consent on the server.
+   */
+  contribute?: boolean;
 }
 
 /**
@@ -158,6 +165,7 @@ function toWire(input: ObserveRunInput): Record<string, unknown> {
   if (input.observedRank !== undefined) body.observed_rank = input.observedRank;
   const observedAt = toIso(input.observedAt);
   if (observedAt !== undefined) body.observed_at = observedAt;
+  if (input.contribute !== undefined) body.contribute = input.contribute;
   return body;
 }
 

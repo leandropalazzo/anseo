@@ -41,6 +41,7 @@ result, err := observer.ObserveRun(ctx, observe.RunInput{
     // CitationDomains: []string{"sunski.com"},
     // ObservedRank:    observe.Int(1),
     // ObservedAt:      time.Now(),
+    // Contribute:      observe.Bool(true), // requires project KEK; consent controls sealing
 })
 if err != nil {
     // *observe.APIError carries .Status and .Code on non-2xx responses.

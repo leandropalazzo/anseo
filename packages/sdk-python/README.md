@@ -48,6 +48,7 @@ result = obs.observe_run(
     model="gpt-4o-2024-08-06",
     response_text=completion.choices[0].message.content,
     # optional: citation_domains=["sunski.com"], observed_rank=1, observed_at=...
+    # optional: contribute=True  # requires project KEK; consent controls sealing
 )
 print(result.run_id, result.contribution["status"])
 # status ∈ {"sealed", "skipped_not_opted_in", "kek_missing", "redaction_rejected"}

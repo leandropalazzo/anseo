@@ -54,6 +54,7 @@ const result = await observer.observeRun({
   model: "gpt-4o-2024-08-06",
   responseText: resp.choices[0].message.content ?? "",
   // optional: citationDomains, observedRank, observedAt
+  // optional: contribute: true, // requires project KEK; consent controls sealing
 });
 
 // { status: "sealed" } | { status: "skipped_not_opted_in" }

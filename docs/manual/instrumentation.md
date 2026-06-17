@@ -11,7 +11,7 @@ The instrumentation SDKs let you ship **externally-executed** LLM runs into Anse
 | via Anseo (`anseo prompt run`, schedules, MCP `run_prompt`) | nothing — runs are already recorded and (if opted in) contributed |
 | in your own application/pipeline, outside Anseo | the **instrumentation SDK** — ship each run to `/v1/ingest/run` |
 
-The slug you record (`prompt_slug`) **must already be declared** in the project (`anseo prompt add --name <slug>`). The ingest API never auto-creates prompts — an undeclared slug returns `404 prompt_not_found`.
+The slug you record (`prompt_slug`) **must already be declared** in the project (`anseo prompt add --name <slug>`). The ingest API never auto-creates prompts — an undeclared slug returns `422 prompt_not_found`.
 
 ---
 
@@ -56,6 +56,7 @@ result = obs.observe_run(
     model="gpt-4o-2024-08-06",
     response_text=completion.choices[0].message.content,
     # optional: citation_domains=["sunski.com"], observed_rank=1, observed_at=...
+    # optional: contribute=True  # requires project KEK; consent controls sealing
 )
 print(result.run_id, result.contribution["status"])
 ```
@@ -81,6 +82,7 @@ const result = await observer.observeRun({
   model: "gpt-4o-2024-08-06",
   responseText: completion.choices[0].message.content ?? "",
   // optional: citationDomains: ["sunski.com"], observedRank: 1, observedAt: new Date(),
+  // optional: contribute: true, // requires project KEK; consent controls sealing
 });
 
 // result fields are the snake_case wire shape (parity with the Python/Go SDKs)
@@ -108,6 +110,7 @@ result, err := observer.ObserveRun(ctx, observe.RunInput{
     Model:        "gpt-4o-2024-08-06",
     ResponseText: completionText,
     // optional: CitationDomains: []string{"sunski.com"}, ObservedRank: observe.Int(1), ObservedAt: time.Now(),
+    // optional: Contribute: observe.Bool(true), // requires project KEK; consent controls sealing
 })
 if err != nil {
     // *observe.APIError carries .Status and .Code on non-2xx responses.
@@ -122,7 +125,7 @@ fmt.Println(result.RunID, result.Contribution.Status)
 
 ## The `observe()` contract (Python)
 
-`observe(observer, prompt_slug=..., [provider=], [model=], [observed_rank=], [citation_domains=])` works two ways from one object:
+`observe(observer, prompt_slug=..., [provider=], [model=], [observed_rank=], [citation_domains=], [contribute=])` works two ways from one object:
 
 - **Context manager** — you run the LLM call, then `run.capture(resp)` auto-detects `provider`/`model` and extracts `response_text`. The run ships best-effort on a clean block exit. No `capture()` ⇒ nothing sent.
 - **Decorator** — the wrapped function's return value is treated as the raw response and captured automatically.
@@ -178,13 +181,17 @@ Body (snake_case; optional fields omitted when unset so server defaults apply):
   "response_text": "…",
   "citation_domains": ["sunski.com"],
   "observed_rank": 1,
-  "observed_at": "2026-06-04T12:00:00+00:00"
+  "observed_at": "2026-06-04T12:00:00+00:00",
+  "contribute": true
 }
 ```
 
-`prompt_slug`, `provider`, and `model` are required; the rest are optional. `provider` validation is the server's job — an unknown provider is sent through as-is (e.g. `"unknown"`), not rejected client-side.
+`prompt_slug`, `provider`, and `model` are required; the rest are optional.
+`contribute` defaults to `false` when omitted. `provider` validation is the
+server's job — an unknown provider is sent through as-is (e.g. `"unknown"`),
+not rejected client-side.
 
-### Response — HTTP 200
+### Response — HTTP 202
 
 ```json
 {
@@ -197,27 +204,30 @@ Body (snake_case; optional fields omitted when unset so server defaults apply):
 }
 ```
 
-A run is **persisted (HTTP 200) even when the benchmark leg is skipped or blocked** — the `contribution.status` tells you exactly what happened:
+A run is **persisted (HTTP 202) when accepted**. The `contribution.status`
+tells you what happened to the benchmark leg:
 
 | `contribution.status` | Meaning |
 |---|---|
 | `sealed` | run recorded **and** the redacted benchmark payload was sealed for contribution |
 | `skipped_not_opted_in` | run recorded; project has not opted into the public benchmark (or this run did not request contribution) |
-| `kek_missing` | run recorded; the project requested contribution but has no per-project encryption key (KEK) |
+| `kek_missing` | benchmark sealing was blocked by a missing project KEK; current servers reject `contribute: true` without a KEK as `403 kek_missing` before recording the run |
 | `redaction_rejected` (with `reason`) | run recorded; the redactor refused to seal (e.g. stale terms version, non-slug-safe slug) |
 
 ### Errors
 
-Non-2xx bodies carry `{ "error": "<code>", "message": "<human text>" }`, e.g. `400 validation_failed`, `404 prompt_not_found`, `401` (bad key).
+Non-2xx bodies carry `{ "error": "<code>", "message": "<human text>" }`, e.g.
+`400 validation_failed`, `401` (bad key), `403 kek_missing`, `422
+prompt_not_found`, or `422 provider_not_supported`.
 
 ---
 
 ## Consent model — what gets contributed
 
-Persisting a run and contributing it to the public benchmark are **two separate decisions**. An ingested run is always persisted; it is sealed for the public benchmark only when **all** of these hold:
+Persisting a run and contributing it to the public benchmark are **two separate decisions**. An accepted ingested run is persisted; it is sealed for the public benchmark only when **all** of these hold:
 
 1. **The project opted in.** Run `anseo benchmark optin` once per project (audited, durable). Check with `anseo benchmark status`; reverse with `anseo benchmark optout`. Without opt-in, the response reports `skipped_not_opted_in`.
-2. **The project has a per-project encryption key (KEK).** A run that requests contribution without a KEK is reported as `kek_missing` and is **not** sealed under a false promise of contribution.
+2. **The project has a per-project encryption key (KEK).** A run that requests contribution without a KEK is rejected as `403 kek_missing` and is **not** recorded under a false promise of contribution.
 3. **The current benchmark terms are accepted.** The redactor stamps each sealed payload with the consented `terms_version` and refuses to seal if the operator's accepted terms are stale (`redaction_rejected`).
 
 Contribution is **off by default** and opt-in throughout. The SDK itself does not — and cannot — seal contributions; the consent/redaction gate is enforced **server-side** by the ingest path, identically to native runs.
