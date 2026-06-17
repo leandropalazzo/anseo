@@ -1,0 +1,31 @@
+name: deploy-api
+
+# Deploy the Anseo API (apps/api) to Fly.io on every push to main.
+#
+# Requires one GitHub repo secret:
+#   FLY_API_TOKEN — a Fly deploy token scoped to the anseo-api app.
+#
+# Fly app secrets (DATABASE_URL, CLICKHOUSE_URL, etc.) are NOT set here —
+# they live on the Fly app and are picked up at runtime.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-anseo-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    if: github.repository == 'leandropalazzo/anseo'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
