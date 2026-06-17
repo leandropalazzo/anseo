@@ -102,6 +102,9 @@ is documented in the SDK reference below.
 
 ## See also
 
+- [Plugin Surface Boundary](../plugin-surface-boundary.md) — the exact parity
+  boundary: plugins reach users through existing surfaces only and cannot mint
+  new MCP tools, Web routes, or CLI verbs.
 - Plugin SDK reference — the closed capability catalog, the WASM host contract,
   and the §5.4 Ed25519 + TOFU signing/verification chain.
 - `anseo plugin --help` — `search`, `install`, `list`, `remove`, `upgrade`.
