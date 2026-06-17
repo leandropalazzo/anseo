@@ -6,7 +6,7 @@
 //!  3. Unique/FK constraints hold (slug uniqueness, email+state uniqueness).
 //!  4. Phase 1–3 tables are fully intact (RR-Phase4-NoContractBreak).
 
-use sqlx::{PgPool, Row};
+use sqlx::PgPool;
 
 // ---------------------------------------------------------------------------
 // 1. Table + column existence
@@ -40,7 +40,14 @@ async fn operators_table_columns_exist(pool: PgPool) {
     .await
     .expect("query columns");
 
-    for expected in ["id", "login", "display_name", "email", "idp_sub", "created_at"] {
+    for expected in [
+        "id",
+        "login",
+        "display_name",
+        "email",
+        "idp_sub",
+        "created_at",
+    ] {
         assert!(
             cols.iter().any(|c| c == expected),
             "operators missing column: {expected}"
@@ -76,7 +83,13 @@ async fn brand_grants_table_exists(pool: PgPool) {
     .await
     .expect("query columns");
 
-    for expected in ["operator_id", "project_id", "org_id", "granted_by", "granted_at"] {
+    for expected in [
+        "operator_id",
+        "project_id",
+        "org_id",
+        "granted_by",
+        "granted_at",
+    ] {
         assert!(
             cols.iter().any(|c| c == expected),
             "brand_grants missing column: {expected}"
@@ -95,8 +108,15 @@ async fn org_invites_table_exists(pool: PgPool) {
     .expect("query columns");
 
     for expected in [
-        "id", "org_id", "invited_email", "role", "state", "token_hash",
-        "invited_by", "expires_at", "created_at",
+        "id",
+        "org_id",
+        "invited_email",
+        "role",
+        "state",
+        "token_hash",
+        "invited_by",
+        "expires_at",
+        "created_at",
     ] {
         assert!(
             cols.iter().any(|c| c == expected),
@@ -155,49 +175,48 @@ async fn invite_state_enum_variants(pool: PgPool) {
 
 #[sqlx::test(migrations = "migrations")]
 async fn organizations_slug_unique_constraint(pool: PgPool) {
-    sqlx::query(
-        "INSERT INTO organizations (slug, name) VALUES ('acme', 'Acme Corp')",
-    )
-    .execute(&pool)
-    .await
-    .expect("first insert");
+    sqlx::query("INSERT INTO organizations (slug, name) VALUES ('acme', 'Acme Corp')")
+        .execute(&pool)
+        .await
+        .expect("first insert");
 
-    let result = sqlx::query(
-        "INSERT INTO organizations (slug, name) VALUES ('acme', 'Duplicate')",
-    )
-    .execute(&pool)
-    .await;
+    let result = sqlx::query("INSERT INTO organizations (slug, name) VALUES ('acme', 'Duplicate')")
+        .execute(&pool)
+        .await;
 
-    assert!(result.is_err(), "duplicate slug should violate unique constraint");
+    assert!(
+        result.is_err(),
+        "duplicate slug should violate unique constraint"
+    );
 }
 
 #[sqlx::test(migrations = "migrations")]
 async fn organizations_slug_format_constraint(pool: PgPool) {
     // Slug must match '^[a-z0-9][a-z0-9\-]{0,61}[a-z0-9]$'
-    let result = sqlx::query(
-        "INSERT INTO organizations (slug, name) VALUES ('UPPER-CASE', 'Bad')",
-    )
-    .execute(&pool)
-    .await;
-    assert!(result.is_err(), "uppercase slug should violate check constraint");
+    let result = sqlx::query("INSERT INTO organizations (slug, name) VALUES ('UPPER-CASE', 'Bad')")
+        .execute(&pool)
+        .await;
+    assert!(
+        result.is_err(),
+        "uppercase slug should violate check constraint"
+    );
 }
 
 #[sqlx::test(migrations = "migrations")]
 async fn operators_login_unique_constraint(pool: PgPool) {
-    sqlx::query(
-        "INSERT INTO operators (login) VALUES ('alice')",
-    )
-    .execute(&pool)
-    .await
-    .expect("first insert");
+    sqlx::query("INSERT INTO operators (login) VALUES ('alice')")
+        .execute(&pool)
+        .await
+        .expect("first insert");
 
-    let result = sqlx::query(
-        "INSERT INTO operators (login) VALUES ('alice')",
-    )
-    .execute(&pool)
-    .await;
+    let result = sqlx::query("INSERT INTO operators (login) VALUES ('alice')")
+        .execute(&pool)
+        .await;
 
-    assert!(result.is_err(), "duplicate login should violate unique constraint");
+    assert!(
+        result.is_err(),
+        "duplicate login should violate unique constraint"
+    );
 }
 
 #[sqlx::test(migrations = "migrations")]
@@ -209,12 +228,11 @@ async fn operator_org_role_round_trip(pool: PgPool) {
     .await
     .expect("insert org");
 
-    let op_id: uuid::Uuid = sqlx::query_scalar(
-        "INSERT INTO operators (login) VALUES ('bob') RETURNING id",
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("insert operator");
+    let op_id: uuid::Uuid =
+        sqlx::query_scalar("INSERT INTO operators (login) VALUES ('bob') RETURNING id")
+            .fetch_one(&pool)
+            .await
+            .expect("insert operator");
 
     sqlx::query(
         "INSERT INTO operator_org_roles (operator_id, org_id, role) \
@@ -272,7 +290,13 @@ async fn org_invite_state_machine_insert(pool: PgPool) {
 
 #[sqlx::test(migrations = "migrations")]
 async fn phase1_tables_still_exist(pool: PgPool) {
-    for table in ["projects", "prompts", "prompt_runs", "mentions", "citations"] {
+    for table in [
+        "projects",
+        "prompts",
+        "prompt_runs",
+        "mentions",
+        "citations",
+    ] {
         let count: i64 = sqlx::query_scalar(&format!(
             "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{table}'"
         ))
@@ -280,6 +304,9 @@ async fn phase1_tables_still_exist(pool: PgPool) {
         .await
         .expect("query table existence");
 
-        assert_eq!(count, 1, "Phase 1 table missing after 20.1 migration: {table}");
+        assert_eq!(
+            count, 1,
+            "Phase 1 table missing after 20.1 migration: {table}"
+        );
     }
 }
