@@ -66,6 +66,8 @@ use axum::{Extension, Json, Router};
 use serde::{Deserialize, Serialize};
 
 use anseo_benchmark::{ProjectKek, RawPromptRun, Redactor, SealedContribution, TERMS_VERSION};
+use anseo_storage::repositories::anonymous_contributions::AnonymousContributionToStore;
+use anseo_storage::repositories::prompt_runs::PromptRunRepo;
 
 use crate::extractors::project::ProjectScope;
 use crate::AppState;
@@ -267,6 +269,19 @@ fn err(status: StatusCode, error: &str, message: String) -> (StatusCode, Json<se
     )
 }
 
+fn sealed_payload_json(
+    sealed: &SealedContribution,
+) -> Result<serde_json::Value, (StatusCode, Json<serde_json::Value>)> {
+    serde_json::to_value(sealed).map_err(|e| {
+        tracing::error!(error = %e, "ingest: failed to serialize sealed contribution");
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "persist_failed",
+            "failed to serialize sealed contribution".to_string(),
+        )
+    })
+}
+
 async fn ingest_run(
     Extension(scope): Extension<ProjectScope>,
     State(state): State<AppState>,
@@ -385,31 +400,9 @@ async fn ingest_run(
         tenant_id: None,
         created_at: now,
     };
-    state
-        .storage
-        .prompt_runs()
-        .insert(&row)
-        .await
-        .map_err(|e| {
-            if let anseo_storage::Error::Sqlx(sqlx::Error::Database(db_err)) = &e {
-                if db_err.code().as_deref() == Some("23503") {
-                    return err(
-                        StatusCode::UNPROCESSABLE_ENTITY,
-                        "prompt_not_found",
-                        "prompt was deleted between lookup and insert; retry will re-validate"
-                            .to_string(),
-                    );
-                }
-            }
-            tracing::error!(error = %e, "ingest: prompt run insert failed");
-            err(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "persist_failed",
-                "failed to persist ingested run".to_string(),
-            )
-        })?;
-
-    // 3. Consent + envelope gate. Read the project's latest consent row.
+    // 3. Consent + envelope gate. Read the project's latest consent row before
+    //    we open the write transaction so the decision is made once per
+    //    request, then persisted atomically with the prompt_run.
     let consent = state
         .storage
         .benchmark_consent()
@@ -460,17 +453,85 @@ async fn ingest_run(
     let (contribution, sealed) =
         decide_contribution(contribute_this_run, &consented_terms, kek.as_ref(), raw);
 
-    // Persisting the sealed contribution to a contributions outbox is Story
-    // 40.2/40.3 (the SDK + upload path); 40.1's correctness boundary is that
-    // the contribution is *produced and accounted for*, never silently
-    // dropped. Log the sealed envelope's linkage id so the seal is observable.
+    let mut tx = state.storage.pool().begin().await.map_err(|e| {
+        tracing::error!(error = %e, "ingest: failed to begin transaction");
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "persist_failed",
+            "failed to persist ingested run".to_string(),
+        )
+    })?;
+    PromptRunRepo::new(state.storage.pool())
+        .insert_in_tx(&mut tx, &row)
+        .await
+        .map_err(|e| {
+            if let anseo_storage::Error::Sqlx(sqlx::Error::Database(db_err)) = &e {
+                if db_err.code().as_deref() == Some("23503") {
+                    return err(
+                        StatusCode::UNPROCESSABLE_ENTITY,
+                        "prompt_not_found",
+                        "prompt was deleted between lookup and insert; retry will re-validate"
+                            .to_string(),
+                    );
+                }
+            }
+            tracing::error!(error = %e, "ingest: prompt run insert failed");
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "persist_failed",
+                "failed to persist ingested run".to_string(),
+            )
+        })?;
+
+    // Persist the sealed anonymous contribution durably so ingest follows the
+    // same redaction + crypto-shred path as native runs.
     if let Some(sealed) = &sealed {
+        let consent_record_id = consent.as_ref().map(|row| row.id).ok_or_else(|| {
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                "sealed contribution had no authorizing consent row".to_string(),
+            )
+        })?;
+        let sealed_payload = sealed_payload_json(sealed)?;
+        state
+            .storage
+            .anonymous_contributions()
+            .insert_in_tx(
+                &mut tx,
+                &AnonymousContributionToStore {
+                    prompt_run_id: run_id,
+                    project_id,
+                    project_hmac: sealed.project_hmac.clone(),
+                    consent_record_id,
+                    terms_version: consented_terms.clone(),
+                    sealed_payload,
+                },
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "ingest: anonymous contribution insert failed");
+                err(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "persist_failed",
+                    "failed to persist sealed benchmark contribution".to_string(),
+                )
+            })?;
         tracing::info!(
             event = "ingest.contribution.sealed",
             project_hmac = %sealed.project_hmac,
             "external run sealed into a benchmark contribution"
         );
     }
+
+    tx.commit().await.map_err(|e| {
+        tracing::error!(error = %e, "ingest: transaction commit failed");
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "persist_failed",
+            "failed to persist ingested run".to_string(),
+        )
+    })?;
 
     Ok((
         StatusCode::ACCEPTED,

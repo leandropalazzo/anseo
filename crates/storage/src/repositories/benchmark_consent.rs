@@ -189,7 +189,7 @@ impl<'a> BenchmarkConsentRepo<'a> {
             r#"SELECT id, project_id, event, tier, terms_version, actor, note, created_at
                FROM benchmark_consent
                WHERE project_id = $1 AND tier = $2
-               ORDER BY created_at DESC
+               ORDER BY created_at DESC, id DESC
                LIMIT 1"#,
         )
         .bind(project_id)
