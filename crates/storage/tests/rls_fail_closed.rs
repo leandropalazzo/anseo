@@ -8,52 +8,84 @@
 //!  2. Correct org GUC → own row visible.
 //!  3. Foreign org GUC → foreign row not visible.
 //!  4. RLS policy exists on all tenant tables.
+//!
+//! RLS bypass note: the CI/test DB user is a PostgreSQL superuser, which bypasses
+//! RLS even with FORCE ROW LEVEL SECURITY. Tests 1–3 create a non-privileged
+//! `rls_tester` role, grant it table access, then SET ROLE before the assertion
+//! queries so that RLS policies are actually enforced.
 
 use sqlx::{Executor, PgPool};
 
 // ---------------------------------------------------------------------------
-// Helper: insert a row into `projects` with a given org_id, bypassing RLS
-// via SET LOCAL to the correct org first.
+// Setup: create an unprivileged role that is subject to RLS.
+// The superuser test connection grants the role access but it has no LOGIN
+// so it can't connect independently — SET ROLE is used to impersonate it.
 // ---------------------------------------------------------------------------
-async fn insert_project_for_org(pool: &PgPool, org_id: uuid::Uuid, name: &str) -> uuid::Uuid {
-    let mut conn = pool.acquire().await.expect("acquire connection");
-    // Temporarily set the GUC so INSERT passes RLS WITH CHECK.
-    conn.execute(sqlx::query("SET LOCAL app.org = $1::text").bind(org_id.to_string()))
-        .await
-        .expect("set GUC for insert");
+async fn setup_rls_tester_role(pool: &PgPool) {
+    pool.execute(
+        "DO $$ BEGIN \
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'rls_tester') THEN \
+                CREATE ROLE rls_tester NOLOGIN; \
+            END IF; \
+         END $$",
+    )
+    .await
+    .expect("create rls_tester role");
 
+    pool.execute(
+        "GRANT USAGE ON SCHEMA public TO rls_tester; \
+         GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO rls_tester; \
+         GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO rls_tester",
+    )
+    .await
+    .expect("grant rls_tester permissions");
+}
+
+// ---------------------------------------------------------------------------
+// Helper: insert a project row as the superuser (bypasses RLS) with explicit org.
+// ---------------------------------------------------------------------------
+async fn insert_project_as_superuser(pool: &PgPool, org_id: uuid::Uuid, name: &str) -> uuid::Uuid {
     sqlx::query_scalar::<_, uuid::Uuid>(
         "INSERT INTO projects (name, competitors, variants, org_id) \
          VALUES ($1, '[]'::jsonb, '{}'::text[], $2) RETURNING id",
     )
     .bind(name)
     .bind(org_id)
-    .fetch_one(&mut *conn)
+    .fetch_one(pool)
     .await
-    .expect("insert project")
+    .expect("insert project as superuser")
 }
 
 // ---------------------------------------------------------------------------
-// 1. Unset GUC → zero rows on projects
+// 1. Unset GUC → zero rows on projects (asserted as non-superuser rls_tester)
 // ---------------------------------------------------------------------------
 
 #[sqlx::test(migrations = "./migrations")]
 async fn unset_guc_yields_zero_rows(pool: PgPool) {
-    // Get the default org to insert a row.
+    setup_rls_tester_role(&pool).await;
+
     let default_org: uuid::Uuid =
         sqlx::query_scalar("SELECT id FROM organizations WHERE slug = 'default'")
             .fetch_one(&pool)
             .await
             .expect("default org");
 
-    // Insert a project row for the default org.
-    insert_project_for_org(&pool, default_org, "rls-test-project").await;
+    insert_project_as_superuser(&pool, default_org, "rls-test-project").await;
 
-    // Now query without setting any app.org GUC — RLS must yield zero rows.
+    // Switch to the restricted role so RLS is enforced.
+    let mut conn = pool.acquire().await.expect("acquire connection");
+    conn.execute(sqlx::query("SET ROLE rls_tester"))
+        .await
+        .expect("set role");
+
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM projects")
-        .fetch_one(&pool)
+        .fetch_one(&mut *conn)
         .await
         .expect("count projects without GUC");
+
+    conn.execute(sqlx::query("RESET ROLE"))
+        .await
+        .expect("reset role");
 
     assert_eq!(
         count, 0,
@@ -62,44 +94,49 @@ async fn unset_guc_yields_zero_rows(pool: PgPool) {
 }
 
 // ---------------------------------------------------------------------------
-// 2. Correct org GUC → own row visible
+// 2. Correct org GUC → own row visible (asserted as rls_tester)
 // ---------------------------------------------------------------------------
 
 #[sqlx::test(migrations = "./migrations")]
 async fn correct_org_guc_yields_own_rows(pool: PgPool) {
+    setup_rls_tester_role(&pool).await;
+
     let default_org: uuid::Uuid =
         sqlx::query_scalar("SELECT id FROM organizations WHERE slug = 'default'")
             .fetch_one(&pool)
             .await
             .expect("default org");
 
-    insert_project_for_org(&pool, default_org, "visible-project").await;
+    insert_project_as_superuser(&pool, default_org, "visible-project").await;
 
-    // Set GUC to the correct org in the current session.
-    sqlx::query("SET app.org = $1::text")
-        .bind(default_org.to_string())
-        .execute(&pool)
+    let mut conn = pool.acquire().await.expect("acquire connection");
+    conn.execute(sqlx::query("SET ROLE rls_tester"))
+        .await
+        .expect("set role");
+    conn.execute(sqlx::query("SET app.org = $1::text").bind(default_org.to_string()))
         .await
         .expect("set GUC");
 
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM projects")
-        .fetch_one(&pool)
+        .fetch_one(&mut *conn)
         .await
         .expect("count with correct GUC");
 
-    assert_eq!(count, 1, "Correct org GUC must reveal own rows");
+    conn.execute(sqlx::query("RESET ROLE"))
+        .await
+        .expect("reset role");
 
-    // Reset GUC.
-    sqlx::query("RESET app.org").execute(&pool).await.ok();
+    assert_eq!(count, 1, "Correct org GUC must reveal own rows");
 }
 
 // ---------------------------------------------------------------------------
-// 3. Foreign org GUC → foreign row not visible
+// 3. Foreign org GUC → foreign row not visible (asserted as rls_tester)
 // ---------------------------------------------------------------------------
 
 #[sqlx::test(migrations = "./migrations")]
 async fn foreign_org_guc_yields_zero_rows(pool: PgPool) {
-    // Create two orgs.
+    setup_rls_tester_role(&pool).await;
+
     let org_a: uuid::Uuid = sqlx::query_scalar(
         "INSERT INTO organizations (slug, name) VALUES ('org-a', 'Org A') RETURNING id",
     )
@@ -114,27 +151,29 @@ async fn foreign_org_guc_yields_zero_rows(pool: PgPool) {
     .await
     .expect("insert org B");
 
-    // Insert a project for org_a.
-    insert_project_for_org(&pool, org_a, "org-a-project").await;
+    insert_project_as_superuser(&pool, org_a, "org-a-project").await;
 
-    // Set GUC to org_b — should see zero rows from org_a.
-    sqlx::query("SET app.org = $1::text")
-        .bind(org_b.to_string())
-        .execute(&pool)
+    let mut conn = pool.acquire().await.expect("acquire connection");
+    conn.execute(sqlx::query("SET ROLE rls_tester"))
+        .await
+        .expect("set role");
+    conn.execute(sqlx::query("SET app.org = $1::text").bind(org_b.to_string()))
         .await
         .expect("set foreign GUC");
 
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM projects")
-        .fetch_one(&pool)
+        .fetch_one(&mut *conn)
         .await
         .expect("count with foreign GUC");
+
+    conn.execute(sqlx::query("RESET ROLE"))
+        .await
+        .expect("reset role");
 
     assert_eq!(
         count, 0,
         "Foreign org GUC must not reveal rows from another org"
     );
-
-    sqlx::query("RESET app.org").execute(&pool).await.ok();
 }
 
 // ---------------------------------------------------------------------------
