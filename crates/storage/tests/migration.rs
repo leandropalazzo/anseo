@@ -44,6 +44,7 @@ fn project_columns() -> Vec<ColumnExpectation> {
         ("site_url", "text", "YES", ""),
         ("created_at", "timestamp with time zone", "NO", "now()"),
         ("archived_at", "timestamp with time zone", "YES", ""),
+        ("org_id", "uuid", "NO", "default_org_id()"),
     ]
 }
 
@@ -57,6 +58,7 @@ fn prompt_columns() -> Vec<ColumnExpectation> {
         ("tenant_id", "uuid", "YES", ""),
         ("tags", "ARRAY", "NO", "'{}'::text[]"),
         ("created_at", "timestamp with time zone", "NO", "now()"),
+        ("org_id", "uuid", "NO", "default_org_id()"),
     ]
 }
 
@@ -78,6 +80,7 @@ fn prompt_run_columns() -> Vec<ColumnExpectation> {
         ("created_at", "timestamp with time zone", "NO", "now()"),
         ("schedule_tick_id", "uuid", "YES", ""),
         ("provider_identity", "text", "YES", ""),
+        ("org_id", "uuid", "NO", "default_org_id()"),
     ]
 }
 
@@ -95,6 +98,7 @@ fn mention_columns() -> Vec<ColumnExpectation> {
         ("organization_id", "uuid", "YES", ""),
         ("tenant_id", "uuid", "YES", ""),
         ("created_at", "timestamp with time zone", "NO", "now()"),
+        ("org_id", "uuid", "NO", "default_org_id()"),
     ]
 }
 
@@ -109,6 +113,7 @@ fn citation_columns() -> Vec<ColumnExpectation> {
         ("organization_id", "uuid", "YES", ""),
         ("tenant_id", "uuid", "YES", ""),
         ("created_at", "timestamp with time zone", "NO", "now()"),
+        ("org_id", "uuid", "NO", "default_org_id()"),
     ]
 }
 
