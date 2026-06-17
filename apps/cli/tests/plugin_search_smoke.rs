@@ -61,13 +61,13 @@ fn local_registry_search_matches_and_zero_states() {
 
 /// Story 41.1 AC7 — live smoke test. `#[ignore]` by default because it makes a
 /// real network call (the rest of the suite is hermetic). Run explicitly in a
-/// dedicated CI job once `github.com/anseo/plugin-registry` exists:
+/// dedicated CI job against `github.com/leandropalazzo/plugin-registry`:
 ///
 ///   cargo test -p anseo-cli --test plugin_search_smoke -- --ignored
 ///
 /// Asserts the real registry index is fetchable (HTTP 200) and search exits 0.
 #[test]
-#[ignore = "live network: requires github.com/anseo/plugin-registry; run in CI smoke job"]
+#[ignore = "live network: requires github.com/leandropalazzo/plugin-registry; run in CI smoke job"]
 fn live_registry_index_is_reachable() {
     let home = tempfile::tempdir().unwrap();
     Command::cargo_bin("anseo")

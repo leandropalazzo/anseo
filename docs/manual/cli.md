@@ -138,13 +138,13 @@ Migrate Postgres analytics into ClickHouse pre-aggregated tables (idempotent).
 | Command | Purpose | Key flags |
 |---|---|---|
 | `anseo plugin validate <path>` | Validate a manifest YAML (no load/verify) | — |
-| `anseo plugin search <query>` | Search the registry index | `--registry <DIR>` |
+| `anseo plugin search <query>` | Search the registry index | `--registry <DIR>` `--refresh` |
 | `anseo plugin install <ns/name[@ver]>` | Download, verify signature, install | `--registry` `--allow-unsigned` |
 | `anseo plugin list` | List installed plugins | — |
 | `anseo plugin remove <id>` | Remove a plugin | — |
 | `anseo plugin upgrade <ns/name[@ver]>` | Upgrade | `--registry` `--allow-unsigned` `--accept-new-capabilities` |
 
-- **Use case:** extend the platform (providers, trend kinds) via the plugin SDK / registry. Capability widening on upgrade requires explicit `--accept-new-capabilities`.
+- **Use case:** extend the platform (providers, trend kinds) via the plugin SDK / registry. By default, search reads the live GitHub registry at `leandropalazzo/plugin-registry` and caches `index.toml` for up to one hour; `--refresh` forces a re-check. Capability widening on upgrade requires explicit `--accept-new-capabilities`.
 - **Surface boundary:** plugins reach users through *existing* surfaces only (the `plugin:<id>:<kind>` namespace) — they cannot mint new MCP tools, Web routes, or CLI verbs. See the [Plugin Surface Boundary](../plugin-surface-boundary.md) for the load-path gates, signing requirements, and the one accepted parity exception.
 
 ---

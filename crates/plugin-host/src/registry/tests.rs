@@ -5,6 +5,12 @@
 //! Nothing here touches the network or a live registry, so the suite is
 //! CI-green offline.
 
+use std::collections::HashMap;
+use std::io::{Read, Write};
+use std::net::TcpListener;
+use std::thread;
+use std::time::Duration;
+
 use ed25519_dalek::{Signer, SigningKey};
 use rand::rngs::OsRng;
 use rand::RngCore;
@@ -62,6 +68,54 @@ fn write(dir: &std::path::Path, rel: &str, bytes: &[u8]) {
     let p = dir.join(rel);
     std::fs::create_dir_all(p.parent().unwrap()).unwrap();
     std::fs::write(p, bytes).unwrap();
+}
+
+struct MockHttpRegistry {
+    base_url: String,
+}
+
+fn spawn_http_registry(routes: Vec<(String, Vec<u8>)>, max_requests: usize) -> MockHttpRegistry {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let routes: HashMap<String, Vec<u8>> = routes.into_iter().collect();
+    thread::spawn(move || {
+        for _ in 0..max_requests {
+            let Ok((mut stream, _)) = listener.accept() else {
+                break;
+            };
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+            let mut buf = [0_u8; 4096];
+            let n = stream.read(&mut buf).unwrap_or(0);
+            let request = String::from_utf8_lossy(&buf[..n]);
+            let path = request
+                .lines()
+                .next()
+                .and_then(|line| line.split_whitespace().nth(1))
+                .unwrap_or("/");
+            let path = path.trim_start_matches('/');
+
+            if let Some(body) = routes.get(path) {
+                let headers = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(headers.as_bytes());
+                let _ = stream.write_all(body);
+            } else {
+                let body = b"not found";
+                let headers = format!(
+                    "HTTP/1.1 404 Not Found\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(headers.as_bytes());
+                let _ = stream.write_all(body);
+            }
+        }
+    });
+
+    MockHttpRegistry {
+        base_url: format!("http://{addr}"),
+    }
 }
 
 fn build_fixture(t: Tamper) -> Fixture {
@@ -384,6 +438,70 @@ fn in_memory_transport_round_trips() {
         .fetch_verified(ID, VERSION, &[fx.root_pub], None)
         .expect("in-memory fixture must verify");
     assert_eq!(v.status, SignatureStatus::Signed);
+}
+
+#[test]
+fn http_transport_searches_valid_index() {
+    let fx = build_fixture(Tamper::default());
+    let server = spawn_http_registry(
+        vec![(
+            "index.toml".to_string(),
+            std::fs::read(fx.dir.path().join("index.toml")).unwrap(),
+        )],
+        1,
+    );
+    let c = RegistryClient::with_url(server.base_url);
+
+    let hits = c.search("perplexity").unwrap();
+
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].id, ID);
+}
+
+#[test]
+fn http_transport_malformed_index_is_strict_error_but_lenient_empty() {
+    let server = spawn_http_registry(
+        vec![("index.toml".to_string(), b"not valid toml [[[[".to_vec())],
+        2,
+    );
+    let c = RegistryClient::with_url(server.base_url);
+
+    let err = c.search("anything").unwrap_err();
+    assert!(matches!(err, RegistryError::Parse { .. }), "got {err:?}");
+    assert!(c.search_lenient("anything").unwrap().is_empty());
+}
+
+#[test]
+fn http_transport_tampered_artifact_reports_integrity_check_failed() {
+    let fx = build_fixture(Tamper {
+        bad_checksum: true,
+        ..Default::default()
+    });
+    let base = format!("plugins/{ID}/{VERSION}");
+    let routes = vec![
+        (
+            "index.toml".to_string(),
+            std::fs::read(fx.dir.path().join("index.toml")).unwrap(),
+        ),
+        (
+            format!("{base}/manifest.yaml"),
+            std::fs::read(fx.dir.path().join(format!("{base}/manifest.yaml"))).unwrap(),
+        ),
+        (
+            format!("{base}/entrypoint.wasm"),
+            std::fs::read(fx.dir.path().join(format!("{base}/entrypoint.wasm"))).unwrap(),
+        ),
+    ];
+    let server = spawn_http_registry(routes, 3);
+    let err = RegistryClient::with_url(server.base_url)
+        .fetch_verified(ID, VERSION, &[fx.root_pub], None)
+        .unwrap_err();
+
+    assert!(
+        err.to_string().contains("integrity check failed"),
+        "unexpected error: {err}"
+    );
+    assert!(matches!(err, RegistryError::ChecksumMismatch { .. }));
 }
 
 #[test]

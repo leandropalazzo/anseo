@@ -1,9 +1,9 @@
 # Anseo plugin registry — root index (Story 41.1).
 #
-# This is the canonical seed for `github.com/anseo/plugin-registry`. The live
+# This is the canonical seed for `github.com/leandropalazzo/plugin-registry`. The live
 # registry is served over GitHub's raw CDN at:
 #
-#   https://raw.githubusercontent.com/anseo/plugin-registry/main/index.toml
+#   https://raw.githubusercontent.com/leandropalazzo/plugin-registry/main/index.toml
 #
 # `anseo plugin search` fetches this file, caches it for 1h, and substring-
 # matches the `[[plugin]]` rows below. It is intentionally EMPTY at seed time —
