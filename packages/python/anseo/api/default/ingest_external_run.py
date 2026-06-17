@@ -6,14 +6,13 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error import Error
-from ...models.ingest_run_request import IngestRunRequest
 from ...models.ingest_run_response import IngestRunResponse
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
-    body: IngestRunRequest,
+    body: Any,
     x_anseo_project: str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
@@ -25,7 +24,7 @@ def _get_kwargs(
         "url": "/v1/ingest/run",
     }
 
-    _kwargs["json"] = body.to_dict()
+    _kwargs["json"] = body
 
     headers["Content-Type"] = "application/json"
 
@@ -66,6 +65,11 @@ def _parse_response(
 
         return response_422
 
+    if response.status_code == 429:
+        response_429 = Error.from_dict(response.json())
+
+        return response_429
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -86,7 +90,7 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: IngestRunRequest,
+    body: Any,
     x_anseo_project: str | Unset = UNSET,
 ) -> Response[Error | IngestRunResponse]:
     """Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-
@@ -94,16 +98,17 @@ def sync_detailed(
 
      Records a prompt run executed against a provider OUTSIDE Anseo's own orchestrator (e.g. via an SDK).
     The run is persisted as a prompt_run for the project resolved from the X-Anseo-Project header and
-    returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into
-    the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403
-    kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-
-    time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set
-    `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark
-    data is never silently dropped (Story 40.4).
+    returns 202 with the new run_id. `raw_response` is the canonical payload field; `response_text`
+    remains accepted as a backward-compatibility convenience for early clients. The optional
+    `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true`
+    request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless
+    of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed
+    under the project KEK only when it set `contribute: true` AND the project has an active benchmark
+    opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).
 
     Args:
         x_anseo_project (str | Unset):
-        body (IngestRunRequest): One externally-executed prompt run submitted for ingestion.
+        body (Any): One externally-executed prompt run submitted for ingestion.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -128,7 +133,7 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    body: IngestRunRequest,
+    body: Any,
     x_anseo_project: str | Unset = UNSET,
 ) -> Error | IngestRunResponse | None:
     """Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-
@@ -136,16 +141,17 @@ def sync(
 
      Records a prompt run executed against a provider OUTSIDE Anseo's own orchestrator (e.g. via an SDK).
     The run is persisted as a prompt_run for the project resolved from the X-Anseo-Project header and
-    returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into
-    the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403
-    kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-
-    time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set
-    `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark
-    data is never silently dropped (Story 40.4).
+    returns 202 with the new run_id. `raw_response` is the canonical payload field; `response_text`
+    remains accepted as a backward-compatibility convenience for early clients. The optional
+    `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true`
+    request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless
+    of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed
+    under the project KEK only when it set `contribute: true` AND the project has an active benchmark
+    opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).
 
     Args:
         x_anseo_project (str | Unset):
-        body (IngestRunRequest): One externally-executed prompt run submitted for ingestion.
+        body (Any): One externally-executed prompt run submitted for ingestion.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -165,7 +171,7 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    body: IngestRunRequest,
+    body: Any,
     x_anseo_project: str | Unset = UNSET,
 ) -> Response[Error | IngestRunResponse]:
     """Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-
@@ -173,16 +179,17 @@ async def asyncio_detailed(
 
      Records a prompt run executed against a provider OUTSIDE Anseo's own orchestrator (e.g. via an SDK).
     The run is persisted as a prompt_run for the project resolved from the X-Anseo-Project header and
-    returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into
-    the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403
-    kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-
-    time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set
-    `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark
-    data is never silently dropped (Story 40.4).
+    returns 202 with the new run_id. `raw_response` is the canonical payload field; `response_text`
+    remains accepted as a backward-compatibility convenience for early clients. The optional
+    `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true`
+    request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless
+    of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed
+    under the project KEK only when it set `contribute: true` AND the project has an active benchmark
+    opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).
 
     Args:
         x_anseo_project (str | Unset):
-        body (IngestRunRequest): One externally-executed prompt run submitted for ingestion.
+        body (Any): One externally-executed prompt run submitted for ingestion.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -205,7 +212,7 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    body: IngestRunRequest,
+    body: Any,
     x_anseo_project: str | Unset = UNSET,
 ) -> Error | IngestRunResponse | None:
     """Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-
@@ -213,16 +220,17 @@ async def asyncio(
 
      Records a prompt run executed against a provider OUTSIDE Anseo's own orchestrator (e.g. via an SDK).
     The run is persisted as a prompt_run for the project resolved from the X-Anseo-Project header and
-    returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into
-    the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403
-    kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-
-    time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set
-    `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark
-    data is never silently dropped (Story 40.4).
+    returns 202 with the new run_id. `raw_response` is the canonical payload field; `response_text`
+    remains accepted as a backward-compatibility convenience for early clients. The optional
+    `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true`
+    request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless
+    of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed
+    under the project KEK only when it set `contribute: true` AND the project has an active benchmark
+    opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).
 
     Args:
         x_anseo_project (str | Unset):
-        body (IngestRunRequest): One externally-executed prompt run submitted for ingestion.
+        body (Any): One externally-executed prompt run submitted for ingestion.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

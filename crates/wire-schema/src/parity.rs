@@ -141,8 +141,10 @@ pub const CANONICAL_MCP_TOOLS: &[&str] = &[
     "recommend.dismiss",
     "recommend.mark_acted",
     "audit",
+    "ingest_run",
     "list_plugins",
     "install_plugin",
+    "list_suite_prompts",
 ];
 
 /// Read-only mirror of the `/v1` paths declared by the `gen-openapi`
@@ -157,6 +159,8 @@ pub const KNOWN_V1_PATHS: &[&str] = &[
     "/v1/citations/summary",
     "/v1/visibility/trend",
     "/v1/prompt-runs",
+    "/v1/ingest/run",
+    "/v1/suite/prompts",
     "/v1/setup/status",
     "/v1/setup/clickhouse/install",
     "/v1/setup/clickhouse/install-stream",
@@ -200,6 +204,16 @@ pub const REGISTRY: &[Capability] = &[
             SurfaceCoverage::Cli("opengeo run"),
             SurfaceCoverage::WebApi("/v1/prompt-runs"),
             SurfaceCoverage::Mcp("run_prompt"),
+        ],
+        exception: None,
+    },
+    Capability {
+        id: "suite_prompts",
+        summary: "Discover the canonical GEO benchmark prompt slugs used for comparable contribution cohorts.",
+        coverage: &[
+            SurfaceCoverage::Cli("opengeo suite list"),
+            SurfaceCoverage::WebApi("/v1/suite/prompts"),
+            SurfaceCoverage::Mcp("list_suite_prompts"),
         ],
         exception: None,
     },
@@ -252,6 +266,21 @@ pub const REGISTRY: &[Capability] = &[
             SurfaceCoverage::Mcp("audit"),
         ],
         exception: None,
+    },
+    Capability {
+        id: "ingest_run",
+        summary: "Record an externally-executed prompt run into the same extraction, redaction, and benchmark-contribution path as native runs.",
+        coverage: &[
+            SurfaceCoverage::WebApi("/v1/ingest/run"),
+            SurfaceCoverage::Mcp("ingest_run"),
+        ],
+        exception: Some(SingleSurfaceException {
+            absent_from: &[Surface::Cli],
+            decision_ref: "Epic 40 Story 40.1 / 40.5",
+            rationale: "Run ingestion ships as a REST + SDK + MCP surface for external \
+                 instrumentation. There is no dedicated first-party CLI ingest verb yet; \
+                 operators script against `/v1/ingest/run` or the language SDKs instead.",
+        }),
     },
     Capability {
         id: "recommend_list",

@@ -108,6 +108,9 @@ pub enum OpenGeoError {
     #[error("visibility check failed: {0}")]
     VisibilityCheckFailed(String),
 
+    #[error("suite check failed: {0}")]
+    SuiteCheckFailed(String),
+
     #[error("internal error: {0}")]
     Internal(#[from] anyhow::Error),
 }
@@ -116,6 +119,7 @@ impl OpenGeoError {
     pub fn exit_code(&self) -> ExitCode {
         match self {
             Self::VisibilityCheckFailed(_) => ExitCode::VisibilityCheckFailed,
+            Self::SuiteCheckFailed(_) => ExitCode::VisibilityCheckFailed,
             Self::Provider { .. } => ExitCode::ProviderError,
             Self::Config(_) => ExitCode::ConfigError,
             Self::Data(_) => ExitCode::DataError,
@@ -142,9 +146,13 @@ mod tests {
 
     #[test]
     fn error_variants_map_to_exit_codes() {
-        let cases: [(OpenGeoError, ExitCode); 6] = [
+        let cases: [(OpenGeoError, ExitCode); 7] = [
             (
                 OpenGeoError::VisibilityCheckFailed("under threshold".into()),
+                ExitCode::VisibilityCheckFailed,
+            ),
+            (
+                OpenGeoError::SuiteCheckFailed("unknown slug".into()),
                 ExitCode::VisibilityCheckFailed,
             ),
             (

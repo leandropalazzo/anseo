@@ -186,6 +186,16 @@ fn build_spec() -> serde_json::Value {
                         "reason": { "type": "string", "description": "Human-readable reason for a `skipped` / `load_error` outcome; absent when `loaded`." }
                     }
                 },
+                "SuitePromptSummary": {
+                    "type": "object",
+                    "description": "Story 40.5 — one canonical GEO benchmark prompt slug exposed for instrumentation parity helpers.",
+                    "required": ["slug", "version", "description"],
+                    "properties": {
+                        "slug": { "type": "string" },
+                        "version": { "type": "string" },
+                        "description": { "type": "string" }
+                    }
+                },
                 "VisibilityTrendResponse": {
                     "type": "object",
                     "properties": {
@@ -504,6 +514,19 @@ fn build_spec() -> serde_json::Value {
                         "200": {
                             "description": "OK",
                             "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PluginStatus" } } } }
+                        },
+                        "401": { "$ref": "#/components/responses/Unauthorized" }
+                    }
+                }
+            },
+            "/v1/suite/prompts": {
+                "get": {
+                    "operationId": "listSuitePrompts",
+                    "summary": "Story 40.5 — list the canonical GEO benchmark prompt slugs (`slug`, `version`, `description`) external instrumentation should reuse for comparable contribution cohorts. Operator-scoped global metadata; not gated by X-Anseo-Project.",
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SuitePromptSummary" } } } }
                         },
                         "401": { "$ref": "#/components/responses/Unauthorized" }
                     }
@@ -1174,6 +1197,23 @@ mod tests {
             );
             assert_eq!(get["parameters"][0]["name"], "period");
         }
+    }
+
+    #[test]
+    fn spec_includes_suite_prompts_path() {
+        let spec = build_spec();
+        let get = &spec["paths"]["/v1/suite/prompts"]["get"];
+        assert!(get.is_object(), "spec missing /v1/suite/prompts");
+        assert_eq!(get["operationId"], "listSuitePrompts");
+        assert!(get["responses"]["200"].is_object());
+        assert_eq!(
+            get["responses"]["401"]["$ref"],
+            "#/components/responses/Unauthorized"
+        );
+        assert_eq!(
+            get["responses"]["200"]["content"]["application/json"]["schema"]["items"]["$ref"],
+            "#/components/schemas/SuitePromptSummary"
+        );
     }
 
     #[test]

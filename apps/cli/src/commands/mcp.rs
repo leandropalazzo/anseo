@@ -1,7 +1,8 @@
-//! `ogeo mcp {serve, status, install-config}` — Phase 3 Story 16.7.
+//! `ogeo mcp {serve, status, tools, install-config}` — Phase 3 Story 16.7.
 //!
 //! * `serve` — delegates to the `opengeo-mcp` binary.
 //! * `status` — TCP-connect probe; informational only (exits 0).
+//! * `tools` — fetches the operator-facing `/v1/mcp/tools` catalog.
 //! * `install-config` — writes the mcpServers JSON snippet into the
 //!   appropriate client config file.
 
@@ -9,6 +10,7 @@ use std::{net::TcpStream, path::PathBuf, time::Duration};
 
 use anseo_core::OpenGeoError;
 use clap::Args;
+use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
 // serve
@@ -109,6 +111,70 @@ pub fn run_status(args: StatusArgs) -> Result<(), OpenGeoError> {
     ) {
         Ok(_) => println!("MCP server reachable at {}", args.base_url),
         Err(e) => println!("MCP server unreachable: {e}"),
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// tools
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Args)]
+pub struct ToolsArgs {
+    /// `/v1` base URL to query for the MCP tool catalog.
+    #[arg(long, default_value = "http://127.0.0.1:8080")]
+    pub api_url: String,
+
+    /// Emit the raw JSON catalog instead of one tool id per line.
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct McpToolsResponse {
+    tools: Vec<McpToolInfo>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct McpToolInfo {
+    id: String,
+}
+
+pub fn run_tools(args: ToolsArgs) -> Result<(), OpenGeoError> {
+    let client = reqwest::blocking::Client::builder()
+        .build()
+        .map_err(|e| OpenGeoError::Config(format!("failed to build HTTP client: {e}")))?;
+
+    let url = format!("{}/v1/mcp/tools", args.api_url.trim_end_matches('/'));
+    let mut request = client.get(url);
+    if let Ok(api_key) = std::env::var("ANSEO_API_KEY") {
+        request = request.bearer_auth(api_key);
+    }
+
+    let response = request
+        .send()
+        .map_err(|e| OpenGeoError::Config(format!("failed to fetch MCP tool catalog: {e}")))?;
+
+    if !response.status().is_success() {
+        return Err(OpenGeoError::Config(format!(
+            "failed to fetch MCP tool catalog: upstream returned {}",
+            response.status()
+        )));
+    }
+
+    let catalog: McpToolsResponse = response
+        .json()
+        .map_err(|e| OpenGeoError::Config(format!("failed to decode MCP tool catalog: {e}")))?;
+
+    if args.json {
+        let value = serde_json::to_string_pretty(&catalog.tools)
+            .map_err(|e| OpenGeoError::Config(format!("failed to encode tool catalog: {e}")))?;
+        println!("{value}");
+    } else {
+        for tool in catalog.tools {
+            println!("{}", tool.id);
+        }
     }
 
     Ok(())

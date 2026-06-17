@@ -12,6 +12,7 @@ pub mod compare_brands;
 pub mod get_citations;
 pub mod get_visibility;
 pub mod ingest_run;
+pub mod list_suite_prompts;
 pub mod list_trends;
 pub mod plugins;
 pub mod recommend;
@@ -65,6 +66,7 @@ pub fn registry() -> Vec<Box<dyn Tool>> {
         // a closed set with no plugin-registration API.
         Box::new(plugins::ListPlugins),
         Box::new(plugins::InstallPlugin),
+        Box::new(list_suite_prompts::ListSuitePrompts),
     ]
 }
 
@@ -128,6 +130,7 @@ mod tests {
                 "ingest_run",
                 "list_plugins",
                 "install_plugin",
+                "list_suite_prompts",
             ]
         );
     }

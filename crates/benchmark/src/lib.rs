@@ -27,7 +27,8 @@ pub mod crypto;
 pub mod redactor;
 
 pub use canonical_suite::{
-    canonical_geo_prompt_suite, CanonicalPromptEntry, CanonicalPromptSuite, SuiteOwnership,
+    canonical_geo_prompt_suite, canonical_prompt_by_slug, CanonicalPromptEntry,
+    CanonicalPromptSuite, SuiteOwnership,
 };
 pub use crypto::{kek_secret_key, CryptoError, ProjectKek, SealedContribution};
 pub use redactor::{

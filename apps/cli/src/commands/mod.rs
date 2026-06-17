@@ -25,5 +25,6 @@ pub mod report;
 pub mod run;
 pub mod schedule;
 pub mod serve;
+pub mod suite;
 pub mod webhook;
 pub mod worker;

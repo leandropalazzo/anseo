@@ -3,7 +3,8 @@
 //!
 //! Three endpoints:
 //!
-//! - `GET  /v1/mcp/tools`           — returns the static 6-tool registry as JSON.
+//! - `GET  /v1/mcp/tools`           — returns the operator-facing MCP tool
+//!                                     catalog as JSON.
 //! - `GET  /v1/mcp/calls`           — returns recent `mcp_tool_calls` rows
 //!                                     (query: `limit=<n>`, `before=<uuid>`).
 //! - `GET  /v1/mcp/stats?tool=<n>`  — aggregate stats for one tool (Story 16.9).
@@ -121,10 +122,64 @@ const TOOLS: &[McpToolInfo] = &[
         category: "search",
     },
     McpToolInfo {
+        id: "recommend.list",
+        sig: "()",
+        doc: "List active recommendations for the current project.",
+        category: "analytics",
+    },
+    McpToolInfo {
+        id: "recommend.show",
+        sig: "(id: string)",
+        doc: "Show one recommendation by id.",
+        category: "analytics",
+    },
+    McpToolInfo {
+        id: "recommend.ack",
+        sig: "(id: string)",
+        doc: "Acknowledge a recommendation.",
+        category: "analytics",
+    },
+    McpToolInfo {
+        id: "recommend.dismiss",
+        sig: "(id: string)",
+        doc: "Dismiss a recommendation.",
+        category: "analytics",
+    },
+    McpToolInfo {
+        id: "recommend.mark_acted",
+        sig: "(id: string, note?: string, evidence_url?: string)",
+        doc: "Mark a recommendation as acted with optional note/evidence.",
+        category: "analytics",
+    },
+    McpToolInfo {
         id: "audit",
         sig: "(target: string, max_pages?: number, fail_on?: string[])",
         doc: "Crawl a URL/sitemap and score citation-readiness (Identity, Extractability, Corroboration).",
         category: "analytics",
+    },
+    McpToolInfo {
+        id: "ingest_run",
+        sig: "(provider: string, prompt_slug: string, response_text?: string, raw_response?: object)",
+        doc: "Record an externally-executed prompt run so it flows through extraction, redaction, and benchmark contribution.",
+        category: "runs",
+    },
+    McpToolInfo {
+        id: "list_plugins",
+        sig: "()",
+        doc: "List currently-installed Anseo plugins.",
+        category: "search",
+    },
+    McpToolInfo {
+        id: "install_plugin",
+        sig: "(id: string, acknowledge_unsigned?: boolean)",
+        doc: "Install a plugin from the live registry by id.",
+        category: "search",
+    },
+    McpToolInfo {
+        id: "list_suite_prompts",
+        sig: "()",
+        doc: "List the canonical GEO benchmark prompt slugs used for comparable benchmark cohorts.",
+        category: "search",
     },
 ];
 
