@@ -19,6 +19,7 @@ package observe
 import (
 	"context"
 	"strings"
+	"time"
 )
 
 // ObserveOptions configures an Observe call.
@@ -33,6 +34,9 @@ type ObserveOptions struct {
 	ObservedRank *int
 	// CitationDomains are pre-extracted citation domains.
 	CitationDomains []string
+	// Contribute opts this run into Anseo's benchmark contribution path. Nil
+	// preserves the server default (`false`).
+	Contribute *bool
 }
 
 // Observe runs fn, treats its returned value as the raw provider response,
@@ -76,6 +80,8 @@ func Observe(ctx context.Context, o *Observer, opts ObserveOptions, fn func() (a
 		ResponseText:    ExtractText(raw),
 		CitationDomains: opts.CitationDomains,
 		ObservedRank:    opts.ObservedRank,
+		ObservedAt:      time.Now().UTC(),
+		Contribute:      opts.Contribute,
 	})
 	return raw, nil
 }

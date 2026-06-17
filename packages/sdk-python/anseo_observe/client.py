@@ -196,6 +196,7 @@ class AnseoObserver:
         citation_domains: Optional[Sequence[str]],
         observed_rank: Optional[int],
         observed_at: Optional[Any],
+        contribute: Optional[bool],
     ) -> tuple[str, dict[str, str], bytes]:
         body: dict[str, Any] = {
             "prompt_slug": prompt_slug,
@@ -211,6 +212,8 @@ class AnseoObserver:
             body["observed_rank"] = observed_rank
         if observed_at is not None:
             body["observed_at"] = _to_iso(observed_at)
+        if contribute is not None:
+            body["contribute"] = contribute
 
         headers = {
             "content-type": "application/json",
@@ -232,6 +235,7 @@ class AnseoObserver:
         citation_domains: Optional[Sequence[str]] = None,
         observed_rank: Optional[int] = None,
         observed_at: Optional[Any] = None,
+        contribute: Optional[bool] = None,
     ) -> ObserveRunResult:
         """Strict send: record one run, returning the parsed result.
 
@@ -245,6 +249,7 @@ class AnseoObserver:
             citation_domains=citation_domains,
             observed_rank=observed_rank,
             observed_at=observed_at,
+            contribute=contribute,
         )
         status, text = self._transport(url, "POST", headers, encoded)
 
@@ -278,6 +283,7 @@ class AnseoObserver:
         citation_domains: Optional[Sequence[str]] = None,
         observed_rank: Optional[int] = None,
         observed_at: Optional[Any] = None,
+        contribute: Optional[bool] = None,
     ) -> Optional[ObserveRunResult]:
         """Best-effort, at-most-once send. Never raises, never retries.
 
@@ -302,6 +308,7 @@ class AnseoObserver:
                 citation_domains=citation_domains,
                 observed_rank=observed_rank,
                 observed_at=observed_at,
+                contribute=contribute,
             )
         except AnseoApiError as exc:
             if exc.status == 401:
@@ -335,6 +342,7 @@ def observe_run(
     citation_domains: Optional[Sequence[str]] = None,
     observed_rank: Optional[int] = None,
     observed_at: Optional[Any] = None,
+    contribute: Optional[bool] = None,
     timeout: float = _DEFAULT_TIMEOUT,
     transport: Optional[Transport] = None,
 ) -> ObserveRunResult:
@@ -357,4 +365,5 @@ def observe_run(
         citation_domains=citation_domains,
         observed_rank=observed_rank,
         observed_at=observed_at,
+        contribute=contribute,
     )

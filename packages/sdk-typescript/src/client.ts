@@ -74,6 +74,14 @@ export interface ObserveRunInput {
   observedRank?: number;
   /** When the run was observed. Defaults to server-side `now` if omitted. */
   observedAt?: Date | string;
+  /**
+   * Opt this run into Anseo's benchmark contribution path.
+   *
+   * Defaults to `false` when omitted. A `true` value requires a project KEK;
+   * durable benchmark consent then controls whether the accepted run seals or
+   * reports `skipped_not_opted_in`.
+   */
+  contribute?: boolean;
 }
 
 /**
@@ -83,6 +91,8 @@ export interface ObserveRunInput {
 export type ContributionStatus =
   | { status: "sealed" }
   | { status: "skipped_not_opted_in" }
+  // Retained for wire compatibility even though current servers reject
+  // `contribute: true` without a KEK as HTTP 403 before persistence.
   | { status: "kek_missing" }
   | { status: "redaction_rejected"; reason: string };
 
@@ -158,6 +168,7 @@ function toWire(input: ObserveRunInput): Record<string, unknown> {
   if (input.observedRank !== undefined) body.observed_rank = input.observedRank;
   const observedAt = toIso(input.observedAt);
   if (observedAt !== undefined) body.observed_at = observedAt;
+  if (input.contribute !== undefined) body.contribute = input.contribute;
   return body;
 }
 

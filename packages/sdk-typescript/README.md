@@ -54,10 +54,12 @@ const result = await observer.observeRun({
   model: "gpt-4o-2024-08-06",
   responseText: resp.choices[0].message.content ?? "",
   // optional: citationDomains, observedRank, observedAt
+  // optional: contribute: true, // requires project KEK; consent controls sealing
 });
 
 // { status: "sealed" } | { status: "skipped_not_opted_in" }
-// | { status: "kek_missing" } | { status: "redaction_rejected", reason }
+// | { status: "redaction_rejected", reason }
+// Missing KEK is currently an HTTP 403 request error, not an accepted result.
 console.log(result.run_id, result.contribution.status);
 ```
 

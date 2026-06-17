@@ -195,9 +195,14 @@ func TestObserve_CapturesAndShips(t *testing.T) {
 			map[string]any{"message": map[string]any{"content": "Try Sunski."}},
 		},
 	}
-	returned, err := Observe(context.Background(), observer, ObserveOptions{PromptSlug: "best-sunglasses"}, func() (any, error) {
-		return resp, nil
-	})
+	returned, err := Observe(
+		context.Background(),
+		observer,
+		ObserveOptions{PromptSlug: "best-sunglasses", Contribute: Bool(true)},
+		func() (any, error) {
+			return resp, nil
+		},
+	)
 	if err != nil {
 		t.Fatalf("Observe: %v", err)
 	}
@@ -215,6 +220,12 @@ func TestObserve_CapturesAndShips(t *testing.T) {
 	}
 	if gotBody["prompt_slug"] != "best-sunglasses" {
 		t.Errorf("prompt_slug = %v", gotBody["prompt_slug"])
+	}
+	if gotBody["observed_at"] == "" {
+		t.Error("observed_at should be set by the wrapper")
+	}
+	if gotBody["contribute"] != true {
+		t.Errorf("contribute = %v, want true", gotBody["contribute"])
 	}
 }
 
