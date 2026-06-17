@@ -73,6 +73,10 @@ pub struct ClickHouseMetricsStore {
     password: String,
     database: String,
     http: reqwest::Client,
+    /// Story 20.12 ([p4-iso-5]): per-org isolation context.
+    /// When `Some`, every read query appends `AND org_id = '<uuid>'`.
+    /// When `None`, queries return empty (fail-closed, never all-rows).
+    org_id: Option<uuid::Uuid>,
 }
 
 impl ClickHouseMetricsStore {
@@ -86,7 +90,23 @@ impl ClickHouseMetricsStore {
             password,
             database,
             http: reqwest::Client::new(),
+            org_id: None,
         }
+    }
+
+    /// Return a scoped clone with the org context set (AC-1).
+    /// This must be called before any read query — omitting it is fail-closed.
+    pub fn with_org(mut self, org_id: uuid::Uuid) -> Self {
+        self.org_id = Some(org_id);
+        self
+    }
+
+    /// Build the org-filter SQL fragment for WHERE clauses.
+    ///
+    /// Returns `Some("AND org_id = '<uuid>'")` when org context is set.
+    /// Returns `None` when unset — callers must short-circuit and return empty.
+    pub fn org_filter_clause(&self) -> Option<String> {
+        self.org_id.map(|id| format!("AND org_id = '{id}'"))
     }
 
     pub fn from_env() -> Result<Self, std::env::VarError> {
@@ -263,6 +283,11 @@ impl MetricsStore for ClickHouseMetricsStore {
         prompt_slug: &str,
         params: TrendParams,
     ) -> Result<Vec<VisibilityPoint>, MetricsStoreError> {
+        // Story 20.12 (AC-3): fail-closed — unset org → empty, never all rows.
+        let org_clause = match self.org_filter_clause() {
+            Some(c) => c,
+            None => return Ok(Vec::new()),
+        };
         let days = params.days.clamp(1, 365);
         let escaped_slug = prompt_slug.replace('\'', "''");
         let pid_uuid = Self::pid_uuid(project_id);
@@ -279,6 +304,7 @@ impl MetricsStore for ClickHouseMetricsStore {
                AND prompt_name = '{escaped_slug}' \
                AND visibility_points.bucket_start >= now() - INTERVAL {days} DAY \
                AND visibility_points.bucket_start <= now() \
+               {org_clause} \
              ORDER BY visibility_points.bucket_start, provider"
         );
         let raw: Vec<VisibilityPointRaw> =
@@ -307,6 +333,11 @@ impl MetricsStore for ClickHouseMetricsStore {
         project_id: anseo_core::ProjectId,
         params: SummaryParams,
     ) -> Result<Vec<CitationSummaryRow>, MetricsStoreError> {
+        // Story 20.12 (AC-3): fail-closed.
+        let org_clause = match self.org_filter_clause() {
+            Some(c) => c,
+            None => return Ok(Vec::new()),
+        };
         let limit = params.limit.clamp(1, 500);
         let pid_uuid = Self::pid_uuid(project_id);
         let sql = format!(
@@ -315,6 +346,7 @@ impl MetricsStore for ClickHouseMetricsStore {
                     anyHeavy(citation_totals.source_type) AS top_source_type \
              FROM citation_totals \
              WHERE project_id = '{pid_uuid}' \
+               {org_clause} \
              GROUP BY domain \
              ORDER BY SUM(citation_totals.frequency) DESC \
              LIMIT {limit}"
@@ -356,14 +388,64 @@ impl MetricsStore for ClickHouseMetricsStore {
 mod tests {
     use super::*;
 
-    #[test]
-    fn clickhouse_backend_string_is_stable() {
-        let store = ClickHouseMetricsStore::new(
+    fn make_store() -> ClickHouseMetricsStore {
+        ClickHouseMetricsStore::new(
             "http://localhost:8123".into(),
             "u".into(),
             "p".into(),
             "db".into(),
-        );
-        assert_eq!(store.backend(), "clickhouse");
+        )
     }
+
+    #[test]
+    fn clickhouse_backend_string_is_stable() {
+        assert_eq!(make_store().backend(), "clickhouse");
+    }
+
+    // --- Story 20.12 ([p4-iso-5]): per-org isolation unit tests ---------------
+
+    /// AC-3: unset org_id → org_filter_clause returns None (fail-closed sentinel).
+    #[test]
+    fn org_filter_clause_none_when_org_unset() {
+        let store = make_store();
+        assert!(
+            store.org_filter_clause().is_none(),
+            "[p4-iso-5] unset org must yield None — callers return empty, not all rows"
+        );
+    }
+
+    /// AC-1: set org → filter clause contains the UUID.
+    #[test]
+    fn org_filter_clause_contains_uuid_when_set() {
+        let org = uuid::Uuid::new_v4();
+        let store = make_store().with_org(org);
+        let clause = store
+            .org_filter_clause()
+            .expect("set org should produce clause");
+        assert!(
+            clause.contains(&org.to_string()),
+            "[p4-iso-5] filter clause must reference the org UUID: {clause}"
+        );
+        assert!(
+            clause.starts_with("AND "),
+            "clause must start with AND for injection into WHERE: {clause}"
+        );
+    }
+
+    /// AC-3: two stores — one with org, one without — prove the fail-closed fork.
+    /// (Without a live CH we can't prove the query returns empty; we prove the
+    ///  branch point here and rely on integration tests for the full path.)
+    #[test]
+    fn fail_closed_branch_is_taken_without_org() {
+        let no_org_store = make_store();
+        let with_org_store = make_store().with_org(uuid::Uuid::nil());
+
+        assert!(no_org_store.org_filter_clause().is_none());
+        assert!(with_org_store.org_filter_clause().is_some());
+    }
+
+    /// Sentinel for GA gate script.
+    #[allow(dead_code)]
+    const P4_ISO_5_EVIDENCE: &str =
+        "p4-iso-5: clickhouse::org_filter_clause_none_when_org_unset + fail_closed_branch_is_taken_without_org";
 }
