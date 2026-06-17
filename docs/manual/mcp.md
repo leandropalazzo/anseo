@@ -2,7 +2,7 @@
 
 The MCP server exposes Anseo to AI agents/assistants (Claude Desktop, Cursor, Zed, Cline, …) over the [Model Context Protocol](https://modelcontextprotocol.io). It is the agent-native surface — same data and operations as the CLI/web, callable by an LLM.
 
-- **Binary/crate:** `anseo-mcp` (`apps/mcp`). Launch via `anseo mcp serve` or directly.
+- **Binary/crate:** `anseo-mcp` (`apps/mcp`). Launch via `anseo mcp serve` or directly; inspect the catalog with `anseo mcp tools`.
 - **Protocol:** hand-rolled JSON-RPC 2.0, MCP `protocolVersion 2024-11-05`, `serverInfo.name = "anseo-mcp"`.
 - **Process model:** the server **never touches storage directly** — every tool proxies over loopback HTTP to the local `/v1` REST API. (Exception: `search_benchmarks` hits the public benchmark service.) This is what guarantees CLI ⇄ Web ⇄ MCP parity.
 - **Capabilities:** `tools` + `logging` only. **No MCP `resources` or `prompts` are exposed** (`initialize` returns them `null`).
@@ -28,7 +28,7 @@ anseo mcp serve --transport http+sse --bind 127.0.0.1:7071 --allow-public  # req
 | `ANSEO_PROJECT_ID` | `default` | forwarded as `X-Anseo-Project` (actual project scoping) |
 | `ANSEO_BENCHMARK_URL` | `https://benchmark.anseo.ai` | used only by `search_benchmarks` |
 
-**Auth & scoping:** every loopback call forwards `Authorization: Bearer` + `X-Anseo-Project`. Each tool also takes a `project` argument (the LLM-facing contract), but the server-level project header is what actually scopes data. `search_benchmarks` deliberately sends **no** key/project header (privacy floor).
+**Auth & scoping:** every loopback call forwards `Authorization: Bearer` + `X-Anseo-Project`. Most tools also take a `project` argument (the LLM-facing contract), but the server-level project header is what actually scopes data. `search_benchmarks` and `list_suite_prompts` are the deliberate project-less exceptions.
 
 ---
 
@@ -54,9 +54,9 @@ anseo mcp serve --transport http+sse --bind 127.0.0.1:7071 --allow-public  # req
 
 ---
 
-## The tool set (closed — 12 tools)
+## The tool set (closed — 16 tools)
 
-The registry is a **closed set**: there is no tool-registration API, so plugins cannot add tools. Plugins surface namespaced values through existing tools (e.g. a plugin trend appears as `trend_kind = plugin:<name>:<kind>` via `list_trends`). All inputs use `deny_unknown_fields`; all non-benchmark tools require a `project`. The shared `window` enum serializes as `"7d" | "30d" | "all"`. Every response embeds a ULID `trace_id` correlating to `/v1` logs.
+The registry is a **closed set**: there is no tool-registration API, so plugins cannot add tools. Plugins surface namespaced values through existing tools (e.g. a plugin trend appears as `trend_kind = plugin:<name>:<kind>` via `list_trends`). All typed inputs use `deny_unknown_fields`; `search_benchmarks` and `list_suite_prompts` are the project-less exceptions. The shared `window` enum serializes as `"7d" | "30d" | "all"`. Every response embeds a ULID `trace_id` correlating to `/v1` logs.
 
 ### Read / analyze
 
@@ -67,6 +67,7 @@ The registry is a **closed set**: there is no tool-registration API, so plugins 
 | **`get_citations`** | `GET /v1/citations/summary` | `project`, `window?` (30d), `top_n?` (50, max 500) | Top cited domains: {domain, frequency, source_type, sample run ids}. *"Which sources do LLMs cite about us?"* |
 | **`list_trends`** | `GET /v1/anomalies` | `project`, `window` (req), `min_significance?` (0.3) | Regressions / statistical anomalies / response-change trends with evidence run ids + significance. *"What changed / what should I worry about?"* |
 | **`search_benchmarks`** | public benchmark service | `query` (req), `provider?`, `time_window?` (30d) | Category findings from the public dataset. **Only project-less tool** — sends just the query (privacy floor). *"What's normal for my industry?"* |
+| **`list_suite_prompts`** | `GET /v1/suite/prompts` | — | Canonical benchmark prompt slugs `{slug, version, description}` for instrumentation parity. **Project-less global metadata**. *"Which prompt slugs should we reuse so our runs join the shared benchmark cohorts?"* |
 
 ### Act
 
@@ -101,6 +102,7 @@ Methods: `initialize`, `initialized`/`notifications/initialized` (silent), `tool
 - **"Is my brand losing ground this week?"** → `compare_brands(window:7d)` + `list_trends(window:7d)`.
 - **"Why aren't we cited for X?"** → `get_citations` (see who *is* cited) then `audit(target: our-page)` (find readiness gaps), then `recommend.list`.
 - **"Check our visibility right now for this prompt."** → `run_prompt(prompt, providers)` then `get_visibility`.
+- **"Which slug should my external instrumentation emit?"** → `list_suite_prompts`.
 - **"Triage and close recommendations."** → `recommend.list` → `recommend.show` → `recommend.mark_acted(evidence_url)`.
 
 ## Monitoring the server (web)

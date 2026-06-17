@@ -224,6 +224,7 @@ dependencies = [
  "is-terminal",
  "predicates",
  "rand 0.8.6",
+ "reqwest",
  "rpassword",
  "serde",
  "serde_json",

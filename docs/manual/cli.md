@@ -124,6 +124,17 @@ Print background worker status (the process that executes scheduled runs).
 
 ---
 
+## 9b. Canonical suite — `anseo suite`  *(Story 40.5)*
+
+| Command | Purpose |
+|---|---|
+| `anseo suite list` | Print the canonical GEO benchmark slugs, one per line |
+| `anseo suite check <slug>` | Exit `0` when `<slug>` is canonical, `1` when it is not |
+
+- **Use case:** validate the `prompt_slug` values your external instrumentation emits before shipping runs through `/v1/ingest/run`.
+
+---
+
 ## 10. Analytics backend — `anseo analytics`  *(Phase 2)*
 
 ### `anseo analytics migrate-to-clickhouse`

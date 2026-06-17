@@ -35,6 +35,7 @@ pub mod serve_status;
 pub mod setup;
 pub mod site_analytics;
 pub mod site_events;
+pub mod suite;
 pub mod test_seed;
 pub mod verification;
 pub mod visibility;

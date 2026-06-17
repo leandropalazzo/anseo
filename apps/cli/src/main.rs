@@ -2,8 +2,8 @@
 
 use anseo_cli::{
     commands, AnalyticsSub, ApiKeySub, ApiSub, BenchmarkSub, CheckSub, Cli, Command, DashboardSub,
-    McpSub, PluginSub, ProjectSub, PromptSub, RecommendSub, ReportSub, ScheduleSub, WebhookSub,
-    WorkerSub,
+    McpSub, PluginSub, ProjectSub, PromptSub, RecommendSub, ReportSub, ScheduleSub, SuiteSub,
+    WebhookSub, WorkerSub,
 };
 use anseo_core::{telemetry::init_tracing, ExitCode, OpenGeoError};
 use clap::Parser;
@@ -66,6 +66,10 @@ fn main() {
             BenchmarkSub::Optout(args) => run_async(commands::benchmark::run_optout(args)),
             BenchmarkSub::Status(args) => run_async(commands::benchmark::run_status(args)),
         },
+        Command::Suite { sub } => match sub {
+            SuiteSub::List(args) => commands::suite::run_list(args),
+            SuiteSub::Check(args) => commands::suite::run_check(args),
+        },
         Command::Analytics { sub } => match sub {
             AnalyticsSub::MigrateToClickhouse(args) => {
                 run_async(commands::analytics::run_migrate(args))
@@ -84,6 +88,7 @@ fn main() {
         Command::Mcp { sub } => match sub {
             McpSub::Serve(args) => commands::mcp::run_serve(args),
             McpSub::Status(args) => commands::mcp::run_status(args),
+            McpSub::Tools(args) => commands::mcp::run_tools(args),
             McpSub::InstallConfig(args) => commands::mcp::run_install_config(args),
         },
         Command::Recommend { sub } => match sub {

@@ -45,6 +45,13 @@ pub fn canonical_geo_prompt_suite() -> &'static CanonicalPromptSuite {
     })
 }
 
+pub fn canonical_prompt_by_slug(slug: &str) -> Option<&'static CanonicalPromptEntry> {
+    canonical_geo_prompt_suite()
+        .entries
+        .iter()
+        .find(|entry| entry.slug == slug)
+}
+
 fn validate_suite(suite: &CanonicalPromptSuite) -> Result<(), String> {
     if suite.entries.is_empty() {
         return Err("canonical suite must not be empty".into());
@@ -212,5 +219,18 @@ mod tests {
             assert_eq!(entry.category, category);
             assert_eq!(entry.contribution_cohort, contribution_cohort);
         }
+    }
+
+    #[test]
+    fn lookup_returns_matching_entry_when_slug_is_canonical() {
+        let entry = canonical_prompt_by_slug("geo-v1/best-vector-db")
+            .expect("known canonical slug should resolve");
+        assert_eq!(entry.version, "geo-v1");
+        assert_eq!(entry.category, "platform-selection");
+    }
+
+    #[test]
+    fn lookup_returns_none_for_unknown_slug() {
+        assert!(canonical_prompt_by_slug("custom/not-canonical").is_none());
     }
 }

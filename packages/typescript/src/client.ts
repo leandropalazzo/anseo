@@ -73,6 +73,7 @@ import type {
   RunListResponse,
   SetupStatus,
   Sm14MetricResponse,
+  SuitePromptSummary,
   TransitionRecommendationRequest,
   TransitionRecommendationResponse,
   UnauthorizedResponse,
@@ -669,10 +670,15 @@ export type ingestExternalRunResponse422 = {
   status: 422
 }
 
+export type ingestExternalRunResponse429 = {
+  data: Error
+  status: 429
+}
+
 export type ingestExternalRunResponseSuccess = (ingestExternalRunResponse202) & {
   headers: Headers;
 };
-export type ingestExternalRunResponseError = (ingestExternalRunResponse400 | ingestExternalRunResponse401 | ingestExternalRunResponse403 | ingestExternalRunResponse404 | ingestExternalRunResponse422) & {
+export type ingestExternalRunResponseError = (ingestExternalRunResponse400 | ingestExternalRunResponse401 | ingestExternalRunResponse403 | ingestExternalRunResponse404 | ingestExternalRunResponse422 | ingestExternalRunResponse429) & {
   headers: Headers;
 };
 
@@ -687,7 +693,7 @@ export const getIngestExternalRunUrl = () => {
 }
 
 /**
- * Records a prompt run executed against a provider OUTSIDE Anseo's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-Anseo-Project header and returns 202 with the new run_id. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).
+ * Records a prompt run executed against a provider OUTSIDE Anseo's own orchestrator (e.g. via an SDK). The run is persisted as a prompt_run for the project resolved from the X-Anseo-Project header and returns 202 with the new run_id. `raw_response` is the canonical payload field; `response_text` remains accepted as a backward-compatibility convenience for early clients. The optional `contribute` flag (default false) opts this run into the anonymous benchmark: a `contribute: true` request with no per-project KEK is rejected 403 kek_missing; `contribute: false` proceeds regardless of KEK state. A run is redacted (same compile-time-safe Redactor as native runs) and envelope-sealed under the project KEK only when it set `contribute: true` AND the project has an active benchmark opt-in on the current terms; benchmark data is never silently dropped (Story 40.4).
  * @summary Record an externally-executed prompt run, feeding the same extraction -> redaction -> envelope-sealed-contribution path as native runs.
  */
 export const ingestExternalRun = async (ingestRunRequest: IngestRunRequest, options?: RequestInit): Promise<ingestExternalRunResponse> => {
@@ -736,6 +742,49 @@ export const getListPluginsUrl = () => {
 export const listPlugins = async ( options?: RequestInit): Promise<listPluginsResponse> => {
 
   return fetchClient<listPluginsResponse>(getListPluginsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+export type listSuitePromptsResponse200 = {
+  data: SuitePromptSummary[]
+  status: 200
+}
+
+export type listSuitePromptsResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type listSuitePromptsResponseSuccess = (listSuitePromptsResponse200) & {
+  headers: Headers;
+};
+export type listSuitePromptsResponseError = (listSuitePromptsResponse401) & {
+  headers: Headers;
+};
+
+export type listSuitePromptsResponse = (listSuitePromptsResponseSuccess | listSuitePromptsResponseError)
+
+export const getListSuitePromptsUrl = () => {
+
+
+
+
+  return `/v1/suite/prompts`
+}
+
+/**
+ * @summary Story 40.5 — list the canonical GEO benchmark prompt slugs (`slug`, `version`, `description`) external instrumentation should reuse for comparable contribution cohorts. Operator-scoped global metadata; not gated by X-Anseo-Project.
+ */
+export const listSuitePrompts = async ( options?: RequestInit): Promise<listSuitePromptsResponse> => {
+
+  return fetchClient<listSuitePromptsResponse>(getListSuitePromptsUrl(),
   {
     ...options,
     method: 'GET'

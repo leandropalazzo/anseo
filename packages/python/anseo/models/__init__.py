@@ -53,7 +53,6 @@ from .gate_summary import GateSummary
 from .generate_recommendations_accepted import GenerateRecommendationsAccepted
 from .grafana_crawler_query import GrafanaCrawlerQuery
 from .grafana_crawler_series import GrafanaCrawlerSeries
-from .ingest_run_request import IngestRunRequest
 from .ingest_run_response import IngestRunResponse
 from .ingest_site_event_body import IngestSiteEventBody
 from .ingest_site_event_body_properties import IngestSiteEventBodyProperties
@@ -129,6 +128,7 @@ from .setup_status_webhook_target import SetupStatusWebhookTarget
 from .setup_status_worker import SetupStatusWorker
 from .setup_status_worker_state import SetupStatusWorkerState
 from .sm_14_metric_response import Sm14MetricResponse
+from .suite_prompt_summary import SuitePromptSummary
 from .transition_recommendation_request import TransitionRecommendationRequest
 from .transition_recommendation_request_to import TransitionRecommendationRequestTo
 from .transition_recommendation_response import TransitionRecommendationResponse
@@ -195,7 +195,6 @@ __all__ = (
     "GenerateRecommendationsAccepted",
     "GrafanaCrawlerQuery",
     "GrafanaCrawlerSeries",
-    "IngestRunRequest",
     "IngestRunResponse",
     "IngestSiteEventBody",
     "IngestSiteEventBodyProperties",
@@ -261,6 +260,7 @@ __all__ = (
     "SetupStatusWorker",
     "SetupStatusWorkerState",
     "Sm14MetricResponse",
+    "SuitePromptSummary",
     "TransitionRecommendationRequest",
     "TransitionRecommendationRequestTo",
     "TransitionRecommendationResponse",

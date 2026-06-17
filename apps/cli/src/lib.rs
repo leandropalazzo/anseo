@@ -104,6 +104,12 @@ pub enum Command {
         sub: BenchmarkSub,
     },
 
+    /// Inspect the canonical GEO prompt suite used for benchmark-comparable slugs.
+    Suite {
+        #[command(subcommand)]
+        sub: SuiteSub,
+    },
+
     /// Analytics backend management (Phase 2 Story 14.1).
     Analytics {
         #[command(subcommand)]
@@ -207,6 +213,8 @@ pub enum McpSub {
     Serve(commands::mcp::ServeArgs),
     /// Show the status of a running MCP server.
     Status(commands::mcp::StatusArgs),
+    /// List the registered MCP tools from the local `/v1/mcp/tools` catalog.
+    Tools(commands::mcp::ToolsArgs),
     /// Write Claude Desktop / Cursor / Zed config snippet.
     InstallConfig(commands::mcp::InstallConfigArgs),
 }
@@ -229,6 +237,14 @@ pub enum BenchmarkSub {
     Optout(commands::benchmark::OptoutArgs),
     /// Show current consent state (active / stale / not opted-in).
     Status(commands::benchmark::StatusArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SuiteSub {
+    /// Print the canonical GEO prompt slugs, one per line.
+    List(commands::suite::ListArgs),
+    /// Exit 0 when a slug is canonical; 1 when it is not.
+    Check(commands::suite::CheckArgs),
 }
 
 #[derive(Debug, Subcommand)]

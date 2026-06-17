@@ -1481,6 +1481,26 @@
         ],
         "type": "object"
       },
+      "SuitePromptSummary": {
+        "description": "Story 40.5 — one canonical GEO benchmark prompt slug exposed for instrumentation parity helpers.",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "version",
+          "description"
+        ],
+        "type": "object"
+      },
       "ProjectListResponse": {
         "type": "object",
         "required": [
@@ -2580,6 +2600,30 @@
               }
             },
             "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/suite/prompts": {
+      "get": {
+        "operationId": "listSuitePrompts",
+        "summary": "Story 40.5 — list the canonical GEO benchmark prompt slugs (`slug`, `version`, `description`) external instrumentation should reuse for comparable contribution cohorts. Operator-scoped global metadata; not gated by X-Anseo-Project.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SuitePromptSummary"
+                  },
+                  "type": "array"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
