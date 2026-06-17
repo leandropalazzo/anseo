@@ -536,6 +536,24 @@ jobs:
       - name: Story 38.15 GHCR image workflow
         run: bash scripts/check-release-images-workflow.sh
 
+  plugin-registry-live-smoke:
+    name: Plugin registry — live index smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Story 41.1 canonical registry index is public
+        run: |
+          set -euo pipefail
+          url="https://raw.githubusercontent.com/leandropalazzo/plugin-registry/main/index.toml"
+          code="$(curl --connect-timeout 5 --max-time 20 --retry 2 --retry-delay 2 --retry-connrefused -fsS -o /tmp/plugin-index.toml -w '%{http_code}' "$url")"
+          test "$code" = "200"
+          python3 - <<'PY'
+          import pathlib
+          import tomllib
+
+          data = tomllib.loads(pathlib.Path("/tmp/plugin-index.toml").read_text())
+          assert data.get("schema_version") == "1", data
+          PY
+
   ci-summary:
     name: CI summary
     runs-on: ubuntu-latest
@@ -551,6 +569,7 @@ jobs:
         compose-smoke,
         docs-contract,
         release-image-contract,
+        plugin-registry-live-smoke,
       ]
     if: always()
     steps:
@@ -565,13 +584,15 @@ jobs:
           echo "compose-smoke: ${{ needs.compose-smoke.result }}"
           echo "docs-contract: ${{ needs.docs-contract.result }}"
           echo "release-image-contract: ${{ needs.release-image-contract.result }}"
+          echo "plugin-registry-live-smoke: ${{ needs.plugin-registry-live-smoke.result }}"
           # skipped (path-filtered / event-gated) is acceptable; only failure/cancelled fail the gate.
           for r in \
             "${{ needs.rust-lint.result }}" "${{ needs.rust-test.result }}" \
             "${{ needs.rust-managed-pg.result }}" \
             "${{ needs.rust-coverage.result }}" "${{ needs.web-lint-unit.result }}" \
             "${{ needs.web-e2e.result }}" "${{ needs.compose-smoke.result }}" \
-            "${{ needs.docs-contract.result }}" "${{ needs.release-image-contract.result }}"; do
+            "${{ needs.docs-contract.result }}" "${{ needs.release-image-contract.result }}" \
+            "${{ needs.plugin-registry-live-smoke.result }}"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
               echo "::error::A job failed or was cancelled."; exit 1
             fi

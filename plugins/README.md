@@ -100,7 +100,7 @@ The build script materializes the **unsigned** layout. To produce signed,
 installable bundles, run the **41.4 / 38.19 release+signing pipeline** on top of
 the materialized output. It computes `SHA-256(manifest.yaml || entrypoint.wasm)`,
 signs it with the namespace author key (Ed25519), and emits the signed-bundle
-siblings — these are generated + published to `github.com/anseo/plugin-registry`,
+siblings — these are generated + published to `github.com/leandropalazzo/plugin-registry`,
 not checked in here:
 
 ```text

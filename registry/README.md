@@ -1,7 +1,7 @@
 # Anseo plugin registry (seed)
 
 This directory is the **seed content** for the public, GitHub-hosted Anseo
-plugin registry: `github.com/anseo/plugin-registry`. The live registry is just a
+plugin registry: `github.com/leandropalazzo/plugin-registry`. The live registry is just a
 flat-file tree served over GitHub's raw CDN — there is no registry server.
 
 `anseo plugin search` / `anseo plugin install` read the tree through the
@@ -9,7 +9,7 @@ transport-agnostic client in `crates/plugin-host/src/registry.rs`. The default
 base URL (declared once, in `DEFAULT_REGISTRY_URL`) is:
 
 ```
-https://raw.githubusercontent.com/anseo/plugin-registry/main
+https://raw.githubusercontent.com/leandropalazzo/plugin-registry/main
 ```
 
 Override it with `ANSEO_PLUGIN_REGISTRY_URL` (e.g. to point at a fork or a local
@@ -45,6 +45,11 @@ the TTL expires; pass `--refresh` to `anseo plugin search` to bust the cache.
 
 ## Publishing the live repo
 
-To bootstrap `github.com/anseo/plugin-registry`, push the contents of this
-directory to the repo root on the `main` branch. The seed `index.toml` is empty;
-first-party plugins are added by Story 41.5.
+To bootstrap `github.com/leandropalazzo/plugin-registry`, push the contents of
+this directory to the repo root on the `main` branch. The seed `index.toml` is
+empty; first-party plugins are added by Story 41.5.
+
+The intended org-owned `github.com/anseo/plugin-registry` namespace was not
+available to the current GitHub account when Story 41.1 was implemented. Moving
+the registry later must update `DEFAULT_REGISTRY_URL`, CI smoke checks, docs,
+and these seed files together.
