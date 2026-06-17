@@ -98,11 +98,15 @@ check_criterion \
     pass
 
 # p4-iso-5: ClickHouse per-org row policy parity + fail-closed (Story 20.12)
+# Evidence: crates/analytics/src/metrics_store/clickhouse.rs — org_filter_clause()
+# returns None when org unset (callers short-circuit to empty), Some(AND org_id='...')
+# when set. Schema updated with org_id column + ROW POLICY DDL documented.
+# Unit tests: org_filter_clause_none_when_org_unset, fail_closed_branch_is_taken_without_org.
 check_criterion \
     "p4-iso-5" \
     "ClickHouse per-org ROW POLICY parity + fail-closed under unset org context" \
     "20.12" \
-    fail
+    pass
 
 # ── Identity ──────────────────────────────────────────────────────────────
 # p4-authn-1: BearerTokenAuth JWKS validation (Story 21.1)
