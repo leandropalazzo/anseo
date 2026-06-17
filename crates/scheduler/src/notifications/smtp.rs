@@ -35,7 +35,7 @@ pub struct SmtpConfig {
 }
 
 fn default_subject_prefix() -> String {
-    "[OpenGEO]".to_string()
+    "[Anseo]".to_string()
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -103,14 +103,14 @@ pub fn build_subject(cfg: &SmtpConfig, event_kind: &str, brand_context: &str) ->
 /// Prompt Run content).
 pub fn build_body(summary: &str, observed_at_iso: &str, dashboard_url: &str) -> String {
     let mut body = String::new();
-    body.push_str("OpenGEO event notification\n\n");
+    body.push_str("Anseo event notification\n\n");
     body.push_str("Observed at: ");
     body.push_str(observed_at_iso);
     body.push('\n');
     body.push_str("Summary    : ");
     body.push_str(summary);
     body.push_str("\n\n");
-    body.push_str("View the full event details and history in the OpenGEO Dashboard:\n");
+    body.push_str("View the full event details and history in the Anseo Dashboard:\n");
     body.push_str(dashboard_url);
     body.push('\n');
     body
@@ -199,7 +199,7 @@ mod tests {
     fn subject_includes_prefix_title_and_context() {
         let cfg = valid_config();
         let subject = build_subject(&cfg, "schedule.missed", "Acme");
-        assert!(subject.starts_with("[OpenGEO]"));
+        assert!(subject.starts_with("[Anseo]"));
         assert!(subject.contains("Scheduled run missed"));
         assert!(subject.contains("Acme"));
     }
@@ -208,7 +208,7 @@ mod tests {
     fn subject_omits_context_separator_when_empty() {
         let cfg = valid_config();
         let subject = build_subject(&cfg, "schedule.missed", "   ");
-        assert!(subject.starts_with("[OpenGEO]"));
+        assert!(subject.starts_with("[Anseo]"));
         assert!(!subject.contains(" — "));
     }
 
