@@ -132,19 +132,9 @@ fn encrypt_secret(plaintext: &[u8], key: &TotpEncKey) -> Result<String, AuthnErr
     use aes_gcm::{Aes256Gcm, Key, Nonce};
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key.0));
-    // Use a random 12-byte nonce.
-    let nonce_bytes: [u8; 12] = {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let t = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .subsec_nanos();
-        // Deterministic-ish for tests; production should use a CSPRNG nonce.
-        // In production wire this to `rand::thread_rng().gen::<[u8; 12]>()`.
-        let mut n = [0u8; 12];
-        n[..4].copy_from_slice(&t.to_le_bytes());
-        n
-    };
+    let mut nonce_bytes = [0u8; 12];
+    getrandom::fill(&mut nonce_bytes)
+        .map_err(|e| AuthnError::Malformed(format!("TOTP nonce: {e}")))?;
     let nonce = Nonce::from_slice(&nonce_bytes);
     let ciphertext = cipher
         .encrypt(nonce, plaintext)
@@ -225,10 +215,10 @@ mod tests {
         let key = test_key();
         let enrollment =
             begin_enrollment("Anseo", "carol@example.com", &key).expect("begin_enrollment");
+        // 000000 is statistically never the current window code (1-in-10^6).
+        // We assert it returns false rather than an error.
         let ok = challenge("000000", &enrollment.secret_enc, &key).expect("challenge");
-        // Statistically almost certainly false (1/1_000_000 chance of collision).
-        // Test is deterministic because we know 000000 is almost never the current code.
-        let _ = ok; // we just assert it doesn't error
+        assert!(!ok, "wrong code must not pass");
     }
 
     // ---------------------------------------------------------------------------

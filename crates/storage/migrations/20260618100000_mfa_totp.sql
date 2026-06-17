@@ -17,7 +17,7 @@ ALTER TABLE organizations
 
 CREATE TABLE totp_enrollments (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    operator_id     UUID        NOT NULL REFERENCES operators (id) ON DELETE CASCADE,
+    operator_id     UUID        NOT NULL,
     -- TOTP secret encoded with the application-level encryption key (AES-GCM).
     -- Stored as base64(nonce || ciphertext).
     secret_enc      TEXT        NOT NULL,
