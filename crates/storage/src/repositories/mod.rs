@@ -6,6 +6,7 @@
 //! features that need them.
 
 pub mod alert_rules;
+pub mod anonymous_contributions;
 pub mod api_keys;
 pub mod audit;
 pub mod benchmark_consent;
