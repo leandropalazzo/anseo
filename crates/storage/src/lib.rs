@@ -78,6 +78,10 @@ impl Storage {
         repositories::projects::ProjectRepo::new(&self.pool)
     }
 
+    pub fn orgs(&self) -> repositories::organizations::OrgsRepo<'_> {
+        repositories::organizations::OrgsRepo::new(&self.pool)
+    }
+
     pub fn audit(&self) -> repositories::audit::AuditRepo<'_> {
         repositories::audit::AuditRepo::new(&self.pool)
     }

@@ -17,6 +17,7 @@ pub mod contributions;
 pub mod disputes;
 pub mod entities;
 pub mod mentions;
+pub mod organizations;
 pub mod plugin_installs;
 pub mod projects;
 pub mod prompt_runs;
