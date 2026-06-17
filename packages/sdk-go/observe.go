@@ -125,8 +125,11 @@ type RunInput struct {
 }
 
 // ContributionStatus mirrors the API's internally-tagged ContributionStatus
-// enum: Status is one of "sealed", "skipped_not_opted_in", "kek_missing", or
-// "redaction_rejected" (in which case Reason is populated).
+// enum: Status is typically "sealed", "skipped_not_opted_in", or
+// "redaction_rejected" (in which case Reason is populated). The
+// "kek_missing" value is retained for wire compatibility even though current
+// servers reject `contribute: true` without a KEK as HTTP 403 before
+// persistence.
 type ContributionStatus struct {
 	Status string `json:"status"`
 	Reason string `json:"reason,omitempty"`

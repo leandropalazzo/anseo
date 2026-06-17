@@ -50,7 +50,8 @@ if err != nil {
 }
 
 // result.Contribution tells you whether benchmark data was sealed:
-// "sealed" | "skipped_not_opted_in" | "kek_missing" | "redaction_rejected" (+ Reason)
+// "sealed" | "skipped_not_opted_in" | "redaction_rejected" (+ Reason)
+// Missing KEK is currently a 403 request error, not an accepted result.
 fmt.Println(result.RunID, result.Contribution.Status)
 ```
 

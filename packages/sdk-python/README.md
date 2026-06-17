@@ -51,7 +51,8 @@ result = obs.observe_run(
     # optional: contribute=True  # requires project KEK; consent controls sealing
 )
 print(result.run_id, result.contribution["status"])
-# status ∈ {"sealed", "skipped_not_opted_in", "kek_missing", "redaction_rejected"}
+# status ∈ {"sealed", "skipped_not_opted_in", "redaction_rejected"}
+# missing KEK is currently a 403 request error, not an accepted result
 ```
 
 Construction raises `AnseoConfigError` when `base_url`/`api_key` is missing;

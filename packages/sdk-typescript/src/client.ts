@@ -77,8 +77,9 @@ export interface ObserveRunInput {
   /**
    * Opt this run into Anseo's benchmark contribution path.
    *
-   * Defaults to `false` when omitted. A `true` value requires the project to
-   * have an active per-project KEK and benchmark consent on the server.
+   * Defaults to `false` when omitted. A `true` value requires a project KEK;
+   * durable benchmark consent then controls whether the accepted run seals or
+   * reports `skipped_not_opted_in`.
    */
   contribute?: boolean;
 }
@@ -90,6 +91,8 @@ export interface ObserveRunInput {
 export type ContributionStatus =
   | { status: "sealed" }
   | { status: "skipped_not_opted_in" }
+  // Retained for wire compatibility even though current servers reject
+  // `contribute: true` without a KEK as HTTP 403 before persistence.
   | { status: "kek_missing" }
   | { status: "redaction_rejected"; reason: string };
 

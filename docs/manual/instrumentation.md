@@ -211,7 +211,6 @@ tells you what happened to the benchmark leg:
 |---|---|
 | `sealed` | run recorded **and** the redacted benchmark payload was sealed for contribution |
 | `skipped_not_opted_in` | run recorded; project has not opted into the public benchmark (or this run did not request contribution) |
-| `kek_missing` | benchmark sealing was blocked by a missing project KEK; current servers reject `contribute: true` without a KEK as `403 kek_missing` before recording the run |
 | `redaction_rejected` (with `reason`) | run recorded; the redactor refused to seal (e.g. stale terms version, non-slug-safe slug) |
 
 ### Errors
