@@ -1,0 +1,93 @@
+{
+  "suite_id": "geo-v1",
+  "suite_version": "2026-06-17",
+  "terms_version": "v1-2026-05-28",
+  "ownership": {
+    "owner": "anseo-maintainers",
+    "change_control": "additive-only-within-version",
+    "deprecation_policy": "existing slugs may be marked deprecated but not repurposed; removals require a new suite_id",
+    "review_notes": "Prompt text is intentionally limited to benchmark-owned reference material. Operators may adapt private local prompts, but cross-operator comparability attaches only to these canonical slugs. Legal/compliance signoff against the finalized benchmark terms is tracked by Story 39.3 reconciliation and must be captured before the story flips from review to done."
+  },
+  "entries": [
+    {
+      "slug": "geo-v1/best-vector-db",
+      "version": "geo-v1",
+      "category": "platform-selection",
+      "description": "Category-comparison query for vector database selection.",
+      "contribution_cohort": "geo-v1:platform-selection",
+      "cohort_description": "General discovery comparisons among vector database vendors.",
+      "prompt_template": "What is the best vector database for production retrieval-augmented generation workloads in 2026? Compare the leading options and explain tradeoffs.",
+      "deprecated": false
+    },
+    {
+      "slug": "geo-v1/best-rag-platform",
+      "version": "geo-v1",
+      "category": "platform-selection",
+      "description": "Category-comparison query for full RAG platform evaluation.",
+      "contribution_cohort": "geo-v1:platform-selection",
+      "cohort_description": "General discovery comparisons among end-to-end RAG platforms.",
+      "prompt_template": "What is the best RAG platform for a mid-market SaaS team that wants evaluation, retrieval, and observability in one stack?",
+      "deprecated": false
+    },
+    {
+      "slug": "geo-v1/llm-observability-tools",
+      "version": "geo-v1",
+      "category": "observability",
+      "description": "Tooling-comparison query for LLM observability products.",
+      "contribution_cohort": "geo-v1:observability",
+      "cohort_description": "General discovery comparisons among LLM observability and evaluation vendors.",
+      "prompt_template": "Which LLM observability tools should an engineering team evaluate for tracing, prompt monitoring, and regression detection?",
+      "deprecated": false
+    },
+    {
+      "slug": "geo-v1/ai-search-visibility-platforms",
+      "version": "geo-v1",
+      "category": "brand-visibility",
+      "description": "Category query for platforms that monitor AI-search visibility and citations.",
+      "contribution_cohort": "geo-v1:brand-visibility",
+      "cohort_description": "Comparisons among AI-search visibility, citation, and GEO monitoring products.",
+      "prompt_template": "What platforms help brands measure AI search visibility, citation share, and recommendation performance across ChatGPT, Gemini, and Perplexity?",
+      "deprecated": false
+    },
+    {
+      "slug": "geo-v1/best-enterprise-chatbot-platform",
+      "version": "geo-v1",
+      "category": "application-platform",
+      "description": "Category query for enterprise chatbot and assistant platforms.",
+      "contribution_cohort": "geo-v1:application-platform",
+      "cohort_description": "Comparisons among enterprise chatbot and assistant-building platforms.",
+      "prompt_template": "What is the best enterprise chatbot platform for a support team that needs handoff, analytics, and governance?",
+      "deprecated": false
+    },
+    {
+      "slug": "geo-v1/agent-frameworks",
+      "version": "geo-v1",
+      "category": "developer-frameworks",
+      "description": "Framework-comparison query for agent orchestration libraries.",
+      "contribution_cohort": "geo-v1:developer-frameworks",
+      "cohort_description": "Comparisons among agent frameworks and orchestration toolkits.",
+      "prompt_template": "Which agent frameworks should a product engineering team compare in 2026 for building reliable multi-step AI workflows?",
+      "deprecated": false
+    },
+    {
+      "slug": "geo-v1/best-ai-evaluation-tools",
+      "version": "geo-v1",
+      "category": "evaluation",
+      "description": "Tooling-comparison query for LLM evaluation and regression testing products.",
+      "contribution_cohort": "geo-v1:evaluation",
+      "cohort_description": "Comparisons among AI evaluation, testing, and regression platforms.",
+      "prompt_template": "What are the best AI evaluation tools for testing prompts, retrieval quality, and production regressions?",
+      "deprecated": false
+    },
+    {
+      "slug": "geo-v1/customer-support-ai",
+      "version": "geo-v1",
+      "category": "use-case-solutions",
+      "description": "Solution-comparison query for customer-support AI products.",
+      "contribution_cohort": "geo-v1:use-case-solutions",
+      "cohort_description": "Comparisons among packaged AI products aimed at customer-support automation.",
+      "prompt_template": "What AI tools are best for automating customer support while keeping humans in the loop for escalations?",
+      "deprecated": false
+    }
+  ]
+}
