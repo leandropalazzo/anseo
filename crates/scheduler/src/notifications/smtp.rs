@@ -124,8 +124,8 @@ mod tests {
         SmtpConfig {
             host: "smtp.example.com".into(),
             port: 587,
-            from: "opengeo@example.com".into(),
-            subject_prefix: "[OpenGEO]".into(),
+            from: "anseo@example.com".into(),
+            subject_prefix: "[Anseo]".into(),
         }
     }
 
@@ -224,10 +224,10 @@ mod tests {
         let body = build_body(
             "z=3.4 detected on openai",
             "2026-06-15T08:00:43.221Z",
-            "https://opengeo.local/runs/01H",
+            "https://anseo.local/runs/01H",
         );
         assert!(body.contains("View the full event details"));
-        assert!(body.contains("https://opengeo.local/runs/01H"));
+        assert!(body.contains("https://anseo.local/runs/01H"));
         assert!(body.contains("2026-06-15T08:00:43.221Z"));
         assert!(body.contains("z=3.4 detected on openai"));
     }
@@ -239,7 +239,7 @@ mod tests {
         let body = build_body(
             "<script>alert(1)</script>",
             "2026-06-15T08:00:43.221Z",
-            "https://opengeo.local/runs/01H",
+            "https://anseo.local/runs/01H",
         );
         // Body should carry the literal text — no escaping, no
         // wrapping in <html>. Plaintext mail clients render this as-is.

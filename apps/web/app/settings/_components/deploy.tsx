@@ -91,10 +91,10 @@ export function DeploySection() {
         <CodeBlock
           lang="yaml"
           code={`services:
-  api:      { image: opengeo/api:0.4.2, ports: [8080] }
-  worker:   { image: opengeo/worker:0.4.2 }
-  postgres: { image: postgres:16, volumes: [opengeo-data:/var/lib/postgresql/data] }
-  web:      { image: opengeo/web:0.4.2, ports: [3000] }`}
+  api:      { image: anseo/api:0.4.2, ports: [8080] }
+  worker:   { image: anseo/worker:0.4.2 }
+  postgres: { image: postgres:16, volumes: [anseo-data:/var/lib/postgresql/data] }
+  web:      { image: anseo/web:0.4.2, ports: [3000] }`}
         />
       </Card>
       <div className="grid grid-cols-2 gap-[12px]">

@@ -15,7 +15,7 @@
 //!   acts as the ambient tier (equivalent to the `X-Anseo-Project` header on
 //!   the other surfaces).
 //!
-//! This test stands up the REAL `opengeo-api` router on an ephemeral port
+//! This test stands up the REAL `anseo-api` router on an ephemeral port
 //! against a live Postgres, seeds two projects A and B, then drives a
 //! project-scoped read (`GET /v1/setup/brand`, which echoes the resolved
 //! project's `project_id` + `name`) over ALL THREE surfaces:
@@ -38,7 +38,7 @@
 //!
 //! ```text
 //! DATABASE_URL=postgres://anseo:anseo@localhost:5445/anseo_test \
-//!   cargo test -p opengeo-mcp --test multiproject_parity -- --ignored
+//!   cargo test -p anseo-mcp --test multiproject_parity -- --ignored
 //! ```
 
 use std::sync::Arc;

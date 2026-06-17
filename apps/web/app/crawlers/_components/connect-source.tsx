@@ -93,7 +93,7 @@ export function ConnectSource({ projectName }: { projectName?: string }) {
         <CodeBlock
           lang="bash"
           code={`# continuously tail your access log into this project
-ogeo crawlers --config opengeo.yaml   # read metrics
+ogeo crawlers --config anseo.yaml   # read metrics
 # adapters: nginx/Apache logs, Cloudflare Logpush/Workers, Fastly, CloudFront, GA4
 # privacy mode defaults to hashed (GDPR-safe self-host)`}
         />

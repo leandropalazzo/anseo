@@ -46,7 +46,7 @@ async fn failing_slack_does_not_serialize_sibling_slack_or_smtp() {
     let payload = build_payload(
         "schedule.missed",
         "isolation fixture",
-        "https://opengeo.local/dashboard",
+        "https://anseo.local/dashboard",
         false,
     );
     let body = serde_json::to_vec(&payload).expect("encode payload");

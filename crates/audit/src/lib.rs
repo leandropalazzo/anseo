@@ -936,9 +936,9 @@ mod tests {
             html: r#"
                 <html>
                   <head>
-                    <title>How OpenGEO Works | OpenGEO</title>
-                    <link rel="canonical" href="https://example.com/how-opengeo-works">
-                    <meta property="og:site_name" content="OpenGEO">
+                    <title>How Anseo Works | Anseo</title>
+                    <link rel="canonical" href="https://example.com/how-anseo-works">
+                    <meta property="og:site_name" content="Anseo">
                     <script type="application/ld+json">{"@context":"https://schema.org"}</script>
                   </head>
                   <body>

@@ -2,7 +2,7 @@
 # PUBLIC CI — the AUTHORITATIVE heavy suite for the canonical public `anseo` repo.
 #
 # This repo IS canonical (Story 38.17 deleted the workspace→public publish
-# pipeline, scripts/publish-public.sh, and the opengeo-workspace mirror). This
+# pipeline, scripts/publish-public.sh, and the anseo-workspace mirror). This
 # file lives and is edited HERE; there is no upstream that generates it.
 #
 # WHY HERE (Story 38.13): the public repo is PUBLIC → GitHub Actions are FREE

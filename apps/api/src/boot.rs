@@ -4,7 +4,7 @@
 //!
 //! Hoisted out of `apps/api/src/main.rs` so the exact same assembly is reused
 //! **in-process** by `ogeo serve` (Story 37.1), which boots the API and the
-//! worker in a single binary. The standalone `opengeo-api` binary and the
+//! worker in a single binary. The standalone `anseo-api` binary and the
 //! folded `ogeo serve` supervisor share one implementation instead of
 //! duplicating ~150 lines of seeding/guard logic.
 
@@ -36,7 +36,7 @@ pub struct ApiBootConfig {
     pub config_path: String,
     /// Story 37.1 — when `ogeo serve` boots the API in-process it injects
     /// supervisor metadata so `GET /v1/serve/status` can report the active
-    /// tier and component liveness. `None` for standalone `opengeo-api` binary.
+    /// tier and component liveness. `None` for standalone `anseo-api` binary.
     pub serve_info: Option<std::sync::Arc<ServeInfo>>,
 }
 

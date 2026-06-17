@@ -1,4 +1,4 @@
-//! `opengeo-api` — Axum HTTP service that powers the local Dashboard.
+//! `anseo-api` — Axum HTTP service that powers the local Dashboard.
 //!
 //! Boot assembly (storage connect, brand overlay, seeding, bind guard, router)
 //! lives in [`anseo_api::boot`] so the same wiring is reused in-process by

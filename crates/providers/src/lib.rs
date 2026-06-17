@@ -185,7 +185,7 @@ impl HttpClient {
             // Per-request timeouts are applied via `Request::with_timeout`;
             // this is an upper bound across pool reuse / DNS resolution.
             .pool_idle_timeout(Some(Duration::from_secs(90)))
-            .user_agent("opengeo/0.1 (+https://github.com/anthropics)")
+            .user_agent("anseo/0.1 (+https://anseo.ai)")
             .build()
             .expect("reqwest client builder always succeeds with default config");
         Self {

@@ -1,6 +1,6 @@
 //! Open-core boundary leak-guard for the OSS API binary.
 //!
-//! The default (OSS) build of `opengeo-api` must NOT pull in any premium
+//! The default (OSS) build of `anseo-api` must NOT pull in any premium
 //! crate. The premium brand-accuracy / hallucination evaluator lives behind
 //! the `pro` cargo feature; with default features it must be entirely absent
 //! from the dependency graph.
@@ -31,7 +31,7 @@ fn api_manifest_keeps_hallucination_optional_and_feature_gated() {
     }
 }
 
-/// The actual dependency graph for the default-feature `opengeo-api` must not
+/// The actual dependency graph for the default-feature `anseo-api` must not
 /// contain `anseo-hallucination`. This catches transitive leaks that a
 /// manifest grep cannot. The test is skipped if `cargo` is unavailable.
 #[test]
@@ -42,7 +42,7 @@ fn default_api_dependency_graph_excludes_premium_crates() {
         .args([
             "tree",
             "--package",
-            "opengeo-api",
+            "anseo-api",
             "--no-default-features",
             "--edges",
             "normal,build",
@@ -69,7 +69,7 @@ fn default_api_dependency_graph_excludes_premium_crates() {
     for premium in ["anseo-hallucination"] {
         assert!(
             !tree.lines().any(|l| l.trim_start().starts_with(premium)),
-            "OSS `opengeo-api` default build must not depend on premium crate `{premium}`:\n{tree}"
+            "OSS `anseo-api` default build must not depend on premium crate `{premium}`:\n{tree}"
         );
     }
 }

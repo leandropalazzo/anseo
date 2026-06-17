@@ -197,7 +197,7 @@ mod tests {
     use super::*;
 
     const FIXTURE_URL: &str = "https://hooks.slack.com/services/T0000/B0000/xxxxxxxxxxxxxxxx";
-    const DASHBOARD: &str = "https://opengeo.local/runs/01H";
+    const DASHBOARD: &str = "https://anseo.local/runs/01H";
 
     #[test]
     fn validate_url_accepts_canonical_incoming_webhook() {

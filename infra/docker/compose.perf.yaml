@@ -65,9 +65,9 @@ services:
     image: clickhouse/clickhouse-server:24.3-alpine
     restart: unless-stopped
     environment:
-      CLICKHOUSE_USER: opengeo
-      CLICKHOUSE_PASSWORD: opengeo
-      CLICKHOUSE_DB: opengeo_analytics
+      CLICKHOUSE_USER: anseo
+      CLICKHOUSE_PASSWORD: anseo
+      CLICKHOUSE_DB: anseo_analytics
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ports:
       - "127.0.0.1:28123:8123"
@@ -112,12 +112,12 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://anseo:anseo@postgres:5432/anseo
-      CLICKHOUSE_URL: http://opengeo:opengeo@clickhouse:8123/opengeo_analytics
+      CLICKHOUSE_URL: http://anseo:anseo@clickhouse:8123/anseo_analytics
       ANSEO_BIND_ADDR: 0.0.0.0:8080
       RUST_LOG: warn,anseo=info
-      ANSEO_CONFIG: /opengeo.yaml
+      ANSEO_CONFIG: /anseo.yaml
     volumes:
-      - ./fixture-opengeo.yaml:/opengeo.yaml:ro
+      - ./fixture-anseo.yaml:/anseo.yaml:ro
     ports:
       - "127.0.0.1:18080:8080"
     depends_on:

@@ -100,7 +100,7 @@ fn parse_window(raw: Option<&str>) -> Result<(i32, Window), (StatusCode, Json<se
 /// ULID. Mirrors the trace_id convention used elsewhere in the v1 surface.
 fn resolve_trace_id(headers: &HeaderMap) -> String {
     headers
-        .get("x-opengeo-request-id")
+        .get("x-anseo-request-id")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string())
         .unwrap_or_else(|| ulid::Ulid::new().to_string())
@@ -351,7 +351,7 @@ mod tests {
     #[test]
     fn resolve_trace_id_prefers_header() {
         let mut h = HeaderMap::new();
-        h.insert("x-opengeo-request-id", "abc-123".parse().unwrap());
+        h.insert("x-anseo-request-id", "abc-123".parse().unwrap());
         assert_eq!(resolve_trace_id(&h), "abc-123");
     }
 

@@ -42,7 +42,7 @@ pub use redactor::{
 /// prevents contributions from bypassing the per-project key gate.
 ///
 /// The blanket wire implementation (HTTP POST to the benchmark service) will
-/// live in `opengeo-internal`; the OSS crate ships only this trait so
+/// live in `anseo-internal`; the OSS crate ships only this trait so
 /// upstream code can program against the interface without depending on the
 /// closed-source HTTP layer.
 pub trait ContributeIngest {

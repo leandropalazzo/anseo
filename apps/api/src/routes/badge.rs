@@ -2,7 +2,7 @@
 //!
 //! The badge is the growth flywheel: G2/Gartner-style embeds that drive
 //! backlinks and awareness. It is **100% cloud-served** from this service
-//! (opengeo-internal / benchmark) — no badge logic lives in the OSS client
+//! (anseo-internal / benchmark) — no badge logic lives in the OSS client
 //! (NFR11). The badge signals **domain-ownership verification only**, never a
 //! product-quality endorsement (NFR3).
 //!
@@ -399,7 +399,7 @@ async fn get_embed_snippet(
     let base = badge_base_url();
     let badge_url = format!("{base}/v1/badge/{domain}/{}", variant.slug());
     // Backlink target: `{base}/brand/{domain}` is a page on the PUBLIC benchmark
-    // web app (opengeo-web `app/brand/[domain]/page.jsx`, Story 43.4), NOT an
+    // web app (anseo-web `app/brand/[domain]/page.jsx`, Story 43.4), NOT an
     // API route in this service — `base` defaults to https://benchmark.anseo.ai.
     // The mandatory badge backlink must point at that public profile page.
     let verification_url = format!("{base}/brand/{domain}");

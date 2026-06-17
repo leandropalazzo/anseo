@@ -542,7 +542,7 @@ mod tests {
 
     /// Boots a REAL child Postgres by shelling out to `initdb`/`pg_ctl` on PATH.
     /// `#[ignore]`d so CI never downloads binaries or boots PG. Run explicitly:
-    /// `cargo test -p opengeo-cli -- --ignored boots_real_child_postgres`.
+    /// `cargo test -p anseo-cli -- --ignored boots_real_child_postgres`.
     #[test]
     #[ignore = "boots a real child Postgres; requires initdb/pg_ctl on PATH"]
     fn boots_real_child_postgres() {

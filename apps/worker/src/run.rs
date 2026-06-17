@@ -63,7 +63,7 @@ pub async fn run_poll_loop(
     let pool = storage.pool().clone();
 
     let http_client = reqwest::Client::builder()
-        .user_agent("opengeo-webhook-dispatcher/0.1")
+        .user_agent("anseo-webhook-dispatcher/0.1")
         .build()?;
 
     // Story 43.2 (AC-5): production DNS resolver for the daily re-verification
@@ -398,6 +398,6 @@ pub fn load_dispatch_context(config_path: &str) -> Option<DispatchContext> {
     Some(DispatchContext {
         config,
         registry,
-        worker_id: format!("opengeo-worker-{}", ulid::Ulid::new()),
+        worker_id: format!("anseo-worker-{}", ulid::Ulid::new()),
     })
 }

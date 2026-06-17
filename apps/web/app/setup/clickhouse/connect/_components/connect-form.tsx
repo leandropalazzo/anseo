@@ -49,7 +49,7 @@ const ERROR_COPY: Record<Exclude<ConnectState, "connected">, string> = {
     "The endpoint responded but the probe query failed — it may not be a ClickHouse-compatible HTTP interface.",
   bad_request: "The endpoint must be a full http(s) origin URL.",
   persist_failed:
-    "Connected, but the endpoint couldn't be saved to opengeo.yaml. Check file permissions.",
+    "Connected, but the endpoint couldn't be saved to anseo.yaml. Check file permissions.",
 };
 
 const inputClass =
@@ -195,7 +195,7 @@ export function ConnectForm() {
             </Button>
             <span className="text-[length:var(--font-size-xs)] text-[color:var(--text-faint)]">
               Password is used only to probe; it is never written to
-              opengeo.yaml.
+              anseo.yaml.
             </span>
           </div>
 
