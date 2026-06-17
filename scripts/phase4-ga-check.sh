@@ -67,11 +67,12 @@ check_criterion \
     fail
 
 # p4-iso-2: RLS fail-closed: unset GUC → zero rows (Story 20.3)
+# Evidence: migration 20260617220000_rls_enable.sql + rls_fail_closed.rs (4 tests).
 check_criterion \
     "p4-iso-2" \
     "RLS fail-closed: unset app.org GUC yields zero rows on every tenant table" \
     "20.3" \
-    fail
+    pass
 
 # p4-iso-3: GUC-bleed pool-race concurrency soak (Story 20.10)
 check_criterion \
