@@ -68,8 +68,8 @@ pub async fn check_authz(
         return Ok(next.run(request).await);
     };
 
-    // Resolve role from DB.
-    let role = resolve_role(&state, operator_id, ctx.org_id).await;
+    // Resolve role from DB. DB errors become 503, not 403.
+    let role = resolve_role(&state, operator_id, ctx.org_id).await?;
 
     match role {
         None => Err(forbidden_response("not a member of this org")),
@@ -98,7 +98,12 @@ fn forbidden_response(detail: &str) -> Response {
 }
 
 /// Look up the caller's role in the org from `operator_org_roles`.
-async fn resolve_role(state: &AppState, operator_id: Uuid, org_id: Uuid) -> Option<Role> {
+/// Returns `Err(503)` on DB failure so transient errors don't masquerade as 403.
+async fn resolve_role(
+    state: &AppState,
+    operator_id: Uuid,
+    org_id: Uuid,
+) -> Result<Option<Role>, Response> {
     // Raw query — we can't use the RLS GUC here (not yet set), but
     // `operator_org_roles` is a management table not subject to per-org RLS.
     // Use sqlx::query (not the macro) to avoid offline-mode cache requirements.
@@ -109,18 +114,27 @@ async fn resolve_role(state: &AppState, operator_id: Uuid, org_id: Uuid) -> Opti
     .bind(org_id)
     .fetch_optional(state.storage.pool())
     .await
-    .ok()
-    .flatten();
+    .map_err(|e| {
+        tracing::error!(error = %e, "authz role lookup failed");
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "service_unavailable", "detail": "role lookup failed"})),
+        )
+            .into_response()
+    })?;
 
-    let (role_str,) = row?;
-    match role_str.as_str() {
-        "owner" => Some(Role::Owner),
-        "admin" => Some(Role::Admin),
-        "billing" => Some(Role::Billing),
-        "operator" => Some(Role::Operator),
-        "viewer" => Some(Role::Viewer),
-        _ => None,
-    }
+    let Some((role_str,)) = row else {
+        return Ok(None);
+    };
+    let role = match role_str.as_str() {
+        "owner" => Role::Owner,
+        "admin" => Role::Admin,
+        "billing" => Role::Billing,
+        "operator" => Role::Operator,
+        "viewer" => Role::Viewer,
+        _ => return Ok(None),
+    };
+    Ok(Some(role))
 }
 
 #[cfg(test)]
