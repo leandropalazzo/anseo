@@ -18,11 +18,13 @@ use std::sync::Arc;
 
 use anseo_api::extractors::project::PROJECT_HEADER;
 use anseo_api::{router, AppState};
+use anseo_benchmark::{CryptoError, ProjectKek, SealedContribution, TERMS_VERSION};
 use anseo_core::api_key::{generate as gen_key, API_KEY_HEADER};
 use anseo_core::ProjectId;
 use anseo_storage::models::{ProjectRow, PromptRow};
 use anseo_storage::repositories::{
-    api_keys::ApiKeyRepo, projects::ProjectRepo, prompts::PromptRepo,
+    anonymous_contributions::AnonymousContributionRepo, api_keys::ApiKeyRepo,
+    benchmark_consent::BenchmarkConsentRepo, projects::ProjectRepo, prompts::PromptRepo,
 };
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -38,6 +40,7 @@ async fn seeded() -> (axum::Router, ProjectId, String, String) {
         .await
         .expect("connect to test postgres");
     let storage = Arc::new(anseo_storage::Storage::from_pool(pool.clone()));
+    storage.migrate().await.expect("apply storage migrations");
 
     // Derive the project id from its name so the header resolver
     // (`project_id_for_name`) lands on the row we seed.
@@ -104,6 +107,21 @@ fn post(uri: &str, key: &str, project_name: &str, body: serde_json::Value) -> Re
         .header("content-type", "application/json")
         .body(Body::from(body.to_string()))
         .unwrap()
+}
+
+async fn seed_anonymous_optin(project_id: ProjectId) -> uuid::Uuid {
+    let pool = sqlx::PgPool::connect(&std::env::var("DATABASE_URL").unwrap())
+        .await
+        .unwrap();
+    BenchmarkConsentRepo::new(&pool)
+        .record_optin(
+            project_id,
+            TERMS_VERSION,
+            Some("test"),
+            Some("ingest live-db"),
+        )
+        .await
+        .expect("seed anonymous benchmark opt-in")
 }
 
 #[tokio::test]
@@ -176,6 +194,19 @@ async fn ingest_contribute_false_writes_no_contribution() {
     // contribute=false ⇒ skipped, never "sealed".
     assert_eq!(payload["contribution"]["status"], "skipped_not_opted_in");
     assert_ne!(payload["contribution"]["status"], "sealed");
+
+    let run_id: anseo_core::PromptRunId = payload["run_id"].as_str().unwrap().parse().unwrap();
+    let pool = sqlx::PgPool::connect(&std::env::var("DATABASE_URL").unwrap())
+        .await
+        .unwrap();
+    let row = AnonymousContributionRepo::new(&pool)
+        .by_prompt_run(run_id)
+        .await
+        .expect("query anonymous contributions");
+    assert!(
+        row.is_none(),
+        "contribute=false must not persist a benchmark row"
+    );
 }
 
 #[tokio::test]
@@ -184,7 +215,7 @@ async fn ingest_contribute_true_without_kek_is_rejected() {
     // Story 40.4 AC-1 hard gate: a `contribute: true` request on a project with
     // no per-project benchmark KEK is rejected up-front (403 kek_missing) — the
     // run is NOT recorded under a false promise of contribution.
-    let (app, _project_id, project_name, api_key) = seeded().await;
+    let (app, project_id, project_name, api_key) = seeded().await;
     let body = serde_json::json!({
         "prompt_slug": "vector-db",
         "provider": "openai",
@@ -202,11 +233,81 @@ async fn ingest_contribute_true_without_kek_is_rejected() {
         .unwrap();
     let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(payload["error"], "kek_missing");
+
+    let pool = sqlx::PgPool::connect(&std::env::var("DATABASE_URL").unwrap())
+        .await
+        .unwrap();
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM anonymous_contributions WHERE project_id = $1")
+            .bind(project_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        count, 0,
+        "403 contribute=true must not persist a benchmark row"
+    );
 }
 
 #[tokio::test]
 #[ignore = "requires DATABASE_URL"]
-async fn ingest_undeclared_prompt_returns_404() {
+async fn ingest_contribute_true_persists_sealed_anonymous_contribution() {
+    let (app, project_id, project_name, api_key) = seeded().await;
+    let store = anseo_core::default_chain();
+    let project_id_str = project_id.to_string();
+    let _kek = ProjectKek::load_or_create(&store, &project_id_str).unwrap();
+    let consent_id = seed_anonymous_optin(project_id).await;
+
+    let body = serde_json::json!({
+        "prompt_slug": "vector-db",
+        "provider": "openai",
+        "model": "gpt-4o-2024-08-06",
+        "response_text": "Pinecone, see https://docs.pinecone.io/guide",
+        "contribute": true,
+    });
+    let response = app
+        .oneshot(post("/v1/ingest/run", &api_key, &project_name, body))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let bytes = axum::body::to_bytes(response.into_body(), 64 * 1024)
+        .await
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(payload["contribution"]["status"], "sealed");
+
+    let run_id: anseo_core::PromptRunId = payload["run_id"].as_str().unwrap().parse().unwrap();
+    let pool = sqlx::PgPool::connect(&std::env::var("DATABASE_URL").unwrap())
+        .await
+        .unwrap();
+    let row = AnonymousContributionRepo::new(&pool)
+        .by_prompt_run(run_id)
+        .await
+        .expect("read contribution row")
+        .expect("sealed contribution persisted");
+    assert_eq!(row.project_id, project_id);
+    assert_eq!(row.consent_record_id, consent_id);
+    assert_eq!(row.terms_version, TERMS_VERSION);
+
+    let sealed: SealedContribution = serde_json::from_value(row.sealed_payload).unwrap();
+    let loaded = ProjectKek::load(&store, &project_id_str).unwrap();
+    let opened = loaded.open(&sealed).expect("open persisted sealed payload");
+    assert_eq!(opened.prompt_slug(), "vector-db");
+
+    ProjectKek::destroy(&store, &project_id_str).unwrap();
+    let err = ProjectKek::load(&store, &project_id_str).unwrap_err();
+    assert!(matches!(err, CryptoError::KekMissing { .. }));
+    let new_kek = ProjectKek::load_or_create(&store, &project_id_str).unwrap();
+    assert!(
+        new_kek.open(&sealed).is_err(),
+        "persisted sealed payload must stay undecryptable after shred + rekey"
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn ingest_undeclared_prompt_returns_422() {
     let (app, _project_id, project_name, api_key) = seeded().await;
     let body = serde_json::json!({
         "prompt_slug": "not-declared",
@@ -217,7 +318,7 @@ async fn ingest_undeclared_prompt_returns_404() {
         .oneshot(post("/v1/ingest/run", &api_key, &project_name, body))
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let bytes = axum::body::to_bytes(response.into_body(), 4096)
         .await
         .unwrap();

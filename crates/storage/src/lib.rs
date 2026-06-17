@@ -109,6 +109,15 @@ impl Storage {
         repositories::api_keys::ApiKeyRepo::new(&self.pool)
     }
 
+    /// Epic 40 / Story 40.4 — anonymous ingest contribution outbox. Stores the
+    /// envelope-sealed benchmark payload for opt-in ingest requests so the
+    /// durable benchmark path matches native runs.
+    pub fn anonymous_contributions(
+        &self,
+    ) -> repositories::anonymous_contributions::AnonymousContributionRepo<'_> {
+        repositories::anonymous_contributions::AnonymousContributionRepo::new(&self.pool)
+    }
+
     pub fn webhook_deliveries(&self) -> repositories::webhook_deliveries::WebhookDeliveryRepo<'_> {
         repositories::webhook_deliveries::WebhookDeliveryRepo::new(&self.pool)
     }

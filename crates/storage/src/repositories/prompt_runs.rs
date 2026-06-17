@@ -1,5 +1,5 @@
 use anseo_core::ids::{PromptId, PromptRunId};
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::error::Error;
 use crate::models::PromptRunRow;
@@ -14,6 +14,17 @@ impl<'a> PromptRunRepo<'a> {
     }
 
     pub async fn insert(&self, row: &PromptRunRow) -> Result<PromptRunId, Error> {
+        let mut tx = self.pool.begin().await?;
+        let id = self.insert_in_tx(&mut tx, row).await?;
+        tx.commit().await?;
+        Ok(id)
+    }
+
+    pub async fn insert_in_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        row: &PromptRunRow,
+    ) -> Result<PromptRunId, Error> {
         sqlx::query!(
             r#"
             INSERT INTO prompt_runs (
@@ -49,7 +60,7 @@ impl<'a> PromptRunRepo<'a> {
             row.tenant_id,
             row.created_at,
         )
-        .execute(self.pool)
+        .execute(&mut **tx)
         .await?;
         Ok(row.id)
     }

@@ -295,6 +295,7 @@ impl<'a> ProjectRepo<'a> {
             // `consent_record_id` FK targets benchmark_consent.id (the row id,
             // unchanged by a re-key), so it stays valid across the move.
             "contributions",
+            "anonymous_contributions",
             "etl_jobs",
             "alert_rules",
             // No FK to projects, but scoped by project_id (see migration
