@@ -3,7 +3,7 @@
 //!
 //!   1. plugin `(id, version)` is not in the revocation list,
 //!   2. signing key `(namespace, keyid)` is not in the revocation list,
-//!   3. the namespace claim is signed by a compile-pinned `OPENGEO_ROOT_PUBKEY`
+//!   3. the namespace claim is signed by a compile-pinned `ANSEO_ROOT_PUBKEY`
 //!      (or a rotation thereof),
 //!   4. the plugin's detached signature verifies over
 //!      `SHA-256(plugin.toml || entrypoint_bytes)` with the author key,

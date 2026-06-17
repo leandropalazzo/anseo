@@ -14,7 +14,7 @@
 //! Build target: `wasm32-wasi` → `entrypoint.wasm` (the manifest `entry_point`).
 //! The 41.4 CI pipeline compiles this, computes `SHA-256(manifest.yaml ||
 //! entrypoint.wasm)`, signs it with the namespace author key, and publishes the
-//! bundle + `signature.bin` + `claim.toml` to `github.com/anseo/plugin-registry`.
+//! bundle + `signature.bin` + `claim.toml` to `github.com/leandropalazzo/plugin-registry`.
 //!
 //! The host invokes the plugin only through the existing provider surface via
 //! the `plugin:anseo/anseo-example-provider:provider` namespace — no new MCP
