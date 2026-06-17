@@ -992,6 +992,14 @@
       "IngestRunRequest": {
         "type": "object",
         "description": "One externally-executed prompt run submitted for ingestion.",
+        "anyOf": [
+          {
+            "required": ["raw_response"]
+          },
+          {
+            "required": ["response_text"]
+          }
+        ],
         "properties": {
           "prompt_slug": {
             "type": "string",

@@ -82,9 +82,9 @@ Body (snake_case; optional fields omitted when unset so server defaults apply):
 }
 ```
 
-`raw_response` is now the canonical payload field. A client MAY still send only
-`response_text` for backward compatibility, but new SDKs should populate
-`raw_response` and treat `response_text` as a compatibility shim.
+The request MUST include at least one payload surface: canonical
+`raw_response`, compatibility `response_text`, or both. New SDKs should
+populate `raw_response` and treat `response_text` as a compatibility shim.
 
 `contribute` is a per-run opt-in to the benchmark contribution path. Omit it to
 preserve the safe default (`false`). A `true` value requires a per-project KEK at
