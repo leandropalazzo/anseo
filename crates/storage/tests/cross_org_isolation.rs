@@ -19,15 +19,11 @@ use sqlx::{Executor, PgPool};
 // ── Setup helpers ────────────────────────────────────────────────────────────
 
 async fn setup_rls_tester_role(pool: &PgPool) {
-    pool.execute(
-        "DO $$ BEGIN \
-            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'rls_tester') THEN \
-                CREATE ROLE rls_tester NOLOGIN; \
-            END IF; \
-         END $$",
-    )
-    .await
-    .expect("create rls_tester role");
+    // CREATE ROLE IF NOT EXISTS is atomic in Postgres — avoids the TOCTOU
+    // race that the DO $$ IF NOT EXISTS ... END $$ pattern has when tests run in parallel.
+    pool.execute("CREATE ROLE IF NOT EXISTS rls_tester NOLOGIN")
+        .await
+        .expect("create rls_tester role");
 
     pool.execute(
         "GRANT USAGE ON SCHEMA public TO rls_tester; \
