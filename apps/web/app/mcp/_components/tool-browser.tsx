@@ -26,7 +26,7 @@ function exampleCall(toolId: string): string {
 
 const CLAUDE_DESKTOP_CONFIG = `{
   "mcpServers": {
-    "opengeo": {
+    "anseo": {
       "command": "ogeo",
       "args": ["mcp", "serve"]
     }

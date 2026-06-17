@@ -8,7 +8,7 @@
 //! - It carries **no API key** (no `Authorization` header).
 //! - It carries **no project/brand identifier** (no `X-Anseo-Project`,
 //!   no `Project-Id`).
-//! - Its `User-Agent` is a fixed `opengeo-mcp/<version> benchmark-search`
+//! - Its `User-Agent` is a fixed `anseo-mcp/<version> benchmark-search`
 //!   string that contains no brand name.
 //!
 //! The structural guarantee is that this client never *receives* the api key
@@ -23,7 +23,7 @@ use reqwest::header::USER_AGENT;
 
 /// Default public benchmark service base URL (overridable via
 /// `ANSEO_BENCHMARK_URL` for self-hosted / test deployments).
-const DEFAULT_BENCHMARK_URL: &str = "https://benchmark.opengeo.dev";
+const DEFAULT_BENCHMARK_URL: &str = "https://benchmark.anseo.ai";
 
 /// Fixed User-Agent for benchmark requests. No brand name (privacy floor).
 pub fn benchmark_user_agent() -> String {

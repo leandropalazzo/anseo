@@ -309,7 +309,7 @@ mod tests {
     }
 
     #[test]
-    fn extract_api_key_returns_token_for_x_opengeo_api_key_header() {
+    fn extract_api_key_returns_token_for_x_anseo_api_key_header() {
         assert_eq!(extract_api_key(Some("ogeo_abc123")), Some("ogeo_abc123"));
         // No scheme prefix; whitespace trimmed.
         assert_eq!(extract_api_key(Some("  ogeo_abc  ")), Some("ogeo_abc"));

@@ -494,7 +494,7 @@ async fn get_clickhouse_install_stream(
 //
 // `project_id` is a `ProjectId` (a ULID newtype) but encodes/decodes as a
 // Postgres `UUID` (see the `sqlx::Type`/`Encode` impls on `ulid_newtype!`
-// in `opengeo-core::ids`), so we bind `state.project_id` directly against
+// in `anseo-core::ids`), so we bind `state.project_id` directly against
 // the `project_id UUID PRIMARY KEY` column.
 
 /// A heartbeat older than this (or NULL) on a not-yet-finished row means
@@ -614,7 +614,7 @@ async fn get_clickhouse_etl_status(
 // The resumable engine `anseo_analytics::metrics_store::clickhouse_etl::
 // migrate_project_resumable` (and the `ClickHouseMetricsStore` it needs)
 // live entirely behind the analytics crate's `clickhouse` Cargo feature,
-// which `opengeo-api` does NOT enable — so the symbol is not even linkable
+// which `anseo-api` does NOT enable — so the symbol is not even linkable
 // from this handler. The WORKER (`apps/worker`, built `--features clickhouse`)
 // owns ETL execution; the API only enqueues. Story 31-4 created the
 // `etl_jobs` queue table for exactly this seam: we INSERT a `pending` row and

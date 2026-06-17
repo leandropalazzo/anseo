@@ -79,7 +79,7 @@ async fn comparisons_missing_brands_returns_400_or_401() {
 // Live-DB happy-path coverage. Requires a real Postgres; opt-in.
 //
 // To run:
-//   DATABASE_URL=postgres://… cargo test -p opengeo-api \
+//   DATABASE_URL=postgres://… cargo test -p anseo-api \
 //     --test comparisons -- --ignored
 //
 // Covers per Story 0.8 acceptance:

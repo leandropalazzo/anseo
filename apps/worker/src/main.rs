@@ -23,17 +23,17 @@ use tokio::signal;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    init_tracing("opengeo-worker")?;
+    init_tracing("anseo-worker")?;
     tracing::info!(
         event = "service.boot",
-        service = "opengeo-worker",
+        service = "anseo-worker",
         poll_interval_seconds = POLL_INTERVAL_SECONDS,
         reaper_idle_seconds = REAPER_IDLE_SECONDS,
         "starting worker"
     );
 
     let database_url =
-        std::env::var("DATABASE_URL").context("DATABASE_URL must be set for opengeo-worker")?;
+        std::env::var("DATABASE_URL").context("DATABASE_URL must be set for anseo-worker")?;
     let storage = Storage::connect(&database_url)
         .await
         .context("failed to open postgres pool")?;

@@ -112,8 +112,8 @@ async fn api_runs_root_path_also_returns_401_when_unauthenticated() {
 }
 
 #[tokio::test]
-async fn x_opengeo_api_key_header_constant_is_what_we_send() {
+async fn x_anseo_api_key_header_constant_is_what_we_send() {
     // Pin the spec wire name. If a future refactor renames the constant
-    // away from `X-OpenGEO-API-Key`, this test fails immediately.
+    // away from `X-Anseo-API-Key`, this test fails immediately.
     assert_eq!(API_KEY_HEADER, "X-Anseo-API-Key");
 }

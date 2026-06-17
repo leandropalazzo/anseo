@@ -7,7 +7,7 @@
 //!
 //! ```text
 //! DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo_test \
-//!   cargo test -p opengeo-api --test project_header -- --ignored
+//!   cargo test -p anseo-api --test project_header -- --ignored
 //! ```
 //!
 //! Coverage:

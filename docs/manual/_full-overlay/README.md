@@ -1,6 +1,6 @@
 # Anseo Manuals — Workspace-Full (Operator Edition)
 
-> **This is the workspace-full variant** — the complete operator manual including Pro/overlay capabilities delivered via the `opengeo-internal` overlay. It is staged here for relocation to `opengeo-internal/docs-internal/` by a maintainer. It must **never** be published to the public OSS documentation site.
+> **This is the workspace-full variant** — the complete operator manual including Pro/overlay capabilities delivered via the `anseo-internal` overlay. It is staged here for relocation to `anseo-internal/docs-internal/` by a maintainer. It must **never** be published to the public OSS documentation site.
 
 Anseo is open-source AI-search-visibility **observability infrastructure** — "Prometheus + Grafana for AI search." It ships **three coordinated surfaces over one engine**, and a core promise: **CLI ⇄ Web ⇄ MCP parity** — the same data and operations, reachable however you work.
 
@@ -27,7 +27,7 @@ Anseo is open-source AI-search-visibility **observability infrastructure** — "
                           │
                  Postgres + ClickHouse  ("what was observed")
                           │
-              [Pro overlay: opengeo-internal crates]
+              [Pro overlay: anseo-internal crates]
               orgs / RLS / RBAC / SSO / billing / cloud
 ```
 
@@ -46,17 +46,17 @@ Anseo is open-source AI-search-visibility **observability infrastructure** — "
 | Automate recurring monitoring | **CLI/Web** schedules + **webhooks** |
 | Pipe data into BI / other tools | **CLI** `--format json` / **REST API** (see CLI manual → API keys) |
 | Manage an org with multiple teams / RLS / RBAC | **Pro overlay** (orgs, roles, row-level security) |
-| Enforce SSO for your org | **Pro overlay** (SSO/SAML/OIDC, `opengeo-internal`) |
-| Manage subscriptions, seat billing, invoices | **Pro overlay** (billing module, `opengeo-internal`) |
-| Get hallucination / brand-accuracy verdicts on AI claims | **Pro overlay** (premium verdicts, `opengeo-internal`) |
+| Enforce SSO for your org | **Pro overlay** (SSO/SAML/OIDC, `anseo-internal`) |
+| Manage subscriptions, seat billing, invoices | **Pro overlay** (billing module, `anseo-internal`) |
+| Get hallucination / brand-accuracy verdicts on AI claims | **Pro overlay** (premium verdicts, `anseo-internal`) |
 
 ## Open-core boundary
 
 The **MIT OSS core** covers: data collection, extraction, analytics, crawler ingestion, audit heuristics, recommendations, multi-project support, `anseo serve`, the plugin host and marketplace OSS parts, and all SDKs.
 
-### Premium / Pro overlay (opengeo-internal)
+### Premium / Pro overlay (anseo-internal)
 
-Capabilities delivered via the `opengeo-internal` private overlay crate set. Requires `entitlement = premium_enabled` or a valid Pro license key.
+Capabilities delivered via the `anseo-internal` private overlay crate set. Requires `entitlement = premium_enabled` or a valid Pro license key.
 
 | Capability | Overlay crate | Notes |
 |---|---|---|

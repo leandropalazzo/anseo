@@ -47,7 +47,7 @@ export function Topbar({ onOpenPalette }: TopbarProps) {
   const title = titleForPath(pathname);
   const [isSyncing, startSync] = useTransition();
   const [alertCount, setAlertCount] = useState<number | undefined>(undefined);
-  const [project, setProject] = useState<string>("opengeo");
+  const [project, setProject] = useState<string>("anseo");
 
   // Live unread count for the bell: open anomalies in the last 7d. Best-effort
   // — a fetch failure simply leaves the badge off.

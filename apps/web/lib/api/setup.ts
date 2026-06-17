@@ -272,7 +272,7 @@ export interface ConnectResult {
 }
 
 /** POST /v1/setup/clickhouse/connect — probes the remote ClickHouse and, on
- *  success, persists the endpoint to opengeo.yaml. Returns a structured
+ *  success, persists the endpoint to anseo.yaml. Returns a structured
  *  result; the password is sent for the probe only and never stored. */
 export async function postClickHouseConnect(
   req: ConnectRequest,

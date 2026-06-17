@@ -39,7 +39,7 @@
 /// A surface through which a capability can be exposed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Surface {
-    /// The `opengeo` CLI (`apps/cli`, `clap` verb tree).
+    /// The `anseo` CLI (`apps/cli`, `clap` verb tree).
     Cli,
     /// The Web UI + its backing `/v1` REST API (`apps/web` + `apps/api`).
     WebApi,
@@ -55,7 +55,7 @@ impl Surface {
 /// How a single capability is reached on a single surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SurfaceCoverage {
-    /// Reachable via the named CLI verb path, e.g. `opengeo recommend list`.
+    /// Reachable via the named CLI verb path, e.g. `anseo recommend list`.
     Cli(&'static str),
     /// Reachable via the named Web route and/or `/v1` OpenAPI path.
     WebApi(&'static str),
@@ -201,7 +201,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "run_prompt",
         summary: "Dispatch a one-shot prompt run across the project's providers.",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo run"),
+            SurfaceCoverage::Cli("anseo run"),
             SurfaceCoverage::WebApi("/v1/prompt-runs"),
             SurfaceCoverage::Mcp("run_prompt"),
         ],
@@ -211,7 +211,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "suite_prompts",
         summary: "Discover the canonical GEO benchmark prompt slugs used for comparable contribution cohorts.",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo suite list"),
+            SurfaceCoverage::Cli("anseo suite list"),
             SurfaceCoverage::WebApi("/v1/suite/prompts"),
             SurfaceCoverage::Mcp("list_suite_prompts"),
         ],
@@ -221,7 +221,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "visibility",
         summary: "Visibility score trend per prompt over a time window.",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo report"),
+            SurfaceCoverage::Cli("anseo report"),
             SurfaceCoverage::WebApi("/v1/visibility/trend"),
             SurfaceCoverage::Mcp("get_visibility"),
         ],
@@ -231,7 +231,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "compare_brands",
         summary: "Deterministic brand-vs-competitors comparison matrix.",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo report"),
+            SurfaceCoverage::Cli("anseo report"),
             SurfaceCoverage::WebApi("/v1/comparisons"),
             SurfaceCoverage::Mcp("compare_brands"),
         ],
@@ -241,7 +241,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "citations",
         summary: "Top cited domains / source types over a window.",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo report"),
+            SurfaceCoverage::Cli("anseo report"),
             SurfaceCoverage::WebApi("/v1/citations/summary"),
             SurfaceCoverage::Mcp("get_citations"),
         ],
@@ -251,7 +251,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "trends",
         summary: "Significant visibility/citation trend detections.",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo report"),
+            SurfaceCoverage::Cli("anseo report"),
             SurfaceCoverage::WebApi("/v1/visibility/trend"),
             SurfaceCoverage::Mcp("list_trends"),
         ],
@@ -261,7 +261,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "audit",
         summary: "Crawl owned pages and score citation-readiness.",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo audit"),
+            SurfaceCoverage::Cli("anseo audit"),
             SurfaceCoverage::WebApi("/audit"),
             SurfaceCoverage::Mcp("audit"),
         ],
@@ -286,7 +286,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "recommend_list",
         summary: "List active GEO recommendations for the project.",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo recommend list"),
+            SurfaceCoverage::Cli("anseo recommend list"),
             SurfaceCoverage::WebApi("/v1/recommendations"),
             SurfaceCoverage::Mcp("recommend.list"),
         ],
@@ -296,7 +296,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "recommend_show",
         summary: "Show one recommendation with full traceability.",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo recommend show"),
+            SurfaceCoverage::Cli("anseo recommend show"),
             SurfaceCoverage::WebApi("/v1/recommendations/{id}"),
             SurfaceCoverage::Mcp("recommend.show"),
         ],
@@ -306,7 +306,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "recommend_ack",
         summary: "Acknowledge a surfaced recommendation.",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo recommend ack"),
+            SurfaceCoverage::Cli("anseo recommend ack"),
             SurfaceCoverage::WebApi("/v1/recommendations/{id}/state"),
             SurfaceCoverage::Mcp("recommend.ack"),
         ],
@@ -316,7 +316,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "recommend_dismiss",
         summary: "Dismiss a recommendation.",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo recommend dismiss"),
+            SurfaceCoverage::Cli("anseo recommend dismiss"),
             SurfaceCoverage::WebApi("/v1/recommendations/{id}/state"),
             SurfaceCoverage::Mcp("recommend.dismiss"),
         ],
@@ -326,7 +326,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "recommend_mark_acted",
         summary: "Mark a recommendation as acted, with optional evidence.",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo recommend mark-acted"),
+            SurfaceCoverage::Cli("anseo recommend mark-acted"),
             SurfaceCoverage::WebApi("/v1/recommendations/{id}/state"),
             SurfaceCoverage::Mcp("recommend.mark_acted"),
         ],
@@ -337,7 +337,7 @@ pub const REGISTRY: &[Capability] = &[
         id: "search_benchmarks",
         summary: "Search the public cross-project benchmark dataset (project-less).",
         coverage: &[
-            SurfaceCoverage::Cli("opengeo benchmark"),
+            SurfaceCoverage::Cli("anseo benchmark"),
             SurfaceCoverage::Mcp("search_benchmarks"),
         ],
         exception: Some(SingleSurfaceException {

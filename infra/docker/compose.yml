@@ -71,7 +71,7 @@ services:
       # so it must match the YAML the CLI used when seeding data.
       ANSEO_CONFIG: /anseo.yaml
       # Provider API keys set via the dashboard (POST /v1/setup/api-keys/:provider)
-      # are persisted through opengeo_core's secret-store chain. The OS keyring
+      # are persisted through anseo_core's secret-store chain. The OS keyring
       # is unavailable in a headless container, so the durable leg is the
       # age-encrypted secrets file — which requires a passphrase. Without it the
       # chain silently falls through to an ephemeral in-memory store and keys
@@ -140,7 +140,7 @@ services:
       ANSEO_DISABLE_KEYRING: "1"
       XDG_CONFIG_HOME: /data/config
     volumes:
-      # Same opengeo.yaml the api mounts (read-only).
+      # Same anseo.yaml the api mounts (read-only).
       - ${ANSEO_PROJECT_CONFIG:-./fixture-anseo.yaml}:/anseo.yaml:ro
       # Shared age-secrets home so the worker reads dashboard-set provider keys.
       - api-secrets:/data/config

@@ -126,7 +126,7 @@ export function PrivacySection() {
       <Card eyebrow="data residency" title="Where your data lives">
         <CodeBlock
           lang="text"
-          code={`secrets:   $XDG_CONFIG_HOME/opengeo/secrets.age (0600)
+          code={`secrets:   $XDG_CONFIG_HOME/anseo/secrets.age (0600)
 database:  postgres://anseo@localhost:5432/anseo_test
 exports:   ./reports/ (markdown, json, csv)
 telemetry: <none>`}

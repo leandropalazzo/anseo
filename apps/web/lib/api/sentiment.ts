@@ -1,6 +1,6 @@
 // Epic 30 Story 3 — sentiment surface (live).
 // Wires to GET /api/visibility/sentiment (same root-gated lane as the rest of
-// the visibility client). Backend: opengeo_analytics::sentiment::sentiment_points.
+// the visibility client). Backend: anseo_analytics::sentiment::sentiment_points.
 
 import { getJson } from "./_client";
 

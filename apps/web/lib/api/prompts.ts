@@ -1,5 +1,5 @@
 // DB-authoritative prompt CRUD (Epic 35). Prompts are seeded from
-// opengeo.yaml at boot, then edited through the dashboard. Identity
+// anseo.yaml at boot, then edited through the dashboard. Identity
 // (prompt_id) is a hash of the brand name folded with the prompt name, so a
 // rename re-keys the row — allowed only before the first run (else 409).
 //

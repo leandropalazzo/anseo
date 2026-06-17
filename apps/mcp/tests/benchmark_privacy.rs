@@ -23,7 +23,7 @@ fn sample_input() -> SearchBenchmarksInput {
 /// (a)+(b) The outbound request leaks no project/brand identifiers and no key.
 #[test]
 fn privacy_floor_request_carries_no_local_identifiers() {
-    let client = BenchmarkClient::with_base_url("https://benchmark.opengeo.dev".into()).unwrap();
+    let client = BenchmarkClient::with_base_url("https://benchmark.anseo.ai".into()).unwrap();
     let query = build_benchmark_query(&sample_input());
     let req = client.aggregates_request(&query).build().unwrap();
 
@@ -57,7 +57,7 @@ fn privacy_floor_request_carries_no_local_identifiers() {
     assert!(keys.contains(&"window".to_string()));
 
     // Hits the PUBLIC benchmark host, not a local /v1 surface.
-    assert_eq!(req.url().host_str(), Some("benchmark.opengeo.dev"));
+    assert_eq!(req.url().host_str(), Some("benchmark.anseo.ai"));
     assert!(req.url().path().starts_with("/v1/benchmark/"));
 }
 
@@ -68,7 +68,7 @@ fn user_agent_is_brand_free() {
     assert!(ua.starts_with("anseo-mcp/"));
     assert!(ua.ends_with(" benchmark-search"));
 
-    let client = BenchmarkClient::with_base_url("https://benchmark.opengeo.dev".into()).unwrap();
+    let client = BenchmarkClient::with_base_url("https://benchmark.anseo.ai".into()).unwrap();
     let req = client
         .aggregates_request(&build_benchmark_query(&sample_input()))
         .build()

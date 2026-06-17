@@ -11,7 +11,7 @@
 //!
 //! ```text
 //! DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo \
-//!   cargo test -p opengeo-api --test ingest -- --ignored
+//!   cargo test -p anseo-api --test ingest -- --ignored
 //! ```
 
 use std::sync::Arc;

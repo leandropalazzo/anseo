@@ -209,7 +209,7 @@ pub enum PluginSub {
 
 #[derive(Debug, Subcommand)]
 pub enum McpSub {
-    /// Start the MCP server (delegates to opengeo-mcp binary).
+    /// Start the MCP server (delegates to anseo-mcp binary).
     Serve(commands::mcp::ServeArgs),
     /// Show the status of a running MCP server.
     Status(commands::mcp::StatusArgs),

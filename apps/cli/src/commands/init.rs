@@ -10,7 +10,7 @@
 //!   partial scaffold (no half-applied state).
 //!
 //! Scaffolded `anseo.yaml` is verified valid against the v0.1 schema by the
-//! `opengeo_init_writes_a_valid_schema_v0_1_config` test in
+//! `anseo_init_writes_a_valid_schema_v0_1_config` test in
 //! `tests/cli_smoke.rs`.
 
 use std::io::IsTerminal;

@@ -25,7 +25,7 @@ async fn slack_canonical_block_kit_post_round_trips_against_mock_consumer() {
     let payload = build_payload(
         "schedule.missed",
         "Tick missed for daily-check",
-        "https://opengeo.local/dashboard",
+        "https://anseo.local/dashboard",
         false,
     );
 
@@ -56,7 +56,7 @@ async fn slack_payload_under_size_cap_for_typical_event() {
         "Daily check tick missed because the worker was offline 09:00–10:15 UTC. \
          Next anchored tick fires at 11:00 UTC; the 10:00 slot will record `missed` \
          status in the schedule_ticks table.",
-        "https://opengeo.local/runs/01HXYZ",
+        "https://anseo.local/runs/01HXYZ",
         false,
     );
     let bytes = serde_json::to_vec(&payload).expect("serialize");
@@ -79,7 +79,7 @@ async fn slack_oversized_payload_falls_back_to_dashboard_link() {
         .mount(&mock)
         .await;
 
-    let dashboard = "https://opengeo.local/runs/01H";
+    let dashboard = "https://anseo.local/runs/01H";
     let huge_summary = "X".repeat(SLACK_PAYLOAD_CAP_BYTES + 2_000);
     let payload = build_payload("citation.anomaly", &huge_summary, dashboard, false);
     let bytes = serde_json::to_vec(&payload).expect("serialize");
@@ -127,7 +127,7 @@ async fn slack_mentions_stripped_by_default_in_outbound_payload() {
     let payload = build_payload(
         "visibility.anomaly",
         "<!channel> Pinecone fell to rank 11",
-        "https://opengeo.local",
+        "https://anseo.local",
         false,
     );
     let summary = payload["blocks"][1]["text"]["text"].as_str().unwrap();

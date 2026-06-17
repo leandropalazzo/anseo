@@ -11,7 +11,7 @@ fn allow_public_without_key_exits_1() {
         .env("RUST_LOG", "error")
         .args(["--allow-public", "--transport", "http+sse"])
         .output()
-        .expect("failed to spawn opengeo-mcp");
+        .expect("failed to spawn anseo-mcp");
     assert_eq!(
         output.status.code(),
         Some(1),

@@ -197,7 +197,7 @@ pub async fn run(args: ServeArgs) -> Result<(), OpenGeoError> {
     });
 
     // Serve the API with graceful shutdown driven by the shared signal. axum is
-    // confined to the `opengeo-api` crate behind `serve_with_shutdown`.
+    // confined to the `anseo-api` crate behind `serve_with_shutdown`.
     let api_shutdown = subscribe_shutdown(&shutdown_tx);
     let server = serve_with_shutdown(booted, api_shutdown);
 

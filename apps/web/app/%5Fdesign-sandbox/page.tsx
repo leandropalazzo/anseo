@@ -71,7 +71,7 @@ function ShellPanel() {
       <Card title="Deployment switch" eyebrow="shell · deployment">
         <p className="text-[length:var(--font-size-sm)] text-[color:var(--text-muted)]">
           Toggle Local/Cloud in the topbar — your choice persists to
-          <code> localStorage[&apos;opengeo:deployment&apos;]</code> and the
+          <code> localStorage[&apos;anseo:deployment&apos;]</code> and the
           sidebar&apos;s project switcher icon updates in sync.
         </p>
       </Card>

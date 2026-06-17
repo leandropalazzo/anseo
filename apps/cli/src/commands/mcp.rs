@@ -1,6 +1,6 @@
 //! `ogeo mcp {serve, status, tools, install-config}` — Phase 3 Story 16.7.
 //!
-//! * `serve` — delegates to the `opengeo-mcp` binary.
+//! * `serve` — delegates to the `anseo-mcp` binary.
 //! * `status` — TCP-connect probe; informational only (exits 0).
 //! * `tools` — fetches the operator-facing `/v1/mcp/tools` catalog.
 //! * `install-config` — writes the mcpServers JSON snippet into the
@@ -32,7 +32,7 @@ pub struct ServeArgs {
 }
 
 pub fn run_serve(args: ServeArgs) -> Result<(), OpenGeoError> {
-    // Resolve the opengeo-mcp binary path.
+    // Resolve the anseo-mcp binary path.
     let bin = std::env::var("ANSEO_MCP_BIN")
         .or_else(|_| std::env::var("OPENGEO_MCP_BIN")) // deprecated alias
         .unwrap_or_else(|_| "anseo-mcp".to_string());

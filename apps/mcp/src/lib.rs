@@ -1,4 +1,4 @@
-//! Library surface for `opengeo-mcp`.
+//! Library surface for `anseo-mcp`.
 //!
 //! Exposes the core modules so that integration tests under `tests/` can
 //! access `Dispatcher`, the transport layer, and the protocol types without

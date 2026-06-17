@@ -8,10 +8,10 @@
 //! Run with:
 //!
 //!     CLICKHOUSE_URL=http://localhost:8123 \
-//!     CLICKHOUSE_USER=opengeo CLICKHOUSE_PASSWORD=... \
+//!     CLICKHOUSE_USER=anseo CLICKHOUSE_PASSWORD=... \
 //!     CLICKHOUSE_DATABASE=anseo_analytics \
 //!     DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo \
-//!     cargo test -p opengeo-analytics --features clickhouse \
+//!     cargo test -p anseo-analytics --features clickhouse \
 //!       --test clickhouse_etl_idempotent -- --ignored
 
 #![cfg(feature = "clickhouse")]

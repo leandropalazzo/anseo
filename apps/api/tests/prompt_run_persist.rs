@@ -10,13 +10,13 @@
 //!   no API key configured persists a `failed` row with
 //!   `provider_unauthorized` and returns 202.
 //!
-//! Gated on `live_db_tests` via the `opengeo-scheduler` feature flag
+//! Gated on `live_db_tests` via the `anseo-scheduler` feature flag
 //! (shared with the rest of the live-DB suite) and `#[ignore]`'d for the
 //! default cargo run; invoke with:
 //!
 //! ```text
 //! DATABASE_URL=postgres://anseo:anseo@localhost:5432/anseo \
-//!   cargo test -p opengeo-api --test prompt_run_persist -- --ignored
+//!   cargo test -p anseo-api --test prompt_run_persist -- --ignored
 //! ```
 
 use std::sync::Arc;

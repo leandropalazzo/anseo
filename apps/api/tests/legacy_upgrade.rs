@@ -25,7 +25,7 @@
 //!
 //! ```text
 //! DATABASE_URL=postgres://anseo:anseo@localhost:5447/anseo_test \
-//!   cargo test -p opengeo-api --test legacy_upgrade -- --ignored
+//!   cargo test -p anseo-api --test legacy_upgrade -- --ignored
 //! ```
 
 use anseo_api::extractors::resolve_project;

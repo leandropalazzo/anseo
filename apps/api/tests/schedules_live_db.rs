@@ -8,7 +8,7 @@
 //! - DELETE returns 204; subsequent GET returns 404.
 //!
 //! Gated `#[ignore]`; run with
-//! `DATABASE_URL=... cargo test -p opengeo-api --test schedules_live_db -- --ignored`.
+//! `DATABASE_URL=... cargo test -p anseo-api --test schedules_live_db -- --ignored`.
 
 use std::sync::Arc;
 
