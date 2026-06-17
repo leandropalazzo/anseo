@@ -16,6 +16,7 @@
 
 pub mod bearer;
 pub mod error;
+pub mod invites;
 pub mod jwks;
 pub mod totp;
 
