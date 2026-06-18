@@ -82,6 +82,11 @@ impl Storage {
         repositories::organizations::OrgsRepo::new(&self.pool)
     }
 
+    /// Story 26.1 — actor-attributed append-only org management audit trail.
+    pub fn org_audit(&self) -> repositories::org_audit::OrgAuditRepo<'_> {
+        repositories::org_audit::OrgAuditRepo::new(&self.pool)
+    }
+
     pub fn audit(&self) -> repositories::audit::AuditRepo<'_> {
         repositories::audit::AuditRepo::new(&self.pool)
     }
