@@ -132,8 +132,6 @@ mod tests {
     /// [p4-audit-1] Evidence sentinel: Story 26.2 AC — audit export (list_range)
     /// + retention constant + role-scoped export endpoint exist and compile.
     #[allow(dead_code)]
-    const P4_AUDIT_1_EVIDENCE: &str = concat!(
-        "[p4-audit-1] story-26.2: OrgAuditRepo::list_range (date-range export) + ",
-        "AUDIT_RETENTION_DAYS constant + GET /v1/orgs/:id/audit-log/export role-scoped"
-    );
+    const P4_AUDIT_1_EVIDENCE: &str =
+        "[p4-audit-1] story-26.2: OrgAuditRepo::list_range + AUDIT_RETENTION_DAYS + export endpoint";
 }

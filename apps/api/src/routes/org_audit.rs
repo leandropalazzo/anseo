@@ -304,7 +304,6 @@ mod tests {
     /// [p4-audit-1] Contract sentinel — asserts that role-scoped export, retention
     /// policy, and date-range list_range are all present in this compilation unit.
     #[allow(dead_code)]
-    const P4_AUDIT_1_CONTRACT: &str = concat!(
-        "[p4-audit-1] export endpoint + retention endpoint + role-scoped billing prefix compile"
-    );
+    const P4_AUDIT_1_CONTRACT: &str =
+        "[p4-audit-1] export endpoint + retention endpoint + role-scoped billing prefix compile";
 }
