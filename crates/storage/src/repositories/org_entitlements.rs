@@ -91,6 +91,32 @@ impl<'a> OrgEntitlementsRepo<'a> {
         tx.commit().await?;
         Ok(u64::try_from(row.0).unwrap_or(u64::MAX))
     }
+
+    /// Count active members (rows in operator_org_roles) for an org.
+    pub async fn count_active_members(&self, org_id: Uuid) -> Result<u32, Error> {
+        let mut tx = self.pool.begin().await?;
+        set_org_guc(&mut tx, org_id).await?;
+        let row: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM operator_org_roles WHERE org_id = $1")
+                .bind(org_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        tx.commit().await?;
+        Ok(u32::try_from(row.0).unwrap_or(u32::MAX))
+    }
+
+    /// Count distinct brands (project_ids) granted within an org.
+    pub async fn count_active_brands(&self, org_id: Uuid) -> Result<u32, Error> {
+        let mut tx = self.pool.begin().await?;
+        set_org_guc(&mut tx, org_id).await?;
+        let row: (i64,) =
+            sqlx::query_as("SELECT COUNT(DISTINCT project_id) FROM brand_grants WHERE org_id = $1")
+                .bind(org_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        tx.commit().await?;
+        Ok(u32::try_from(row.0).unwrap_or(u32::MAX))
+    }
 }
 
 async fn set_org_guc(

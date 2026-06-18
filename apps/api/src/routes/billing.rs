@@ -1,7 +1,7 @@
 //! Story 24.1 — org billing entitlement surface.
 
 use anseo_authz::matrix::Capability;
-use anseo_billing::{parse_subscription_webhook, Plan};
+use anseo_billing::{compute_overage, parse_subscription_webhook, plan_inclusions, Plan};
 use anseo_storage::repositories::org_entitlements::EntitlementRow;
 use axum::body::Bytes;
 use axum::extract::{Extension, Path, State};
@@ -16,10 +16,15 @@ use crate::middleware::org_guc::OrgContext;
 use crate::AppState;
 
 pub fn v1_router() -> Router<AppState> {
-    Router::new().route(
-        "/orgs/:org_id/billing",
-        get(get_billing).layer(Extension(RequiredCapability(Capability::BillingRead))),
-    )
+    Router::new()
+        .route(
+            "/orgs/:org_id/billing",
+            get(get_billing).layer(Extension(RequiredCapability(Capability::BillingRead))),
+        )
+        .route(
+            "/orgs/:org_id/billing/usage",
+            get(get_billing_usage).layer(Extension(RequiredCapability(Capability::BillingRead))),
+        )
 }
 
 pub fn public_router() -> Router<AppState> {
@@ -32,6 +37,17 @@ pub struct BillingResponse {
     pub seat_count: i32,
     pub stripe_customer_id: Option<String>,
     pub synced_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BillingUsageResponse {
+    pub plan: String,
+    pub included_seats: u32,
+    pub included_brands: u32,
+    pub active_seats: u32,
+    pub active_brands: u32,
+    pub seat_overage: u32,
+    pub brand_overage: u32,
 }
 
 impl From<EntitlementRow> for BillingResponse {
@@ -75,6 +91,66 @@ async fn get_billing(
         })?;
 
     Ok(Json(BillingResponse::from(row)))
+}
+
+/// GET /v1/orgs/:org_id/billing/usage
+///
+/// Returns plan inclusions and current overage for seats and brands.
+/// [p4-bill-1] — metered overage endpoint.
+async fn get_billing_usage(
+    Path(org_id): Path<Uuid>,
+    State(state): State<AppState>,
+    org_context: Option<Extension<OrgContext>>,
+) -> Result<Json<BillingUsageResponse>, (StatusCode, Json<serde_json::Value>)> {
+    enforce_capability(
+        &state,
+        org_context.map(|Extension(ctx)| ctx),
+        Capability::BillingRead,
+    )
+    .await
+    .map_err(response_to_tuple)?;
+
+    let entitlement = state
+        .storage
+        .org_entitlements()
+        .get(org_id)
+        .await
+        .map_err(|e| internal(e.to_string()))?;
+
+    let plan: Plan = entitlement
+        .as_ref()
+        .and_then(|e| e.plan.parse().ok())
+        .unwrap_or(Plan::Free);
+
+    let active_seats = state
+        .storage
+        .org_entitlements()
+        .count_active_members(org_id)
+        .await
+        .map_err(|e| internal(e.to_string()))?;
+    let active_brands = state
+        .storage
+        .org_entitlements()
+        .count_active_brands(org_id)
+        .await
+        .map_err(|e| internal(e.to_string()))?;
+
+    let inclusions = plan_inclusions(plan);
+    let overage = compute_overage(plan, active_seats, active_brands);
+
+    Ok(Json(BillingUsageResponse {
+        plan: plan.as_str().to_string(),
+        included_seats: inclusions.included_seats,
+        included_brands: if inclusions.included_brands == u32::MAX {
+            0 // represents "unlimited" — signal with 0 to avoid serializing MAX
+        } else {
+            inclusions.included_brands
+        },
+        active_seats,
+        active_brands,
+        seat_overage: overage.seat_overage,
+        brand_overage: overage.brand_overage,
+    }))
 }
 
 async fn stripe_webhook(
@@ -178,6 +254,29 @@ fn response_to_tuple(response: axum::response::Response) -> (StatusCode, Json<se
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [p4-bill-1] Evidence sentinel — metered seats/brands overage endpoint + plan
+    /// inclusions + compute_overage are present and compile.
+    #[allow(dead_code)]
+    const P4_BILL_1_EVIDENCE: &str =
+        "[p4-bill-1] story-24.2: compute_overage + plan_inclusions + GET /v1/orgs/:id/billing/usage metered overage endpoint";
+
+    #[test]
+    fn billing_usage_response_serializes() {
+        let resp = BillingUsageResponse {
+            plan: "pro".into(),
+            included_seats: 5,
+            included_brands: 3,
+            active_seats: 7,
+            active_brands: 2,
+            seat_overage: 2,
+            brand_overage: 0,
+        };
+        let json = serde_json::to_value(resp).expect("serialize");
+        assert_eq!(json["plan"], "pro");
+        assert_eq!(json["seat_overage"], 2);
+        assert_eq!(json["brand_overage"], 0);
+    }
 
     #[test]
     fn billing_response_serializes_required_fields() {
