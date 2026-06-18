@@ -143,6 +143,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::org_audit::v1_router())
         .merge(routes::org_branding::v1_router())
         .merge(routes::billing::v1_router())
+        .merge(routes::portal_grants::v1_router())
         .merge(routes::events::router_under_v1_relative());
 
     // Premium surface — only compiled into the `pro` build. The default OSS

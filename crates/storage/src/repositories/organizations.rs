@@ -189,6 +189,81 @@ impl<'a> OrgsRepo<'a> {
                 .await?;
         Ok(result.rows_affected() > 0)
     }
+
+    /// Story 25.3 — grant portal access to a brand.
+    ///
+    /// Sets is_portal=true, replacing any prior portal grant for this operator
+    /// (one portal brand per operator — enforced by partial unique index).
+    /// The operator must already hold the Viewer role in the org; role management
+    /// is the caller's responsibility.
+    pub async fn grant_portal_brand(
+        &self,
+        org_id: Uuid,
+        operator_id: Uuid,
+        project_id: ProjectId,
+        granted_by: Option<Uuid>,
+    ) -> Result<(), Error> {
+        let mut tx = self.pool.begin().await?;
+        // Clear any existing portal grant for this operator first.
+        sqlx::query("DELETE FROM brand_grants WHERE operator_id = $1 AND is_portal = true")
+            .bind(operator_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            "INSERT INTO brand_grants \
+             (operator_id, project_id, org_id, granted_by, is_portal) \
+             VALUES ($1, $2, $3, $4, true) \
+             ON CONFLICT (operator_id, project_id) DO UPDATE \
+             SET org_id = EXCLUDED.org_id, \
+                 granted_by = EXCLUDED.granted_by, \
+                 granted_at = now(), \
+                 is_portal = true",
+        )
+        .bind(operator_id)
+        .bind(project_id)
+        .bind(org_id)
+        .bind(granted_by)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Story 25.3 — revoke a portal brand grant.
+    ///
+    /// Deletes the is_portal grant row. Returns true when a row was removed.
+    /// Revocation takes effect immediately on the next request (no cache).
+    pub async fn revoke_portal_brand(
+        &self,
+        operator_id: Uuid,
+        project_id: ProjectId,
+    ) -> Result<bool, Error> {
+        let result = sqlx::query(
+            "DELETE FROM brand_grants \
+             WHERE operator_id = $1 AND project_id = $2 AND is_portal = true",
+        )
+        .bind(operator_id)
+        .bind(project_id)
+        .execute(self.pool)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Story 25.3 — returns the portal brand (project_id) for an operator, if any.
+    ///
+    /// Used to verify portal scoping: if is_portal=true, the operator may only
+    /// access this single brand. Absence means no portal grant.
+    pub async fn portal_brand_for(&self, operator_id: Uuid) -> Result<Option<ProjectId>, Error> {
+        let row: Option<(ProjectId,)> = sqlx::query_as::<_, (ProjectId,)>(
+            "SELECT project_id FROM brand_grants \
+             WHERE operator_id = $1 AND is_portal = true \
+             LIMIT 1",
+        )
+        .bind(operator_id)
+        .fetch_optional(self.pool)
+        .await?;
+        Ok(row.map(|(id,)| id))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
