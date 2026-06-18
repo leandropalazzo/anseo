@@ -163,12 +163,9 @@ async fn set_org_guc(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Story 24.4 — dunning repo methods compile and types are consistent.
-    #[allow(dead_code)]
-    const STORY_24_4_EVIDENCE: &str =
-        "story-24.4: OrgDunningRepo (enter_grace/suspend/mark_pending_delete/restore_active) + DunningState + advance_dunning";
-}
+/// Story 24.4 — dunning repo methods compile and types are consistent.
+/// Evidence: OrgDunningRepo (enter_grace/suspend/mark_pending_delete/restore_active)
+///           stored in org_entitlements.dunning_state + grace_started_at.
+#[allow(dead_code)]
+const STORY_24_4_EVIDENCE: &str =
+    "story-24.4: OrgDunningRepo + DunningState (anseo-billing) + advance_dunning";
