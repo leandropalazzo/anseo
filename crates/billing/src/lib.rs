@@ -342,6 +342,66 @@ enum StripeRef {
     Object { id: String },
 }
 
+// ---------------------------------------------------------------------------
+// Story 24.2 / 25.1 — plan inclusions + overage helpers
+// ---------------------------------------------------------------------------
+
+/// Seats, brands, and capabilities included in each plan at no extra cost.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlanInclusions {
+    pub included_seats: u32,
+    pub included_brands: u32,
+    /// Whether the plan grants access to org branding (story 25.1).
+    pub branding_enabled: bool,
+}
+
+/// Returns the plan inclusions for a given plan tier.
+pub fn plan_inclusions(plan: Plan) -> PlanInclusions {
+    match plan {
+        Plan::Free => PlanInclusions {
+            included_seats: 1,
+            included_brands: 1,
+            branding_enabled: false,
+        },
+        Plan::Pro => PlanInclusions {
+            included_seats: 5,
+            included_brands: 3,
+            branding_enabled: true,
+        },
+        Plan::Enterprise => PlanInclusions {
+            included_seats: 25,
+            included_brands: u32::MAX,
+            branding_enabled: true,
+        },
+    }
+}
+
+/// Units of overage for a billing cycle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Overage {
+    pub seat_overage: u32,
+    pub brand_overage: u32,
+}
+
+/// Compute overage given a plan and current active counts.
+pub fn compute_overage(plan: Plan, active_seats: u32, active_brands: u32) -> Overage {
+    if plan == Plan::Free {
+        return Overage {
+            seat_overage: 0,
+            brand_overage: 0,
+        };
+    }
+    let inclusions = plan_inclusions(plan);
+    Overage {
+        seat_overage: active_seats.saturating_sub(inclusions.included_seats),
+        brand_overage: active_brands.saturating_sub(if inclusions.included_brands == u32::MAX {
+            active_brands
+        } else {
+            inclusions.included_brands
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
