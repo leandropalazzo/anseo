@@ -211,4 +211,8 @@ impl Storage {
     pub fn provisioning_sagas(&self) -> repositories::provisioning_saga::ProvisioningSagaRepo<'_> {
         repositories::provisioning_saga::ProvisioningSagaRepo::new(&self.pool)
     }
+
+    pub fn notifications(&self) -> repositories::notifications::NotificationsRepo<'_> {
+        repositories::notifications::NotificationsRepo::new(&self.pool)
+    }
 }

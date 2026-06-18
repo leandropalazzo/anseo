@@ -17,6 +17,7 @@ pub mod contributions;
 pub mod disputes;
 pub mod entities;
 pub mod mentions;
+pub mod notifications;
 pub mod org_audit;
 pub mod org_branding;
 pub mod org_dunning;
