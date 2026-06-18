@@ -28,6 +28,7 @@ use crate::routes::setup::InstallState;
 
 use crate::middleware::auth::{require_api_key, require_operator_key};
 use crate::middleware::geo_gate::geo_gate_middleware;
+use crate::middleware::rate_limit::RateLimitStore;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -77,6 +78,11 @@ pub struct AppState {
     /// its activation status (`loaded | skipped | load_error`); `GET /v1/plugins`
     /// serves this verbatim and `anseo plugin list` renders the same data.
     pub loaded_plugins: Arc<Vec<anseo_plugin_host::loader::LoadedPlugin>>,
+    /// Story 27.4 — per-org token-bucket rate limiter. Shared across all
+    /// requests; keyed by org_id extracted from the path. Process-local
+    /// (restarts reset all buckets) — acceptable for the current single-node
+    /// deployment. Multi-node would need a shared store (e.g. Redis).
+    pub rate_limit: RateLimitStore,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -149,6 +155,13 @@ pub fn router(state: AppState) -> Router {
     // Premium surface — only compiled into the `pro` build. The default OSS
     // build never references the entitlement-gated hallucination evaluator.
     let v1_surface = v1_routes
+        // Story 27.4 — Per-org token-bucket rate limiter. Applied FIRST (outermost)
+        // so requests from a flooded org are rejected before any downstream work.
+        // Only org-scoped paths (/orgs/:org_id/…) are limited; global paths pass through.
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.rate_limit.clone(),
+            middleware::rate_limit::org_rate_limit,
+        ))
         // Story 22.2 — RBAC capability check (single policy point).
         // Runs AFTER auth (has OrgContext); BEFORE the project-header guard.
         // Routes that need a specific capability inject `RequiredCapability`
