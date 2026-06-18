@@ -25,6 +25,7 @@ pub mod org_audit;
 pub mod org_branding;
 pub mod orgs;
 pub mod plugins;
+pub mod portal_grants;
 pub mod projects;
 pub mod prompt_runs;
 pub mod prompts;
