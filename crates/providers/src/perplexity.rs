@@ -60,6 +60,7 @@ impl Provider for PerplexityProvider {
     }
 
     async fn run(&self, request: ProviderRequest) -> Result<ProviderResponse, ProviderError> {
+        self.http.validate_endpoint(&ProviderName::Perplexity)?;
         let url = format!("{}/chat/completions", self.http.base_url());
         let body = build_chat_body(&request);
 

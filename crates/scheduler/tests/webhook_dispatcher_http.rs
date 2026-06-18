@@ -231,3 +231,46 @@ async fn signature_verifies_on_consumer_side_round_trip() {
     verify(SECRET, received_body, Some(sig), ts + 30, 300)
         .expect("signature must verify against the same secret + body");
 }
+
+#[tokio::test]
+async fn delivery_blocks_metadata_ip_before_connecting() {
+    let client = reqwest::Client::new();
+    let (outcome, snippet) = deliver_one(
+        &client,
+        "https://169.254.169.254/latest/meta-data",
+        SECRET,
+        b"{}",
+        1_700_000_000,
+        Duration::from_secs(5),
+    )
+    .await;
+
+    match outcome {
+        DeliveryOutcome::PermanentFailure { status, reason } => {
+            assert_eq!(status, 403);
+            assert!(reason.contains("blocked by egress policy"));
+        }
+        other => panic!("expected egress PermanentFailure, got {other:?}"),
+    }
+    assert!(snippet.contains("169.254.169.254"));
+}
+
+#[tokio::test]
+async fn delivery_blocks_encoded_metadata_ip_before_connecting() {
+    let client = reqwest::Client::new();
+    let (outcome, snippet) = deliver_one(
+        &client,
+        "https://2852039166/latest/meta-data",
+        SECRET,
+        b"{}",
+        1_700_000_000,
+        Duration::from_secs(5),
+    )
+    .await;
+
+    assert!(matches!(
+        outcome,
+        DeliveryOutcome::PermanentFailure { status: 403, .. }
+    ));
+    assert!(snippet.contains("blocked by egress policy"));
+}

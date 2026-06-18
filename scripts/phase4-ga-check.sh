@@ -154,11 +154,16 @@ check_criterion \
     pass
 
 # p4-ssrf-1: webhook SSRF guard at declaration + delivery (Story 23.4)
+# Evidence: shared anseo-core egress classifier rejects RFC1918/link-local/
+# loopback/metadata plus legacy decimal/octal/hex IPv4 spellings; CLI webhook
+# declaration validation routes through the guard; dispatcher resolves and pins
+# vetted socket addresses via reqwest::ClientBuilder::resolve_to_addrs before
+# POST. Tests cover declaration rejection and delivery fail-closed audit snippets.
 check_criterion \
     "p4-ssrf-1" \
     "Webhook SSRF guard: RFC-1918/link-local/loopback/metadata rejected at register + deliver" \
     "23.4" \
-    fail
+    pass
 
 # ── Billing ───────────────────────────────────────────────────────────────
 # p4-bill-1: Stripe webhook signature + idempotency + replay protection (Story 24.1)

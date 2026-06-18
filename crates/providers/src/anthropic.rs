@@ -56,6 +56,7 @@ impl Provider for AnthropicProvider {
     }
 
     async fn run(&self, request: ProviderRequest) -> Result<ProviderResponse, ProviderError> {
+        self.http.validate_endpoint(&ProviderName::Anthropic)?;
         let url = format!("{}/v1/messages", self.http.base_url());
         let body = build_messages_body(&request);
 

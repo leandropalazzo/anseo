@@ -117,6 +117,7 @@ impl Provider for OpenRouterProvider {
     }
 
     async fn run(&self, request: ProviderRequest) -> Result<ProviderResponse, ProviderError> {
+        self.http.validate_endpoint(&ProviderName::Openrouter)?;
         let url = format!("{}/v1/chat/completions", self.http.base_url());
         let body = build_chat_body(&request);
 
