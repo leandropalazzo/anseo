@@ -22,6 +22,7 @@ pub mod mcp;
 pub mod operator_entities;
 pub mod operator_plane1;
 pub mod org_audit;
+pub mod org_branding;
 pub mod orgs;
 pub mod plugins;
 pub mod projects;

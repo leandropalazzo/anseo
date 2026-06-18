@@ -196,4 +196,9 @@ impl Storage {
     pub fn site_events(&self) -> repositories::site_events::SiteEventRepo<'_> {
         repositories::site_events::SiteEventRepo::new(&self.pool)
     }
+
+    /// Story 25.1 — per-org branding (logo URL + accent color).
+    pub fn org_branding(&self) -> repositories::org_branding::OrgBrandingRepo<'_> {
+        repositories::org_branding::OrgBrandingRepo::new(&self.pool)
+    }
 }

@@ -3,6 +3,7 @@
 //! consumes; the public REST surface (Phase 2) builds on these handlers.
 
 pub mod boot;
+pub mod color_validator;
 pub mod extractors;
 pub mod middleware;
 pub mod routes;
@@ -140,6 +141,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::serve_status::v1_router())
         .merge(routes::orgs::v1_router())
         .merge(routes::org_audit::v1_router())
+        .merge(routes::org_branding::v1_router())
         .merge(routes::billing::v1_router())
         .merge(routes::events::router_under_v1_relative());
 
