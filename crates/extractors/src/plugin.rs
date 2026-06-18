@@ -78,7 +78,9 @@ mod tests {
     fn extract_methods_return_empty_until_wasm_wired() {
         let pe = PluginExtractor::new("acme/entity-linker", "1.0.0");
         assert!(pe.extract_mentions("Acme is mentioned here").is_empty());
-        assert!(pe.extract_citations("See https://example.com for details").is_empty());
+        assert!(pe
+            .extract_citations("See https://example.com for details")
+            .is_empty());
     }
 
     #[test]
