@@ -131,13 +131,27 @@ check_criterion \
     "22.2" \
     fail
 
+# p4-authz-2: per-brand grant scoping (Story 22.3)
+# Evidence: anseo-authz::can_access_brand role policy tests +
+# OrgsRepo::{has_brand_grant,list_brands_granted_to} request-time lookup +
+# project_header_guard grant enforcement for Phase 4 OrgContext requests.
+check_criterion \
+    "p4-authz-2" \
+    "Per-brand grants: Operator/Viewer see only granted brands; revokes apply next request" \
+    "22.3" \
+    pass
+
 # ── Secrets / egress ──────────────────────────────────────────────────────
 # p4-key-1: write-only provider key invariant (Story 23.1/23.2)
+# Evidence: KmsOrgStore exposes WriteOnlyOrgSecretStore metadata-only methods;
+# runtime decrypt is isolated behind RuntimeSecretResolver. Unit canaries assert
+# Debug/metadata/errors/serde do not leak planted provider keys and KMS unwrap
+# happens once per process cache, not per run.
 check_criterion \
     "p4-key-1" \
     "Provider key has no get-path from any API/UI/CLI surface (compile-time test)" \
     "23.2" \
-    fail
+    pass
 
 # p4-ssrf-1: webhook SSRF guard at declaration + delivery (Story 23.4)
 check_criterion \

@@ -52,9 +52,15 @@
 //! (see `apps/cli/src/commands/login.rs`). `Debug` of any backend type
 //! intentionally omits the underlying map.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
+use aes_gcm::aead::{Aead, KeyInit};
+use aes_gcm::{Aes256Gcm, Nonce};
+use base64::Engine as _;
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::Secret;
 
@@ -105,6 +111,12 @@ pub enum SecretStoreError {
     /// loudly rather than orphan key material on the next restart.
     #[error("no durable secret backend accepted the write (only ephemeral storage was available)")]
     NoDurableBackend,
+
+    #[error("KMS operation failed: {0}")]
+    Kms(String),
+
+    #[error("encrypted secret record is malformed: {0}")]
+    MalformedEnvelope(String),
 }
 
 impl From<SecretStoreError> for crate::OpenGeoError {
@@ -233,6 +245,286 @@ pub trait SecretStore: Send + Sync {
             return Err(SecretStoreError::NoDurableBackend);
         }
         self.set(provider, secret)
+    }
+}
+
+/// Story 23.1 — KMS client seam for per-org envelope encryption.
+///
+/// Production deployments can implement this against AWS KMS or another cloud
+/// KMS. Tests use an in-memory implementation that preserves the contract:
+/// data keys are wrapped by a CMK, re-wrapped on rotation, and unwrapped only
+/// when runtime execution needs plaintext.
+pub trait KmsClient: Send + Sync {
+    fn generate_data_key(
+        &self,
+        org_id: Uuid,
+        cmk_id: &str,
+    ) -> Result<WrappedDataKey, SecretStoreError>;
+    fn unwrap_data_key(&self, wrapped_key: &WrappedDataKey) -> Result<Vec<u8>, SecretStoreError>;
+    fn rewrap_data_key(
+        &self,
+        wrapped_key: &WrappedDataKey,
+        new_cmk_id: &str,
+    ) -> Result<WrappedDataKey, SecretStoreError>;
+}
+
+/// KMS-wrapped data key metadata. `ciphertext` is opaque to the store.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WrappedDataKey {
+    pub cmk_id: String,
+    pub ciphertext: Vec<u8>,
+}
+
+#[derive(Clone, Debug)]
+struct OrgSecretEnvelope {
+    wrapped_dek: WrappedDataKey,
+    nonce_b64: String,
+    ciphertext_b64: String,
+    last_rotated: std::time::SystemTime,
+}
+
+/// Write-only surface for org-scoped provider/webhook secrets.
+///
+/// There is intentionally no public `get`: external API/UI/CLI code can set,
+/// rotate, test existence, and inspect rotation metadata only. The runtime
+/// decrypt path lives on [`RuntimeSecretResolver`] and is for worker/provider
+/// execution only.
+pub trait WriteOnlyOrgSecretStore: Send + Sync {
+    fn put(&self, key: &str, secret: Secret) -> Result<(), SecretStoreError>;
+    fn rotate(&self, key: &str, secret: Secret) -> Result<(), SecretStoreError>;
+    fn remove(&self, key: &str) -> Result<(), SecretStoreError>;
+    fn exists(&self, key: &str) -> Result<bool, SecretStoreError>;
+    fn last_rotated(&self, key: &str) -> Result<Option<std::time::SystemTime>, SecretStoreError>;
+}
+
+/// Worker/provider-only decrypt seam. Do not expose this from HTTP, CLI, UI,
+/// export, or serializable DTOs.
+pub trait RuntimeSecretResolver: Send + Sync {
+    fn decrypt_for_runtime(&self, key: &str) -> Result<Secret, SecretStoreError>;
+}
+
+/// Story 23.1 — per-org KMS envelope store.
+///
+/// Additive to self-host keyring/age stores: no default-chain behavior changes.
+/// Each org has one cached plaintext DEK per process; KMS unwrap is paid once
+/// after startup/rotation, never per provider run.
+pub struct KmsOrgStore {
+    org_id: Uuid,
+    cmk_id: Mutex<String>,
+    kms: Arc<dyn KmsClient>,
+    wrapped_dek: Mutex<Option<WrappedDataKey>>,
+    records: Mutex<HashMap<String, OrgSecretEnvelope>>,
+    cached_dek: Mutex<Option<Vec<u8>>>,
+}
+
+impl KmsOrgStore {
+    pub fn new(org_id: Uuid, cmk_id: impl Into<String>, kms: Arc<dyn KmsClient>) -> Self {
+        Self {
+            org_id,
+            cmk_id: Mutex::new(cmk_id.into()),
+            kms,
+            wrapped_dek: Mutex::new(None),
+            records: Mutex::new(HashMap::new()),
+            cached_dek: Mutex::new(None),
+        }
+    }
+
+    /// Re-wraps every stored secret's DEK under a new CMK without exposing
+    /// plaintext secret values.
+    pub fn rotate_cmk(&self, new_cmk_id: impl Into<String>) -> Result<(), SecretStoreError> {
+        let new_cmk_id = new_cmk_id.into();
+        let mut records = self.records.lock().expect("KmsOrgStore records poisoned");
+        let mut rotated_dek: Option<WrappedDataKey> = None;
+        for envelope in records.values_mut() {
+            let next = match &rotated_dek {
+                Some(dek) => dek.clone(),
+                None => {
+                    let dek = self
+                        .kms
+                        .rewrap_data_key(&envelope.wrapped_dek, &new_cmk_id)?;
+                    rotated_dek = Some(dek.clone());
+                    dek
+                }
+            };
+            envelope.wrapped_dek = next;
+            envelope.last_rotated = std::time::SystemTime::now();
+        }
+        if let Some(dek) = rotated_dek {
+            *self
+                .wrapped_dek
+                .lock()
+                .expect("KmsOrgStore wrapped_dek poisoned") = Some(dek);
+        }
+        *self.cmk_id.lock().expect("KmsOrgStore cmk_id poisoned") = new_cmk_id;
+        *self
+            .cached_dek
+            .lock()
+            .expect("KmsOrgStore cached_dek poisoned") = None;
+        Ok(())
+    }
+
+    pub fn current_cmk_id(&self) -> String {
+        self.cmk_id
+            .lock()
+            .expect("KmsOrgStore cmk_id poisoned")
+            .clone()
+    }
+
+    fn ensure_dek(
+        &self,
+        existing: Option<&WrappedDataKey>,
+    ) -> Result<WrappedDataKey, SecretStoreError> {
+        let org_wrapped = existing.cloned().or_else(|| {
+            self.wrapped_dek
+                .lock()
+                .expect("KmsOrgStore wrapped_dek poisoned")
+                .clone()
+        });
+
+        if let Some(wrapped) = org_wrapped {
+            if self
+                .cached_dek
+                .lock()
+                .expect("KmsOrgStore cached_dek poisoned")
+                .is_none()
+            {
+                let dek = self.kms.unwrap_data_key(&wrapped)?;
+                *self
+                    .cached_dek
+                    .lock()
+                    .expect("KmsOrgStore cached_dek poisoned") = Some(dek);
+            }
+            return Ok(wrapped.clone());
+        }
+
+        let cmk_id = self.current_cmk_id();
+        let wrapped = self.kms.generate_data_key(self.org_id, &cmk_id)?;
+        let dek = self.kms.unwrap_data_key(&wrapped)?;
+        *self
+            .wrapped_dek
+            .lock()
+            .expect("KmsOrgStore wrapped_dek poisoned") = Some(wrapped.clone());
+        *self
+            .cached_dek
+            .lock()
+            .expect("KmsOrgStore cached_dek poisoned") = Some(dek);
+        Ok(wrapped)
+    }
+
+    fn cached_dek(&self) -> Result<Vec<u8>, SecretStoreError> {
+        self.cached_dek
+            .lock()
+            .expect("KmsOrgStore cached_dek poisoned")
+            .clone()
+            .ok_or_else(|| SecretStoreError::Kms("data key is not cached".into()))
+    }
+
+    fn write_encrypted(&self, key: &str, secret: Secret) -> Result<(), SecretStoreError> {
+        let existing_wrapped = self
+            .records
+            .lock()
+            .expect("KmsOrgStore records poisoned")
+            .get(key)
+            .map(|e| e.wrapped_dek.clone());
+        let wrapped_dek = self.ensure_dek(existing_wrapped.as_ref())?;
+        let dek = self.cached_dek()?;
+        let cipher = Aes256Gcm::new_from_slice(&dek)
+            .map_err(|_| SecretStoreError::MalformedEnvelope("invalid DEK length".into()))?;
+        let mut nonce = [0u8; 12];
+        getrandom::fill(&mut nonce).map_err(|e| SecretStoreError::Kms(e.to_string()))?;
+        let ciphertext = cipher
+            .encrypt(Nonce::from_slice(&nonce), secret.expose().as_bytes())
+            .map_err(|_| SecretStoreError::Kms("encrypt failed".into()))?;
+        let b64 = base64::engine::general_purpose::STANDARD;
+        self.records
+            .lock()
+            .expect("KmsOrgStore records poisoned")
+            .insert(
+                key.to_string(),
+                OrgSecretEnvelope {
+                    wrapped_dek,
+                    nonce_b64: b64.encode(nonce),
+                    ciphertext_b64: b64.encode(ciphertext),
+                    last_rotated: std::time::SystemTime::now(),
+                },
+            );
+        Ok(())
+    }
+}
+
+impl std::fmt::Debug for KmsOrgStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KmsOrgStore")
+            .field("org_id", &self.org_id)
+            .field("cmk_id", &self.current_cmk_id())
+            .field("records", &"[redacted]")
+            .finish()
+    }
+}
+
+impl WriteOnlyOrgSecretStore for KmsOrgStore {
+    fn put(&self, key: &str, secret: Secret) -> Result<(), SecretStoreError> {
+        self.write_encrypted(key, secret)
+    }
+
+    fn rotate(&self, key: &str, secret: Secret) -> Result<(), SecretStoreError> {
+        self.write_encrypted(key, secret)
+    }
+
+    fn remove(&self, key: &str) -> Result<(), SecretStoreError> {
+        self.records
+            .lock()
+            .expect("KmsOrgStore records poisoned")
+            .remove(key);
+        Ok(())
+    }
+
+    fn exists(&self, key: &str) -> Result<bool, SecretStoreError> {
+        Ok(self
+            .records
+            .lock()
+            .expect("KmsOrgStore records poisoned")
+            .contains_key(key))
+    }
+
+    fn last_rotated(&self, key: &str) -> Result<Option<std::time::SystemTime>, SecretStoreError> {
+        Ok(self
+            .records
+            .lock()
+            .expect("KmsOrgStore records poisoned")
+            .get(key)
+            .map(|e| e.last_rotated))
+    }
+}
+
+impl RuntimeSecretResolver for KmsOrgStore {
+    fn decrypt_for_runtime(&self, key: &str) -> Result<Secret, SecretStoreError> {
+        let envelope = self
+            .records
+            .lock()
+            .expect("KmsOrgStore records poisoned")
+            .get(key)
+            .cloned()
+            .ok_or_else(|| SecretStoreError::NotFound {
+                provider: key.to_string(),
+            })?;
+        self.ensure_dek(Some(&envelope.wrapped_dek))?;
+        let dek = self.cached_dek()?;
+        let cipher = Aes256Gcm::new_from_slice(&dek)
+            .map_err(|_| SecretStoreError::MalformedEnvelope("invalid DEK length".into()))?;
+        let b64 = base64::engine::general_purpose::STANDARD;
+        let nonce = b64
+            .decode(envelope.nonce_b64)
+            .map_err(|e| SecretStoreError::MalformedEnvelope(e.to_string()))?;
+        let ciphertext = b64
+            .decode(envelope.ciphertext_b64)
+            .map_err(|e| SecretStoreError::MalformedEnvelope(e.to_string()))?;
+        let plaintext = cipher
+            .decrypt(Nonce::from_slice(&nonce), ciphertext.as_slice())
+            .map_err(|_| SecretStoreError::Kms("decrypt failed".into()))?;
+        let raw = String::from_utf8(plaintext)
+            .map_err(|e| SecretStoreError::MalformedEnvelope(e.to_string()))?;
+        Ok(Secret::new(raw))
     }
 }
 
@@ -872,6 +1164,7 @@ pub fn default_chain() -> ChainedStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// The age-file tests mutate the process-global `OPENGEO_KEYRING_PASSPHRASE`
     /// env var. Cargo runs tests in a binary in parallel by default, so without
@@ -983,6 +1276,64 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
+    struct CountingKms {
+        unwraps: AtomicUsize,
+    }
+
+    impl CountingKms {
+        fn unwrap_count(&self) -> usize {
+            self.unwraps.load(Ordering::SeqCst)
+        }
+    }
+
+    impl KmsClient for CountingKms {
+        fn generate_data_key(
+            &self,
+            _org_id: Uuid,
+            cmk_id: &str,
+        ) -> Result<WrappedDataKey, SecretStoreError> {
+            let mut dek = [0u8; 32];
+            getrandom::fill(&mut dek).map_err(|e| SecretStoreError::Kms(e.to_string()))?;
+            let b64 = base64::engine::general_purpose::STANDARD;
+            Ok(WrappedDataKey {
+                cmk_id: cmk_id.to_string(),
+                ciphertext: format!("{cmk_id}:{}", b64.encode(dek)).into_bytes(),
+            })
+        }
+
+        fn unwrap_data_key(
+            &self,
+            wrapped_key: &WrappedDataKey,
+        ) -> Result<Vec<u8>, SecretStoreError> {
+            self.unwraps.fetch_add(1, Ordering::SeqCst);
+            let raw = String::from_utf8(wrapped_key.ciphertext.clone())
+                .map_err(|e| SecretStoreError::Kms(e.to_string()))?;
+            let (_, encoded) = raw
+                .split_once(':')
+                .ok_or_else(|| SecretStoreError::Kms("malformed wrapped key".into()))?;
+            base64::engine::general_purpose::STANDARD
+                .decode(encoded)
+                .map_err(|e| SecretStoreError::Kms(e.to_string()))
+        }
+
+        fn rewrap_data_key(
+            &self,
+            wrapped_key: &WrappedDataKey,
+            new_cmk_id: &str,
+        ) -> Result<WrappedDataKey, SecretStoreError> {
+            let raw = String::from_utf8(wrapped_key.ciphertext.clone())
+                .map_err(|e| SecretStoreError::Kms(e.to_string()))?;
+            let (_, encoded) = raw
+                .split_once(':')
+                .ok_or_else(|| SecretStoreError::Kms("malformed wrapped key".into()))?;
+            Ok(WrappedDataKey {
+                cmk_id: new_cmk_id.to_string(),
+                ciphertext: format!("{new_cmk_id}:{encoded}").into_bytes(),
+            })
+        }
+    }
+
     #[test]
     fn in_memory_is_not_durable_by_default() {
         let store = InMemoryStore::new();
@@ -1068,6 +1419,92 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("openai"));
         assert!(!msg.contains("REDACTED"));
+    }
+
+    #[test]
+    fn kms_org_store_write_only_metadata_and_runtime_decrypt() {
+        let kms = Arc::new(CountingKms::default());
+        let store = KmsOrgStore::new(Uuid::new_v4(), "cmk-a", kms.clone());
+        let key = provider_secret_key("brand-a", "openai");
+        store.put(&key, Secret::new("sk-kms-canary")).unwrap();
+
+        assert!(store.exists(&key).unwrap());
+        assert!(store.last_rotated(&key).unwrap().is_some());
+        assert!(!format!("{store:?}").contains("sk-kms-canary"));
+
+        let runtime = RuntimeSecretResolver::decrypt_for_runtime(&store, &key).unwrap();
+        assert_eq!(runtime.expose(), "sk-kms-canary");
+        assert_eq!(
+            serde_json::to_string(&runtime).unwrap_err().to_string(),
+            "Secret cannot be serialized; expose() and write to keychain instead"
+        );
+    }
+
+    #[test]
+    fn kms_org_store_caches_dek_after_first_runtime_decrypt() {
+        let kms = Arc::new(CountingKms::default());
+        let store = KmsOrgStore::new(Uuid::new_v4(), "cmk-a", kms.clone());
+        let key = provider_secret_key("brand-a", "anthropic");
+        let sibling_key = provider_secret_key("brand-a", "openai");
+        store.put(&key, Secret::new("sk-anthropic")).unwrap();
+        store.put(&sibling_key, Secret::new("sk-openai")).unwrap();
+        assert_eq!(kms.unwrap_count(), 1, "put unwraps once to cache the DEK");
+
+        assert_eq!(
+            RuntimeSecretResolver::decrypt_for_runtime(&store, &key)
+                .unwrap()
+                .expose(),
+            "sk-anthropic"
+        );
+        assert_eq!(
+            RuntimeSecretResolver::decrypt_for_runtime(&store, &key)
+                .unwrap()
+                .expose(),
+            "sk-anthropic"
+        );
+        assert_eq!(
+            RuntimeSecretResolver::decrypt_for_runtime(&store, &sibling_key)
+                .unwrap()
+                .expose(),
+            "sk-openai"
+        );
+        assert_eq!(
+            kms.unwrap_count(),
+            1,
+            "runtime reads must not call KMS per run"
+        );
+    }
+
+    #[test]
+    fn kms_org_store_cmk_rotation_rewraps_without_secret_leak() {
+        let kms = Arc::new(CountingKms::default());
+        let store = KmsOrgStore::new(Uuid::new_v4(), "cmk-a", kms);
+        let key = provider_secret_key("brand-a", "gemini");
+        store.put(&key, Secret::new("sk-rotate-canary")).unwrap();
+        let before = store.last_rotated(&key).unwrap().unwrap();
+
+        store.rotate_cmk("cmk-b").unwrap();
+
+        assert_eq!(store.current_cmk_id(), "cmk-b");
+        assert!(store.last_rotated(&key).unwrap().unwrap() >= before);
+        assert_eq!(
+            RuntimeSecretResolver::decrypt_for_runtime(&store, &key)
+                .unwrap()
+                .expose(),
+            "sk-rotate-canary"
+        );
+        assert!(!format!("{store:?}").contains("sk-rotate-canary"));
+    }
+
+    #[test]
+    fn write_only_provider_key_error_surfaces_do_not_leak_canary() {
+        let kms = Arc::new(CountingKms::default());
+        let store = KmsOrgStore::new(Uuid::new_v4(), "cmk-a", kms);
+        let missing = RuntimeSecretResolver::decrypt_for_runtime(&store, "sk-never-stored")
+            .unwrap_err()
+            .to_string();
+        assert!(!missing.contains("sk-kms-canary"));
+        assert!(!missing.contains("sk-never-stored-secret-value"));
     }
 
     #[test]

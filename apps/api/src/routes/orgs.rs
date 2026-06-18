@@ -14,10 +14,12 @@ use anseo_storage::repositories::organizations::{OrgBrandRow, OrgRow};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::get;
-use axum::{Json, Router};
+use axum::{Extension, Json, Router};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::middleware::authz::CallerRole;
+use crate::middleware::org_guc::OrgContext;
 use crate::AppState;
 
 pub fn v1_router() -> Router<AppState> {
@@ -166,6 +168,8 @@ async fn get_org(
 async fn list_org_brands(
     Path(org_id): Path<Uuid>,
     State(state): State<AppState>,
+    caller_role: Option<Extension<CallerRole>>,
+    org_context: Option<Extension<OrgContext>>,
 ) -> Result<Json<BrandsListResponse>, (StatusCode, Json<serde_json::Value>)> {
     // Verify org exists first.
     state
@@ -184,12 +188,35 @@ async fn list_org_brands(
             )
         })?;
 
-    let brands = state
-        .storage
-        .orgs()
-        .list_brands(org_id)
-        .await
-        .map_err(|e| internal(e.to_string()))?;
+    let role = caller_role.map(|Extension(role)| role.0);
+    let operator_id = org_context.and_then(|Extension(ctx)| ctx.operator_id);
+    let brands = if let (Some(role), Some(operator_id)) = (role, operator_id) {
+        if anseo_authz::role_bypasses_brand_grants(role) {
+            state
+                .storage
+                .orgs()
+                .list_brands(org_id)
+                .await
+                .map_err(|e| internal(e.to_string()))?
+        } else if anseo_authz::role_requires_brand_grant(role) {
+            state
+                .storage
+                .orgs()
+                .list_brands_granted_to(org_id, operator_id)
+                .await
+                .map_err(|e| internal(e.to_string()))?
+        } else {
+            Vec::new()
+        }
+    } else {
+        // Self-host API-key mode has no Phase 4 operator context.
+        state
+            .storage
+            .orgs()
+            .list_brands(org_id)
+            .await
+            .map_err(|e| internal(e.to_string()))?
+    };
 
     Ok(Json(BrandsListResponse {
         items: brands.into_iter().map(BrandResponse::from).collect(),

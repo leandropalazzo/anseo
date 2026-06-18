@@ -30,6 +30,9 @@ keyring = { workspace = true }
 age = { workspace = true }
 sqlx = { workspace = true, optional = true }
 uuid = { workspace = true }
+aes-gcm = "0.10"
+base64 = "0.22"
+getrandom = "0.3"
 
 [dev-dependencies]
 insta = { workspace = true }
