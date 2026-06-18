@@ -58,6 +58,7 @@ impl Provider for GeminiProvider {
     }
 
     async fn run(&self, request: ProviderRequest) -> Result<ProviderResponse, ProviderError> {
+        self.http.validate_endpoint(&ProviderName::Gemini)?;
         // The key goes in the URL — never in a log line and never via
         // headers. Percent-encode it defensively: real Gemini keys are
         // alphanumeric so encoding is a no-op today, but a future key

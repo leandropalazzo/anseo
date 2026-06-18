@@ -16,6 +16,7 @@
 //! work.
 
 use crate::webhooks::signer::{sign, SIGNATURE_HEADER};
+use crate::webhooks::ssrf::pinned_client_for_delivery;
 use reqwest::Client;
 use std::time::Duration;
 
@@ -76,7 +77,7 @@ pub fn classify_response(status: u16, body_snippet: &str) -> DeliveryOutcome {
 /// One synchronous delivery attempt over reqwest. Returns the classified
 /// outcome plus the snippet the repo should persist.
 pub async fn deliver_one(
-    client: &Client,
+    _client: &Client,
     target_url: &str,
     secret: &[u8],
     body: &[u8],
@@ -84,8 +85,23 @@ pub async fn deliver_one(
     timeout: Duration,
 ) -> (DeliveryOutcome, String) {
     let signature = sign(secret, body, timestamp_unix);
+
+    let (client, pinned_url) = match pinned_client_for_delivery(target_url, timeout).await {
+        Ok(parts) => parts,
+        Err(err) => {
+            let reason = format!("webhook target blocked by egress policy: {err}");
+            return (
+                DeliveryOutcome::PermanentFailure {
+                    status: 403,
+                    reason: reason.clone(),
+                },
+                truncate_for_audit(&reason),
+            );
+        }
+    };
+
     let request = client
-        .post(target_url)
+        .post(pinned_url)
         .header(SIGNATURE_HEADER, signature)
         .header("Content-Type", "application/json")
         .timeout(timeout)

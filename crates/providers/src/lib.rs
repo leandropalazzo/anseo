@@ -17,6 +17,7 @@
 
 pub mod anthropic;
 pub mod cost;
+pub mod egress;
 pub mod gemini;
 pub mod grok;
 pub mod mistral;
@@ -205,6 +206,10 @@ impl HttpClient {
 
     pub fn base_url(&self) -> &str {
         &self.base_url
+    }
+
+    pub fn validate_endpoint(&self, provider: &ProviderName) -> Result<(), ProviderError> {
+        egress::validate_provider_base_url(provider, &self.base_url)
     }
 }
 

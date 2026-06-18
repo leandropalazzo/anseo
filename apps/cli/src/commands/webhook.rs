@@ -247,18 +247,9 @@ fn parse_event_kinds(raw: &str) -> Result<Vec<String>, OpenGeoError> {
 }
 
 fn validate_target_url(url: &str) -> Result<(), OpenGeoError> {
-    // We don't want to pull a full URL crate just to reject obvious typos.
-    // Phase 2 webhook targets MUST be HTTPS in production; HTTP allowed
-    // for local dev fixtures (wiremock at 127.0.0.1).
-    if url.starts_with("https://") {
-        return Ok(());
-    }
-    if url.starts_with("http://127.0.0.1") || url.starts_with("http://localhost") {
-        return Ok(());
-    }
-    Err(OpenGeoError::Config(format!(
-        "--target-url `{url}` must use https://, or http://127.0.0.1 / http://localhost for local fixtures"
-    )))
+    anseo_scheduler::webhooks::ssrf::validate_webhook_declaration_url(url)
+        .map(|_| ())
+        .map_err(|e| OpenGeoError::Config(format!("--target-url `{url}` rejected: {e}")))
 }
 
 /// Generate a 32-byte random secret. Uses `/dev/urandom` on Unix; the
@@ -353,8 +344,23 @@ mod tests {
     fn validate_target_url_rejects_plaintext_external() {
         let err = validate_target_url("http://example.com/webhook").unwrap_err();
         match err {
-            OpenGeoError::Config(msg) => assert!(msg.contains("https://")),
+            OpenGeoError::Config(msg) => assert!(msg.contains("must use https"), "{msg}"),
             other => panic!("expected Config error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_target_url_rejects_metadata_spellings() {
+        for url in [
+            "https://169.254.169.254/hook",
+            "https://0251.0376.0251.0376/hook",
+            "https://2852039166/hook",
+        ] {
+            let err = validate_target_url(url).unwrap_err();
+            match err {
+                OpenGeoError::Config(msg) => assert!(msg.contains("egress policy"), "{msg}"),
+                other => panic!("expected Config error, got {other:?}"),
+            }
         }
     }
 

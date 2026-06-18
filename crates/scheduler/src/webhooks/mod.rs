@@ -13,4 +13,5 @@ pub mod fanout;
 pub mod poller;
 pub mod retry;
 pub mod signer;
+pub mod ssrf;
 pub mod tick;

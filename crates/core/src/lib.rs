@@ -14,6 +14,7 @@
 //! in `Debug`/`Display` and refuses to `Serialize`. See NFR-6 (Privacy-by-default).
 
 pub mod config;
+pub mod egress;
 pub mod error;
 pub mod ids;
 pub mod secret;
@@ -30,6 +31,10 @@ pub use config::{
     DEFAULT_ANTHROPIC_MODEL, DEFAULT_GEMINI_MODEL, DEFAULT_GROK_MODEL, DEFAULT_MISTRAL_MODEL,
     DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_PERPLEXITY_MODEL,
     DEFAULT_SCHEDULE_DEBOUNCE_MINUTES, SCHEMA_VERSION_V0_1, SCHEMA_VERSION_V0_2,
+};
+pub use egress::{
+    is_forbidden_ip, parse_ip_literal, validate_host_literal, validate_resolved_ip,
+    EgressPolicyError,
 };
 pub use error::{ExitCode, OpenGeoError, ProviderErrorKind};
 pub use ids::{
