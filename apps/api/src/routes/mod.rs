@@ -19,6 +19,7 @@ pub mod health;
 pub mod ingest;
 pub mod leaderboard;
 pub mod mcp;
+pub mod notifications;
 pub mod operator_entities;
 pub mod operator_plane1;
 pub mod org_audit;
