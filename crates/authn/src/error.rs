@@ -39,4 +39,11 @@ pub enum AuthnError {
 
     #[error("no matching key found in JWKS for kid={0:?}")]
     NoMatchingKey(Option<String>),
+
+    // Story 21.3 — MFA policy errors
+    #[error("MFA enrollment is required before this action")]
+    MfaEnrollmentRequired,
+
+    #[error("MFA challenge is required for this session")]
+    MfaChallengeRequired,
 }

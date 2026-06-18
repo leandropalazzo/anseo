@@ -19,11 +19,12 @@ use sqlx::{Executor, PgPool};
 // ── Setup helpers ────────────────────────────────────────────────────────────
 
 async fn setup_rls_tester_role(pool: &PgPool) {
+    // Use EXCEPTION WHEN duplicate_object — atomic and handles the parallel-test race
+    // where two tests both try to create the role at the same time.
     pool.execute(
         "DO $$ BEGIN \
-            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'rls_tester') THEN \
-                CREATE ROLE rls_tester NOLOGIN; \
-            END IF; \
+            CREATE ROLE rls_tester NOLOGIN; \
+         EXCEPTION WHEN duplicate_object THEN NULL; \
          END $$",
     )
     .await

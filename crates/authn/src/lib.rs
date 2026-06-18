@@ -17,6 +17,7 @@
 pub mod bearer;
 pub mod error;
 pub mod jwks;
+pub mod totp;
 
 pub use bearer::{BearerTokenAuth, TokenClaims};
 pub use error::AuthnError;
