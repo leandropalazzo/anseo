@@ -38,6 +38,7 @@ pub use ids::{
 pub use secret::Secret;
 pub use secret_store::{
     default_chain, get_provider_secret, provider_secret_key, remove_provider_secret,
-    set_provider_secret, AgeFileStore, ChainedStore, InMemoryStore, KeyringStore, SecretStore,
-    SecretStoreError, AGE_PASSPHRASE_ENV, BENCHMARK_KEK_KEY_PREFIX, KEYRING_SERVICE,
+    set_provider_secret, AgeFileStore, ChainedStore, InMemoryStore, KeyringStore, KmsClient,
+    KmsOrgStore, RuntimeSecretResolver, SecretStore, SecretStoreError, WrappedDataKey,
+    WriteOnlyOrgSecretStore, AGE_PASSPHRASE_ENV, BENCHMARK_KEK_KEY_PREFIX, KEYRING_SERVICE,
 };

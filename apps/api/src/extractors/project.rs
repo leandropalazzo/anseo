@@ -33,6 +33,7 @@
 //! resolved [`ProjectScope`] into request extensions; the typed extractor is a
 //! noop lookup of that extension.
 
+use anseo_authz::matrix::Role;
 use anseo_core::{project_id_for_name, ProjectId as CoreProjectId};
 use anseo_storage::Storage;
 use axum::body::Body;
@@ -43,6 +44,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::json;
 
+use crate::middleware::org_guc::OrgContext;
 use crate::AppState;
 
 /// Canonical header name. The static value is the form clients see on the wire;
@@ -89,6 +91,8 @@ pub type ProjectId = ProjectScope;
 pub enum ResolveError {
     /// No project matched the supplied precedence chain.
     NotFound,
+    /// The project exists but the caller has no grant to see it.
+    Forbidden,
 }
 
 /// Shared, reusable project resolver implementing the ADR-004 precedence chain.
@@ -185,6 +189,18 @@ fn not_found_body() -> Response {
         .into_response()
 }
 
+fn forbidden_body() -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        Json(json!({
+            "error": "brand_forbidden",
+            "error_kind": "brand_forbidden",
+            "message": "the selected brand is not visible to this operator",
+        })),
+    )
+        .into_response()
+}
+
 /// Route-layer middleware enforcing per-request resolution for every `/v1/*`
 /// route. Mounted in `apps/api/src/lib.rs` alongside `require_api_key`.
 pub async fn project_header_guard(
@@ -203,10 +219,97 @@ pub async fn project_header_guard(
 
     match resolve_project(&state.storage, None, header_value.as_deref()).await {
         Ok(scope) => {
+            let org_context = request.extensions().get::<OrgContext>().copied();
+            if let Err(err) = ensure_brand_visible(&state, org_context, &scope).await {
+                return Err(err);
+            }
             request.extensions_mut().insert(scope);
             Ok(next.run(request).await)
         }
         Err(ResolveError::NotFound) => Err(not_found_body()),
+        Err(ResolveError::Forbidden) => Err(forbidden_body()),
+    }
+}
+
+async fn ensure_brand_visible(
+    state: &AppState,
+    org_context: Option<OrgContext>,
+    scope: &ProjectScope,
+) -> Result<(), Response> {
+    let Some(ctx) = org_context else {
+        return Ok(());
+    };
+    let Some(operator_id) = ctx.operator_id else {
+        return Ok(());
+    };
+
+    let project_org_id: Option<uuid::Uuid> =
+        sqlx::query_scalar("SELECT org_id FROM projects WHERE id = $1")
+            .bind(scope.id)
+            .fetch_optional(state.storage.pool())
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "project org lookup failed");
+                (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "service_unavailable", "detail": "project org lookup failed"})),
+        )
+            .into_response()
+            })?;
+    if project_org_id != Some(ctx.org_id) {
+        return Err(forbidden_body());
+    }
+
+    let role: Option<String> = sqlx::query_scalar(
+        "SELECT role::text FROM operator_org_roles WHERE operator_id = $1 AND org_id = $2",
+    )
+    .bind(operator_id)
+    .bind(ctx.org_id)
+    .fetch_optional(state.storage.pool())
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "brand grant role lookup failed");
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "service_unavailable", "detail": "role lookup failed"})),
+        )
+            .into_response()
+    })?;
+
+    let Some(role) = role.and_then(|r| parse_role(&r)) else {
+        return Err(forbidden_body());
+    };
+    let has_grant = state
+        .storage
+        .orgs()
+        .has_brand_grant(ctx.org_id, operator_id, scope.id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "brand grant lookup failed");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(
+                    json!({"error": "service_unavailable", "detail": "brand grant lookup failed"}),
+                ),
+            )
+                .into_response()
+        })?;
+
+    if anseo_authz::can_access_brand(role, has_grant) {
+        Ok(())
+    } else {
+        Err(forbidden_body())
+    }
+}
+
+fn parse_role(role: &str) -> Option<Role> {
+    match role {
+        "owner" => Some(Role::Owner),
+        "admin" => Some(Role::Admin),
+        "billing" => Some(Role::Billing),
+        "operator" => Some(Role::Operator),
+        "viewer" => Some(Role::Viewer),
+        _ => None,
     }
 }
 

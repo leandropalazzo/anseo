@@ -16,6 +16,7 @@
 
 pub mod matrix;
 
+use matrix::Role;
 use uuid::Uuid;
 
 /// The outcome of an authorization decision.
@@ -132,6 +133,33 @@ pub fn authz_then_guc(
     Ok(Decision::Allow)
 }
 
+/// Story 22.3 — brand-grant scoping policy.
+///
+/// Owner/Admin implicitly see every brand in the org. Operator/Viewer must have
+/// a live `brand_grants` row for the project. Billing has no brand-data access.
+/// The DB lookup is deliberately left to callers so grants are checked on every
+/// request/list and revocations take effect immediately.
+pub fn role_bypasses_brand_grants(role: Role) -> bool {
+    matches!(role, Role::Owner | Role::Admin)
+}
+
+/// Returns true when this role needs an explicit `brand_grants` row before it
+/// may see or operate on a brand.
+pub fn role_requires_brand_grant(role: Role) -> bool {
+    matches!(role, Role::Operator | Role::Viewer)
+}
+
+/// Single policy point for Story 22.3 per-brand access.
+pub fn can_access_brand(role: Role, has_grant: bool) -> bool {
+    if role_bypasses_brand_grants(role) {
+        true
+    } else if role_requires_brand_grant(role) {
+        has_grant
+    } else {
+        false
+    }
+}
+
 /// Story 22.1 — RBAC-backed decider.
 ///
 /// Resolves the caller's role from a user-provided lookup function, then
@@ -179,5 +207,30 @@ where
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn owner_and_admin_bypass_brand_grants() {
+        assert!(can_access_brand(Role::Owner, false));
+        assert!(can_access_brand(Role::Admin, false));
+    }
+
+    #[test]
+    fn operator_and_viewer_require_live_brand_grant() {
+        assert!(!can_access_brand(Role::Operator, false));
+        assert!(can_access_brand(Role::Operator, true));
+        assert!(!can_access_brand(Role::Viewer, false));
+        assert!(can_access_brand(Role::Viewer, true));
+    }
+
+    #[test]
+    fn billing_never_gets_brand_data_through_grants() {
+        assert!(!can_access_brand(Role::Billing, false));
+        assert!(!can_access_brand(Role::Billing, true));
     }
 }

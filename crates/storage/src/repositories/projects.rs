@@ -133,7 +133,11 @@ impl<'a> ProjectRepo<'a> {
     /// [`list_projects`] while its rows (and FK-referenced children) are
     /// preserved. Idempotent — re-archiving an already-archived project leaves
     /// the original timestamp untouched.
+    ///
+    /// Story 22.4: archiving a brand stops its schedules immediately; billing
+    /// is unaffected because the project row remains durable.
     pub async fn archive_project(&self, id: ProjectId) -> Result<(), Error> {
+        let mut tx = self.pool.begin().await?;
         sqlx::query!(
             r#"
             UPDATE projects
@@ -142,8 +146,19 @@ impl<'a> ProjectRepo<'a> {
             "#,
             id as ProjectId,
         )
-        .execute(self.pool)
+        .execute(&mut *tx)
         .await?;
+        sqlx::query(
+            r#"
+            UPDATE schedules
+            SET paused = TRUE
+            WHERE project_id = $1 AND paused = FALSE
+            "#,
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
         Ok(())
     }
 
