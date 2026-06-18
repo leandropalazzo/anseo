@@ -22,9 +22,15 @@ pub enum OrgRole {
 
 impl OrgRole {
     /// Returns true if `self` can mint a key with role `target`.
-    /// A minter may only issue keys at or below their own role level.
+    ///
+    /// Billing is a lateral financial role — it cannot mint management keys
+    /// (Operator/Admin/Owner). For all other roles the rule is: target ≤ self.
     pub fn can_mint_key_with_role(self, target: OrgRole) -> bool {
-        target <= self
+        match self {
+            // Billing is lateral: can only mint Billing or Viewer scoped keys.
+            OrgRole::Billing => matches!(target, OrgRole::Billing | OrgRole::Viewer),
+            _ => target <= self,
+        }
     }
 }
 
@@ -56,6 +62,10 @@ pub enum InviteState {
 }
 
 /// Guard: can the given operator be deactivated without violating the last-Owner rule?
+///
+/// **`active_owners` must include `operator_id_to_deactivate`** — pass the complete
+/// list of active Owners (including the one being removed). If callers pre-filter the
+/// target out of the list, the guard becomes a no-op.
 ///
 /// Returns `Ok(())` if safe to deactivate; `Err(LastOwnerViolation)` if this is the last Owner.
 pub fn assert_not_last_owner(
@@ -147,12 +157,24 @@ mod tests {
     }
 
     #[test]
-    fn viewer_cannot_mint_viewer_key() {
-        // Viewer rank = 0, cannot even mint Viewer keys without explicit allow.
-        // Policy: a key must be strictly bounded — Viewer has no minting privilege.
-        // In practice callers check that the minter holds at least Operator.
-        // Here we just verify the OrdOrd ordering: Viewer <= Viewer is true.
+    fn viewer_can_only_mint_viewer_scoped_key() {
+        // A Viewer can issue a Viewer-scoped sub-key (self-service PATs at their own level).
         assert!(assert_key_scope_not_escalated(OrgRole::Viewer, OrgRole::Viewer).is_ok());
+        // But not an Operator or higher key.
+        assert!(assert_key_scope_not_escalated(OrgRole::Viewer, OrgRole::Operator).is_err());
+    }
+
+    #[test]
+    fn billing_cannot_mint_admin_key() {
+        // Billing is a lateral financial role — it must not be able to mint management keys.
+        let err = assert_key_scope_not_escalated(OrgRole::Billing, OrgRole::Admin).unwrap_err();
+        assert!(matches!(err, InviteError::KeyScopeEscalation { .. }));
+    }
+
+    #[test]
+    fn billing_can_mint_viewer_and_billing_keys() {
+        assert!(assert_key_scope_not_escalated(OrgRole::Billing, OrgRole::Viewer).is_ok());
+        assert!(assert_key_scope_not_escalated(OrgRole::Billing, OrgRole::Billing).is_ok());
     }
 
     #[test]
