@@ -97,7 +97,11 @@ impl RateLimitStore {
         let mut map = self.buckets.lock().expect("rate limit lock poisoned");
         let bucket = map.entry(org_id).or_insert_with(Bucket::new);
         let allowed = bucket.try_consume();
-        let retry = if allowed { 0 } else { bucket.retry_after_secs() };
+        let retry = if allowed {
+            0
+        } else {
+            bucket.retry_after_secs()
+        };
         (allowed, retry)
     }
 
@@ -205,7 +209,10 @@ mod tests {
 
         // org_b is unaffected.
         let (allowed_b, _) = store.check(org_b);
-        assert!(allowed_b, "org_b should not be affected by org_a's exhaustion");
+        assert!(
+            allowed_b,
+            "org_b should not be affected by org_a's exhaustion"
+        );
     }
 
     #[test]
@@ -229,7 +236,10 @@ mod tests {
             b.try_consume();
         }
         b.try_consume(); // denied
-        assert!(b.retry_after_secs() >= 1, "retry_after should be at least 1s");
+        assert!(
+            b.retry_after_secs() >= 1,
+            "retry_after should be at least 1s"
+        );
     }
 
     #[test]
