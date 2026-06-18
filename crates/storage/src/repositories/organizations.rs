@@ -249,6 +249,68 @@ impl<'a> OrgsRepo<'a> {
         Ok(result.rows_affected() > 0)
     }
 
+    /// Story 27.1 — create an operator with email/password credentials.
+    ///
+    /// Returns the new operator's UUID. `login` is typically set to `email` for
+    /// the email/password signup path. `password_hash` is stored as SHA-256 hex
+    /// in this mock phase; production uses Argon2id (Story 27.2).
+    pub async fn create_operator(
+        &self,
+        login: &str,
+        email: &str,
+        password_hash: &str,
+    ) -> Result<Uuid, Error> {
+        let (id,): (Uuid,) = sqlx::query_as(
+            "INSERT INTO operators (login, email, password_hash) \
+             VALUES ($1, $2, $3) \
+             RETURNING id",
+        )
+        .bind(login)
+        .bind(email)
+        .bind(password_hash)
+        .fetch_one(self.pool)
+        .await?;
+        Ok(id)
+    }
+
+    /// Story 27.1 — add an operator to an org with the given role.
+    ///
+    /// `role` must be a valid `org_role` enum value (owner/admin/operator/viewer/billing).
+    /// Uses ON CONFLICT DO NOTHING so this is idempotent.
+    pub async fn add_member(
+        &self,
+        org_id: Uuid,
+        operator_id: Uuid,
+        role: &str,
+    ) -> Result<(), Error> {
+        sqlx::query(
+            "INSERT INTO operator_org_roles (operator_id, org_id, role) \
+             VALUES ($1, $2, $3::org_role) \
+             ON CONFLICT (operator_id, org_id) DO NOTHING",
+        )
+        .bind(operator_id)
+        .bind(org_id)
+        .bind(role)
+        .execute(self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Story 27.1 — set the org lifecycle state.
+    ///
+    /// `state` must be a valid `org_state` enum value (unconfigured/trial/active).
+    pub async fn set_state(&self, org_id: Uuid, state: &str) -> Result<(), Error> {
+        sqlx::query(
+            "UPDATE organizations SET state = $1::org_state, updated_at = now() \
+             WHERE id = $2",
+        )
+        .bind(state)
+        .bind(org_id)
+        .execute(self.pool)
+        .await?;
+        Ok(())
+    }
+
     /// Story 25.3 — returns the portal brand (project_id) for an operator, if any.
     ///
     /// Used to verify portal scoping: if is_portal=true, the operator may only
