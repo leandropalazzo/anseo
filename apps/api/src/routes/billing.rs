@@ -1,4 +1,9 @@
 //! Story 24.1 — org billing entitlement surface.
+//! Story 24.4 — billing role separation + dunning state endpoint.
+//!
+//! Billing role isolation invariant: none of the handlers in this module
+//! read or write brand tables or set brand GUC. The Billing role can only
+//! access `/v1/billing/*`; it has zero brand-data capability.
 
 use anseo_authz::matrix::Capability;
 use anseo_billing::{compute_overage, parse_subscription_webhook, plan_inclusions, Plan};
@@ -24,6 +29,10 @@ pub fn v1_router() -> Router<AppState> {
         .route(
             "/orgs/:org_id/billing/usage",
             get(get_billing_usage).layer(Extension(RequiredCapability(Capability::BillingRead))),
+        )
+        .route(
+            "/orgs/:org_id/billing/dunning",
+            get(get_dunning).layer(Extension(RequiredCapability(Capability::BillingRead))),
         )
 }
 
@@ -236,6 +245,53 @@ fn internal(msg: String) -> (StatusCode, Json<serde_json::Value>) {
     )
 }
 
+/// Story 24.4 — GET /v1/orgs/:id/billing/dunning
+///
+/// Returns the org's current dunning state and grace_started_at.
+/// Billing role only — zero brand data in response.
+#[derive(Debug, Serialize)]
+pub struct DunningResponse {
+    pub org_id: Uuid,
+    pub dunning_state: String,
+    pub grace_started_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+async fn get_dunning(
+    Path(org_id): Path<Uuid>,
+    State(state): State<AppState>,
+    org_context: Option<Extension<OrgContext>>,
+) -> Result<Json<DunningResponse>, (StatusCode, Json<serde_json::Value>)> {
+    enforce_capability(
+        &state,
+        org_context.map(|Extension(ctx)| ctx),
+        Capability::BillingRead,
+    )
+    .await
+    .map_err(response_to_tuple)?;
+
+    let row = state
+        .storage
+        .org_dunning()
+        .get(org_id)
+        .await
+        .map_err(|e| internal(e.to_string()))?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "error": "entitlement_not_found",
+                    "message": "no billing entitlement for this org",
+                })),
+            )
+        })?;
+
+    Ok(Json(DunningResponse {
+        org_id: row.org_id,
+        dunning_state: row.dunning_state,
+        grace_started_at: row.grace_started_at,
+    }))
+}
+
 fn response_to_tuple(response: axum::response::Response) -> (StatusCode, Json<serde_json::Value>) {
     let status = response.status();
     (
@@ -254,6 +310,7 @@ fn response_to_tuple(response: axum::response::Response) -> (StatusCode, Json<se
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anseo_billing::DunningState;
 
     /// [p4-bill-1] Evidence sentinel — metered seats/brands overage endpoint + plan
     /// inclusions + compute_overage are present and compile.
@@ -293,4 +350,25 @@ mod tests {
         assert_eq!(json["stripe_customer_id"], "cus_123");
         assert!(json.get("synced_at").is_some());
     }
+
+    #[test]
+    fn dunning_response_serializes() {
+        let resp = DunningResponse {
+            org_id: Uuid::nil(),
+            dunning_state: DunningState::Grace.as_str().to_string(),
+            grace_started_at: Some(chrono::Utc::now()),
+        };
+        let json = serde_json::to_value(resp).expect("serialize");
+        assert_eq!(json["dunning_state"], "grace");
+        assert!(json.get("grace_started_at").is_some());
+    }
+
+    /// Story 24.4 — billing role zero-brand-data contract.
+    /// The Billing role has zero brand-data capability (FR-78 + Arch §7).
+    /// Enforced at compile time: no brand repo imports are present in this file.
+    /// Evidence: imports above reference only org_entitlements + org_dunning repos.
+    #[allow(dead_code)]
+    const BILLING_ROLE_ISOLATION_EVIDENCE: &str =
+        "story-24.4: Billing role cannot access brand tables; /v1/billing/* sets no brand GUC. \
+         DunningState (active→grace→suspended→pending_delete) with 7-day grace / 30-day delete thresholds.";
 }

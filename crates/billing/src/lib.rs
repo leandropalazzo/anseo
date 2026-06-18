@@ -416,6 +416,98 @@ pub fn plan_daily_run_cap(plan: Plan) -> Option<u32> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Story 24.4 — dunning state machine (D-P4-4)
+// ---------------------------------------------------------------------------
+
+/// Dunning lifecycle state for an org's subscription.
+///
+/// Transitions (driven by nightly worker):
+///   Active → Grace (payment_failed webhook or past_due > threshold)
+///   Grace  → Suspended (7 days after grace_started_at)
+///   Suspended → PendingDelete (30 days after grace_started_at)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DunningState {
+    Active,
+    Grace,
+    Suspended,
+    PendingDelete,
+}
+
+impl DunningState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            DunningState::Active => "active",
+            DunningState::Grace => "grace",
+            DunningState::Suspended => "suspended",
+            DunningState::PendingDelete => "pending_delete",
+        }
+    }
+
+    /// Whether the org is in full-access state.
+    pub fn is_active(&self) -> bool {
+        matches!(self, DunningState::Active)
+    }
+
+    /// Whether the org is in grace period (read-only, schedules still run).
+    pub fn is_grace(&self) -> bool {
+        matches!(self, DunningState::Grace)
+    }
+
+    /// Whether the org is suspended (schedules paused, data retained).
+    pub fn is_suspended(&self) -> bool {
+        matches!(self, DunningState::Suspended | DunningState::PendingDelete)
+    }
+}
+
+impl std::fmt::Display for DunningState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl FromStr for DunningState {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim() {
+            "active" => Ok(DunningState::Active),
+            "grace" => Ok(DunningState::Grace),
+            "suspended" => Ok(DunningState::Suspended),
+            "pending_delete" => Ok(DunningState::PendingDelete),
+            _ => Err(()),
+        }
+    }
+}
+
+/// Days from grace_started_at before org is suspended.
+pub const DUNNING_GRACE_DAYS: i64 = 7;
+/// Days from grace_started_at before org is queued for deletion.
+pub const DUNNING_DELETE_DAYS: i64 = 30;
+
+/// Compute the next dunning state given grace_started_at and now.
+/// Returns `None` if no transition is needed.
+pub fn advance_dunning(
+    current: DunningState,
+    grace_started_at: Option<chrono::DateTime<chrono::Utc>>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<DunningState> {
+    let Some(grace_start) = grace_started_at else {
+        return None;
+    };
+    let days_elapsed = (now - grace_start).num_days();
+    match current {
+        DunningState::Grace if days_elapsed >= DUNNING_DELETE_DAYS => {
+            Some(DunningState::PendingDelete)
+        }
+        DunningState::Grace if days_elapsed >= DUNNING_GRACE_DAYS => Some(DunningState::Suspended),
+        DunningState::Suspended if days_elapsed >= DUNNING_DELETE_DAYS => {
+            Some(DunningState::PendingDelete)
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -453,5 +545,55 @@ mod tests {
         assert_eq!(entitlement.plan, Plan::Free);
         assert_eq!(entitlement.seat_count, 0);
         assert_eq!(entitlement.status, SubscriptionStatus::Canceled);
+    }
+
+    #[test]
+    fn dunning_no_transition_without_grace_start() {
+        let now = chrono::Utc::now();
+        assert_eq!(advance_dunning(DunningState::Grace, None, now), None);
+    }
+
+    #[test]
+    fn dunning_grace_transitions_to_suspended_at_7_days() {
+        let grace_start = chrono::Utc::now() - chrono::Duration::days(7);
+        let result = advance_dunning(DunningState::Grace, Some(grace_start), chrono::Utc::now());
+        assert_eq!(result, Some(DunningState::Suspended));
+    }
+
+    #[test]
+    fn dunning_grace_transitions_to_pending_delete_at_30_days() {
+        let grace_start = chrono::Utc::now() - chrono::Duration::days(30);
+        let result = advance_dunning(DunningState::Grace, Some(grace_start), chrono::Utc::now());
+        assert_eq!(result, Some(DunningState::PendingDelete));
+    }
+
+    #[test]
+    fn dunning_suspended_transitions_to_pending_delete_at_30_days() {
+        let grace_start = chrono::Utc::now() - chrono::Duration::days(31);
+        let result = advance_dunning(
+            DunningState::Suspended,
+            Some(grace_start),
+            chrono::Utc::now(),
+        );
+        assert_eq!(result, Some(DunningState::PendingDelete));
+    }
+
+    #[test]
+    fn dunning_active_does_not_transition() {
+        let grace_start = chrono::Utc::now() - chrono::Duration::days(100);
+        let result = advance_dunning(DunningState::Active, Some(grace_start), chrono::Utc::now());
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn dunning_state_round_trip() {
+        for state in [
+            DunningState::Active,
+            DunningState::Grace,
+            DunningState::Suspended,
+            DunningState::PendingDelete,
+        ] {
+            assert_eq!(state.as_str().parse::<DunningState>(), Ok(state));
+        }
     }
 }

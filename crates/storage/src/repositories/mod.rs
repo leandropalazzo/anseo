@@ -19,6 +19,7 @@ pub mod entities;
 pub mod mentions;
 pub mod org_audit;
 pub mod org_branding;
+pub mod org_dunning;
 pub mod org_entitlements;
 pub mod organizations;
 pub mod plugin_installs;
