@@ -27,6 +27,22 @@ CREATE INDEX org_audit_events_org_ts_idx    ON org_audit_events (org_id, ts DESC
 CREATE INDEX org_audit_events_actor_ts_idx  ON org_audit_events (actor_login, ts DESC);
 CREATE INDEX org_audit_events_action_ts_idx ON org_audit_events (action, ts DESC);
 
+-- ── Row-Level Security ────────────────────────────────────────────────────
+-- Mirrors the pattern from 20260617220000_rls_enable.sql. Triggers block
+-- UPDATE/DELETE so the RLS policy only needs SELECT + INSERT guards.
+-- SELECT is org-scoped; INSERT WITH CHECK ensures the session can only write
+-- to its own org. The append-only triggers fire BEFORE the INSERT policy is
+-- evaluated for UPDATE/DELETE attempts, giving double protection.
+
+ALTER TABLE org_audit_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_audit_events FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY org_audit_events_select ON org_audit_events
+    FOR SELECT USING (org_id = current_setting('app.org', true)::uuid);
+
+CREATE POLICY org_audit_events_insert ON org_audit_events
+    FOR INSERT WITH CHECK (org_id = current_setting('app.org', true)::uuid);
+
 -- ── Append-only enforcement ────────────────────────────────────────────────
 
 CREATE FUNCTION org_audit_events_immutable()
