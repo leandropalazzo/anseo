@@ -68,12 +68,7 @@ async fn list_audit_log(
     let events = state
         .storage
         .org_audit()
-        .list(
-            org_id,
-            limit,
-            q.action.as_deref(),
-            q.actor.as_deref(),
-        )
+        .list(org_id, limit, q.action.as_deref(), q.actor.as_deref())
         .await
         .map_err(|e| internal(e.to_string()))?;
 
