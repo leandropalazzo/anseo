@@ -224,6 +224,7 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info,
         loaded_plugins,
+        rate_limit: crate::middleware::rate_limit::RateLimitStore::new(),
     };
     let app = router(state);
 

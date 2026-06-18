@@ -164,6 +164,7 @@ async fn seed() -> (axum::Router, String, PgPool) {
         )),
         serve_info: None,
         loaded_plugins: std::sync::Arc::new(Vec::new()),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     (router(state), key.plaintext, pool)
 }
@@ -440,6 +441,7 @@ async fn openrouter_runs_split_by_upstream_model() {
         )),
         serve_info: None,
         loaded_plugins: std::sync::Arc::new(Vec::new()),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     let app = router(state);
     let (status, body) = get_json(

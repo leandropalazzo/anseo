@@ -34,6 +34,7 @@ fn build_router(loaded: Vec<anseo_plugin_host::loader::LoadedPlugin>) -> axum::R
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info: None,
         loaded_plugins: Arc::new(loaded),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     router(state)
 }

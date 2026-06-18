@@ -6,3 +6,4 @@ pub mod auth;
 pub mod authz;
 pub mod geo_gate;
 pub mod org_guc;
+pub mod rate_limit;

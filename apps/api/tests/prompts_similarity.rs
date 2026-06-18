@@ -60,6 +60,7 @@ fn build_app(config: Option<Config>) -> axum::Router {
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info: None,
         loaded_plugins: std::sync::Arc::new(Vec::new()),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     prompts_similarity::v1_router().with_state(state)
 }

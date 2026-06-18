@@ -73,6 +73,7 @@ async fn setup() -> (axum::Router, String, PgPool, ProjectId) {
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info: None,
         loaded_plugins: Arc::new(Vec::new()),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     (router(state), tenant.plaintext, pool, project_id)
 }

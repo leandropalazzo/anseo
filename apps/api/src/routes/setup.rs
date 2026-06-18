@@ -1208,6 +1208,7 @@ mod tests {
             )),
             serve_info: None,
             loaded_plugins: Arc::new(Vec::new()),
+            rate_limit: crate::middleware::rate_limit::RateLimitStore::new(),
         }
     }
 
