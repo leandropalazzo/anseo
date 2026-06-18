@@ -86,6 +86,38 @@ pub async fn check_authz(
     }
 }
 
+pub async fn enforce_capability(
+    state: &AppState,
+    ctx: Option<crate::middleware::org_guc::OrgContext>,
+    cap: Capability,
+) -> Result<Option<Role>, Response> {
+    let Some(ctx) = ctx else {
+        return Ok(None);
+    };
+
+    let Some(operator_id) = ctx.operator_id else {
+        if is_allowed(Role::Operator, cap) {
+            return Ok(Some(Role::Operator));
+        }
+        return Err(forbidden_response(&format!(
+            "role Operator is not permitted to perform {cap:?}"
+        )));
+    };
+
+    match resolve_role(state, operator_id, ctx.org_id).await? {
+        None => Err(forbidden_response("not a member of this org")),
+        Some(role) => {
+            if is_allowed(role, cap) {
+                Ok(Some(role))
+            } else {
+                Err(forbidden_response(&format!(
+                    "role {role:?} is not permitted to perform {cap:?}"
+                )))
+            }
+        }
+    }
+}
+
 fn forbidden_response(detail: &str) -> Response {
     (
         StatusCode::FORBIDDEN,

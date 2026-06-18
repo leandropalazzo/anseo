@@ -140,6 +140,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::serve_status::v1_router())
         .merge(routes::orgs::v1_router())
         .merge(routes::org_audit::v1_router())
+        .merge(routes::billing::v1_router())
         .merge(routes::events::router_under_v1_relative());
 
     // Premium surface — only compiled into the `pro` build. The default OSS
@@ -225,6 +226,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::disputes::public_router())
         .merge(routes::verification::public_router())
         .merge(routes::site_events::v1_router())
+        .merge(routes::billing::public_router())
         // Leaderboard is public aggregate data — no API key required.
         // Client-side fetches from the web app hit this unauthenticated.
         .merge(routes::leaderboard::v1_router());

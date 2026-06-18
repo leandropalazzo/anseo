@@ -21,6 +21,7 @@ members = [
     "crates/comms",
     "crates/authn",
     "crates/authz",
+    "crates/billing",
 ]
 
 [workspace.package]

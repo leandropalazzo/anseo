@@ -16,6 +16,7 @@ path = "src/lib.rs"
 [dependencies]
 anseo-core = { path = "../../crates/core", features = ["sqlx"] }
 anseo-storage = { path = "../../crates/storage" }
+anseo-billing = { path = "../../crates/billing" }
 anseo-authz = { path = "../../crates/authz" }
 anseo-analytics = { path = "../../crates/analytics" }
 anseo-crawler-ingest = { path = "../../crates/crawler-ingest" }

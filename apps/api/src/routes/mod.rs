@@ -3,6 +3,7 @@ pub mod analytics;
 pub mod anomalies;
 pub mod audit;
 pub mod badge;
+pub mod billing;
 pub mod brand;
 pub mod brands;
 pub mod citations;
