@@ -24,7 +24,7 @@ async fn setup_rls_tester_role(pool: &PgPool) {
     pool.execute(
         "DO $$ BEGIN \
             CREATE ROLE rls_tester NOLOGIN; \
-         EXCEPTION WHEN duplicate_object THEN NULL; \
+         EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL; \
          END $$",
     )
     .await

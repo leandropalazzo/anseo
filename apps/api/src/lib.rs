@@ -136,7 +136,6 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::entities::v1_router())
         .merge(routes::disputes::v1_router())
         .merge(routes::verification::v1_router())
-        .merge(routes::leaderboard::v1_router())
         .merge(routes::density_check::v1_router())
         .merge(routes::serve_status::v1_router())
         .merge(routes::orgs::v1_router())
@@ -224,7 +223,10 @@ pub fn router(state: AppState) -> Router {
     let v1_public_surface = routes::badge::v1_router()
         .merge(routes::disputes::public_router())
         .merge(routes::verification::public_router())
-        .merge(routes::site_events::v1_router());
+        .merge(routes::site_events::v1_router())
+        // Leaderboard is public aggregate data — no API key required.
+        // Client-side fetches from the web app hit this unauthenticated.
+        .merge(routes::leaderboard::v1_router());
 
     let mut base = Router::new()
         .merge(phase_1_at_root_gated)

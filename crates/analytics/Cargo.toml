@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 anseo-core = { path = "../core", features = ["sqlx"] }
 anseo-storage = { path = "../storage" }
+anseo-plugin-manifest = { path = "../plugin-manifest" }
 sqlx = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
