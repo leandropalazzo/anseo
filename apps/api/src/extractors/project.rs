@@ -220,9 +220,7 @@ pub async fn project_header_guard(
     match resolve_project(&state.storage, None, header_value.as_deref()).await {
         Ok(scope) => {
             let org_context = request.extensions().get::<OrgContext>().copied();
-            if let Err(err) = ensure_brand_visible(&state, org_context, &scope).await {
-                return Err(err);
-            }
+            ensure_brand_visible(&state, org_context, &scope).await?;
             request.extensions_mut().insert(scope);
             Ok(next.run(request).await)
         }
