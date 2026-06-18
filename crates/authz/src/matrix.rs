@@ -103,7 +103,7 @@ pub fn is_allowed(role: Role, capability: Capability) -> bool {
         (Admin, MemberInvite) => true,
         (Admin, MemberDeactivate) => true,
         (Admin, MemberRoleAssign) => true,
-        (Admin, BillingRead) => false,
+        (Admin, BillingRead) => true,
         (Admin, BillingUpdate) => false,
         (Admin, BillingPortalAccess) => false,
         (Admin, ProjectCreate) => true,
@@ -345,9 +345,9 @@ mod tests {
     }
 
     #[test]
-    fn admin_cannot_delete_org_or_access_billing() {
+    fn admin_can_read_billing_but_cannot_delete_org_or_update_billing() {
         assert!(!is_allowed(Role::Admin, Capability::OrgDelete));
-        assert!(!is_allowed(Role::Admin, Capability::BillingRead));
+        assert!(is_allowed(Role::Admin, Capability::BillingRead));
         assert!(!is_allowed(Role::Admin, Capability::BillingPortalAccess));
     }
 

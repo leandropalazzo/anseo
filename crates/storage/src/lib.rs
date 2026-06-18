@@ -82,6 +82,10 @@ impl Storage {
         repositories::organizations::OrgsRepo::new(&self.pool)
     }
 
+    pub fn org_entitlements(&self) -> repositories::org_entitlements::OrgEntitlementsRepo<'_> {
+        repositories::org_entitlements::OrgEntitlementsRepo::new(&self.pool)
+    }
+
     /// Story 26.1 — actor-attributed append-only org management audit trail.
     pub fn org_audit(&self) -> repositories::org_audit::OrgAuditRepo<'_> {
         repositories::org_audit::OrgAuditRepo::new(&self.pool)
