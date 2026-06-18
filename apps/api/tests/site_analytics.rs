@@ -42,6 +42,7 @@ fn lazy_state() -> AppState {
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info: None,
         loaded_plugins: Arc::new(Vec::new()),
+            rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     }
 }
 
@@ -167,6 +168,7 @@ async fn seed_and_route() -> (axum::Router, String, PgPool) {
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info: None,
         loaded_plugins: Arc::new(Vec::new()),
+            rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     (router(state), key.plaintext, pool)
 }

@@ -57,6 +57,7 @@ async fn api_router_builds_with_minimal_state() {
         )),
         serve_info: None,
         loaded_plugins: std::sync::Arc::new(Vec::new()),
+            rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     let _r = router(state);
     // No assertions needed: the test passes by building. If routes::test_seed
