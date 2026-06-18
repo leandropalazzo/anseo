@@ -492,9 +492,7 @@ pub fn advance_dunning(
     grace_started_at: Option<chrono::DateTime<chrono::Utc>>,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Option<DunningState> {
-    let Some(grace_start) = grace_started_at else {
-        return None;
-    };
+    let grace_start = grace_started_at?;
     let days_elapsed = (now - grace_start).num_days();
     match current {
         DunningState::Grace if days_elapsed >= DUNNING_DELETE_DAYS => {

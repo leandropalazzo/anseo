@@ -311,6 +311,7 @@ fn response_to_tuple(response: axum::response::Response) -> (StatusCode, Json<se
 mod tests {
     use super::*;
     use anseo_billing::DunningState;
+<<<<<<< HEAD
 
     /// [p4-bill-1] Evidence sentinel — metered seats/brands overage endpoint + plan
     /// inclusions + compute_overage are present and compile.
@@ -334,6 +335,8 @@ mod tests {
         assert_eq!(json["seat_overage"], 2);
         assert_eq!(json["brand_overage"], 0);
     }
+=======
+>>>>>>> e73105e (fix(24.4): fix clippy warnings — use ? operator + move DunningState import to test scope)
 
     #[test]
     fn billing_response_serializes_required_fields() {
