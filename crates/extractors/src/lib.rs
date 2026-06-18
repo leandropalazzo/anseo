@@ -8,6 +8,7 @@ pub mod claims;
 pub mod diff;
 pub mod mentions;
 pub mod persist;
+pub mod plugin;
 pub mod sentiment;
 
 pub use citations::{

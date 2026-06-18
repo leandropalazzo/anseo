@@ -8,6 +8,7 @@ pub mod anomaly;
 pub mod citation_graph;
 pub mod heatmap;
 pub mod metrics_store;
+pub mod plugin;
 pub mod sentiment;
 pub mod volatility;
 
