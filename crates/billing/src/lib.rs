@@ -402,6 +402,20 @@ pub fn compute_overage(plan: Plan, active_seats: u32, active_brands: u32) -> Ove
     }
 }
 
+// ---------------------------------------------------------------------------
+// Story 24.3 — per-org daily run cap
+// ---------------------------------------------------------------------------
+
+/// Per-org daily run cap derived from plan. `None` = unlimited.
+/// Free: 10/day, Pro: 500/day, Enterprise: unlimited.
+pub fn plan_daily_run_cap(plan: Plan) -> Option<u32> {
+    match plan {
+        Plan::Free => Some(10),
+        Plan::Pro => Some(500),
+        Plan::Enterprise => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
