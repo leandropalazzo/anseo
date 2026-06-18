@@ -561,6 +561,7 @@ name = "anseo-worker"
 version = "0.6.0"
 dependencies = [
  "anseo-analytics",
+ "anseo-billing",
  "anseo-core",
  "anseo-plugin-host",
  "anseo-providers",

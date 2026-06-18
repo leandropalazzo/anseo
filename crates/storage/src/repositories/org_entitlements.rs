@@ -74,6 +74,23 @@ impl<'a> OrgEntitlementsRepo<'a> {
         tx.commit().await?;
         Ok(row)
     }
+
+    /// Count prompt runs created today (UTC) for this org. Used for per-org
+    /// daily run cap enforcement (story 24.3, [p4-cap-1]).
+    pub async fn count_org_runs_today(&self, org_id: Uuid) -> Result<u64, Error> {
+        let mut tx = self.pool.begin().await?;
+        set_org_guc(&mut tx, org_id).await?;
+        let row: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM prompt_runs \
+             WHERE org_id = $1 \
+               AND created_at >= date_trunc('day', now() AT TIME ZONE 'UTC')",
+        )
+        .bind(org_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(u64::try_from(row.0).unwrap_or(u64::MAX))
+    }
 }
 
 async fn set_org_guc(

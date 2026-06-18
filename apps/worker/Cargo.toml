@@ -17,6 +17,7 @@ name = "anseo-worker"
 path = "src/main.rs"
 
 [dependencies]
+anseo-billing = { path = "../../crates/billing" }
 anseo-core = { path = "../../crates/core" }
 anseo-storage = { path = "../../crates/storage" }
 anseo-scheduler = { path = "../../crates/scheduler" }
