@@ -26,6 +26,7 @@ pub mod plugin_installs;
 pub mod projects;
 pub mod prompt_runs;
 pub mod prompts;
+pub mod provisioning_saga;
 pub mod recommendations;
 pub mod run_provenance;
 pub mod site_events;

@@ -230,6 +230,8 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::verification::public_router())
         .merge(routes::site_events::v1_router())
         .merge(routes::billing::public_router())
+        // Story 27.1 — public signup + email-verify (no API key required).
+        .merge(routes::signup::public_router())
         // Leaderboard is public aggregate data — no API key required.
         // Client-side fetches from the web app hit this unauthenticated.
         .merge(routes::leaderboard::v1_router());

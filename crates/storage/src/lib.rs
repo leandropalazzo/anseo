@@ -206,4 +206,9 @@ impl Storage {
     pub fn org_dunning(&self) -> repositories::org_dunning::OrgDunningRepo<'_> {
         repositories::org_dunning::OrgDunningRepo::new(&self.pool)
     }
+
+    /// Story 27.1 — idempotent org provisioning saga (signup → email verify → trial).
+    pub fn provisioning_sagas(&self) -> repositories::provisioning_saga::ProvisioningSagaRepo<'_> {
+        repositories::provisioning_saga::ProvisioningSagaRepo::new(&self.pool)
+    }
 }

@@ -38,6 +38,7 @@ pub mod runs;
 pub mod schedules;
 pub mod serve_status;
 pub mod setup;
+pub mod signup;
 pub mod site_analytics;
 pub mod site_events;
 pub mod suite;

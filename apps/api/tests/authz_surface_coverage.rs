@@ -34,6 +34,7 @@ const EXEMPT_ROUTES: &[&str] = &[
     "verification.rs",    // covered by global check_authz layer in lib.rs
     "operator_plane1.rs", // covered by global check_authz layer in lib.rs
     "prompts.rs",         // covered by global check_authz layer in lib.rs
+    "signup.rs",          // public unauthenticated — no API key, no RBAC (Story 27.1)
 ];
 
 /// The marker that signals a route is wired to the authZ middleware.
