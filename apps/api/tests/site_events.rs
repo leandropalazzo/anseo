@@ -45,7 +45,7 @@ async fn app() -> (axum::Router, sqlx::PgPool) {
         setup_install_state: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
         serve_info: None,
         loaded_plugins: Arc::new(Vec::new()),
-            rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     (router(state), pool)
 }

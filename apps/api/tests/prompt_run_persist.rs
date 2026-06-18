@@ -92,7 +92,7 @@ async fn seeded_router_and_project() -> (axum::Router, ProjectId, String) {
         )),
         serve_info: None,
         loaded_plugins: std::sync::Arc::new(Vec::new()),
-            rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     (router(state), project_id, key.plaintext)
 }
@@ -289,7 +289,7 @@ providers:
         )),
         serve_info: None,
         loaded_plugins: std::sync::Arc::new(Vec::new()),
-            rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     (router(state), project_id, key.plaintext)
 }
@@ -421,7 +421,7 @@ providers:
         )),
         serve_info: None,
         loaded_plugins: std::sync::Arc::new(Vec::new()),
-            rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     let app = router(state);
 

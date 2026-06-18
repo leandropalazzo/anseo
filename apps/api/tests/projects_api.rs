@@ -38,7 +38,7 @@ fn lazy_router() -> axum::Router {
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info: None,
         loaded_plugins: std::sync::Arc::new(Vec::new()),
-            rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     router(state)
 }
@@ -132,7 +132,7 @@ async fn live_app() -> Option<(axum::Router, String)> {
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info: None,
         loaded_plugins: std::sync::Arc::new(Vec::new()),
-            rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     Some((router(state), key.plaintext))
 }

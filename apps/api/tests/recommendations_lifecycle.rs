@@ -82,7 +82,7 @@ fn state_for(pool: &sqlx::PgPool, project_id: ProjectId) -> AppState {
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info: None,
         loaded_plugins: std::sync::Arc::new(Vec::new()),
-            rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     }
 }
 
@@ -193,7 +193,7 @@ providers:
         setup_install_state: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         serve_info: None,
         loaded_plugins: std::sync::Arc::new(Vec::new()),
-            rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     let app = router(state);
 

@@ -38,7 +38,7 @@ fn build_router() -> axum::Router {
         )),
         serve_info: None,
         loaded_plugins: std::sync::Arc::new(Vec::new()),
-            rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
+        rate_limit: anseo_api::middleware::rate_limit::RateLimitStore::new(),
     };
     router(state)
 }
