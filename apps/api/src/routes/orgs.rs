@@ -18,6 +18,7 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::middleware::auth::AuthenticatedOperator;
 use crate::AppState;
 
 pub fn v1_router() -> Router<AppState> {
@@ -112,6 +113,7 @@ async fn list_orgs(
 
 /// POST /v1/orgs — create a new organization.
 async fn create_org(
+    op: Option<axum::extract::Extension<AuthenticatedOperator>>,
     State(state): State<AppState>,
     Json(body): Json<CreateOrgRequest>,
 ) -> Result<(StatusCode, Json<OrgResponse>), (StatusCode, Json<serde_json::Value>)> {
@@ -134,6 +136,21 @@ async fn create_org(
                 internal(msg)
             }
         })?;
+
+    // Story 26.1 — emit audit event. Fire-and-forget: a storage failure must
+    // not fail the org creation itself.
+    let actor = op
+        .and_then(|axum::extract::Extension(o)| o.actor)
+        .unwrap_or_else(|| "system".into());
+    let meta = serde_json::json!({ "slug": org.slug, "name": org.name });
+    if let Err(e) = state
+        .storage
+        .org_audit()
+        .append(org.id, None, &actor, "org.create", None, Some(&meta))
+        .await
+    {
+        tracing::warn!(error = %e, org_id = %org.id, "org audit append failed");
+    }
 
     Ok((StatusCode::CREATED, Json(OrgResponse::from(org))))
 }
