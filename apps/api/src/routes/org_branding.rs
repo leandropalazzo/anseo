@@ -5,23 +5,25 @@
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::routing::get;
+use axum::routing::{get, put};
 use axum::{Extension, Json, Router};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use anseo_authz::matrix::Role;
+use anseo_authz::matrix::{Capability, Role};
 use anseo_billing::{plan_inclusions, Plan};
 
 use crate::color_validator::validate_accent_hex;
-use crate::middleware::authz::CallerRole;
+use crate::middleware::authz::{CallerRole, RequiredCapability};
 use crate::AppState;
 
 pub fn v1_router() -> Router<AppState> {
-    Router::new().route(
-        "/orgs/:org_id/branding",
-        get(get_branding).put(update_branding),
-    )
+    Router::new()
+        .route("/orgs/:org_id/branding", get(get_branding))
+        .route(
+            "/orgs/:org_id/branding",
+            put(update_branding).layer(Extension(RequiredCapability(Capability::OrgUpdate))),
+        )
 }
 
 #[derive(Debug, Serialize)]
