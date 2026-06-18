@@ -201,4 +201,9 @@ impl Storage {
     pub fn org_branding(&self) -> repositories::org_branding::OrgBrandingRepo<'_> {
         repositories::org_branding::OrgBrandingRepo::new(&self.pool)
     }
+
+    /// Story 24.4 — dunning state machine (grace / suspend / pending_delete).
+    pub fn org_dunning(&self) -> repositories::org_dunning::OrgDunningRepo<'_> {
+        repositories::org_dunning::OrgDunningRepo::new(&self.pool)
+    }
 }
