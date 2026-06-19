@@ -4,6 +4,17 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+type GrantRow = (
+    Uuid,
+    Uuid,
+    Uuid,
+    Uuid,
+    DateTime<Utc>,
+    Option<DateTime<Utc>>,
+    String,
+    DateTime<Utc>,
+);
+
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ImpersonationGrant {
     pub id: Uuid,
@@ -33,16 +44,7 @@ impl<'a> ImpersonationRepo<'a> {
         expires_at: DateTime<Utc>,
         reason: &str,
     ) -> Result<ImpersonationGrant, sqlx::Error> {
-        let row: (
-            Uuid,
-            Uuid,
-            Uuid,
-            Uuid,
-            DateTime<Utc>,
-            Option<DateTime<Utc>>,
-            String,
-            DateTime<Utc>,
-        ) = sqlx::query_as(
+        let row: GrantRow = sqlx::query_as(
             r#"
                 INSERT INTO impersonation_grants
                     (support_operator_id, target_org_id, granted_by, expires_at, reason)
@@ -77,16 +79,7 @@ impl<'a> ImpersonationRepo<'a> {
         grant_id: Uuid,
         support_operator_id: Uuid,
     ) -> Result<Option<ImpersonationGrant>, sqlx::Error> {
-        let row: Option<(
-            Uuid,
-            Uuid,
-            Uuid,
-            Uuid,
-            DateTime<Utc>,
-            Option<DateTime<Utc>>,
-            String,
-            DateTime<Utc>,
-        )> = sqlx::query_as(
+        let row: Option<GrantRow> = sqlx::query_as(
             r#"
                 SELECT id, support_operator_id, target_org_id, granted_by,
                        expires_at, revoked_at, reason, created_at
@@ -138,16 +131,7 @@ impl<'a> ImpersonationRepo<'a> {
         target_org_id: Uuid,
         limit: i64,
     ) -> Result<Vec<ImpersonationGrant>, sqlx::Error> {
-        let rows: Vec<(
-            Uuid,
-            Uuid,
-            Uuid,
-            Uuid,
-            DateTime<Utc>,
-            Option<DateTime<Utc>>,
-            String,
-            DateTime<Utc>,
-        )> = sqlx::query_as(
+        let rows: Vec<GrantRow> = sqlx::query_as(
             r#"
                 SELECT id, support_operator_id, target_org_id, granted_by,
                        expires_at, revoked_at, reason, created_at
