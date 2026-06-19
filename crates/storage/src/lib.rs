@@ -225,4 +225,12 @@ impl Storage {
     pub fn impersonation(&self) -> repositories::impersonation::ImpersonationRepo<'_> {
         repositories::impersonation::ImpersonationRepo::new(&self.pool)
     }
+
+    pub fn dsar(&self) -> repositories::dsar::DsarRepo<'_> {
+        repositories::dsar::DsarRepo::new(&self.pool)
+    }
+
+    pub fn offboarding(&self) -> repositories::offboarding::OffboardingRepo<'_> {
+        repositories::offboarding::OffboardingRepo::new(&self.pool)
+    }
 }

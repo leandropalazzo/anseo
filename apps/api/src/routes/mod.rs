@@ -16,6 +16,7 @@ pub mod cost;
 pub mod crawlers;
 pub mod density_check;
 pub mod disputes;
+pub mod dsar;
 pub mod entities;
 pub mod events;
 pub mod health;
