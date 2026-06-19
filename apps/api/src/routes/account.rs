@@ -1,5 +1,9 @@
 //! Story 27.11 — Operator profile / security: MFA lifecycle + sessions.
 //!
+//! authz: check_authz — write endpoints are guarded by `operator_id_from_ctx`,
+//! which enforces authenticated operator identity (session-scoped, no RBAC
+//! capability required — operators may only act on their own sessions/MFA).
+//!
 //! GET    /v1/account/sessions          — list active sessions for the operator
 //! DELETE /v1/account/sessions/:id      — revoke a session
 //! GET    /v1/account/mfa              — MFA enrollment status
