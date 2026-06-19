@@ -233,4 +233,9 @@ impl Storage {
     pub fn offboarding(&self) -> repositories::offboarding::OffboardingRepo<'_> {
         repositories::offboarding::OffboardingRepo::new(&self.pool)
     }
+
+    /// Story 21.2 — per-org OIDC SSO connector config store ([mock-OK]).
+    pub fn oidc_sso(&self) -> repositories::oidc_sso::OidcSsoRepo<'_> {
+        repositories::oidc_sso::OidcSsoRepo::new(&self.pool)
+    }
 }
