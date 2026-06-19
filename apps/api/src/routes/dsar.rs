@@ -370,7 +370,7 @@ async fn initiate_offboard(
         (status, Json(serde_json::json!({"error": "forbidden"})))
     })?;
 
-    let grace_days = body.export_grace_days.unwrap_or(30).min(90).max(1);
+    let grace_days = body.export_grace_days.unwrap_or(30).clamp(1, 90);
     let export_grace_ends_at = Utc::now() + Duration::days(grace_days);
 
     let rec = state
