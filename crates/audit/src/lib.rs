@@ -5,6 +5,8 @@
 //! are documented inline so operators can inspect the exact citation-readiness
 //! heuristics OpenGEO applies.
 
+pub mod central_log;
+
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 use std::time::Duration;
