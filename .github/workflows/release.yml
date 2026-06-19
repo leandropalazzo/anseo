@@ -413,10 +413,17 @@ jobs:
           VERSION: ${{ needs.resolve.outputs.version }}
         run: |
           set -euo pipefail
-          payload="$(jq -n --arg v "$VERSION" --rawfile yml "dist/compose/${VERSION}.yml" \
-            '{event_type:"compose-snapshot", client_payload:{version:$v, compose_yml:$yml}}')"
+          # Ship the unpinned operator artifacts alongside the pinned snapshot so
+          # the site can serve /.env.example and /anseo.example.yaml — the curl
+          # flow references all three, and the compose mounts anseo.example.yaml,
+          # so the stack cannot boot from the published URLs without them.
+          payload="$(jq -n --arg v "$VERSION" \
+            --rawfile yml "dist/compose/${VERSION}.yml" \
+            --rawfile env "infra/standalone/.env.example" \
+            --rawfile cfg "infra/standalone/anseo.example.yaml" \
+            '{event_type:"compose-snapshot", client_payload:{version:$v, compose_yml:$yml, env_example:$env, anseo_example_yaml:$cfg}}')"
           printf '%s' "$payload" | gh api --method POST "repos/${SITE_REPO}/dispatches" --input -
-          echo "dispatched compose snapshot ${VERSION} → ${SITE_REPO}"
+          echo "dispatched compose snapshot ${VERSION} (+ .env.example, anseo.example.yaml) → ${SITE_REPO}"
 
   # ---------------------------------------------------------------------------
   # SDK publishes — npm (@anseo/observe) + PyPI (anseo-observe). Each is
