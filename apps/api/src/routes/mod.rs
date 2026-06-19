@@ -10,6 +10,7 @@ pub mod citations;
 pub mod comms;
 pub mod comparisons;
 pub mod contributions;
+pub mod cost;
 pub mod crawlers;
 pub mod density_check;
 pub mod disputes;
