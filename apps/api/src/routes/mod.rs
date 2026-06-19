@@ -1,5 +1,6 @@
 pub mod alert_rules;
 pub mod analytics;
+pub mod bundle_import;
 pub mod anomalies;
 pub mod audit;
 pub mod badge;

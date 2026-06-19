@@ -51,6 +51,7 @@ async-trait = "0.1"
 subtle = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true }
+flate2 = "1.1"
 hickory-resolver = "0.24"
 
 [dev-dependencies]

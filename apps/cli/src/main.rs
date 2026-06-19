@@ -5,6 +5,7 @@ use anseo_cli::{
     McpSub, PluginSub, ProjectSub, PromptSub, RecommendSub, ReportSub, ScheduleSub, SuiteSub,
     WebhookSub, WorkerSub,
 };
+use anseo_cli::commands::export::ExportSub;
 use anseo_core::{telemetry::init_tracing, ExitCode, OpenGeoError};
 use clap::Parser;
 
@@ -113,6 +114,9 @@ fn main() {
             ProjectSub::Create(args) => run_async(commands::project::run_create(args)),
             ProjectSub::Use(args) => run_async(commands::project::run_use(args)),
             ProjectSub::Shred(args) => run_async(commands::project::run_shred(args)),
+        },
+        Command::Export { sub } => match sub {
+            ExportSub::Bundle(args) => run_async(commands::export::run_bundle(args)),
         },
     };
 
