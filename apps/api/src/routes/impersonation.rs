@@ -16,7 +16,7 @@
 use anseo_authz::matrix::Capability;
 use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, post};
 use axum::{Json, Router};
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
