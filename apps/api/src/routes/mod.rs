@@ -6,6 +6,7 @@ pub mod badge;
 pub mod billing;
 pub mod brand;
 pub mod brands;
+pub mod bundle_import;
 pub mod citations;
 pub mod comms;
 pub mod comparisons;

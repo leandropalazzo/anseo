@@ -152,6 +152,14 @@ pub enum Command {
         #[command(subcommand)]
         sub: ProjectSub,
     },
+
+    /// Export a portable, checksummed archive of brands, prompts, and run
+    /// history for self-host migration (Story 27.7). Provider keys are never
+    /// included.
+    Export {
+        #[command(subcommand)]
+        sub: commands::export::ExportSub,
+    },
 }
 
 #[derive(Debug, Subcommand)]

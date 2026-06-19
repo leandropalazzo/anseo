@@ -1,5 +1,6 @@
 //! `anseo` — Anseo command-line interface (previously `ogeo`).
 
+use anseo_cli::commands::export::ExportSub;
 use anseo_cli::{
     commands, AnalyticsSub, ApiKeySub, ApiSub, BenchmarkSub, CheckSub, Cli, Command, DashboardSub,
     McpSub, PluginSub, ProjectSub, PromptSub, RecommendSub, ReportSub, ScheduleSub, SuiteSub,
@@ -113,6 +114,9 @@ fn main() {
             ProjectSub::Create(args) => run_async(commands::project::run_create(args)),
             ProjectSub::Use(args) => run_async(commands::project::run_use(args)),
             ProjectSub::Shred(args) => run_async(commands::project::run_shred(args)),
+        },
+        Command::Export { sub } => match sub {
+            ExportSub::Bundle(args) => run_async(commands::export::run_bundle(args)),
         },
     };
 
