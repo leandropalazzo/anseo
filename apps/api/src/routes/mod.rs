@@ -17,6 +17,7 @@ pub mod disputes;
 pub mod entities;
 pub mod events;
 pub mod health;
+pub mod impersonation;
 pub mod ingest;
 pub mod leaderboard;
 pub mod mcp;
