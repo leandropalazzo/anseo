@@ -47,6 +47,7 @@ pub mod setup;
 pub mod signup;
 pub mod site_analytics;
 pub mod site_events;
+pub mod sso;
 pub mod suite;
 pub mod test_seed;
 pub mod verification;

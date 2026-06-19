@@ -22,6 +22,7 @@ pub mod impersonation;
 pub mod mentions;
 pub mod notifications;
 pub mod offboarding;
+pub mod oidc_sso;
 pub mod org_audit;
 pub mod org_branding;
 pub mod org_dunning;

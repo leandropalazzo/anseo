@@ -156,6 +156,8 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::account::v1_router())
         .merge(routes::dsar::v1_router())
         .merge(routes::portal_grants::v1_router())
+        // Story 21.2 — per-org OIDC SSO connector config store.
+        .merge(routes::sso::v1_router())
         .merge(routes::events::router_under_v1_relative());
 
     // Premium surface — only compiled into the `pro` build. The default OSS
@@ -251,6 +253,8 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::billing::public_router())
         // Story 27.1 — public signup + email-verify (no API key required).
         .merge(routes::signup::public_router())
+        // Story 21.2 — public OAuth stub (redirect + callback, no API key).
+        .merge(routes::sso::public_router())
         // Leaderboard is public aggregate data — no API key required.
         // Client-side fetches from the web app hit this unauthenticated.
         .merge(routes::leaderboard::v1_router());
