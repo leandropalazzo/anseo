@@ -1,3 +1,4 @@
+pub mod account;
 pub mod alert_rules;
 pub mod analytics;
 pub mod anomalies;
