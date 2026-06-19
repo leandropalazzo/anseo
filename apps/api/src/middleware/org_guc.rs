@@ -102,6 +102,9 @@ pub async fn set_org_guc(
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         }
 
+        // [AC-1] Tag the current tracing span with org_id so every nested
+        // span automatically carries tenant identity without PII.
+        tracing::Span::current().record("org_id", org_id.to_string());
         tracing::debug!(
             org_id = %org_id,
             operator_id = ?operator_id,

@@ -215,4 +215,9 @@ impl Storage {
     pub fn notifications(&self) -> repositories::notifications::NotificationsRepo<'_> {
         repositories::notifications::NotificationsRepo::new(&self.pool)
     }
+
+    /// Story 27.5 — per-brand cost attribution ([p4-cost-1]).
+    pub fn cost(&self) -> repositories::cost::CostRepo<'_> {
+        repositories::cost::CostRepo::new(&self.pool)
+    }
 }
