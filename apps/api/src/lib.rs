@@ -151,6 +151,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::billing::v1_router())
         .merge(routes::notifications::v1_router())
         .merge(routes::cost::v1_router())
+        .merge(routes::impersonation::v1_router())
         .merge(routes::portal_grants::v1_router())
         .merge(routes::events::router_under_v1_relative());
 

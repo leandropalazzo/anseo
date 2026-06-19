@@ -220,4 +220,9 @@ impl Storage {
     pub fn cost(&self) -> repositories::cost::CostRepo<'_> {
         repositories::cost::CostRepo::new(&self.pool)
     }
+
+    /// Story 27.6 — governed admin impersonation grants.
+    pub fn impersonation(&self) -> repositories::impersonation::ImpersonationRepo<'_> {
+        repositories::impersonation::ImpersonationRepo::new(&self.pool)
+    }
 }
