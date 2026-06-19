@@ -163,15 +163,20 @@ pub async fn run_bundle(args: BundleArgs) -> Result<(), OpenGeoError> {
         ))
     });
 
-    std::fs::write(&out_path, &compressed)
-        .map_err(|e| OpenGeoError::Internal(anyhow::anyhow!("write {}: {e}", out_path.display())))?;
+    std::fs::write(&out_path, &compressed).map_err(|e| {
+        OpenGeoError::Internal(anyhow::anyhow!("write {}: {e}", out_path.display()))
+    })?;
 
     println!("Bundle written to {}", out_path.display());
     println!("SHA-256 (uncompressed): {checksum}");
     println!(
         "  {} project(s), {} prompt(s) exported. No provider keys included.",
         bundle.projects.len(),
-        bundle.projects.iter().map(|p| p.prompts.len()).sum::<usize>()
+        bundle
+            .projects
+            .iter()
+            .map(|p| p.prompts.len())
+            .sum::<usize>()
     );
 
     Ok(())

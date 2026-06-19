@@ -86,12 +86,16 @@ async fn import_bundle(
     org_context: Option<Extension<OrgContext>>,
     body: Bytes,
 ) -> Result<(StatusCode, Json<ImportSummary>), (StatusCode, Json<serde_json::Value>)> {
-    enforce_capability(&state, org_context.map(|Extension(ctx)| ctx), Capability::OrgRead)
-        .await
-        .map_err(|r| {
-            let status = r.status();
-            (status, Json(serde_json::json!({"error": "forbidden"})))
-        })?;
+    enforce_capability(
+        &state,
+        org_context.map(|Extension(ctx)| ctx),
+        Capability::OrgRead,
+    )
+    .await
+    .map_err(|r| {
+        let status = r.status();
+        (status, Json(serde_json::json!({"error": "forbidden"})))
+    })?;
 
     // Decompress.
     let mut decoder = GzDecoder::new(body.as_ref());
@@ -114,7 +118,9 @@ async fn import_bundle(
     if !bundle.bundle_version.starts_with("1.") {
         return Err((
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(serde_json::json!({"error": format!("unsupported bundle_version: {}", bundle.bundle_version)})),
+            Json(
+                serde_json::json!({"error": format!("unsupported bundle_version: {}", bundle.bundle_version)}),
+            ),
         ));
     }
 

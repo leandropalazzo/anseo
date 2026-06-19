@@ -4,7 +4,6 @@
 //! entry point used by both the binary main and integration tests.
 
 pub mod analytics;
-pub mod export;
 pub mod api;
 pub mod audit;
 pub mod benchmark;
@@ -12,6 +11,7 @@ pub mod check;
 pub mod crawlers;
 pub mod dashboard;
 pub mod db;
+pub mod export;
 pub mod init;
 pub mod login;
 pub mod mcp;

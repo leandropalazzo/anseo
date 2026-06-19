@@ -1,12 +1,12 @@
 pub mod alert_rules;
 pub mod analytics;
-pub mod bundle_import;
 pub mod anomalies;
 pub mod audit;
 pub mod badge;
 pub mod billing;
 pub mod brand;
 pub mod brands;
+pub mod bundle_import;
 pub mod citations;
 pub mod comms;
 pub mod comparisons;
