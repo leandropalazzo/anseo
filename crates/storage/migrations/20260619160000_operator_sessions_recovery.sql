@@ -22,7 +22,7 @@ CREATE INDEX operator_sessions_operator_idx
     ON operator_sessions (operator_id, expires_at DESC);
 CREATE INDEX operator_sessions_active_idx
     ON operator_sessions (operator_id)
-    WHERE revoked_at IS NULL AND expires_at > now();
+    WHERE revoked_at IS NULL;
 
 -- MFA recovery codes (one-time use, SHA-256 hashed at rest).
 -- 10 codes generated at TOTP enrollment; each is consumed exactly once.
