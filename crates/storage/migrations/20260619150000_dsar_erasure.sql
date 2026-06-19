@@ -27,6 +27,18 @@ CREATE INDEX dsar_requests_org_idx   ON dsar_requests (org_id, created_at DESC);
 CREATE INDEX dsar_requests_state_idx ON dsar_requests (state) WHERE state != 'completed';
 CREATE INDEX dsar_requests_email_idx ON dsar_requests (subject_email);
 
+ALTER TABLE dsar_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dsar_requests FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY dsar_requests_select ON dsar_requests
+    FOR SELECT USING (org_id = current_setting('app.org', true)::uuid);
+
+CREATE POLICY dsar_requests_insert ON dsar_requests
+    FOR INSERT WITH CHECK (org_id = current_setting('app.org', true)::uuid);
+
+CREATE POLICY dsar_requests_update ON dsar_requests
+    FOR UPDATE USING (org_id = current_setting('app.org', true)::uuid);
+
 -- Story 27.10 — Org offboarding lifecycle.
 CREATE TYPE offboarding_state AS ENUM (
     'export_grace',   -- cancellation confirmed; org can export data
@@ -57,3 +69,15 @@ CREATE TABLE org_offboarding (
 CREATE INDEX org_offboarding_state_idx ON org_offboarding (state) WHERE state != 'complete';
 CREATE INDEX org_offboarding_grace_idx ON org_offboarding (export_grace_ends_at)
     WHERE state = 'export_grace';
+
+ALTER TABLE org_offboarding ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_offboarding FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY org_offboarding_select ON org_offboarding
+    FOR SELECT USING (org_id = current_setting('app.org', true)::uuid);
+
+CREATE POLICY org_offboarding_insert ON org_offboarding
+    FOR INSERT WITH CHECK (org_id = current_setting('app.org', true)::uuid);
+
+CREATE POLICY org_offboarding_update ON org_offboarding
+    FOR UPDATE USING (org_id = current_setting('app.org', true)::uuid);
