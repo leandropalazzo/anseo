@@ -86,6 +86,7 @@ impl<'a> OidcSsoRepo<'a> {
     }
 
     /// Insert a new connector record.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         &self,
         org_id: Uuid,
