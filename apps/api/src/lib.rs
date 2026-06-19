@@ -127,6 +127,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::contributions::v1_router())
         .merge(routes::prompts::v1_router())
         .merge(routes::brands::v1_router())
+        .merge(routes::claims::v1_router())
         .merge(routes::brand::v1_router())
         .merge(routes::analytics::v1_router())
         .merge(routes::anomalies::v1_router())

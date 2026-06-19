@@ -9,6 +9,7 @@ pub mod brand;
 pub mod brands;
 pub mod bundle_import;
 pub mod citations;
+pub mod claims;
 pub mod comms;
 pub mod comparisons;
 pub mod contributions;
