@@ -142,7 +142,6 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::recommendations::v1_router())
         .merge(routes::mcp::v1_router())
         .merge(routes::entities::v1_router())
-        .merge(routes::disputes::v1_router())
         .merge(routes::verification::v1_router())
         .merge(routes::density_check::v1_router())
         .merge(routes::serve_status::v1_router())
@@ -233,6 +232,10 @@ pub fn router(state: AppState) -> Router {
         // Story 49.0 — Plane-1 OSS substrate (consent/density reads +
         // terms-finalize gate). Same require_operator_key gate as 48.4.
         .merge(routes::operator_plane1::v1_router())
+        // Story 48.10 — disputes operator review queue + lifecycle actions.
+        // Uses operator key (not project API key) so the admin BFF can reach
+        // it with ANSEO_OPERATOR_API_KEY; no X-Anseo-Project header needed.
+        .merge(routes::disputes::v1_router())
         .route_layer(axum::middleware::from_fn(require_operator_key));
 
     let phase_1_at_root_gated = phase_1_reads_at_root.route_layer(
