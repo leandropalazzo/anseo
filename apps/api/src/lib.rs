@@ -145,12 +145,7 @@ pub fn router(state: AppState) -> Router {
         .merge(routes::verification::v1_router())
         .merge(routes::density_check::v1_router())
         .merge(routes::serve_status::v1_router())
-        .merge(routes::orgs::v1_router())
-        .merge(routes::org_audit::v1_router())
-        .merge(routes::org_branding::v1_router())
-        .merge(routes::billing::v1_router())
         .merge(routes::notifications::v1_router())
-        .merge(routes::cost::v1_router())
         .merge(routes::impersonation::v1_router())
         .merge(routes::bundle_import::v1_router())
         .merge(routes::account::v1_router())
@@ -236,6 +231,13 @@ pub fn router(state: AppState) -> Router {
         // Uses operator key (not project API key) so the admin BFF can reach
         // it with ANSEO_OPERATOR_API_KEY; no X-Anseo-Project header needed.
         .merge(routes::disputes::v1_router())
+        // Admin BFF surfaces — reached with ANSEO_OPERATOR_API_KEY,
+        // no X-Anseo-Project header needed (global operator state).
+        .merge(routes::orgs::v1_router())
+        .merge(routes::org_audit::v1_router())
+        .merge(routes::org_branding::v1_router())
+        .merge(routes::billing::v1_router())
+        .merge(routes::cost::v1_router())
         .route_layer(axum::middleware::from_fn(require_operator_key));
 
     let phase_1_at_root_gated = phase_1_reads_at_root.route_layer(
