@@ -209,6 +209,7 @@ async fn ingest_scopes_to_resolved_project_and_persists() {
     assert_eq!(row.request_parameters["metadata"]["sdk"], "python");
     assert_eq!(row.request_parameters["metadata"]["trace_id"], "trace-123");
 
+    // The persisted run is queryable through the public read surface.
     let detail = app
         .clone()
         .oneshot(get(&format!("/v1/runs/{run_id}"), &api_key, &project_name))
