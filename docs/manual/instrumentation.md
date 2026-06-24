@@ -178,6 +178,8 @@ Body (snake_case; optional fields omitted when unset so server defaults apply):
   "prompt_slug": "best-polarized-sunglasses",
   "provider": "openai",
   "model": "gpt-4o-2024-08-06",
+  "raw_response": { "text": "…" },
+  "metadata": { "trace_id": "abc123" },
   "response_text": "…",
   "citation_domains": ["sunski.com"],
   "observed_rank": 1,
@@ -186,10 +188,7 @@ Body (snake_case; optional fields omitted when unset so server defaults apply):
 }
 ```
 
-`prompt_slug`, `provider`, and `model` are required; the rest are optional.
-`contribute` defaults to `false` when omitted. `provider` validation is the
-server's job — an unknown provider is sent through as-is (e.g. `"unknown"`),
-not rejected client-side.
+`prompt_slug`, `provider`, and `model` are required; the rest are optional. `raw_response` is the canonical provider-native payload; `response_text` remains accepted for early clients. `contribute` defaults to `false` when omitted. `provider` validation is server-authoritative: unsupported providers return `422 provider_not_supported`.
 
 ### Response — HTTP 202
 
@@ -204,8 +203,7 @@ not rejected client-side.
 }
 ```
 
-A run is **persisted (HTTP 202) when accepted**. The `contribution.status`
-tells you what happened to the benchmark leg:
+A run is **persisted (HTTP 202) when accepted**. The `contribution.status` tells you exactly what happened to the optional benchmark leg:
 
 | `contribution.status` | Meaning |
 |---|---|
@@ -215,9 +213,7 @@ tells you what happened to the benchmark leg:
 
 ### Errors
 
-Non-2xx bodies carry `{ "error": "<code>", "message": "<human text>" }`, e.g.
-`400 validation_failed`, `401` (bad key), `403 kek_missing`, `422
-prompt_not_found`, or `422 provider_not_supported`.
+Non-2xx bodies carry `{ "error": "<code>", "message": "<human text>" }`, e.g. `400 validation_failed`, `401` (bad key), `403 kek_missing`, `422 prompt_not_found`, `422 provider_not_supported`, or `429 rate_limited`.
 
 ---
 
