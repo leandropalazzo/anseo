@@ -946,7 +946,7 @@ mod tests {
             response_text_for_extraction(&r).as_deref(),
             Some("Pinecone cites https://docs.pinecone.io")
         );
-        assert_eq!(r.metadata["trace_id"], "abc");
+        assert_eq!(r.metadata.as_ref().unwrap()["trace_id"], "abc");
         assert!(validate_request(&r).is_ok());
     }
 
