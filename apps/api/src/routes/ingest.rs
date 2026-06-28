@@ -63,10 +63,12 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::post;
 use axum::{Extension, Json, Router};
-use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 
 use anseo_benchmark::{ProjectKek, RawPromptRun, Redactor, SealedContribution, TERMS_VERSION};
 use anseo_core::ids::CitationId;
@@ -92,7 +94,7 @@ pub struct IngestRunRequest {
     /// Canonical external provider payload. May be plain text or structured
     /// JSON, depending on what the caller captured.
     #[serde(default)]
-    pub raw_response: Option<serde_json::Value>,
+    pub raw_response: Option<JsonValue>,
     /// Caller-supplied run metadata. Persisted under
     /// `request_parameters.metadata`.
     #[serde(default)]
@@ -144,6 +146,37 @@ pub enum ContributionStatus {
     RedactionRejected { reason: String },
 }
 
+const INGEST_RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
+const INGEST_RATE_LIMIT_MAX: usize = 60;
+
+#[derive(Debug, Default)]
+struct IngestRateLimiter {
+    hits: Mutex<HashMap<String, VecDeque<Instant>>>,
+}
+
+impl IngestRateLimiter {
+    fn allow(&self, project_id: &str, now: Instant) -> bool {
+        let mut hits = self.hits.lock().expect("ingest rate limiter poisoned");
+        let bucket = hits.entry(project_id.to_string()).or_default();
+        while bucket
+            .front()
+            .is_some_and(|at| now.duration_since(*at) >= INGEST_RATE_LIMIT_WINDOW)
+        {
+            bucket.pop_front();
+        }
+        if bucket.len() >= INGEST_RATE_LIMIT_MAX {
+            return false;
+        }
+        bucket.push_back(now);
+        true
+    }
+}
+
+fn ingest_rate_limiter() -> &'static IngestRateLimiter {
+    static LIMITER: OnceLock<IngestRateLimiter> = OnceLock::new();
+    LIMITER.get_or_init(IngestRateLimiter::default)
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct IngestRunResponse {
     pub run_id: String,
@@ -152,32 +185,6 @@ pub struct IngestRunResponse {
     pub provider: String,
     pub observed_at: chrono::DateTime<chrono::Utc>,
     pub contribution: ContributionStatus,
-}
-
-const INGEST_RATE_LIMIT_MAX: usize = 60;
-const INGEST_RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
-
-#[derive(Debug, Default)]
-struct ProjectRateLimiter {
-    windows: Mutex<HashMap<String, Vec<Instant>>>,
-}
-
-impl ProjectRateLimiter {
-    fn check(&self, project_id: &str, now: Instant) -> bool {
-        let mut windows = self.windows.lock().expect("ingest rate limiter poisoned");
-        let window = windows.entry(project_id.to_string()).or_default();
-        window.retain(|seen| now.duration_since(*seen) < INGEST_RATE_LIMIT_WINDOW);
-        if window.len() >= INGEST_RATE_LIMIT_MAX {
-            return false;
-        }
-        window.push(now);
-        true
-    }
-}
-
-fn ingest_rate_limiter() -> &'static ProjectRateLimiter {
-    static LIMITER: OnceLock<ProjectRateLimiter> = OnceLock::new();
-    LIMITER.get_or_init(ProjectRateLimiter::default)
 }
 
 /// Why a request was rejected at the pure-validation stage. Distinguished so
@@ -232,6 +239,25 @@ pub fn validate_request(req: &IngestRunRequest) -> Result<(), ValidationError> {
         )));
     }
     Ok(())
+}
+
+fn response_text_for_extraction(req: &IngestRunRequest) -> Option<String> {
+    if let Some(text) = req
+        .response_text
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        return Some(text.to_string());
+    }
+    match req.raw_response.as_ref()? {
+        JsonValue::String(s) => Some(s.clone()),
+        JsonValue::Object(obj) => ["response_text", "text", "message", "content"]
+            .iter()
+            .find_map(|key| obj.get(*key).and_then(JsonValue::as_str))
+            .map(str::to_string),
+        _ => None,
+    }
 }
 
 fn is_slug_safe(s: &str) -> bool {
@@ -300,7 +326,7 @@ pub fn decide_contribution(
 pub fn resolve_citation_domains(req: &IngestRunRequest) -> Vec<String> {
     let mut domains: Vec<String> = if let Some(explicit) = &req.citation_domains {
         explicit.clone()
-    } else if let Some(text) = message_text_for_extraction(req) {
+    } else if let Some(text) = response_text_for_extraction(req) {
         anseo_extractors::extract_citations(&text)
             .into_iter()
             .map(|c| c.domain)
@@ -502,7 +528,8 @@ async fn ingest_run(
     }
 
     let project_id = scope.id();
-    if !ingest_rate_limiter().check(&project_id.to_string(), Instant::now()) {
+    let project_id_str = project_id.to_string();
+    if !ingest_rate_limiter().allow(&project_id_str, Instant::now()) {
         return Err(err(
             StatusCode::TOO_MANY_REQUESTS,
             "rate_limited",
@@ -551,7 +578,6 @@ async fn ingest_run(
     //     As of Story 40.4 the full consent/redaction enforcement is wired: past
     //     this gate the run is redacted + sealed iff it BOTH set `contribute:
     //     true` AND the project carries an active benchmark opt-in (below).
-    let project_id_str = project_id.to_string();
     let kek = if req.contribute {
         let pid = project_id_str.clone();
         match tokio::task::spawn_blocking(move || {
@@ -907,6 +933,24 @@ mod tests {
     }
 
     #[test]
+    fn raw_response_and_metadata_are_accepted_story_40_1_shape() {
+        let raw = r#"{
+          "prompt_slug":"vector-db",
+          "provider":"openai",
+          "model":"gpt-4o",
+          "raw_response":{"text":"Pinecone cites https://docs.pinecone.io"},
+          "metadata":{"trace_id":"abc"}
+        }"#;
+        let r: IngestRunRequest = serde_json::from_str(raw).unwrap();
+        assert_eq!(
+            response_text_for_extraction(&r).as_deref(),
+            Some("Pinecone cites https://docs.pinecone.io")
+        );
+        assert_eq!(r.metadata.as_ref().unwrap()["trace_id"], "abc");
+        assert!(validate_request(&r).is_ok());
+    }
+
+    #[test]
     fn consent_active_only_for_optin_on_current_terms() {
         assert!(consent_is_active("optin", TERMS_VERSION));
         assert!(!consent_is_active("optout", TERMS_VERSION));
@@ -984,17 +1028,25 @@ mod tests {
     }
 
     #[test]
-    fn limiter_blocks_after_capacity_then_recovers_after_window() {
-        let limiter = ProjectRateLimiter::default();
-        let base = Instant::now();
+    fn citation_domains_extract_from_raw_response_when_response_text_absent() {
+        let mut r = req(None, None);
+        r.raw_response = Some(serde_json::json!({
+            "text": "read https://docs.example.com/guide"
+        }));
+        let domains = resolve_citation_domains(&r);
+        assert!(domains.contains(&"docs.example.com".to_string()));
+    }
+
+    #[test]
+    fn per_project_rate_limiter_rejects_after_window_capacity() {
+        let limiter = IngestRateLimiter::default();
+        let now = Instant::now();
         for _ in 0..INGEST_RATE_LIMIT_MAX {
-            assert!(limiter.check(PROJECT, base));
+            assert!(limiter.allow(PROJECT, now));
         }
-        assert!(!limiter.check(PROJECT, base));
-        assert!(limiter.check(
-            PROJECT,
-            base + INGEST_RATE_LIMIT_WINDOW + Duration::from_millis(1)
-        ));
+        assert!(!limiter.allow(PROJECT, now));
+        assert!(limiter.allow("another-project", now));
+        assert!(limiter.allow(PROJECT, now + INGEST_RATE_LIMIT_WINDOW));
     }
 
     #[test]

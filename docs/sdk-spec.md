@@ -72,11 +72,11 @@ Body (snake_case; optional fields omitted when unset so server defaults apply):
   "prompt_slug": "best-polarized-sunglasses",   // required, slug-safe
   "provider": "openai",                          // required; "unknown" if undetectable
   "model": "gpt-4o-2024-08-06",                  // required
-  "raw_response": { "text": "…" },               // required by the canonical contract
-  "metadata": { "trace_id": "abc-123" },         // optional
+  "raw_response": { "text": "…" },               // canonical provider-native JSON
+  "metadata": { "trace_id": "abc-123" },         // optional caller metadata
   "response_text": "…",                          // optional compatibility field for early clients
-  "citation_domains": ["sunski.com"],            // optional compatibility/input hint
-  "observed_rank": 1,                            // optional compatibility/input hint
+  "citation_domains": ["sunski.com"],            // optional
+  "observed_rank": 1,                            // optional
   "observed_at": "2026-06-04T12:00:00+00:00",    // optional ISO-8601; defaults to server now
   "contribute": true                             // optional; defaults false
 }
@@ -91,10 +91,10 @@ preserve the safe default (`false`). A `true` value requires a per-project KEK a
 request time; the durable project opt-in then controls whether the accepted run
 seals as `sealed` or reports `skipped_not_opted_in`.
 
+
 `prompt_slug` MUST already be declared in the project — 40.1 returns `422
 prompt_not_found` for an undeclared slug (no auto-create). `provider` validation
-is the server's job: an unknown provider is sent through as-is (e.g.
-`"unknown"`), not rejected client-side.
+is server-authoritative: unsupported providers return `422 provider_not_supported`.
 
 ### Response — `IngestRunResponse` (HTTP 202)
 
@@ -110,7 +110,7 @@ is the server's job: an unknown provider is sent through as-is (e.g.
 ```
 
 `contribution.status` is the internally-tagged `ContributionStatus` from 40.1:
-`sealed` · `skipped_not_opted_in` ·
+`sealed` · `skipped_not_opted_in` · `kek_missing` ·
 `{ "status": "redaction_rejected", "reason": "…" }`. A run is **persisted**
 (HTTP 202) when accepted; if `contribute: true` lacks a project KEK, the request
 is rejected as `403 kek_missing` before persistence.
@@ -119,8 +119,8 @@ is rejected as `403 kek_missing` before persistence.
 
 Non-2xx bodies carry `{ "error": "<code>", "message": "<human text>" }`, e.g.
 `400 validation_failed`, `401` (bad key), `422 prompt_not_found`, `422
-provider_not_supported`, or `403 kek_missing` when `contribute: true` has no
-project KEK. The `429 rate_limited` guard is currently an in-process
+provider_not_supported`, `403 kek_missing` when `contribute: true` has no
+project KEK, or `429 rate_limited`. The `429` guard is currently an in-process
 per-project limiter on the API node, not a distributed cross-node quota.
 
 ---
