@@ -1,9 +1,14 @@
-//! Epic 32 — site audit crawler and citation-readiness heuristic engine.
+//! Epic 32 — site audit crawler and answer-engine readiness / citation-readiness heuristic engine.
 //!
 //! The boundary is intentionally narrow: crawling fetches owned pages, while
 //! scoring is a pure deterministic pass over `(url, html)` fixtures. The rules
-//! are documented inline so operators can inspect the exact citation-readiness
-//! heuristics OpenGEO applies.
+//! are documented inline so operators can inspect the exact AEO / citation-readiness
+//! heuristics Anseo applies.
+//!
+//! Rule taxonomy:
+//! - Identity (AEO: be findable) — schema.org/JSON-LD, canonical URL, site name
+//! - Extractability (AEO: be extractable) — answer blocks, question headings, semantic sections
+//! - Corroboration (AEO: be credible) — outbound links, named sources, source context
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
@@ -214,19 +219,29 @@ pub fn evaluate_gate(report: &AuditReport, fail_on: &[FailOn]) -> GateSummary {
     }
 }
 
+/// Site-level metadata produced by the crawler that supplements per-page HTML facts.
+#[derive(Debug, Clone, Default)]
+pub struct CrawlMeta {
+    /// `true` when `GET <root>/llms.txt` returns a 2xx response.
+    pub llms_txt_present: bool,
+}
+
 pub async fn crawl_and_audit(
     target: &str,
     options: AuditOptions,
 ) -> Result<AuditReport, AuditError> {
-    let pages = Crawler::new(options).crawl(target).await?;
-    Ok(audit_pages(target, pages))
+    let (pages, meta) = Crawler::new(options).crawl(target).await?;
+    Ok(audit_pages(target, pages, meta))
 }
 
-pub fn audit_pages(target: &str, mut pages: Vec<PageInput>) -> AuditReport {
+pub fn audit_pages(target: &str, mut pages: Vec<PageInput>, meta: CrawlMeta) -> AuditReport {
     pages.sort_by(|a, b| a.url.cmp(&b.url));
     pages.dedup_by(|a, b| a.url == b.url);
 
-    let pages: Vec<PageAudit> = pages.into_iter().map(audit_page).collect();
+    let pages: Vec<PageAudit> = pages
+        .into_iter()
+        .map(|p| audit_page(p, meta.llms_txt_present))
+        .collect();
     let overall_score = if pages.is_empty() {
         0
     } else {
@@ -259,40 +274,58 @@ impl Crawler {
         Self { options, client }
     }
 
-    pub async fn crawl(&self, target: &str) -> Result<Vec<PageInput>, AuditError> {
+    pub async fn crawl(&self, target: &str) -> Result<(Vec<PageInput>, CrawlMeta), AuditError> {
         let fetched = self.fetch(target).await?;
-        if looks_like_sitemap(target, &fetched.html) {
-            return self.crawl_sitemap(target, &fetched.html).await;
-        }
-
-        let Some(root) = parse_web_url(&fetched.url) else {
-            return Ok(vec![fetched]);
-        };
-
-        let mut pages = BTreeMap::new();
-        let mut seen = BTreeSet::new();
-        let mut queue = VecDeque::from([root.clone()]);
-        seen.insert(normalize_url(root.clone()));
-
-        while let Some(url) = queue.pop_front() {
-            if pages.len() >= self.options.max_pages {
-                break;
-            }
-            let page = match self.fetch(url.as_str()).await {
-                Ok(page) => page,
-                Err(_) => continue,
+        let pages = if looks_like_sitemap(target, &fetched.html) {
+            self.crawl_sitemap(target, &fetched.html).await?
+        } else {
+            let Some(root) = parse_web_url(&fetched.url) else {
+                return Ok((vec![fetched], CrawlMeta::default()));
             };
-            let links = owned_links(&root, &url, &page.html);
-            pages.insert(normalize_url(url.clone()), page);
-            for link in links {
-                let normalized = normalize_url(link.clone());
-                if seen.insert(normalized) {
-                    queue.push_back(link);
+
+            let mut pages = BTreeMap::new();
+            let mut seen = BTreeSet::new();
+            let mut queue = VecDeque::from([root.clone()]);
+            seen.insert(normalize_url(root.clone()));
+
+            while let Some(url) = queue.pop_front() {
+                if pages.len() >= self.options.max_pages {
+                    break;
+                }
+                let page = match self.fetch(url.as_str()).await {
+                    Ok(page) => page,
+                    Err(_) => continue,
+                };
+                let links = owned_links(&root, &url, &page.html);
+                pages.insert(normalize_url(url.clone()), page);
+                for link in links {
+                    let normalized = normalize_url(link.clone());
+                    if seen.insert(normalized) {
+                        queue.push_back(link);
+                    }
                 }
             }
-        }
 
-        Ok(pages.into_values().collect())
+            pages.into_values().collect()
+        };
+
+        // Probe for llms.txt at the site root (site-level AEO signal).
+        let llms_txt_present = self.probe_llms_txt(target).await;
+        Ok((pages, CrawlMeta { llms_txt_present }))
+    }
+
+    async fn probe_llms_txt(&self, target: &str) -> bool {
+        let Some(root) = parse_web_url(target) else {
+            return false;
+        };
+        let llms_url = format!("{}/llms.txt", root.origin().ascii_serialization());
+        self.client
+            .get(&llms_url)
+            .send()
+            .await
+            .ok()
+            .map(|r| r.status().is_success())
+            .unwrap_or(false)
     }
 
     async fn crawl_sitemap(&self, target: &str, xml: &str) -> Result<Vec<PageInput>, AuditError> {
@@ -373,13 +406,14 @@ impl Crawler {
     }
 }
 
-fn audit_page(page: PageInput) -> PageAudit {
+fn audit_page(page: PageInput, llms_txt_present: bool) -> PageAudit {
     let title = extract_tag_text(&page.html, "title").map(clean_text);
     let doc = DocumentFacts::from_html(&page.url, &page.html);
     let findings = vec![
         rule_schema_org(&doc),
         rule_canonical_url(&doc),
         rule_site_name(&doc),
+        rule_llms_txt(&doc, llms_txt_present),
         rule_answer_blocks(&doc),
         rule_question_headings(&doc),
         rule_semantic_sections(&doc),
@@ -408,6 +442,8 @@ struct DocumentFacts {
     headings: Vec<String>,
     paragraph_count: usize,
     outbound_links: Vec<String>,
+    /// `true` when the page declares an AI-crawler policy via `<meta name="robots">`.
+    ai_robots_meta: bool,
 }
 
 impl DocumentFacts {
@@ -423,6 +459,22 @@ impl DocumentFacts {
             .collect();
         let paragraph_count = count_tag(&lower_html, "p");
         let outbound_links = outbound_links(url, html);
+        // Detect AI-specific crawler directives in <meta name="robots"> content.
+        // Any of these values signals that the operator has explicitly declared
+        // an AI crawl policy, which satisfies the identity.llms_txt rule.
+        let ai_robots_meta = lower_html.contains("name=\"robots\"")
+            && contains_any(
+                &lower_html,
+                &[
+                    "noai",
+                    "noimageai",
+                    "google-extended",
+                    "gptbot",
+                    "ccbot",
+                    "anthropicbot",
+                    "perplexitybot",
+                ],
+            );
         Self {
             lower_html,
             text,
@@ -430,6 +482,7 @@ impl DocumentFacts {
             headings,
             paragraph_count,
             outbound_links,
+            ai_robots_meta,
         }
     }
 }
@@ -491,6 +544,33 @@ fn rule_site_name(doc: &DocumentFacts) -> AuditFinding {
         "Add `og:site_name` or include the site/entity name in the page title.",
         structural_kind(),
         evidence_if(pass, "found og:site_name or title site separator"),
+    )
+}
+
+// Rule: identity.llms_txt [experimental]
+// Transparent heuristic: either a site-level /llms.txt file (200 response) or
+// per-page AI-crawler meta directives (noai, gptbot, etc.) declares that the
+// operator has considered their AI-crawler policy. Absence is a low-severity
+// gap — the llms.txt standard is still a community proposal (llmstxt.org) with
+// no formal crawler compliance from major providers.
+fn rule_llms_txt(doc: &DocumentFacts, llms_txt_present: bool) -> AuditFinding {
+    let pass = llms_txt_present || doc.ai_robots_meta;
+    finding(
+        "identity.llms_txt",
+        AuditCategory::Identity,
+        Severity::Low,
+        pass,
+        "AI-crawler policy is declared (llms.txt or meta robots).",
+        "Consider adding /llms.txt to declare your AI-crawler policy [experimental].",
+        structural_kind(),
+        evidence_if(
+            pass,
+            if llms_txt_present {
+                "found /llms.txt (200)"
+            } else {
+                "found AI-crawler meta robots directive"
+            },
+        ),
     )
 }
 
@@ -960,13 +1040,14 @@ mod tests {
             strong_page("https://example.com/b"),
             strong_page("https://example.com/a"),
         ];
-        let a = audit_pages("https://example.com", pages.clone());
-        let b = audit_pages("https://example.com", pages);
+        let a = audit_pages("https://example.com", pages.clone(), CrawlMeta::default());
+        let b = audit_pages("https://example.com", pages, CrawlMeta::default());
         assert_eq!(
             serde_json::to_value(&a).unwrap(),
             serde_json::to_value(&b).unwrap()
         );
-        assert_eq!(a.overall_score, 100);
+        // strong_page passes 9 of 10 rules (identity.llms_txt is warn by default).
+        assert_eq!(a.overall_score, 90);
         assert_eq!(a.pages[0].url, "https://example.com/a");
     }
 
@@ -979,6 +1060,7 @@ mod tests {
                 html: "<html><head><title>Acme</title></head><body><p>Buy now.</p></body></html>"
                     .to_string(),
             }],
+            CrawlMeta::default(),
         );
         let page = &report.pages[0];
         assert!(page.score < 50);
@@ -999,6 +1081,7 @@ mod tests {
         let report = audit_pages(
             "https://example.com",
             vec![strong_page("https://example.com")],
+            CrawlMeta::default(),
         );
         let kinds: BTreeSet<&str> = report.pages[0]
             .findings
@@ -1017,6 +1100,7 @@ mod tests {
                 url: "https://example.com".to_string(),
                 html: "<html><body>thin page</body></html>".to_string(),
             }],
+            CrawlMeta::default(),
         );
         let high_gate = evaluate_gate(&report, &[FailOn::parse("high")]);
         assert!(!high_gate.passed);
@@ -1084,6 +1168,68 @@ mod tests {
                 "https://example.com/about",
                 "https://example.com/methodology",
             ]
+        );
+    }
+
+    // --- identity.llms_txt tests (AC 1–4, story 50.1) ---
+
+    #[test]
+    fn rule_llms_txt_passes_when_llms_txt_present() {
+        let doc = DocumentFacts::from_html(
+            "https://example.com",
+            "<html><body>no ai meta here</body></html>",
+        );
+        let finding = rule_llms_txt(&doc, true);
+        assert_eq!(finding.rule_id, "identity.llms_txt");
+        assert_eq!(finding.status, FindingStatus::Pass);
+        assert_eq!(finding.category, AuditCategory::Identity);
+        assert!(finding.evidence[0].contains("/llms.txt"));
+    }
+
+    #[test]
+    fn rule_llms_txt_passes_when_ai_robots_meta_present() {
+        let html = r#"<html><head>
+            <meta name="robots" content="noimageai, noindex">
+        </head><body></body></html>"#;
+        let doc = DocumentFacts::from_html("https://example.com", html);
+        assert!(doc.ai_robots_meta, "should detect noimageai in meta robots");
+        let finding = rule_llms_txt(&doc, false);
+        assert_eq!(finding.status, FindingStatus::Pass);
+        assert!(finding.evidence[0].contains("meta robots"));
+    }
+
+    #[test]
+    fn rule_llms_txt_warns_when_neither_signal_present() {
+        let doc = DocumentFacts::from_html(
+            "https://example.com",
+            "<html><head><meta name=\"robots\" content=\"noindex\"></head><body></body></html>",
+        );
+        // noindex is not an AI-specific directive
+        assert!(!doc.ai_robots_meta);
+        let finding = rule_llms_txt(&doc, false);
+        assert_eq!(finding.status, FindingStatus::Warn, "Low severity → Warn not Fail");
+        assert_eq!(finding.severity, Severity::Low);
+        assert!(finding.message.contains("[experimental]"));
+    }
+
+    #[test]
+    fn audit_pages_produces_ten_findings_per_page() {
+        let report = audit_pages(
+            "https://example.com",
+            vec![strong_page("https://example.com")],
+            CrawlMeta::default(),
+        );
+        assert_eq!(
+            report.pages[0].findings.len(),
+            10,
+            "audit_page must call all 10 rules"
+        );
+        assert!(
+            report.pages[0]
+                .findings
+                .iter()
+                .any(|f| f.rule_id == "identity.llms_txt"),
+            "identity.llms_txt must appear in findings"
         );
     }
 
