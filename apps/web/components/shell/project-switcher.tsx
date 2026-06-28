@@ -44,9 +44,21 @@ export function ProjectSwitcher({ deployment }: { deployment: "local" | "cloud" 
       .then(([list, selected]) => {
         if (cancelled) return;
         setProjects(list);
-        // Default the visible label to the cookie, else the first project.
-        setActive(selected ?? list[0]?.name ?? null);
+        const effective = selected ?? list[0]?.name ?? null;
+        setActive(effective);
         setLoaded(true);
+        // If no project was persisted yet, auto-select the first one so every
+        // subsequent API call has a valid X-Anseo-Project header (ADR-004 tier 2).
+        // Without this, the dashboard shows the first project in the UI but sends
+        // no header, causing the backend's sole-active-project fallback (tier 3)
+        // to fail in multi-project deployments with a 404.
+        if (!selected && effective) {
+          fetch("/api/projects/select", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: effective }),
+          }).catch(() => {/* non-fatal: next user switch will persist correctly */});
+        }
       })
       .catch(() => {
         if (!cancelled) setLoaded(true);
