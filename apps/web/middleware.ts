@@ -1,4 +1,4 @@
-// Proxy: auto-select the first active project on first visit (ADR-004).
+// Auto-select the first active project on first visit (ADR-004).
 //
 // When no anseo_project cookie is present the Next.js proxy routes send no
 // X-Anseo-Project header, so the backend's sole-active-project fallback (tier
@@ -6,7 +6,7 @@
 // page that loads data on mount before client JS has a chance to run the
 // project-switcher's auto-select logic.
 //
-// This proxy fixes the race by setting the cookie server-side during the
+// This middleware fixes the race by setting the cookie server-side during the
 // initial navigation, before any React component mounts or fires a useEffect.
 // Subsequent requests hit the fast path immediately (cookie present → skip).
 
@@ -17,7 +17,7 @@ interface ProjectsPayload {
   projects?: Array<{ name: string }>;
 }
 
-export async function proxy(req: NextRequest): Promise<NextResponse> {
+export async function middleware(req: NextRequest): Promise<NextResponse> {
   // Fast path: project already selected — nothing to do.
   if (req.cookies.get(PROJECT_COOKIE)?.value) {
     return NextResponse.next();
