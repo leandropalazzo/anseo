@@ -676,7 +676,7 @@ jobs:
           # Plain binary — backward compat with the github-action Dockerfile which
           # downloads the exact name `anseo-<triple>` via `gh release download`.
           cp "target/${TARGET}/release/anseo" "dist/cli/anseo-${TARGET}"
-          ./dist/cli/anseo-${TARGET} --version || true
+          "./dist/cli/anseo-${TARGET}" --version || true
           # Tarball — what scripts/install.sh fetches by name.
           # Strip leading 'v' so version matches semver bare form in the filename.
           BARE="${VERSION#v}"
