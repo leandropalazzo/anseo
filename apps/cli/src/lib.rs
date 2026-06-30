@@ -7,6 +7,7 @@
 
 pub mod commands;
 pub mod datastore;
+pub mod handoff;
 pub mod output;
 pub mod preflight;
 pub mod scaffold;

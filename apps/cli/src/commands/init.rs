@@ -66,6 +66,15 @@ pub struct InitArgs {
     /// fresh UUID on this run. Use with caution: this severs the identity link.
     #[arg(long)]
     pub reinit: bool,
+
+    /// Skip the automatic browser-open after bring-up. The setup URL and
+    /// first-run code are still printed to the terminal.
+    #[arg(long)]
+    pub no_open: bool,
+
+    /// Seconds to wait for the backend to become healthy before giving up.
+    #[arg(long, default_value_t = 30)]
+    pub timeout_secs: u64,
 }
 
 /// Each scaffolded file as a `(path, contents)` pair.
@@ -376,14 +385,22 @@ pub fn run(args: InitArgs) -> Result<(), OpenGeoError> {
         reinit: args.reinit,
     })?;
 
-    // ── Tier-aware completion message ────────────────────────────────────────
-    match tier {
-        0 => eprintln!("✓ Tier 0 (solo CLI): no server to start."),
-        1 => eprintln!("✓ Tier 1 (single binary): anseo serve launched."),
-        2 => eprintln!("✓ Tier 2 (Docker Compose): stack starting."),
-        _ => {}
+    // ── Handoff (T1/T2) or completion message (T0) ──────────────────────────
+    if tier >= 1 {
+        let setup_url = format!("http://127.0.0.1:{SERVE_PORT}/setup");
+        let code = crate::handoff::generate_first_run_code();
+        crate::handoff::wait_for_health(SERVE_PORT, Duration::from_secs(args.timeout_secs))?;
+        if !args.no_open {
+            crate::handoff::open_browser(&setup_url);
+        }
+        crate::handoff::print_handoff(&setup_url, &code);
+    } else {
+        eprintln!("✓ Tier 0 (solo CLI): no server to start.");
+        if std::env::var("DATABASE_URL").is_err() {
+            eprintln!("  Set DATABASE_URL=postgres://... before running anseo commands.");
+        }
+        eprintln!("Next: run `anseo login openai` (or anthropic) to store a provider key.");
     }
-    eprintln!("Next: run `anseo login openai` (or anthropic) to store a provider key.");
     Ok(())
 }
 

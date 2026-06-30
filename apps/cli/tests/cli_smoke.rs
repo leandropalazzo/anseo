@@ -323,6 +323,30 @@ fn init_recovery_skips_scaffold_when_anseo_yaml_exists() {
     );
 }
 
+// --- Story 37.10: handoff flag integration tests ---
+
+#[test]
+fn init_yes_with_no_open_flag_exits_zero() {
+    // --no-open is accepted; --yes → T0 → no health-wait → exits 0 cleanly.
+    let dir = TempDir::new().unwrap();
+    anseo()
+        .args(["init", "--yes", "--no-open", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn init_yes_with_timeout_secs_flag_exits_zero() {
+    // --timeout-secs is accepted; --yes → T0 → no health-wait → exits 0 cleanly.
+    let dir = TempDir::new().unwrap();
+    anseo()
+        .args(["init", "--yes", "--timeout-secs", "5", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+}
+
 // --- Story 37.9: preflight flag integration tests ---
 
 #[test]
