@@ -44,20 +44,21 @@ export function ProjectSwitcher({ deployment }: { deployment: "local" | "cloud" 
       .then(([list, selected]) => {
         if (cancelled) return;
         setProjects(list);
-        const effective = selected ?? list[0]?.name ?? null;
+        // Treat a persisted name as valid only if it appears in the current list.
+        // A stale cookie (e.g. from a renamed/deleted project) would otherwise
+        // send an unknown X-Anseo-Project and get a 404 from every API call.
+        const validSelected =
+          selected && list.some((p) => p.name === selected) ? selected : null;
+        const effective = validSelected ?? list[0]?.name ?? null;
         setActive(effective);
         setLoaded(true);
-        // If no project was persisted yet, auto-select the first one so every
-        // subsequent API call has a valid X-Anseo-Project header (ADR-004 tier 2).
-        // Without this, the dashboard shows the first project in the UI but sends
-        // no header, causing the backend's sole-active-project fallback (tier 3)
-        // to fail in multi-project deployments with a 404.
-        if (!selected && effective) {
+        // Persist the effective project when the cookie was absent or stale.
+        if (effective && effective !== selected) {
           fetch("/api/projects/select", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name: effective }),
-          }).catch(() => {/* non-fatal: next user switch will persist correctly */});
+          }).catch(() => {/* non-fatal */});
         }
       })
       .catch(() => {
