@@ -45,6 +45,7 @@ fn make_config(prompts: &[(&str, &str)]) -> Config {
         concurrency: 4,
         anomaly_sensitivity: AnomalySensitivity::default(),
         analytics: None,
+        tier: 0,
     }
 }
 

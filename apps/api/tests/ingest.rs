@@ -104,6 +104,7 @@ async fn seeded() -> (axum::Router, ProjectId, String, String) {
         concurrency: 4,
         anomaly_sensitivity: AnomalySensitivity::default(),
         analytics: None,
+        tier: 0,
     };
     let state = AppState {
         storage,
