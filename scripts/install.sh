@@ -21,7 +21,17 @@
 set -eu
 
 REPO="leandropalazzo/anseo"
-INSTALL_DIR="${ANSEO_INSTALL_DIR:-/usr/local/bin}"
+
+# Default install dir: /usr/local/bin if writable, else ~/.local/bin (no sudo needed).
+if [ -z "${ANSEO_INSTALL_DIR:-}" ]; then
+  if [ -w /usr/local/bin ]; then
+    INSTALL_DIR="/usr/local/bin"
+  else
+    INSTALL_DIR="${HOME}/.local/bin"
+  fi
+else
+  INSTALL_DIR="$ANSEO_INSTALL_DIR"
+fi
 
 # ---------------------------------------------------------------------------
 # 1. Detect platform
@@ -139,6 +149,15 @@ main() {
 
   printf '\nNext step: anseo init\n'
   printf 'Docs     : https://anseo.ai/docs\n'
+
+  # Remind the user to add ~/.local/bin to PATH if it is not already there.
+  case ":${PATH}:" in
+    *":${INSTALL_DIR}:"*) ;;
+    *)
+      printf '\nNote: add %s to your PATH:\n' "$INSTALL_DIR"
+      printf '  echo '\''export PATH="%s:$PATH"'\'' >> ~/.zshrc && source ~/.zshrc\n' "$INSTALL_DIR"
+      ;;
+  esac
 }
 
 main "$@"
