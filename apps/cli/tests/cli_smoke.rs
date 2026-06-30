@@ -323,6 +323,32 @@ fn init_recovery_skips_scaffold_when_anseo_yaml_exists() {
     );
 }
 
+// --- Story 37.9: preflight flag integration tests ---
+
+#[test]
+fn init_yes_with_adopt_instance_flag_exits_zero() {
+    // --adopt-instance is accepted by the CLI; DATABASE_URL not set → preflight
+    // skips the DB check → exits 0 cleanly.
+    let dir = TempDir::new().unwrap();
+    anseo()
+        .args(["init", "--yes", "--adopt-instance", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn init_yes_with_reinit_flag_exits_zero() {
+    // --reinit is accepted by the CLI; DATABASE_URL not set → preflight skips
+    // the DB check → exits 0 cleanly.
+    let dir = TempDir::new().unwrap();
+    anseo()
+        .args(["init", "--yes", "--reinit", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+}
+
 #[test]
 fn config_error_exits_with_code_64() {
     // Pointing the list command at a non-existent config triggers ConfigError,

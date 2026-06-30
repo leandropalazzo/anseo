@@ -29,7 +29,7 @@ use std::time::Duration;
 use anseo_core::OpenGeoError;
 use clap::Args;
 
-use crate::preflight::run_preflight;
+use crate::preflight::{run_preflight, PreflightOpts};
 use crate::scaffold::{anseo_yaml, GITIGNORE, README};
 
 /// Default port `anseo serve` binds on (mirrors `DEFAULT_PORT` in serve.rs).
@@ -55,6 +55,17 @@ pub struct InitArgs {
     /// is also set.
     #[arg(long)]
     pub yes: bool,
+
+    /// Adopt the database's sentinel UUID as this instance's identity.
+    /// Resolves a mismatch between the DB sentinel and the local sentinel file
+    /// by overwriting the local file with the DB value.
+    #[arg(long)]
+    pub adopt_instance: bool,
+
+    /// Clear the sentinel from the database and the local file, then create a
+    /// fresh UUID on this run. Use with caution: this severs the identity link.
+    #[arg(long)]
+    pub reinit: bool,
 }
 
 /// Each scaffolded file as a `(path, contents)` pair.
@@ -358,8 +369,12 @@ pub fn run(args: InitArgs) -> Result<(), OpenGeoError> {
     // ── Bring-up phase ───────────────────────────────────────────────────────
     bring_up_tier(tier, &dir)?;
 
-    // ── Preflight stub (37.9 fills in the real DB identity check) ────────────
-    run_preflight()?;
+    // ── Preflight: DB connectivity + sentinel identity check (Story 37.9) ───
+    run_preflight(PreflightOpts {
+        database_url: std::env::var("DATABASE_URL").ok(),
+        adopt_instance: args.adopt_instance,
+        reinit: args.reinit,
+    })?;
 
     // ── Tier-aware completion message ────────────────────────────────────────
     match tier {
