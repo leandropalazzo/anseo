@@ -22,9 +22,10 @@ set -eu
 
 REPO="leandropalazzo/anseo"
 
-# Default install dir: /usr/local/bin if writable, else ~/.local/bin (no sudo needed).
+# Default install dir: /usr/local/bin if actually writable, else ~/.local/bin (no sudo needed).
+# Use a real write probe instead of [ -w ] which misreports on macOS with ACLs.
 if [ -z "${ANSEO_INSTALL_DIR:-}" ]; then
-  if [ -w /usr/local/bin ]; then
+  if _probe="$(mktemp /usr/local/bin/.anseo-probe.XXXXXX 2>/dev/null)" && rm -f "$_probe"; then
     INSTALL_DIR="/usr/local/bin"
   else
     INSTALL_DIR="${HOME}/.local/bin"
