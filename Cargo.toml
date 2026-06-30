@@ -67,7 +67,9 @@ keyring = { version = "3", default-features = false, features = ["sync-secret-se
 age = { version = "0.10", default-features = false, features = ["armor"] }
 rpassword = "7"
 
-# async-stripe-shared is a massive generated file that OOM-kills Depot builders at opt-level=3.
-# Drop it to opt-level=1 for release builds; the runtime perf difference is negligible for HTTP plumbing.
+# async-stripe-shared is a massive generated file that OOM-kills the Depot builder.
+# opt-level=1 is not enough; opt-level=0 + codegen-units=16 keeps per-unit allocation low.
+# Runtime perf is negligible — pure HTTP plumbing/deserialization.
 [profile.release.package.async-stripe-shared]
-opt-level = 1
+opt-level = 0
+codegen-units = 16
