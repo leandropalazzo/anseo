@@ -13,6 +13,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PROJECT_COOKIE, PROJECT_COOKIE_MAX_AGE } from "@/lib/projects";
 
+// Edge runtime cannot read Docker-injected process.env at runtime.
+// Node.js runtime is required so ANSEO_API_BASE_URL / ANSEO_API_KEY resolve.
+export const runtime = "nodejs";
+
 interface ProjectsPayload {
   projects?: Array<{ name: string }>;
 }
