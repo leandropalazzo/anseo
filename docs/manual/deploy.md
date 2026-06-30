@@ -1,5 +1,24 @@
 # Deploy manual
 
+## Getting started
+
+Install the `anseo` CLI (macOS / Linux, no Rust or Docker required):
+
+```sh
+curl -fsSL https://anseo.ai/install | sh
+```
+
+Then scaffold a project and follow the interactive tier prompt:
+
+```sh
+anseo init
+```
+
+The sections below describe each tier in detail. `anseo init` detects and
+recommends the right one for your machine.
+
+---
+
 One multi-project core, **three deployment tiers**. They share the same engine, config (`anseo.yaml`), and data model — you pick a tier by how much you want running, and you can move up a tier later without changing your project.
 
 | Tier | What runs | Reach for it when… |
