@@ -608,15 +608,21 @@ jobs:
     name: Build CLI binary — ${{ matrix.target }}
     needs: resolve
     if: ${{ needs.resolve.outputs.publish_ok == 'true' || needs.resolve.outputs.dry_run == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - x86_64-unknown-linux-musl
-          - aarch64-unknown-linux-musl
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-13          # last free Intel runner
+          - target: aarch64-apple-darwin
+            os: macos-14          # M1 runner
     env:
       # Build against the committed .sqlx cache — no live DATABASE_URL needed.
       SQLX_OFFLINE: "true"
@@ -648,8 +654,9 @@ jobs:
       # Sets up the cross linker + CC for the musl target (incl. the aarch64
       # cross toolchain) so a plain `cargo build --target <triple>` produces a
       # static binary on the x86_64 runner. ring compiles its C under this.
-      - name: Set up cross toolchain
-        if: ${{ steps.detect.outputs.present == 'true' }}
+      # Darwin targets use the native macOS toolchain — no cross action needed.
+      - name: Set up cross toolchain (musl only)
+        if: ${{ steps.detect.outputs.present == 'true' && contains(matrix.target, 'musl') }}
         uses: taiki-e/setup-cross-toolchain-action@v1
         with:
           target: ${{ matrix.target }}
@@ -660,11 +667,21 @@ jobs:
 
       - name: Stage release asset
         if: ${{ steps.detect.outputs.present == 'true' }}
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
           mkdir -p dist/cli
-          cp "target/${{ matrix.target }}/release/anseo" "dist/cli/anseo-${{ matrix.target }}"
-          ./dist/cli/anseo-${{ matrix.target }} --version || true
+          # Plain binary — backward compat with the github-action Dockerfile which
+          # downloads the exact name `anseo-<triple>` via `gh release download`.
+          cp "target/${TARGET}/release/anseo" "dist/cli/anseo-${TARGET}"
+          ./dist/cli/anseo-${TARGET} --version || true
+          # Tarball — what scripts/install.sh fetches by name.
+          # Strip leading 'v' so version matches semver bare form in the filename.
+          BARE="${VERSION#v}"
+          tar -czf "dist/cli/anseo-${BARE}-${TARGET}.tar.gz" \
+            -C "target/${TARGET}/release" anseo
 
       - name: Upload CLI binary artifact
         if: ${{ steps.detect.outputs.present == 'true' }}
@@ -672,6 +689,15 @@ jobs:
         with:
           name: anseo-cli-${{ matrix.target }}
           path: dist/cli/anseo-${{ matrix.target }}
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload CLI tarball artifact
+        if: ${{ steps.detect.outputs.present == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: anseo-cli-tarball-${{ matrix.target }}
+          path: dist/cli/anseo-*-${{ matrix.target }}.tar.gz
           if-no-files-found: error
           retention-days: 90
 
@@ -864,6 +890,16 @@ jobs:
           path: dist/cli
           merge-multiple: true
 
+      # Pull tarball artifacts (anseo-cli-tarball-<triple>) so the release step
+      # also attaches `anseo-{version}-{triple}.tar.gz` — what install.sh fetches.
+      - name: Download CLI tarballs
+        if: ${{ steps.clidetect.outputs.present == 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: anseo-cli-tarball-*
+          path: dist/cli
+          merge-multiple: true
+
       - name: Create release with notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -973,7 +1009,7 @@ jobs:
             echo "| GHCR images | 38.15 | ${R_IMAGES} |"
             echo "| Compose snapshot | 38.16 | ${R_SNAPSHOT} |"
             echo "| SDK publish (npm/PyPI) | 40.x | ${R_SDK} |"
-            echo "| CLI binaries (musl) | — | ${R_CLI} |"
+            echo "| CLI binaries (musl + darwin) | 38.4 | ${R_CLI} |"
             echo "| GitHub Release | 38.19 | ${R_RELEASE} |"
             echo
             echo "### Best-effort cross-repo dispatches (NOT verified, do not gate)"
