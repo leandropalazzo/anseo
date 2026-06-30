@@ -1,13 +1,11 @@
 // Persist the operator-selected project (Story 36.8).
 //
-// The switcher POSTs the chosen project name here; we validate it against the
-// live backend project list before setting the cookie so a stale or fabricated
-// name can never enter the cookie and cause downstream 404s.
+// Validates the chosen name against the live backend project list before
+// setting the cookie so a stale or fabricated name can never cause 404s.
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { PROJECT_COOKIE, PROJECT_COOKIE_MAX_AGE } from "@/lib/projects";
-import { API_BASE_URL } from "@/lib/api/_client";
 
 interface SelectBody {
   name?: unknown;
@@ -31,25 +29,28 @@ export async function POST(req: NextRequest) {
 
   // Validate against the live project list before persisting.
   const apiKey = process.env.ANSEO_API_KEY;
+  const apiBase = process.env.ANSEO_API_BASE_URL ?? "http://127.0.0.1:8080";
   if (apiKey) {
+    let known: string[] | null = null;
     try {
-      const r = await fetch(`${API_BASE_URL}/v1/projects`, {
+      const r = await fetch(`${apiBase}/v1/projects`, {
         headers: { "X-Anseo-API-Key": apiKey },
         cache: "no-store",
       });
       if (r.ok) {
         const data = (await r.json()) as ProjectsPayload;
-        const known = data.projects?.map((p) => p.name) ?? [];
-        if (!known.includes(name)) {
-          return NextResponse.json(
-            { error: "project_not_found", known },
-            { status: 404 },
-          );
-        }
+        known = data.projects?.map((p) => p.name) ?? [];
       }
-    } catch {
-      // Backend unreachable — allow the set so the UI isn't broken by a
-      // transient outage; baseHeaders will re-validate on the next request.
+    } catch (e) {
+      console.error("[project-select] /v1/projects fetch failed:", e);
+      // Backend unreachable — allow the set so a transient outage doesn't
+      // lock the UI; baseHeaders re-validates on every subsequent request.
+    }
+    if (known !== null && !known.includes(name)) {
+      return NextResponse.json(
+        { error: "project_not_found", known },
+        { status: 404 },
+      );
     }
   }
 
