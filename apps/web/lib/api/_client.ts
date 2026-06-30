@@ -26,7 +26,24 @@ async function baseHeaders(json: boolean): Promise<Record<string, string>> {
   // reload picks up rotations without a restart.
   const apiKey = process.env.ANSEO_API_KEY;
   if (apiKey) headers["X-Anseo-API-Key"] = apiKey;
-  const project = await getSelectedProject();
+  let project = await getSelectedProject();
+  // Fresh session — no cookie yet. Auto-pick the first active project so that
+  // API calls don't omit X-Anseo-Project and get 404 from the backend's
+  // multi-project deployment path (ADR-004 tier 3 only works for single-project).
+  if (!project && apiKey) {
+    try {
+      const r = await fetch(`${API_BASE_URL}/v1/projects`, {
+        headers: { "X-Anseo-API-Key": apiKey },
+        cache: "no-store",
+      });
+      if (r.ok) {
+        const data = (await r.json()) as { projects?: Array<{ name: string }> };
+        project = data.projects?.[0]?.name;
+      }
+    } catch {
+      // API unreachable — omit header and let the backend apply its own fallback.
+    }
+  }
   if (project) headers[PROJECT_HEADER] = project;
   return headers;
 }
