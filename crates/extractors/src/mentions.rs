@@ -141,6 +141,7 @@ pub fn config_with(brand: &str, competitors: &[&str]) -> Config {
         concurrency: 4,
         anomaly_sensitivity: Default::default(),
         analytics: None,
+        tier: 0,
     }
 }
 

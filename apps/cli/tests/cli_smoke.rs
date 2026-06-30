@@ -47,6 +47,47 @@ fn init_writes_a_valid_schema_v0_1_config() {
         "scaffold has at least one example prompt"
     );
     assert_eq!(cfg.prompts[0].name, "example-prompt");
+    // Non-TTY context → tier 0 (solo CLI). tier=0 is omitted from YAML (skip_serializing_if).
+    assert_eq!(cfg.tier, 0, "non-TTY init defaults to tier 0");
+}
+
+// --- Story 37.6: tier selection tests ---
+
+#[test]
+fn init_yes_writes_tier_0() {
+    let dir = TempDir::new().unwrap();
+    anseo()
+        .args(["init", "--yes", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    let yaml = std::fs::read_to_string(dir.path().join("anseo.yaml")).unwrap();
+    let cfg = anseo_core::Config::from_yaml_str(&yaml).expect("scaffold parses");
+    assert_eq!(cfg.tier, 0, "--yes must default to tier 0");
+    // tier=0 omitted from YAML (no clutter for the default case)
+    assert!(!yaml.contains("tier: 0"), "tier=0 is omitted from YAML text");
+}
+
+// NOTE: interactive tier-prompt tests (piped "1\n" → tier 1) cannot be
+// integration-tested via assert_cmd because write_stdin() makes stdin non-TTY,
+// which correctly triggers the non-interactive path (tier 0). The tier
+// selection logic is unit-tested in commands/init.rs#[cfg(test)] instead.
+
+#[test]
+fn init_non_tty_stdin_defaults_to_tier_0() {
+    // Any piped stdin is non-TTY → tier 0, regardless of content.
+    let dir = TempDir::new().unwrap();
+    anseo()
+        .args(["init", "--dir"])
+        .arg(dir.path())
+        .write_stdin("2\n") // would be tier 2 in a TTY; non-TTY → tier 0
+        .assert()
+        .success();
+
+    let yaml = std::fs::read_to_string(dir.path().join("anseo.yaml")).unwrap();
+    let cfg = anseo_core::Config::from_yaml_str(&yaml).expect("scaffold parses");
+    assert_eq!(cfg.tier, 0, "non-TTY stdin always yields tier 0");
 }
 
 #[test]

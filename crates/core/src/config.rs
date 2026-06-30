@@ -90,6 +90,11 @@ pub struct Config {
     /// so pre-Phase-3 configs parse unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub analytics: Option<AnalyticsConfig>,
+    /// Deployment tier chosen at `anseo init` (Story 37.6).
+    /// 0 = solo CLI (no server), 1 = single binary (`anseo serve`), 2 = Docker Compose.
+    /// Absent in pre-37.6 configs — treated as 0 (solo CLI) for backward compat.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub tier: u8,
 }
 
 /// Phase 3 — analytics store configuration. Today the only member is the
@@ -379,6 +384,10 @@ fn default_concurrency() -> u32 {
     DEFAULT_CONCURRENCY
 }
 
+fn is_zero(v: &u8) -> bool {
+    *v == 0
+}
+
 fn default_schedule_debounce_minutes() -> u32 {
     DEFAULT_SCHEDULE_DEBOUNCE_MINUTES
 }
@@ -533,6 +542,10 @@ impl Config {
 
         if self.schema_version == SCHEMA_VERSION_V0_1 && !self.schedules.is_empty() {
             errors.push("schedules require schema_version `0.2`".into());
+        }
+
+        if self.tier > 2 {
+            errors.push(format!("tier must be 0, 1, or 2 (got {})", self.tier));
         }
 
         if self.brand.name.trim().is_empty() {
