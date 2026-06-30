@@ -85,7 +85,11 @@ fn docker_compose_available() -> bool {
 /// - Tier 2 (Docker Compose): `docker compose version` exits 0.
 /// - Tier 1 (single binary `anseo serve`): Docker not available.
 pub fn detect_recommended_tier() -> u8 {
-    if docker_compose_available() { 2 } else { 1 }
+    if docker_compose_available() {
+        2
+    } else {
+        1
+    }
 }
 
 pub fn tier_description(tier: u8) -> &'static str {
@@ -232,9 +236,7 @@ pub fn bring_up_tier(tier: u8, dir: &Path) -> Result<(), OpenGeoError> {
         }
         1 => {
             if is_port_listening(SERVE_PORT) {
-                eprintln!(
-                    "  anseo serve already running on port {SERVE_PORT} — skipping launch."
-                );
+                eprintln!("  anseo serve already running on port {SERVE_PORT} — skipping launch.");
             } else {
                 spawn_serve(dir)?;
                 eprintln!("  anseo serve launched in the background.");
@@ -283,9 +285,8 @@ pub fn run(args: InitArgs) -> Result<(), OpenGeoError> {
         let contents = std::fs::read_to_string(&existing_yaml).map_err(|e| {
             OpenGeoError::Config(format!("failed to read existing anseo.yaml: {e}"))
         })?;
-        let cfg = anseo_core::Config::from_yaml_str(&contents).map_err(|e| {
-            OpenGeoError::Config(format!("existing anseo.yaml is invalid: {e}"))
-        })?;
+        let cfg = anseo_core::Config::from_yaml_str(&contents)
+            .map_err(|e| OpenGeoError::Config(format!("existing anseo.yaml is invalid: {e}")))?;
         let t = cfg.tier;
         eprintln!(
             "Found existing anseo.yaml (Tier {} — {}). Resuming bring-up.",
@@ -445,7 +446,10 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         drop(listener);
         // Port is now closed.
-        assert!(!is_port_listening(port), "dropped port must not report as listening");
+        assert!(
+            !is_port_listening(port),
+            "dropped port must not report as listening"
+        );
     }
 
     #[test]
@@ -453,7 +457,10 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         // Listener still alive.
-        assert!(is_port_listening(port), "bound port must report as listening");
+        assert!(
+            is_port_listening(port),
+            "bound port must report as listening"
+        );
     }
 
     #[test]

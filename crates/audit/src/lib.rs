@@ -1207,7 +1207,11 @@ mod tests {
         // noindex is not an AI-specific directive
         assert!(!doc.ai_robots_meta);
         let finding = rule_llms_txt(&doc, false);
-        assert_eq!(finding.status, FindingStatus::Warn, "Low severity → Warn not Fail");
+        assert_eq!(
+            finding.status,
+            FindingStatus::Warn,
+            "Low severity → Warn not Fail"
+        );
         assert_eq!(finding.severity, Severity::Low);
         assert!(finding.message.contains("[experimental]"));
     }

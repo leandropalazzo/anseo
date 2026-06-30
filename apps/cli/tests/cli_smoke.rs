@@ -66,7 +66,10 @@ fn init_yes_writes_tier_0() {
     let cfg = anseo_core::Config::from_yaml_str(&yaml).expect("scaffold parses");
     assert_eq!(cfg.tier, 0, "--yes must default to tier 0");
     // tier=0 omitted from YAML (no clutter for the default case)
-    assert!(!yaml.contains("tier: 0"), "tier=0 is omitted from YAML text");
+    assert!(
+        !yaml.contains("tier: 0"),
+        "tier=0 is omitted from YAML text"
+    );
 }
 
 // NOTE: interactive tier-prompt tests (piped "1\n" → tier 1) cannot be
