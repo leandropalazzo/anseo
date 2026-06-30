@@ -8,6 +8,7 @@
 pub mod commands;
 pub mod datastore;
 pub mod output;
+pub mod preflight;
 pub mod scaffold;
 
 use clap::{Parser, Subcommand};

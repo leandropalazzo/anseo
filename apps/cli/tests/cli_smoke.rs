@@ -273,6 +273,53 @@ fn cli_help_prints_subcommands() {
     assert!(stdout.contains("prompt"), "help mentions prompt");
 }
 
+// --- Story 37.8: bring-up integration tests ---
+
+#[test]
+fn init_yes_tier_0_bring_up_exits_zero() {
+    // --yes → tier 0 → no server to start → exits 0 cleanly.
+    // DATABASE_URL is not set in CI; tier 0 still exits 0 (just prints a hint).
+    let dir = TempDir::new().unwrap();
+    anseo()
+        .args(["init", "--yes", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+}
+
+#[test]
+fn init_recovery_skips_scaffold_when_anseo_yaml_exists() {
+    // Pre-write an anseo.yaml (tier 0) to simulate a prior completed scaffold.
+    // Running `anseo init` again WITHOUT --force should:
+    //   - NOT re-write the files (dirty-init recovery path)
+    //   - exit 0 (bring-up for tier 0 is a no-op)
+    let dir = TempDir::new().unwrap();
+    // First init to get a valid anseo.yaml.
+    anseo()
+        .args(["init", "--yes", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    // Overwrite README.md with a sentinel to detect if scaffold ran again.
+    let readme = dir.path().join("README.md");
+    std::fs::write(&readme, "SENTINEL\n").unwrap();
+
+    // Second init (no --force) → recovery path, no scaffold.
+    anseo()
+        .args(["init", "--yes", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    // README.md must still contain the sentinel (not re-scaffolded).
+    let contents = std::fs::read_to_string(&readme).unwrap();
+    assert_eq!(
+        contents, "SENTINEL\n",
+        "init recovery must not re-write files when anseo.yaml already exists"
+    );
+}
+
 #[test]
 fn config_error_exits_with_code_64() {
     // Pointing the list command at a non-existent config triggers ConfigError,
