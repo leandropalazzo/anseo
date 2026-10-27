@@ -23,7 +23,7 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 tracing = { workspace = true }
 toml = "0.8"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls-native-roots"] }
 # Optional: only compiled in when `signing-tools` is enabled (keygen RNG).
 rand = { version = "0.8", optional = true }
 

@@ -31,7 +31,7 @@ anyhow = { workspace = true }
 sha2 = { workspace = true }
 hmac = { workspace = true }
 subtle = { workspace = true }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
 
 [dev-dependencies]
 tokio-test = { workspace = true }
