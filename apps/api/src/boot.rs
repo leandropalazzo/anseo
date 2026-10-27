@@ -161,16 +161,42 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
                         "seeded projects row for bootstrap key (project did not exist)"
                     );
                 }
-                storage
+                match storage
                     .api_keys()
                     .insert(project_id, "bootstrap", &hash, &prefix)
-                    .await?;
-                tracing::info!(
-                    event = "service.bootstrap_key_seeded",
-                    project = %project_id,
-                    "seeded bootstrap API key from ANSEO_BOOTSTRAP_API_KEY (project had no active keys)"
-                );
-                active_keys = 1;
+                    .await
+                {
+                    Ok(_) => {
+                        tracing::info!(
+                            event = "service.bootstrap_key_seeded",
+                            project = %project_id,
+                            "seeded bootstrap API key from ANSEO_BOOTSTRAP_API_KEY (project had no active keys)"
+                        );
+                        active_keys = 1;
+                    }
+                    // `api_keys.sha256_hash` is globally unique, not unique per
+                    // project, so the same ANSEO_BOOTSTRAP_API_KEY cannot be
+                    // seeded for a second project. That happens routinely when
+                    // the brand is renamed or a project is added: identity moves,
+                    // the new project has no keys, and seeding collides. Failing
+                    // the boot leaves an unstartable server reporting a Postgres
+                    // constraint name, so say what is wrong and carry on — the
+                    // bind guard below still refuses an unsafe keyless bind.
+                    Err(anseo_storage::Error::Sqlx(sqlx::Error::Database(db)))
+                        if db.is_unique_violation() =>
+                    {
+                        tracing::warn!(
+                            event = "service.bootstrap_key_conflict",
+                            project = %project_id,
+                            "ANSEO_BOOTSTRAP_API_KEY already belongs to a different project; \
+                             API keys are globally unique by hash, so it cannot also be seeded \
+                             for this one. Booting without seeding — give this project its own \
+                             key, or point brand.name in anseo.yaml at the project the key \
+                             belongs to"
+                        );
+                    }
+                    Err(err) => return Err(err.into()),
+                }
             }
         }
     }
