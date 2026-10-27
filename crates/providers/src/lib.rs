@@ -145,7 +145,7 @@ impl ProviderError {
 /// untrusted certificate) only lives in `source()`, so an operator seeing just
 /// the top frame cannot tell a bad proxy from an intercepted TLS handshake.
 /// Walk the chain so the reason travels with the error.
-fn describe_reqwest_err(err: &reqwest::Error) -> String {
+pub(crate) fn describe_reqwest_err(err: &reqwest::Error) -> String {
     use std::error::Error as _;
 
     let mut out = err.to_string();

@@ -47,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
     // the orchestrator. Provider keys + concurrency come from `anseo.yaml`;
     // brand identity is overlaid per project each tick by the fan-out.
     let config_path = std::env::var("ANSEO_CONFIG").unwrap_or_else(|_| "anseo.yaml".into());
-    let dispatch = load_dispatch_context(&config_path);
+    let dispatch = load_dispatch_context(&config_path).await;
     if dispatch.is_none() {
         tracing::warn!(
             event = "worker.dispatch_disabled",

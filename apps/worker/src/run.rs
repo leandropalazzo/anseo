@@ -358,12 +358,25 @@ async fn run_tick(
 /// provider registry, mirroring the binary's boot logic. Returns `None` when the
 /// config is unreadable or the registry can't be built (degraded mode: reaper +
 /// webhooks + ETL still run). Shared so `ogeo serve` reuses the same wiring.
-pub fn load_dispatch_context(config_path: &str) -> Option<DispatchContext> {
+pub async fn load_dispatch_context(config_path: &str) -> Option<DispatchContext> {
     let config: Option<anseo_core::Config> = std::fs::read_to_string(config_path)
         .ok()
         .and_then(|yaml| anseo_core::Config::from_yaml_str(&yaml).ok());
     let config = config?;
-    let registry = match anseo_providers::registry::build_real_registry(&config) {
+    // Same best-effort catalog the API fetches: a routed provider whose slug
+    // OpenRouter does not list is refused at registration rather than failing
+    // every scheduled run it is given.
+    let catalog = match anseo_providers::registry::resolve_provider_secret(
+        &anseo_core::ProviderName::Openrouter,
+        &config.project_id().to_string(),
+    ) {
+        Ok(Some(secret)) => anseo_providers::openrouter::OpenRouterCatalog::fetch(&secret).await,
+        _ => None,
+    };
+    let registry = match anseo_providers::registry::build_real_registry_with_catalog(
+        &config,
+        catalog.as_ref(),
+    ) {
         Ok(reg) => reg,
         Err(err) => {
             tracing::warn!(

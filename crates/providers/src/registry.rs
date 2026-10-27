@@ -31,7 +31,9 @@ use crate::{
     gemini::GeminiProvider,
     grok::GrokProvider,
     mistral::MistralProvider,
-    openrouter::{OpenRouterProvider, RoutedOpenRouterProvider},
+    openrouter::{
+        default_routed_slug, OpenRouterCatalog, OpenRouterProvider, RoutedOpenRouterProvider,
+    },
     perplexity::PerplexityProvider,
     AnthropicProvider, OpenAiProvider, Provider, ProviderRegistry,
 };
@@ -129,6 +131,19 @@ fn build_client(name: &ProviderName, secret: Secret) -> Arc<dyn Provider> {
 ///    never listed in `anseo.yaml` — the previous behaviour silently ignored
 ///    such keys. Handlers source the model from `ProviderName::default_model`.
 pub fn build_real_registry(config: &Config) -> Result<ProviderRegistry, SecretStoreError> {
+    build_real_registry_with_catalog(config, None)
+}
+
+/// As [`build_real_registry`], but refusing to register an OpenRouter-routed
+/// provider whose slug the aggregator does not list.
+///
+/// `catalog` is `None` for callers that cannot reach the network or do not
+/// want to pay for the fetch; validation is then skipped and behaviour is
+/// identical to [`build_real_registry`].
+pub fn build_real_registry_with_catalog(
+    config: &Config,
+    catalog: Option<&OpenRouterCatalog>,
+) -> Result<ProviderRegistry, SecretStoreError> {
     // Story 36.7: provider secrets are keyed per project. Derive the project
     // identity from the config (the same stable `ProjectId` used elsewhere) so
     // each project resolves its own keys, with a back-compat fall through to
@@ -176,6 +191,25 @@ pub fn build_real_registry(config: &Config) -> Result<ProviderRegistry, SecretSt
         for name in OPENROUTER_ROUTABLE_PROVIDERS {
             if registry.contains_key(&name) {
                 continue;
+            }
+            // The slug this fallback would send is the provider's own default
+            // model behind OpenRouter's vendor segment — and that is only a
+            // real OpenRouter slug by coincidence. When the catalog says it is
+            // not one, registering the client would buy nothing but a run that
+            // fails with `provider_invalid_response` every time it fires.
+            if let (Some(catalog), Some(slug)) = (catalog, default_routed_slug(&name)) {
+                if !catalog.accepts(&slug) {
+                    tracing::warn!(
+                        event = "providers.openrouter_slug_unknown",
+                        provider = %name,
+                        slug = %slug,
+                        "OpenRouter does not list `{slug}`, so `{name}` is not registered \
+                         through it — every run would fail as provider_invalid_response. \
+                         Declare an `openrouter` provider with an explicit `models:` list \
+                         of slugs from https://openrouter.ai/api/v1/models instead"
+                    );
+                    continue;
+                }
             }
             if let Some(client) =
                 RoutedOpenRouterProvider::new(name.clone(), openrouter_secret.clone())

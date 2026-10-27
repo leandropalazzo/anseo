@@ -53,17 +53,34 @@ pub struct RoutedOpenRouterProvider {
     inner: OpenRouterProvider,
 }
 
+/// OpenRouter's vendor segment for a first-party provider, or `None` for the
+/// providers that cannot be routed through it.
+pub fn upstream_vendor_for(target: &ProviderName) -> Option<&'static str> {
+    match target {
+        ProviderName::Openai => Some("openai"),
+        ProviderName::Anthropic => Some("anthropic"),
+        ProviderName::Gemini => Some("google"),
+        ProviderName::Perplexity => Some("perplexity"),
+        ProviderName::Grok => Some("x-ai"),
+        ProviderName::Mistral => Some("mistralai"),
+        ProviderName::Openrouter | ProviderName::Plugin(_) => None,
+    }
+}
+
+/// The slug a routed provider sends when no model is configured — its vendor
+/// segment joined to the provider's own default model.
+///
+/// This is the string that must exist in OpenRouter's catalog. It frequently
+/// does not: a vendor-native id like `claude-3-5-sonnet-20241022` is not an
+/// OpenRouter slug, and prefixing the vendor does not make it one.
+pub fn default_routed_slug(target: &ProviderName) -> Option<String> {
+    let vendor = upstream_vendor_for(target)?;
+    Some(format!("{vendor}/{}", target.default_model()))
+}
+
 impl RoutedOpenRouterProvider {
     pub fn new(target: ProviderName, api_key: Secret) -> Option<Self> {
-        let upstream_vendor = match target {
-            ProviderName::Openai => "openai",
-            ProviderName::Anthropic => "anthropic",
-            ProviderName::Gemini => "google",
-            ProviderName::Perplexity => "perplexity",
-            ProviderName::Grok => "x-ai",
-            ProviderName::Mistral => "mistralai",
-            ProviderName::Openrouter | ProviderName::Plugin(_) => return None,
-        };
+        let upstream_vendor = upstream_vendor_for(&target)?;
         Some(Self {
             target,
             upstream_vendor,
@@ -217,6 +234,102 @@ fn build_chat_body(request: &ProviderRequest) -> serde_json::Value {
     body
 }
 
+/// How long the catalog fetch may take before registration gives up on it.
+/// Short on purpose: this runs on the boot path, and an unreachable
+/// aggregator must not hold the process up.
+const CATALOG_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// The set of model slugs OpenRouter currently serves.
+///
+/// Registration uses this to refuse a routed provider whose slug the
+/// aggregator does not list. Without it, a provider whose default model is not
+/// an OpenRouter slug registers happily and then fails every single run with
+/// `provider_invalid_response` — the aggregator answers HTTP 400, which is
+/// indistinguishable at a glance from a malformed reply.
+#[derive(Debug, Clone)]
+pub struct OpenRouterCatalog {
+    slugs: std::collections::HashSet<String>,
+}
+
+impl OpenRouterCatalog {
+    /// Fetch the catalog from the default OpenRouter endpoint.
+    ///
+    /// `None` means the catalog could not be established — offline, blocked,
+    /// rate-limited, or a shape we do not recognise. Callers treat that as
+    /// "cannot validate" and register as before, because refusing to register
+    /// providers on a failed network call would be worse than the bug this
+    /// guards against.
+    pub async fn fetch(api_key: &Secret) -> Option<Self> {
+        Self::fetch_from(api_key, DEFAULT_OPENROUTER_BASE_URL).await
+    }
+
+    /// As [`fetch`](Self::fetch), against an explicit base URL (tests).
+    pub async fn fetch_from(api_key: &Secret, base_url: &str) -> Option<Self> {
+        let url = format!("{base_url}/v1/models");
+        let client = reqwest::Client::builder()
+            .user_agent("anseo/0.1 (+https://anseo.ai)")
+            .build()
+            .ok()?;
+        let response = match client
+            .get(&url)
+            .bearer_auth(api_key.expose())
+            .timeout(CATALOG_TIMEOUT)
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(err) => {
+                tracing::warn!(
+                    event = "providers.openrouter_catalog_unavailable",
+                    error = %crate::describe_reqwest_err(&err),
+                    "could not fetch the OpenRouter model catalog; routed providers \
+                     will be registered without slug validation"
+                );
+                return None;
+            }
+        };
+        if !response.status().is_success() {
+            tracing::warn!(
+                event = "providers.openrouter_catalog_unavailable",
+                status = response.status().as_u16(),
+                "OpenRouter model catalog returned a non-success status; routed \
+                 providers will be registered without slug validation"
+            );
+            return None;
+        }
+        let body: serde_json::Value = response.json().await.ok()?;
+        Self::from_models_body(&body)
+    }
+
+    /// Parse a `/v1/models` body into a catalog. `None` when the response
+    /// carries no usable ids, so a shape change degrades to "cannot validate"
+    /// rather than to "every slug is invalid".
+    pub fn from_models_body(body: &serde_json::Value) -> Option<Self> {
+        let slugs: std::collections::HashSet<String> = body
+            .get("data")?
+            .as_array()?
+            .iter()
+            .filter_map(|m| m.get("id")?.as_str().map(str::to_string))
+            .collect();
+        if slugs.is_empty() {
+            return None;
+        }
+        Some(Self { slugs })
+    }
+
+    pub fn accepts(&self, slug: &str) -> bool {
+        self.slugs.contains(slug)
+    }
+
+    pub fn len(&self) -> usize {
+        self.slugs.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.slugs.is_empty()
+    }
+}
+
 fn extract_message_text(raw: &serde_json::Value) -> Option<String> {
     raw.get("choices")?
         .get(0)?
@@ -289,6 +402,47 @@ mod tests {
             ]
         });
         assert_eq!(extract_message_text(&raw).as_deref(), Some("hello"));
+    }
+
+    #[test]
+    fn default_routed_slug_joins_vendor_and_default_model() {
+        // The exact strings that reach OpenRouter for an unconfigured fallback.
+        assert_eq!(
+            default_routed_slug(&ProviderName::Openai).as_deref(),
+            Some("openai/gpt-4o-2024-08-06")
+        );
+        assert_eq!(
+            default_routed_slug(&ProviderName::Anthropic).as_deref(),
+            Some("anthropic/claude-3-5-sonnet-20241022")
+        );
+        // Not routable through itself, nor as a plugin.
+        assert_eq!(default_routed_slug(&ProviderName::Openrouter), None);
+    }
+
+    #[test]
+    fn catalog_accepts_only_listed_slugs() {
+        let body = serde_json::json!({
+            "data": [
+                {"id": "openai/gpt-4o-2024-08-06"},
+                {"id": "anthropic/claude-3.5-sonnet"}
+            ]
+        });
+        let catalog = OpenRouterCatalog::from_models_body(&body).expect("catalog");
+        assert_eq!(catalog.len(), 2);
+        assert!(catalog.accepts("openai/gpt-4o-2024-08-06"));
+        // The vendor-prefixed native id — the shape that silently fails today.
+        assert!(!catalog.accepts("anthropic/claude-3-5-sonnet-20241022"));
+    }
+
+    /// A shape we cannot read must mean "cannot validate", never "nothing is
+    /// valid" — otherwise an API change would unregister every provider.
+    #[test]
+    fn catalog_is_none_for_unusable_bodies() {
+        assert!(OpenRouterCatalog::from_models_body(&serde_json::json!({})).is_none());
+        assert!(OpenRouterCatalog::from_models_body(&serde_json::json!({"data": []})).is_none());
+        assert!(
+            OpenRouterCatalog::from_models_body(&serde_json::json!({"data": "nope"})).is_none()
+        );
     }
 
     #[test]

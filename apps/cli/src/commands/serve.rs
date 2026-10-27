@@ -179,7 +179,7 @@ pub async fn run(args: ServeArgs) -> Result<(), OpenGeoError> {
     let worker_storage = Storage::connect(&database_url)
         .await
         .map_err(|e| OpenGeoError::Config(format!("worker failed to connect to Postgres: {e}")))?;
-    let dispatch = load_dispatch_context(&config_path);
+    let dispatch = load_dispatch_context(&config_path).await;
     if dispatch.is_none() {
         tracing::warn!(
             event = "serve.dispatch_disabled",

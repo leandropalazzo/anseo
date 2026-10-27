@@ -66,8 +66,33 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
             .unwrap_or_default(),
     };
 
+    // Fetch OpenRouter's catalog once so registration can reject a routed
+    // provider whose slug the aggregator does not serve. Best-effort: when it
+    // cannot be reached, registration proceeds unvalidated rather than
+    // refusing providers because of a network failure.
+    let openrouter_catalog = match anseo_providers::registry::resolve_provider_secret(
+        &anseo_core::ProviderName::Openrouter,
+        &loaded_config
+            .as_ref()
+            .map(|c| c.project_id().to_string())
+            .unwrap_or_default(),
+    ) {
+        Ok(Some(secret)) => anseo_providers::openrouter::OpenRouterCatalog::fetch(&secret).await,
+        _ => None,
+    };
+    if let Some(catalog) = openrouter_catalog.as_ref() {
+        tracing::info!(
+            event = "service.openrouter_catalog_loaded",
+            models = catalog.len(),
+            "loaded OpenRouter model catalog for routed-provider validation"
+        );
+    }
+
     let provider_registry = match loaded_config.as_ref() {
-        Some(cfg) => match anseo_providers::registry::build_real_registry(cfg) {
+        Some(cfg) => match anseo_providers::registry::build_real_registry_with_catalog(
+            cfg,
+            openrouter_catalog.as_ref(),
+        ) {
             Ok(reg) => Some(Arc::new(reg)),
             Err(err) => {
                 tracing::warn!(
