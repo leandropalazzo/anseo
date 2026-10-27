@@ -106,6 +106,27 @@ pub async fn build_api(opts: ApiBootConfig) -> Result<BootedApi, Box<dyn std::er
             brand = %brand.name,
             "brand config loaded from DB (overrides anseo.yaml)"
         );
+    } else {
+        // `get_single_brand` answers only when exactly one project exists, so
+        // creating a second one silently hands identity back to `anseo.yaml`.
+        // That re-scopes provider-secret lookup: keys saved from the dashboard
+        // belong to the project selected there, and a config brand naming no
+        // existing project resolves none of them — every scheduled run then
+        // dispatches nothing while the UI still lists the keys as configured.
+        // Say so at boot rather than leaving a silent zero-dispatch loop.
+        let projects = storage.projects().list_projects().await?;
+        if let Some(known) = mismatched_project_names(project_id, &projects) {
+            tracing::warn!(
+                event = "service.project_identity_mismatch",
+                project = %project_id,
+                brand = %configured_project,
+                known_projects = %known,
+                "anseo.yaml brand `{configured_project}` matches no existing project ({known}); \
+                 provider keys are project-scoped, so dashboard-saved keys will not resolve and \
+                 scheduled runs will dispatch nothing — set brand.name in anseo.yaml to the \
+                 project you actually use"
+            );
+        }
     }
 
     let configured_project = Arc::new(configured_project);
@@ -273,4 +294,75 @@ pub fn spawn_notify_bridge(
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }
     });
+}
+
+/// Names of the existing projects when `project_id` matches none of them.
+///
+/// `None` means there is nothing to warn about: either the configured project
+/// exists, or the deployment has no projects yet (a first boot, where the
+/// bootstrap path seeds one). Pulled out of [`build_api`] so the condition is
+/// testable without a database.
+fn mismatched_project_names(
+    project_id: anseo_core::ProjectId,
+    projects: &[anseo_storage::models::ProjectRow],
+) -> Option<String> {
+    if projects.is_empty() || projects.iter().any(|p| p.id == project_id) {
+        return None;
+    }
+    Some(
+        projects
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", "),
+    )
+}
+
+#[cfg(test)]
+mod boot_tests {
+    use super::*;
+    use anseo_storage::models::ProjectRow;
+
+    fn project(name: &str) -> ProjectRow {
+        ProjectRow {
+            id: anseo_core::project_id_for_name(name),
+            name: name.to_string(),
+            organization_id: None,
+            tenant_id: None,
+            created_at: chrono::Utc::now(),
+        }
+    }
+
+    #[test]
+    fn no_warning_on_first_boot_with_no_projects() {
+        let id = anseo_core::project_id_for_name("Anseo Local");
+        assert_eq!(mismatched_project_names(id, &[]), None);
+    }
+
+    #[test]
+    fn no_warning_when_the_configured_project_exists() {
+        let rows = [project("commercetools"), project("Anseo Local")];
+        let id = anseo_core::project_id_for_name("commercetools");
+        assert_eq!(mismatched_project_names(id, &rows), None);
+    }
+
+    /// The regression this exists for: a second project makes
+    /// `get_single_brand` return `None`, identity falls back to `anseo.yaml`,
+    /// and provider secrets are then looked up under a project that does not
+    /// exist — so nothing dispatches and nothing says why.
+    #[test]
+    fn warns_when_config_brand_names_no_existing_project() {
+        let rows = [project("commercetools")];
+        let id = anseo_core::project_id_for_name("Anseo Local");
+        let known = mismatched_project_names(id, &rows).expect("should warn");
+        assert_eq!(known, "commercetools");
+    }
+
+    #[test]
+    fn warning_lists_every_known_project() {
+        let rows = [project("commercetools"), project("acme")];
+        let id = anseo_core::project_id_for_name("Anseo Local");
+        let known = mismatched_project_names(id, &rows).expect("should warn");
+        assert_eq!(known, "commercetools, acme");
+    }
 }

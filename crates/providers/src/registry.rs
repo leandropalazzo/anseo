@@ -189,5 +189,20 @@ pub fn build_real_registry(config: &Config) -> Result<ProviderRegistry, SecretSt
         }
     }
 
+    // An empty registry cannot run anything, and the symptom is mute: the
+    // worker sweeps forever reporting `dispatched_events = 0`. Secrets are
+    // resolved under the project derived from `anseo.yaml`, so a key saved
+    // against a different project leaves this empty while the dashboard still
+    // shows it configured. Name the project the lookup actually used.
+    if registry.is_empty() {
+        tracing::warn!(
+            event = "providers.registry_empty",
+            project = %project_id,
+            "no provider has a usable key for project `{project_id}`; scheduled runs will \
+             dispatch nothing. Provider secrets are project-scoped — check the key was saved \
+             for this project, and that brand.name in anseo.yaml names it"
+        );
+    }
+
     Ok(registry)
 }
