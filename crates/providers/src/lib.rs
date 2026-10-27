@@ -137,21 +137,48 @@ impl ProviderError {
     }
 }
 
+/// Render a `reqwest::Error` with its full source chain.
+///
+/// `reqwest::Error`'s `Display` stops at the top frame — a transport failure
+/// renders as a bare `error sending request for url (...)`, which names the URL
+/// and nothing about *why*. The cause (DNS failure, refused connection, an
+/// untrusted certificate) only lives in `source()`, so an operator seeing just
+/// the top frame cannot tell a bad proxy from an intercepted TLS handshake.
+/// Walk the chain so the reason travels with the error.
+fn describe_reqwest_err(err: &reqwest::Error) -> String {
+    use std::error::Error as _;
+
+    let mut out = err.to_string();
+    let mut source = err.source();
+    while let Some(cause) = source {
+        let text = cause.to_string();
+        // Each layer often re-wraps the layer below verbatim; skip frames that
+        // add no new words rather than printing the same sentence three times.
+        if !out.contains(&text) {
+            out.push_str(": ");
+            out.push_str(&text);
+        }
+        source = cause.source();
+    }
+    out
+}
+
 /// Map a `reqwest::Error` to the closed Phase 1 taxonomy.
 pub fn map_reqwest_err(err: reqwest::Error) -> ProviderError {
+    let detail = describe_reqwest_err(&err);
     if err.is_timeout() {
-        ProviderError::timeout(err.to_string())
+        ProviderError::timeout(detail)
     } else if err.is_connect() || err.is_request() {
-        ProviderError::network(err.to_string())
+        ProviderError::network(detail)
     } else if let Some(status) = err.status() {
         match status.as_u16() {
-            401 | 403 => ProviderError::unauthorized(err.to_string()),
-            429 => ProviderError::rate_limited(err.to_string()),
-            500..=599 => ProviderError::five_xx(err.to_string()),
-            _ => ProviderError::invalid_response(err.to_string()),
+            401 | 403 => ProviderError::unauthorized(detail),
+            429 => ProviderError::rate_limited(detail),
+            500..=599 => ProviderError::five_xx(detail),
+            _ => ProviderError::invalid_response(detail),
         }
     } else {
-        ProviderError::network(err.to_string())
+        ProviderError::network(detail)
     }
 }
 
@@ -317,5 +344,42 @@ mod lib_tests {
         let dbg = format!("{client:?}");
         assert!(!dbg.contains("sk-super-secret"), "secret leaked: {dbg}");
         assert!(dbg.contains("api.example.com"), "base_url missing: {dbg}");
+    }
+
+    /// A transport failure must carry WHY it failed, not just the URL.
+    /// `reqwest::Error`'s own `Display` stops at `error sending request for
+    /// url (...)`, which cannot distinguish a refused connection from an
+    /// untrusted certificate — the two have very different fixes.
+    #[tokio::test]
+    async fn network_error_message_carries_the_underlying_cause() {
+        // Bind then drop, so the port is closed but reserved to nobody: a
+        // connect there is refused deterministically, with no network access.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind ephemeral port");
+        let port = listener.local_addr().expect("local addr").port();
+        drop(listener);
+
+        let err = reqwest::Client::new()
+            .get(format!("http://127.0.0.1:{port}/"))
+            .send()
+            .await
+            .expect_err("connecting to a closed port must fail");
+
+        let top = err.to_string();
+        let full = describe_reqwest_err(&err);
+
+        assert!(
+            full.len() > top.len(),
+            "expected the source chain to add detail beyond `{top}`, got `{full}`"
+        );
+        assert!(
+            full.starts_with(&top),
+            "rendered error must keep the top frame first: `{full}`"
+        );
+
+        // And the taxonomy mapping must carry that detail through, not re-render
+        // the bare top frame.
+        let mapped = map_reqwest_err(err);
+        assert_eq!(mapped.kind, ProviderErrorKind::NetworkError);
+        assert_eq!(mapped.message, full);
     }
 }
