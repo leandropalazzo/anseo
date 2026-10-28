@@ -74,8 +74,8 @@ pub fn upstream_vendor_for(target: &ProviderName) -> Option<&'static str> {
 /// does not: a vendor-native id like `claude-3-5-sonnet-20241022` is not an
 /// OpenRouter slug, and prefixing the vendor does not make it one.
 pub fn default_routed_slug(target: &ProviderName) -> Option<String> {
-    let vendor = upstream_vendor_for(target)?;
-    Some(format!("{vendor}/{}", target.default_model()))
+    upstream_vendor_for(target)?;
+    target.default_openrouter_model().map(str::to_string)
 }
 
 impl RoutedOpenRouterProvider {
@@ -89,11 +89,22 @@ impl RoutedOpenRouterProvider {
     }
 
     fn upstream_model(&self, model: &str) -> String {
+        // Already a slug: the caller named an OpenRouter model outright.
         if model.contains('/') {
-            model.to_string()
-        } else {
-            format!("{}/{}", self.upstream_vendor, model)
+            return model.to_string();
         }
+        // Nothing was configured, so the orchestrator handed us the provider's
+        // NATIVE default. Prefixing the vendor onto that yields a slug
+        // OpenRouter rejects, so swap in the routed default instead.
+        if model == self.target.default_model() {
+            if let Some(routed) = self.target.default_openrouter_model() {
+                return routed.to_string();
+            }
+        }
+        // An explicitly configured bare model name: prefix the vendor and let
+        // OpenRouter judge it. Guessing further would hide the operator's
+        // intent behind a default they did not ask for.
+        format!("{}/{}", self.upstream_vendor, model)
     }
 }
 
@@ -404,19 +415,73 @@ mod tests {
         assert_eq!(extract_message_text(&raw).as_deref(), Some("hello"));
     }
 
+    /// The routed default must come from OpenRouter's namespace, never from
+    /// the vendor's own. Prefixing a native id is what made five of six
+    /// providers fail every run with HTTP 400.
     #[test]
-    fn default_routed_slug_joins_vendor_and_default_model() {
-        // The exact strings that reach OpenRouter for an unconfigured fallback.
+    fn default_routed_slug_uses_the_openrouter_namespace() {
+        assert_eq!(
+            default_routed_slug(&ProviderName::Anthropic).as_deref(),
+            Some("anthropic/claude-sonnet-5.5")
+        );
+        assert_ne!(
+            default_routed_slug(&ProviderName::Anthropic).as_deref(),
+            Some("anthropic/claude-3-5-sonnet-20241022"),
+            "the vendor-prefixed native id is not an OpenRouter slug"
+        );
+        // OpenAI is the one case where the two namespaces agree.
         assert_eq!(
             default_routed_slug(&ProviderName::Openai).as_deref(),
             Some("openai/gpt-4o-2024-08-06")
         );
-        assert_eq!(
-            default_routed_slug(&ProviderName::Anthropic).as_deref(),
-            Some("anthropic/claude-3-5-sonnet-20241022")
-        );
         // Not routable through itself, nor as a plugin.
         assert_eq!(default_routed_slug(&ProviderName::Openrouter), None);
+    }
+
+    /// Every routed slug must carry a vendor segment, or OpenRouter rejects it
+    /// on shape before it even looks the model up.
+    #[test]
+    fn every_routed_default_is_a_valid_slug_shape() {
+        for target in [
+            ProviderName::Openai,
+            ProviderName::Anthropic,
+            ProviderName::Gemini,
+            ProviderName::Perplexity,
+            ProviderName::Grok,
+            ProviderName::Mistral,
+        ] {
+            let slug = default_routed_slug(&target).expect("routable provider has a slug");
+            assert!(
+                is_vendor_slash_model(&slug),
+                "{target} routed default `{slug}` is not <vendor>/<model>"
+            );
+            let vendor = upstream_vendor_for(&target).expect("routable provider has a vendor");
+            assert!(
+                slug.starts_with(&format!("{vendor}/")),
+                "{target} routed default `{slug}` does not sit under `{vendor}/`"
+            );
+        }
+    }
+
+    /// The orchestrator passes the NATIVE default when nothing is configured;
+    /// the routed provider has to translate it rather than prefix it.
+    #[test]
+    fn unconfigured_model_is_translated_not_prefixed() {
+        let routed =
+            RoutedOpenRouterProvider::new(ProviderName::Anthropic, Secret::new("k")).unwrap();
+        let native = ProviderName::Anthropic.default_model();
+        assert_eq!(routed.upstream_model(native), "anthropic/claude-sonnet-5.5");
+        // An explicit slug is passed through untouched.
+        assert_eq!(
+            routed.upstream_model("anthropic/claude-opus-5.5"),
+            "anthropic/claude-opus-5.5"
+        );
+        // An explicitly configured bare name keeps the old prefixing, so the
+        // operator's choice is not silently replaced by a default.
+        assert_eq!(
+            routed.upstream_model("some-custom-model"),
+            "anthropic/some-custom-model"
+        );
     }
 
     #[test]

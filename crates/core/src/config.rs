@@ -54,6 +54,24 @@ pub const DEFAULT_GROK_MODEL: &str = "grok-2-1212";
 pub const DEFAULT_MISTRAL_MODEL: &str = "mistral-large-2411";
 pub const DEFAULT_OPENROUTER_MODEL: &str = "openrouter/auto";
 
+/// Default slug to send when a provider is reached *through OpenRouter*.
+///
+/// OpenRouter keeps its own catalog, and its ids are not the vendors' native
+/// ones. Prefixing the vendor onto a native id happens to work for OpenAI,
+/// because OpenRouter mirrors OpenAI's ids verbatim — and for nobody else:
+/// `anthropic/claude-3-5-sonnet-20241022` is not a slug OpenRouter serves, so
+/// every run through it returns HTTP 400. Keep the routed default separate
+/// from the native one, because the two namespaces drift independently.
+///
+/// Verified against `https://openrouter.ai/api/v1/models` on 2026-10-27.
+/// These will age; `OpenRouterCatalog` is what keeps that from being silent.
+pub const DEFAULT_OPENROUTER_ROUTED_OPENAI: &str = "openai/gpt-4o-2024-08-06";
+pub const DEFAULT_OPENROUTER_ROUTED_ANTHROPIC: &str = "anthropic/claude-sonnet-5.5";
+pub const DEFAULT_OPENROUTER_ROUTED_GEMINI: &str = "google/gemini-2.5-pro";
+pub const DEFAULT_OPENROUTER_ROUTED_PERPLEXITY: &str = "perplexity/sonar-pro";
+pub const DEFAULT_OPENROUTER_ROUTED_GROK: &str = "x-ai/grok-4.7";
+pub const DEFAULT_OPENROUTER_ROUTED_MISTRAL: &str = "mistralai/mistral-large-2512";
+
 /// Default debounce window for schedule declarations.
 pub const DEFAULT_SCHEDULE_DEBOUNCE_MINUTES: u32 = 5;
 
@@ -327,6 +345,24 @@ impl ProviderName {
             // Plugin providers declare their own model; this is only a
             // fallback label used when none is supplied.
             Self::Plugin(_) => "plugin",
+        }
+    }
+
+    /// The slug to send for this provider when the call is routed through
+    /// OpenRouter, or `None` for providers OpenRouter cannot front.
+    ///
+    /// Deliberately not derived from [`default_model`](Self::default_model):
+    /// OpenRouter's catalog is its own namespace, and pasting a vendor prefix
+    /// onto a native model id produces a slug it rejects.
+    pub fn default_openrouter_model(&self) -> Option<&'static str> {
+        match self {
+            Self::Openai => Some(DEFAULT_OPENROUTER_ROUTED_OPENAI),
+            Self::Anthropic => Some(DEFAULT_OPENROUTER_ROUTED_ANTHROPIC),
+            Self::Gemini => Some(DEFAULT_OPENROUTER_ROUTED_GEMINI),
+            Self::Perplexity => Some(DEFAULT_OPENROUTER_ROUTED_PERPLEXITY),
+            Self::Grok => Some(DEFAULT_OPENROUTER_ROUTED_GROK),
+            Self::Mistral => Some(DEFAULT_OPENROUTER_ROUTED_MISTRAL),
+            Self::Openrouter | Self::Plugin(_) => None,
         }
     }
 
